@@ -1,12 +1,11 @@
-#![crate_id="regexp"]
-#![crate_type="lib"]
-
 //! A basic regexp class.
 
 extern crate collections;
-use std::iter::FromIterator;
+
+use std::fmt;
+use std::slice;
+use std::iter::{FromIterator, range_inclusive};
 use collections::hashmap::HashSet;
-use std::iter::range_inclusive;
 
 /// A character class
 pub enum CharClass {
@@ -53,8 +52,8 @@ struct NFAState {
     transitions: ~[Transition],
 }
 
-impl std::fmt::Show for CharClass {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Show for CharClass {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Alpha => write!(f.buf, "{}", "\\a"),
             AlphaNum => write!(f.buf, "{}", "\\@"),
@@ -268,7 +267,7 @@ impl NFA {
         );
         //TODO(mrwright): there *has* to be some way to do this without
         // cloning...
-        self.states = std::slice::append(self.states.clone(), n2.states);
+        self.states = slice::append(self.states.clone(), n2.states);
     }
 
     /// Mutate `self` so that it becomes an NFA accepting strings that
@@ -501,8 +500,8 @@ impl Regexp {
 // Pretty-printing: converts a regexp object back into a regexp.
 // The string we get should always parse back to the same regexp
 // object that we started with.
-impl std::fmt::Show for Regexp {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Show for Regexp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Empty => write!(f.buf, ""),
             SingleCharacter(x) => write!(f.buf, "{}", x),
@@ -514,7 +513,7 @@ impl std::fmt::Show for Regexp {
     }
 }
 
-impl std::cmp::Eq for Regexp {
+impl Eq for Regexp {
     //TODO: there has to be a better way to do this...
 
     /// Tests for structural equality, not semantic equality.
@@ -542,13 +541,7 @@ impl std::cmp::Eq for Regexp {
 
 #[cfg(test)]
 mod tests {
-    use Regexp;
-    use Concat;
-    use Alternate;
-    use SingleCharacter;
-    use Star;
-    use CharacterClass;
-    use Num;
+    use super::*;
 
     #[test]
     fn test_parsing() {
