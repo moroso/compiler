@@ -1,6 +1,6 @@
 # At the moment, all that exists is the regexp library.
 
-all: regexp regexp-tests lexer-tests docs
+all: regexp-tests lexer-tests docs
 
 docs: doc/regexp/index.html
 
