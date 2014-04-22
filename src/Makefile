@@ -1,6 +1,4 @@
-# At the moment, all that exists is the regexp library.
-
-all: regexp-tests lexer-tests docs
+all: regexp-tests lexer-tests parser-tests docs
 
 docs: doc/regexp/index.html
 
@@ -8,6 +6,8 @@ doc/%/index.html: %.rs
 	rustdoc $<
 
 lexer-tests: libregexp-*.rlib
+parser-tests: liblexer-*.rlib
+liblexer-*.rlib: libregexp-*.rlib
 
 %-tests: %.rs
 	rustc -L. --test $< -o $@

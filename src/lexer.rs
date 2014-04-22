@@ -17,6 +17,8 @@ pub enum Token {
     HexNumber,
     String,
     Let,
+    LogicalAnd,
+    LogicalOr,
     Character(char),
 }
 
@@ -42,6 +44,12 @@ impl Lexer {
         }
     }
 
+    fn add_char_rules(&mut self, s: &str) {
+        for c in s.chars() {
+            self.add_char_rule(c);
+        }
+    }
+
     pub fn new() -> Lexer {
         let mut l: Lexer = Lexer { rules: ~[] };
         // Note: rules are in decreasing order of priority if there's a
@@ -55,13 +63,14 @@ impl Lexer {
                    "*(|(\\#,a,b,c,d,e,f,A,B,C,D,E,F))", HexNumber);
         // TODO: this needs to be improved.
         l.add_rule("\"*(|(\\@,\\ ,\\\\\"))\"", String);
-        l.add_char_rule('(');
-        l.add_char_rule(')');
-        l.add_char_rule('+');
-        l.add_char_rule('-');
-        l.add_char_rule(';');
-        l.add_char_rule(':');
-        l.add_char_rule('=');
+        // TODO: this too.
+        l.add_rule("/\\**(|(\\@,\\ ,\\\\\"))\\*/", WhiteSpace);
+        l.add_rule("&&", LogicalAnd);
+        l.add_rule("\\|\\|", LogicalOr);
+
+        // All individual characters that are valid on their own as tokens.
+        l.add_char_rules("()+-*/;:=!%^&|");
+
         l
     }
 
@@ -102,7 +111,7 @@ mod tests {
     fn test() {
         let l = Lexer::new();
 
-        print!("{:?}\n", l.tokenize("f(x - 0x3f5B)+1 \"Hello\\\" World\""));
+        print!("{:?}\n", l.tokenize("f(x - /* I am a comment */ 0x3f5B)+1 \"Hello\\\" World\""));
         print!("{:?}\n", l.tokenize("let x: int = 5;"));
         assert!(false);
     }
