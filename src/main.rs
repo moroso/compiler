@@ -1,9 +1,12 @@
-#![feature(globs)]
+#![feature(globs,phase,macro_rules)]
 #![allow(dead_code,unused_imports)]
 
-extern crate collections;
+#[phase(syntax)]
+extern crate regexp_macros;
 
-mod regexp;
+extern crate collections;
+extern crate regexp;
+
 mod lexer;
 
 fn main() {
