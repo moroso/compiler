@@ -1,6 +1,3 @@
-#![crate_id="lexer"]
-#![crate_type="lib"]
-extern crate regexp;
 use regexp::Regexp;
 use regexp::NFA;
 
@@ -105,7 +102,7 @@ impl Lexer {
 
 #[cfg(test)]
 mod tests {
-    use Lexer;
+    use super::Lexer;
 
     #[test]
     fn test() {

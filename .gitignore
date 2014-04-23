@@ -1,4 +1,4 @@
 *~
-*.rlib
-*-tests
+mc
+mc-tests
 doc/
