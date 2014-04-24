@@ -135,14 +135,43 @@ impl Lexer {
 
 #[cfg(test)]
 mod tests {
-    use super::Lexer;
+    use super::*;
+
+    fn compare(actual: &[(Token, ~str)], expected: &[(Token, ~str)]) {
+        for (&(actual_token, ref actual_str),
+             &(expected_token, ref expected_str))
+            in actual.iter().zip(expected.iter()) {
+            assert!(actual_token == expected_token &&
+                    actual_str == expected_str,
+                    format!("Failure:\n  Tokens:{:?}, {:?}\n  Strings:{:s}, {:s}\n",
+                            actual_token, expected_token,
+                            *actual_str, *expected_str));
+        }
+    }
 
     #[test]
     fn test() {
         let l = Lexer::new();
 
-        print!("{:?}\n", l.tokenize("f(x - /* I am a comment */ 0x3f5B)+1 \"Hello\\\" World\""));
-        print!("{:?}\n", l.tokenize("let x: int = 5;"));
-        assert!(false);
+        compare(l.tokenize(
+            r#"f(x - /* I am a comment */ 0x3f5B)+1 "Hello\" World")"#),
+                [(Ident, ~"f"),
+                  (LParen, ~"("),
+                  (Ident, ~"x"),
+                  (Sub, ~"-"),
+                  (HexNumber, ~"0x3f5B"),
+                  (RParen, ~")"),
+                  (Add, ~"+"),
+                  (Number, ~"1"),
+                  (String, ~r#""Hello\" World""#),
+                ]);
+        compare(l.tokenize("let x: int = 5;"),
+                [(Let, ~"let"),
+                 (Ident, ~"x"),
+                 (Colon, ~":"),
+                 (Ident, ~"int"),
+                 (Eq, ~"="),
+                 (Number, ~"5"),
+                 ]);
     }
 }
