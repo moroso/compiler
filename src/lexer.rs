@@ -1,22 +1,52 @@
 use regexp::Regexp;
-use regexp::NFA;
+use std::vec::Vec;
+use std::slice::CloneableVector;
 
 /// A single regexp for a token.
+#[deriving(Clone)]
 struct LexerRule {
-    matcher: NFA,
+    matcher: Regexp,
     token: Token,
 }
 
+#[deriving(Eq, Clone)]
 pub enum Token {
-    WhiteSpace,
+    // Whitespace
+    WS,
+
+    // Reserved words
+    Let,
+
+    // Symbols
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    LBracket,
+    RBracket,
+    Less,
+    Greater,
+    And,
+    Or,
+    Xor,
+    AndAnd,
+    OrOr,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Lsh,
+    Rsh,
+    Colon,
+    Semi,
+    Eq,
+    Bang,
+
+    // Literals
     Ident,
     Number,
     HexNumber,
     String,
-    Let,
-    LogicalAnd,
-    LogicalOr,
-    Character(char),
 }
 
 pub struct Lexer {
@@ -24,79 +54,82 @@ pub struct Lexer {
 }
 
 impl Lexer {
-    fn add_rule(&mut self, regexp: &str, token: Token) {
-        let nfa = Regexp::parse(regexp).compile();
-        self.rules.push(LexerRule {
-            matcher: nfa,
-            token: token,
-            }
-        )
-    }
-
-    fn add_char_rule(&mut self, c: char) {
-        if c == '@' || c == '#' || c == 'a' || c == ' ' {
-            self.add_rule(format!("{:c}", c), Character(c));
-        } else {
-            self.add_rule(format!("\\\\{:c}", c), Character(c));
-        }
-    }
-
-    fn add_char_rules(&mut self, s: &str) {
-        for c in s.chars() {
-            self.add_char_rule(c);
-        }
-    }
-
     pub fn new() -> Lexer {
-        let mut l: Lexer = Lexer { rules: ~[] };
+        macro_rules! lexer {
+            ( $( $t:expr => $r:expr ),*) => (
+                Lexer { rules: ~[ $( LexerRule { matcher: regexp!(concat!("^(?:", $r, ")")), token: $t } ),* ] }
+            )
+        }
+
         // Note: rules are in decreasing order of priority if there's a
         // conflict. In particular, reserved words must go before Ident.
+        lexer! {
+            // Whitespace
+            WS         => r"\s|//.*|(?s)/\*.*\*/",
 
-        l.add_rule("let", Let);
-        l.add_rule("*(\\ )", WhiteSpace);
-        l.add_rule("\\a*(\\@)", Ident);
-        l.add_rule("\\#*(\\#)", Number);
-        l.add_rule("0x|(\\#,a,b,c,d,e,f,A,B,C,D,E,F)"+
-                   "*(|(\\#,a,b,c,d,e,f,A,B,C,D,E,F))", HexNumber);
-        // TODO: this needs to be improved.
-        l.add_rule("\"*(|(\\@,\\ ,\\\\\"))\"", String);
-        // TODO: this too.
-        l.add_rule("/\\**(|(\\@,\\ ,\\\\\"))\\*/", WhiteSpace);
-        l.add_rule("&&", LogicalAnd);
-        l.add_rule("\\|\\|", LogicalOr);
+            // Reserved words
+            Let        => r"let",
 
-        // All individual characters that are valid on their own as tokens.
-        l.add_char_rules("()+-*/;:=!%^&|");
+            // Symbols
+            LParen     => r"\(",
+            RParen     => r"\)",
+            LBrace     => r"\{",
+            RBrace     => r"\}",
+            LBracket   => r"\[",
+            RBracket   => r"\]",
+            Less       => r"<",
+            Greater    => r">",
+            And        => r"&",
+            Or         => r"\|",
+            Xor        => r"\^",
+            AndAnd     => r"&&",
+            OrOr       => r"\|\|",
+            Add        => r"\+",
+            Sub        => r"-",
+            Mul        => r"\*",
+            Div        => r"/",
+            Lsh        => r"<<",
+            Rsh        => r">>",
+            Colon      => r":",
+            Semi       => r";",
+            Eq         => r"=",
+            Bang       => r"!",
 
-        l
+            // Literals
+            Ident      => r"[a-zA-Z_]\w*",
+            Number     => r"\d",
+            HexNumber  => r"0[xX][:xdigit:]+",
+            String     => r#""(?:\\"|[^"])*""#
+        }
     }
 
     pub fn tokenize(&self, s: &str) -> (~[(Token, ~str)]) {
         let mut pos = 0u;
-        let mut result = ~[];
+        let mut result = vec!();
         while pos < s.len() {
             let mut longest = 0u;
-            let mut best_token = None;
-            let mut best_str = ~"";
+            let mut best = None;
             for rule in self.rules.iter() {
-                let m = rule.matcher.match_string(s.slice_from(pos));
+                let m = rule.matcher.find(s.slice_from(pos));
                 match m {
-                    Some(ref s) if s.len() > longest => {
-                        best_token = Some(rule.token);
-                        best_str = s.clone();
-                        longest = s.len();
+                    Some((begin, end)) if begin == 0 => {
+                        let s = s.slice(pos, pos + end);
+                        if s.len() > longest {
+                            best = Some((rule.token, s));
+                            longest = s.len();
+                        }
                     },
                     _ => {},
                 }
             }
             pos += longest;
-            match best_token.unwrap() {
-                WhiteSpace => {},
-                x => result.push((x, best_str))
+            match best.unwrap() {
+                (WS, _) => {},
+                (t, s) => result.push((t, s.to_owned()))
             }
         }
 
-        result
+        result.as_slice().to_owned()
     }
 }
 
