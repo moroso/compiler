@@ -59,7 +59,7 @@ pub struct Lexer<T> {
 
 
 impl<T: Iterator<~str>> Lexer<T> {
-    pub fn new<T>(line_iter: ~T) -> Lexer<T> {
+    pub fn new(line_iter: ~T) -> Lexer<T> {
         macro_rules! lexer_rules {
             ( $( $t:expr => $r:expr ),*) => (
                 ~[ $( LexerRule { matcher: regexp!(concat!("^(?:", $r, ")")),
@@ -163,6 +163,7 @@ impl<T: Iterator<~str>> Iterator<(Token, ~str)> for Lexer<T> {
 mod tests {
     use super::*;
     use std::iter::Repeat;
+    use std::vec::Vec;
 
     fn compare(actual: &[(Token, ~str)], expected: &[(Token, ~str)]) {
         for (&(actual_token, ref actual_str),
@@ -178,25 +179,11 @@ mod tests {
 
     #[test]
     fn test() {
-        let test_iter = Repeat::new(~"f(x)+1");
-        let mut l = Lexer::<Repeat<~str>>::new::<Repeat<~str>>(~test_iter);
+        let lexer1 = Lexer::new(~vec!(~r#"f(x - /* I am a comment */ 0x3f5B)+1 "Hello\" World")"#).move_iter());
 
-        print!("{:?}\n", l.next());
-        print!("{:?}\n", l.next());
-        print!("{:?}\n", l.next());
-        print!("{:?}\n", l.next());
-        print!("{:?}\n", l.next());
-        print!("{:?}\n", l.next());
-        print!("{:?}\n", l.next());
-        print!("{:?}\n", l.next());
-        print!("{:?}\n", l.next());
-        print!("{:?}\n", l.next());
-        print!("{:?}\n", l.next());
+        let tokens1: ~[(Token, ~str)] = FromIterator::from_iter(lexer1);
 
-        fail!();
-        /*
-        compare(l.tokenize(
-            r#"f(x - /* I am a comment */ 0x3f5B)+1 "Hello\" World")"#),
+        compare(tokens1,
                 [(Ident, ~"f"),
                   (LParen, ~"("),
                   (Ident, ~"x"),
@@ -207,14 +194,17 @@ mod tests {
                   (Number, ~"1"),
                   (String, ~r#""Hello\" World""#),
                 ]);
-        compare(l.tokenize("let x: int = 5;"),
+
+        let lexer2 = Lexer::new(~vec!(~"let x: int = 5;").move_iter());
+        let tokens2: ~[(Token, ~str)] = FromIterator::from_iter(lexer2);
+        compare(tokens2,
                 [(Let, ~"let"),
                  (Ident, ~"x"),
                  (Colon, ~":"),
                  (Ident, ~"int"),
                  (Eq, ~"="),
                  (Number, ~"5"),
-                 ]);*/
+                 ]);
     
     }
 }
