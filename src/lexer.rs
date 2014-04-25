@@ -9,7 +9,7 @@ struct LexerRule {
     token: Token,
 }
 
-#[deriving(Eq, Clone)]
+#[deriving(Eq, Clone, Show)]
 pub enum Token {
     // Whitespace
     WS,
@@ -26,15 +26,15 @@ pub enum Token {
     RBracket,
     Less,
     Greater,
-    And,
-    Or,
+    Ampersand,
+    Pipe,
     Xor,
-    AndAnd,
-    OrOr,
-    Add,
-    Sub,
-    Mul,
-    Div,
+    AmpAmp,
+    PipePipe,
+    Plus,
+    Dash,
+    Star,
+    ForwardSlash,
     Lsh,
     Rsh,
     Colon,
@@ -47,6 +47,9 @@ pub enum Token {
     Number,
     HexNumber,
     String,
+
+    // Special
+    Eof,
 }
 
 pub struct Lexer<T> {
@@ -82,29 +85,29 @@ impl<T: Iterator<~str>> Lexer<T> {
                 Let        => r"let",
 
                 // Symbols
-                LParen     => r"\(",
-                RParen     => r"\)",
-                LBrace     => r"\{",
-                RBrace     => r"\}",
-                LBracket   => r"\[",
-                RBracket   => r"\]",
-                Less       => r"<",
-                Greater    => r">",
-                And        => r"&",
-                Or         => r"\|",
-                Xor        => r"\^",
-                AndAnd     => r"&&",
-                OrOr       => r"\|\|",
-                Add        => r"\+",
-                Sub        => r"-",
-                Mul        => r"\*",
-                Div        => r"/",
-                Lsh        => r"<<",
-                Rsh        => r">>",
-                Colon      => r":",
-                Semi       => r";",
-                Eq         => r"=",
-                Bang       => r"!",
+                LParen       => r"\(",
+                RParen       => r"\)",
+                LBrace       => r"\{",
+                RBrace       => r"\}",
+                LBracket     => r"\[",
+                RBracket     => r"\]",
+                Less         => r"<",
+                Greater      => r">",
+                Ampersand          => r"&",
+                Pipe         => r"\|",
+                Xor          => r"\^",
+                AmpAmp       => r"&&",
+                PipePipe     => r"\|\|",
+                Plus         => r"\+",
+                Dash         => r"-",
+                Star         => r"\*",
+                ForwardSlash => r"/",
+                Lsh          => r"<<",
+                Rsh          => r">>",
+                Colon        => r":",
+                Semi         => r";",
+                Eq           => r"=",
+                Bang         => r"!",
 
                 // Literals
                 Ident      => r"[a-zA-Z_]\w*",
@@ -187,10 +190,10 @@ mod tests {
                 [(Ident, ~"f"),
                   (LParen, ~"("),
                   (Ident, ~"x"),
-                  (Sub, ~"-"),
+                  (Dash, ~"-"),
                   (HexNumber, ~"0x3f5B"),
                   (RParen, ~")"),
-                  (Add, ~"+"),
+                  (Plus, ~"+"),
                   (Number, ~"1"),
                   (String, ~r#""Hello\" World""#),
                 ]);
