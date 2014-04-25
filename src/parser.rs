@@ -22,15 +22,18 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
         }
     }
 
+    /// "Peek" at the next token, returning the token, without consuming
+    /// it from the stream.
     fn peek(&mut self) -> Token {
-        //TODO: rather than unwrapping, have a nice "unexpected end of input"
-        // error message.
         match self.tokens.peek() {
             Some(&(token, _)) => token.clone(),
             None => Eof,
         }
     }
 
+    /// Consume one token from the stream, erroring if it's not
+    /// the `expected_token`. Returns the string corresponding to that
+    /// token.
     fn expect(&mut self, expected_token: Token) -> ~str {
         let (stream_token, s) = self.tokens.next().unwrap();
         assert_eq!(expected_token, stream_token);
@@ -38,6 +41,12 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
     }
 
     fn parse_factor(&mut self) -> AST {
+        /*
+        Parse a factor.
+
+        FACTOR ::= '(' EXPR ')'
+                 | Number
+        */
         match self.peek() {
             // '(' expr ')'
             LParen => {
@@ -58,6 +67,7 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
     fn parse_term(&mut self) -> AST {
         /*
         Parse a term.
+
         TERM ::= FACTOR [ '*' TERM ]
                | FACTOR [ '/' TERM ]
         */
