@@ -121,44 +121,63 @@ impl<T: Iterator<~str>> Lexer<T> {
 
 impl<T: Iterator<~str>> Iterator<(Token, ~str)> for Lexer<T> {
     fn next(&mut self) -> Option<(Token, ~str)> {
-        loop {
-            if self.pos.is_none() {
-                self.current_line = self.line_iter.next();
-                if self.current_line.is_none() { return None; }
-                self.pos = Some(0);
-            }
+        let mut tok = None;
 
-            let mut pos = self.pos.unwrap();
-            let s = self.current_line.clone().unwrap();
-
-            let mut longest = 0u;
-            let mut best = None;
-            for rule in self.rules.iter() {
-                let m = rule.matcher.find(s.slice_from(pos));
-                match m {
-                    Some((begin, end)) if begin == 0 => {
-                        let s = s.slice(pos, pos + end);
-                        if s.len() > longest {
-                            best = Some((rule.token, s));
-                            longest = s.len();
-                        }
-                    },
-                    _ => {},
+        while tok.is_none() {
+            // Grab a new line if we need to
+            let pos = match self.pos {
+                Some(p) => p,
+                None => {
+                    self.current_line = match self.line_iter.next() {
+                        None => return None,
+                        line => line
+                    };
+                    0
                 }
+            };
+
+            // Move the line out of self to avoid a copy on every iteration
+            let line = self.current_line.take_unwrap();
+
+            // Check for a match
+            let mut longest = 0u;
+
+            // Appease the borrow checker by killing 'best' early
+            {
+                let mut best = None;
+                for rule in self.rules.iter() {
+                    let m = rule.matcher.find(line.slice_from(pos));
+                    match m {
+                        Some((begin, end)) if begin == 0 => {
+                            let s = line.slice(pos, pos + end);
+                            if s.len() > longest {
+                                best = Some((rule.token, s));
+                                longest = s.len();
+                            }
+                        },
+                        _ => {},
+                    }
+                }
+
+                // Save the matched token, skipping whitespace
+                tok = match best {
+                    Some((WS, _)) => None,
+                    Some((t, s))  => Some((t, s.to_owned())),
+                    None          => fail!("Unexpected input")
+                };
             }
-            pos += longest;
-            if pos == s.len() {
+
+            // Advance past the token
+            let pos = pos + longest;
+            if pos == line.len() {
                 self.pos = None;
-                self.current_line = None;
             } else {
                 self.pos = Some(pos);
-            }
-
-            match best.unwrap() {
-                (WS, _) => continue,
-                (t, s) => return Some((t, s.to_owned()))
+                self.current_line = Some(line);
             }
         }
+
+        tok
     }
 }
 
