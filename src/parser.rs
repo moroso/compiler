@@ -16,7 +16,7 @@ pub struct Parser<A, T> {
 }
 
 impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
-    fn new(tokens: T) -> Parser<(Token, ~str), T> {
+    pub fn new(tokens: T) -> Parser<(Token, ~str), T> {
         Parser::<(Token, ~str), T> {
             tokens: ~tokens.peekable(),
         }
@@ -89,7 +89,7 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
         }
     }
 
-    fn parse_expr(&mut self) -> AST {
+    pub fn parse_expr(&mut self) -> AST {
         /*
         Parse an expression.
 
@@ -124,7 +124,7 @@ mod tests {
     use super::*;
     use super::Parser;
     use super::AST;
-    use lexer::*;
+    use lexer::Lexer;
 
     #[test]
     fn test() {
