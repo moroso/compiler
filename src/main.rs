@@ -8,6 +8,7 @@ extern crate collections;
 extern crate regexp;
 
 mod lexer;
+mod parser;
 
 fn main() {
     println!("moroso compiler");
