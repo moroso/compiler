@@ -16,6 +16,7 @@ pub enum Token {
 
     // Reserved words
     Let,
+    As,
 
     // Symbols
     LParen,
@@ -46,6 +47,7 @@ pub enum Token {
     Bang,
     Arrow,
     Comma,
+    QuestionMark,
 
     // Literals
     Ident,
@@ -96,6 +98,7 @@ impl<T: Iterator<~str>> Lexer<T> {
                 Let        => r"let",
                 True       => r"true",
                 False      => r"false",
+                As         => r"as",
 
                 // Basic types; TODO: add more.
                 I32        => r"[iI]32",
@@ -130,6 +133,7 @@ impl<T: Iterator<~str>> Lexer<T> {
                 Bang         => r"!",
                 Arrow        => r"->",
                 Comma        => r",",
+                QuestionMark => r"\?",
 
                 // Literals
                 Ident      => r"[a-zA-Z_]\w*",

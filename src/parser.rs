@@ -52,6 +52,10 @@ pub enum ExpressionComponent {
     Index(~ExpressionComponent, ~ExpressionComponent),
     Assignment(~ExpressionComponent, ~ExpressionComponent),
     FunctionApplication(~ExpressionComponent, Vec<~ExpressionComponent>),
+    Cast(~ExpressionComponent, ~Type),
+    TernaryConditional(~ExpressionComponent,
+                       ~ExpressionComponent,
+                       ~ExpressionComponent),
 }
 
 impl Show for ExpressionComponent {
@@ -80,7 +84,10 @@ impl Show for ExpressionComponent {
             Index(ref e1, ref e2) => write!(f.buf, "{}[{}]", e1, e2),
             Assignment(ref e1, ref e2) => write!(f.buf, "({}={})", e1, e2),
             FunctionApplication(ref e1, ref args) =>
-                write!(f.buf, "{}({})", e1, args)
+                write!(f.buf, "{}({})", e1, args),
+            Cast(ref e, ref t) => write!(f.buf, "({} as {})", e, t),
+            TernaryConditional(ref e1, ref e2, ref e3) =>
+                write!(f.buf, "({} ? {} : {})", e1, e2, e3),
         }
     }
 }
@@ -217,6 +224,7 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
                 | Number | String | True | False
                 | INDEX '[' EXPR ']'
                 | INDEX '(' ARGLIST ')'
+                | INDEX 'as' TYPE
                 | IDENT
         */
         let first_index =
@@ -251,13 +259,18 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
                 let indexing_expr = self.parse_expr();
                 self.expect(RBracket);
                 Index(~first_index, ~indexing_expr)
-            }
+            },
             LParen => {
                 self.expect(LParen);
                 let args = self.parse_expr_list();
                 self.expect(RParen);
                 FunctionApplication(~first_index, args)
-            }
+            },
+            As => {
+                self.expect(As);
+                let type_specifier = self.parse_type();
+                Cast(~first_index, ~type_specifier)
+            },
             _ => first_index
         }
 
@@ -401,19 +414,44 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
         }
     }
 
-    pub fn parse_expr(&mut self) -> ExpressionComponent {
+    pub fn parse_assignment(&mut self) -> ExpressionComponent {
         /*
-        Parse an expression.
+        Parse a (possible) assignment.
 
-        EXPR ::= BOOL_ARITH [ '=' EXPR ]
+        ASSIGN ::= BOOL_ARITH [ '=' ASSIGN ]
         */
         let parsed_bool_arith = self.parse_bool_arith();
         match self.peek() {
             Eq => { self.expect(Eq);
-                    Assignment(~parsed_bool_arith, ~self.parse_bool_arith())
+                    Assignment(~parsed_bool_arith, ~self.parse_assignment())
             },
             _ => parsed_bool_arith
         }
+    }
+
+    pub fn parse_ternary(&mut self) -> ExpressionComponent {
+        /*
+        Parse a (possible) ternary conditional operator.
+
+        TERNARY ::= ASSIGNMENT [ '?' ASSIGNMENT ':' ASSIGNMENT ]
+        */
+        let parsed_assignment = self.parse_assignment();
+        match self.peek() {
+            QuestionMark => {
+                self.expect(QuestionMark);
+                let second_assignment = self.parse_assignment();
+                self.expect(Colon);
+                let third_assignment = self.parse_assignment();
+                TernaryConditional(~parsed_assignment,
+                                    ~second_assignment,
+                                    ~third_assignment)
+            },
+            _ => parsed_assignment
+        }
+    }
+
+    pub fn parse_expr(&mut self) -> ExpressionComponent {
+        self.parse_ternary()
     }
 
     pub fn parse_type(&mut self) -> Type {
@@ -479,7 +517,8 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
                 match var_type {
                     None => VariableDeclarationInit(var_name, ~var_value),
                     Some(var_type) =>
-                        TypedVariableDeclarationInit(var_name, ~var_type, ~var_value)
+                        TypedVariableDeclarationInit(var_name, ~var_type,
+                                                     ~var_value)
                 }
             },
             _ => { fail!(); }
