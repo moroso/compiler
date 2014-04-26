@@ -1,9 +1,10 @@
 use lexer::*;
+use std::fmt::{Formatter, Result, Show};
 use std::iter::Peekable;
 use std::num;
 mod lexer;
 
-#[deriving(Eq, Show)]
+#[deriving(Eq)]
 pub struct NumberType {
     signedness: Signedness,
     width: u8,
@@ -15,7 +16,18 @@ pub enum Signedness {
     Unsigned,
 }
 
-#[deriving(Eq, Show)]
+impl Show for NumberType {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f.buf, "{}{}",
+               match self.signedness {
+                   Signed => 'i',
+                   Unsigned => 'u',
+               },
+               self.width)
+    }
+}
+
+#[deriving(Eq)]
 pub enum ExpressionComponent {
     Num(i64, NumberType),
     Sum(~ExpressionComponent, ~ExpressionComponent),
@@ -27,7 +39,22 @@ pub enum ExpressionComponent {
     Identifier(~str),
 }
 
-#[deriving(Eq, Show)]
+impl Show for ExpressionComponent {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            Num(n, t) => write!(f.buf, "{}{}", n, t),
+            Sum(ref e1, ref e2) => write!(f.buf, "({}+{})", e1, e2),
+            Difference(ref e1, ref e2) => write!(f.buf, "({}-{})", e1, e2),
+            Product(ref e1, ref e2) => write!(f.buf, "({}*{})", e1, e2),
+            Quotient(ref e1, ref e2) => write!(f.buf, "({}/{})", e1, e2),
+            Dereference(ref e) => write!(f.buf, "(*{})", e),
+            Reference(ref e) => write!(f.buf, "(&{})", e),
+            Identifier(ref s) => write!(f.buf, "{}", s),
+        }
+    }
+}
+
+#[deriving(Eq)]
 pub enum Type {
     // Types
     PointerTo(~Type),
@@ -36,6 +63,18 @@ pub enum Type {
     ArrayType(~Type, i64),
 }
 
+impl Show for Type {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            PointerTo(ref t) => write!(f.buf, "(*{})", t),
+            NamedType(ref s) => write!(f.buf, "{}", s),
+            FunctionType(ref t1, ref t2) => write!(f.buf, "({} -> {})", t1, t2),
+            ArrayType(ref t1, n) => write!(f.buf, "({}[{}])", t1, n),
+        }
+    }
+}
+
+#[deriving(Eq, Show)]
 pub enum VariableDeclarationEnum {
     // TODO: qualifiers.
     VariableDeclaration(~str, ~Type),
