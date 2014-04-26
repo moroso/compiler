@@ -1,14 +1,46 @@
 use lexer::*;
 use std::iter::Peekable;
+use std::num;
 mod lexer;
 
 #[deriving(Eq, Show)]
-pub enum AST {
-    Num(int),
-    Sum(~AST, ~AST),
-    Difference(~AST, ~AST),
-    Product(~AST, ~AST),
-    Quotient(~AST, ~AST),
+pub struct NumberType {
+    signedness: Signedness,
+    width: u8,
+}
+
+#[deriving(Eq, Show)]
+pub enum Signedness {
+    Signed,
+    Unsigned,
+}
+
+#[deriving(Eq, Show)]
+pub enum ExpressionComponent {
+    Num(i64, NumberType),
+    Sum(~ExpressionComponent, ~ExpressionComponent),
+    Difference(~ExpressionComponent, ~ExpressionComponent),
+    Product(~ExpressionComponent, ~ExpressionComponent),
+    Quotient(~ExpressionComponent, ~ExpressionComponent),
+    Dereference(~ExpressionComponent),
+    Reference(~ExpressionComponent),
+    Identifier(~str),
+}
+
+#[deriving(Eq, Show)]
+pub enum Type {
+    // Types
+    PointerTo(~Type),
+    NamedType(~str),
+    FunctionType(~Type, ~Type),
+    ArrayType(~Type, i64),
+}
+
+pub enum VariableDeclarationEnum {
+    // TODO: qualifiers.
+    VariableDeclaration(~str, ~Type),
+    TypedVariableDeclarationInit(~str, ~Type, ~ExpressionComponent),
+    VariableDeclarationInit(~str, ~ExpressionComponent),
 }
 
 pub struct Parser<A, T> {
@@ -40,7 +72,43 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
         s
     }
 
-    fn parse_factor(&mut self) -> AST {
+    fn parse_number(&mut self) -> i64 {
+        match self.peek() {
+            Number => {
+                let num = self.expect(Number);
+                return from_str(num).unwrap();
+            },
+            HexNumber => {
+                let num = self.expect(HexNumber);
+                assert_eq!(num[0], '0' as u8);
+                assert!(num[1] == ('x' as u8) || num[1] == ('X' as u8));
+                let x: Option<i64> = num::from_str_radix(num.slice_from(2), 16);
+                let y: i64 = x.unwrap();
+                return y;
+            },
+            _ => { fail!("Parse error."); }
+        }        
+    }
+
+    fn parse_typed_number(&mut self) -> ExpressionComponent {
+        let num = self.parse_number();
+        let number_type_str = match self.peek() {
+            x if x == U32 || x == I32 => {
+                self.expect(x)
+            }
+            _ => fail!()
+        };
+        let signedness = match number_type_str[0] as char {
+            'i' | 'I' => Signed,
+            'u' | 'U' => Unsigned,
+            _ => fail!()
+        };
+        let width = from_str(number_type_str.slice_from(1)).unwrap();
+        Num(num, NumberType { signedness: signedness,
+                              width: width })
+    }
+
+    fn parse_factor(&mut self) -> ExpressionComponent {
         /*
         Parse a factor.
 
@@ -53,18 +121,29 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
                 self.expect(LParen);
                 let result = self.parse_expr();
                 self.expect(RParen);
-                return result;
+                result
             },
-            Number => {
-                let num = self.expect(Number);
-                return Num(from_str(num).unwrap());
+            Number | HexNumber => {
+                self.parse_typed_number()
             },
+            Star => {
+                self.expect(Star);
+                Dereference(~self.parse_factor())
+            },
+            Ampersand => {
+                self.expect(Ampersand);
+                Reference(~self.parse_factor())
+            }
+            Ident => {
+                let ident_name = self.expect(Ident);
+                Identifier(ident_name)
+            }
             _ => { fail!("Parse error."); }
         }
 
     }
 
-    fn parse_term(&mut self) -> AST {
+    fn parse_term(&mut self) -> ExpressionComponent {
         /*
         Parse a term.
 
@@ -89,7 +168,7 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
         }
     }
 
-    pub fn parse_expr(&mut self) -> AST {
+    pub fn parse_expr(&mut self) -> ExpressionComponent {
         /*
         Parse an expression.
 
@@ -97,23 +176,89 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
                | TERM [ '-' EXPR ]
          */
         
+        let parsed_term = self.parse_term();
         match self.peek() {
-            Number => { let parsed_term = self.parse_term();
-                        match self.peek() {
-                            Plus => { self.expect(Plus);
-                                      let next_term = self.parse_expr();
-                                      return Sum(~parsed_term,
-                                                 ~next_term);
-                            },
-                            Dash => { self.expect(Dash);
-                                      let next_term = self.parse_expr();
-                                      return Difference(~parsed_term,
-                                                        ~next_term);
-                            }
-                            _ => { return parsed_term;
-                            }
-                        }
+            Plus => { self.expect(Plus);
+                      let next_term = self.parse_expr();
+                      return Sum(~parsed_term,
+                                 ~next_term);
+            },
+            Dash => { self.expect(Dash);
+                      let next_term = self.parse_expr();
+                      return Difference(~parsed_term,
+                                        ~next_term);
             }
+            _ => { return parsed_term;
+            }
+        }
+    }
+
+    pub fn parse_type(&mut self) -> Type {
+        let mut result;
+        match self.peek() {
+            Star => {
+                self.expect(Star);
+                let inner_type = self.parse_type();
+                result = PointerTo(~inner_type);
+            }
+            LParen => {
+                self.expect(LParen);
+                let inner_type = self.parse_type();
+                self.expect(RParen);
+                result = inner_type;
+            }
+            Ident => {
+                let ident_name = self.expect(Ident);
+                result = NamedType(ident_name);
+            }
+            _ => { fail!(); }
+        }
+
+        loop {
+            match self.peek() {
+                Arrow => {
+                    self.expect(Arrow);
+                    let dest_type = self.parse_type();
+                    return FunctionType(~result, ~dest_type);
+                },
+                LBracket => {
+                    self.expect(LBracket);
+                    let dimension = self.parse_number();
+                    self.expect(RBracket);
+                    result = ArrayType(~result, dimension);
+                }
+                _ => return result
+            }
+        }
+    }
+
+    pub fn parse_type_declaration(&mut self) -> VariableDeclarationEnum {
+        self.expect(Let);
+        let var_name = self.expect(Ident);
+        let var_type =
+            match self.peek() {
+                Colon => {
+                    self.expect(Colon);
+                    Some(self.parse_type())
+                },
+                Eq => None,
+                _ => fail!()
+            };
+        match self.peek() {
+            Semicolon => {
+                self.expect(Semicolon);
+                VariableDeclaration(var_name, ~var_type.unwrap())
+            },
+            Eq => {
+                self.expect(Eq);
+                let var_value = self.parse_expr();
+                self.expect(Semicolon);
+                match var_type {
+                    None => VariableDeclarationInit(var_name, ~var_value),
+                    Some(var_type) =>
+                        TypedVariableDeclarationInit(var_name, ~var_type, ~var_value)
+                }
+            },
             _ => { fail!(); }
         }
     }
@@ -123,7 +268,7 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
 mod tests {
     use super::*;
     use super::Parser;
-    use super::AST;
+    use super::ExpressionComponent;
     use lexer::Lexer;
 
     #[test]

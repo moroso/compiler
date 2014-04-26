@@ -38,15 +38,20 @@ pub enum Token {
     Lsh,
     Rsh,
     Colon,
-    Semi,
+    Semicolon,
     Eq,
     Bang,
+    Arrow,
 
     // Literals
     Ident,
     Number,
     HexNumber,
     String,
+
+    // Basic types
+    U32,
+    I32,
 
     // Special
     Eof,
@@ -84,6 +89,10 @@ impl<T: Iterator<~str>> Lexer<T> {
                 // Reserved words
                 Let        => r"let",
 
+                // Basic types; TODO: add more.
+                I32        => r"[iI]32",
+                U32        => r"[uU]32",
+
                 // Symbols
                 LParen       => r"\(",
                 RParen       => r"\)",
@@ -93,7 +102,7 @@ impl<T: Iterator<~str>> Lexer<T> {
                 RBracket     => r"\]",
                 Less         => r"<",
                 Greater      => r">",
-                Ampersand          => r"&",
+                Ampersand    => r"&",
                 Pipe         => r"\|",
                 Xor          => r"\^",
                 AmpAmp       => r"&&",
@@ -105,13 +114,14 @@ impl<T: Iterator<~str>> Lexer<T> {
                 Lsh          => r"<<",
                 Rsh          => r">>",
                 Colon        => r":",
-                Semi         => r";",
+                Semicolon    => r";",
                 Eq           => r"=",
                 Bang         => r"!",
+                Arrow        => r"->",
 
                 // Literals
                 Ident      => r"[a-zA-Z_]\w*",
-                Number     => r"\d",
+                Number     => r"\d+",
                 HexNumber  => r"0[xX][:xdigit:]+",
                 String     => r#""(?:\\"|[^"])*""#
             }
