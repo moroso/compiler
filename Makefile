@@ -11,10 +11,10 @@ doc/%/index.html: %.rs
 MC_FILES := src/main.rs src/lexer.rs src/parser.rs
 
 mc: $(MC_FILES)
-	rustc $< -o $@ -L.
+	rustc $< -o $@
 
 mc-tests: $(MC_FILES)
-	rustc --test $< -o $@ -L.
+	rustc --test $< -o $@
 
 .PHONY: all test docs clean
 clean:

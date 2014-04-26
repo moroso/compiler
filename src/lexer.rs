@@ -1,11 +1,11 @@
-use regexp::Regexp;
+use regex::Regex;
 use std::vec::Vec;
 use std::slice::CloneableVector;
 
-/// A single regexp for a token.
+/// A single regex for a token.
 #[deriving(Clone)]
 struct LexerRule {
-    matcher: Regexp,
+    matcher: Regex,
     token: Token,
 }
 
@@ -65,7 +65,7 @@ impl<T: Iterator<~str>> Lexer<T> {
     pub fn new(line_iter: ~T) -> Lexer<T> {
         macro_rules! lexer_rules {
             ( $( $t:expr => $r:expr ),*) => (
-                ~[ $( LexerRule { matcher: regexp!(concat!("^(?:", $r, ")")),
+                ~[ $( LexerRule { matcher: regex!(concat!("^(?:", $r, ")")),
                                   token: $t } ),* ]
             )
         }
@@ -227,6 +227,5 @@ mod tests {
                  (Eq, ~"="),
                  (Number, ~"5"),
                  ]);
-    
     }
 }

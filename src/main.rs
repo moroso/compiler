@@ -2,10 +2,10 @@
 #![allow(dead_code,unused_imports)]
 
 #[phase(syntax)]
-extern crate regexp_macros;
+extern crate regex_macros;
 
 extern crate collections;
-extern crate regexp;
+extern crate regex;
 
 use std::io::stdio::stdin;
 use lexer::Lexer;
