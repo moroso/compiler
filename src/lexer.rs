@@ -26,6 +26,8 @@ pub enum Token {
     RBracket,
     Less,
     Greater,
+    LessEq,
+    GreaterEq,
     Ampersand,
     Pipe,
     Xor,
@@ -43,6 +45,7 @@ pub enum Token {
     EqEq,
     Bang,
     Arrow,
+    Comma,
 
     // Literals
     Ident,
@@ -107,6 +110,8 @@ impl<T: Iterator<~str>> Lexer<T> {
                 RBracket     => r"\]",
                 Less         => r"<",
                 Greater      => r">",
+                LessEq       => r"<=",
+                GreaterEq    => r">=",
                 Ampersand    => r"&",
                 Pipe         => r"\|",
                 Xor          => r"\^",
@@ -124,6 +129,7 @@ impl<T: Iterator<~str>> Lexer<T> {
                 EqEq         => r"==",
                 Bang         => r"!",
                 Arrow        => r"->",
+                Comma        => r",",
 
                 // Literals
                 Ident      => r"[a-zA-Z_]\w*",
