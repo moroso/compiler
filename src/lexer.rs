@@ -40,6 +40,7 @@ pub enum Token {
     Colon,
     Semicolon,
     Eq,
+    EqEq,
     Bang,
     Arrow,
 
@@ -48,6 +49,8 @@ pub enum Token {
     Number,
     HexNumber,
     String,
+    True,
+    False,
 
     // Basic types
     U32,
@@ -88,6 +91,8 @@ impl<T: Iterator<~str>> Lexer<T> {
 
                 // Reserved words
                 Let        => r"let",
+                True       => r"true",
+                False      => r"false",
 
                 // Basic types; TODO: add more.
                 I32        => r"[iI]32",
@@ -116,6 +121,7 @@ impl<T: Iterator<~str>> Lexer<T> {
                 Colon        => r":",
                 Semicolon    => r";",
                 Eq           => r"=",
+                EqEq         => r"==",
                 Bang         => r"!",
                 Arrow        => r"->",
 

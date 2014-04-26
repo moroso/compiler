@@ -30,6 +30,9 @@ impl Show for NumberType {
 #[deriving(Eq)]
 pub enum ExpressionComponent {
     Num(i64, NumberType),
+    StringConstant(~str),
+    TrueConstant,
+    FalseConstant,
     Sum(~ExpressionComponent, ~ExpressionComponent),
     Difference(~ExpressionComponent, ~ExpressionComponent),
     Product(~ExpressionComponent, ~ExpressionComponent),
@@ -37,16 +40,29 @@ pub enum ExpressionComponent {
     Dereference(~ExpressionComponent),
     Reference(~ExpressionComponent),
     Identifier(~str),
+    EqualsExpr(~ExpressionComponent, ~ExpressionComponent),
+    LogicalAnd(~ExpressionComponent, ~ExpressionComponent),
+    BitwiseAnd(~ExpressionComponent, ~ExpressionComponent),
+    LogicalOr(~ExpressionComponent, ~ExpressionComponent),
+    BitwiseOr(~ExpressionComponent, ~ExpressionComponent),
 }
 
 impl Show for ExpressionComponent {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
             Num(n, t) => write!(f.buf, "{}{}", n, t),
+            StringConstant(ref s) => write!(f.buf, "{}", s),
+            TrueConstant => write!(f.buf, "true"),
+            FalseConstant => write!(f.buf, "false"),
             Sum(ref e1, ref e2) => write!(f.buf, "({}+{})", e1, e2),
             Difference(ref e1, ref e2) => write!(f.buf, "({}-{})", e1, e2),
             Product(ref e1, ref e2) => write!(f.buf, "({}*{})", e1, e2),
             Quotient(ref e1, ref e2) => write!(f.buf, "({}/{})", e1, e2),
+            EqualsExpr(ref e1, ref e2) => write!(f.buf, "({}=={})", e1, e2),
+            LogicalAnd(ref e1, ref e2) => write!(f.buf, "({}&&{})", e1, e2),
+            LogicalOr(ref e1, ref e2) => write!(f.buf, "({}||{})", e1, e2),
+            BitwiseAnd(ref e1, ref e2) => write!(f.buf, "({}&{})", e1, e2),
+            BitwiseOr(ref e1, ref e2) => write!(f.buf, "({}|{})", e1, e2),
             Dereference(ref e) => write!(f.buf, "(*{})", e),
             Reference(ref e) => write!(f.buf, "(&{})", e),
             Identifier(ref s) => write!(f.buf, "{}", s),
@@ -129,22 +145,30 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
         }        
     }
 
-    fn parse_typed_number(&mut self) -> ExpressionComponent {
-        let num = self.parse_number();
-        let number_type_str = match self.peek() {
-            x if x == U32 || x == I32 => {
-                self.expect(x)
-            }
+    fn parse_typed_literal(&mut self) -> ExpressionComponent {
+        match self.peek() {
+            True => { self.expect(True); TrueConstant },
+            False => { self.expect(False); FalseConstant },
+            String => { StringConstant(self.expect(String)) },
+            Number => {
+                let num = self.parse_number();
+                let number_type_str = match self.peek() {
+                    x if x == U32 || x == I32 => {
+                        self.expect(x)
+                    }
+                    _ => fail!()
+                };
+                let signedness = match number_type_str[0] as char {
+                    'i' | 'I' => Signed,
+                    'u' | 'U' => Unsigned,
+                    _ => fail!()
+                };
+                let width = from_str(number_type_str.slice_from(1)).unwrap();
+                Num(num, NumberType { signedness: signedness,
+                                      width: width })
+            },
             _ => fail!()
-        };
-        let signedness = match number_type_str[0] as char {
-            'i' | 'I' => Signed,
-            'u' | 'U' => Unsigned,
-            _ => fail!()
-        };
-        let width = from_str(number_type_str.slice_from(1)).unwrap();
-        Num(num, NumberType { signedness: signedness,
-                              width: width })
+        }
     }
 
     fn parse_factor(&mut self) -> ExpressionComponent {
@@ -152,7 +176,10 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
         Parse a factor.
 
         FACTOR ::= '(' EXPR ')'
-                 | Number
+                 | Number | String | True | False
+                 | '*' FACTOR
+                 | '&' FACTOR
+                 | IDENT
         */
         match self.peek() {
             // '(' expr ')'
@@ -162,8 +189,8 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
                 self.expect(RParen);
                 result
             },
-            Number | HexNumber => {
-                self.parse_typed_number()
+            Number | HexNumber | True | False | String => {
+                self.parse_typed_literal()
             },
             Star => {
                 self.expect(Star);
@@ -188,48 +215,103 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
 
         TERM ::= FACTOR [ '*' TERM ]
                | FACTOR [ '/' TERM ]
+               | FACTOR [ '&' TERM ]
         */
         let matched_factor = self.parse_factor();
         match self.peek() {
             Star => {
                 self.expect(Star);
                 let next_term = self.parse_term();
-                return Product(~matched_factor, ~next_term);
+                Product(~matched_factor, ~next_term)
             },
             ForwardSlash => {
                 self.expect(ForwardSlash);
                 let next_term = self.parse_term();
-                return Quotient(~matched_factor, ~next_term);
+                Quotient(~matched_factor, ~next_term)
             }
-            _ => {
-                return matched_factor;
+            Ampersand => {
+                self.expect(Ampersand);
+                let next_term = self.parse_term();
+                BitwiseAnd(~matched_factor, ~next_term)
             }
+            _ => matched_factor
         }
     }
 
-    pub fn parse_expr(&mut self) -> ExpressionComponent {
+    pub fn parse_arith(&mut self) -> ExpressionComponent {
         /*
-        Parse an expression.
+        Parse an arithmetic expression.
 
-        EXPR ::= TERM [ '+' EXPR ]
-               | TERM [ '-' EXPR ]
+        ARITH ::= TERM [ '+' ARITH ]
+                | TERM [ '-' ARITH ]
+                | TERM [ '|' ARITH ]
          */
         
         let parsed_term = self.parse_term();
         match self.peek() {
             Plus => { self.expect(Plus);
-                      let next_term = self.parse_expr();
-                      return Sum(~parsed_term,
-                                 ~next_term);
+                      let next_term = self.parse_arith();
+                      Sum(~parsed_term, ~next_term)
             },
             Dash => { self.expect(Dash);
-                      let next_term = self.parse_expr();
-                      return Difference(~parsed_term,
-                                        ~next_term);
+                      let next_term = self.parse_arith();
+                      Difference(~parsed_term, ~next_term)
             }
-            _ => { return parsed_term;
+            Pipe => { self.expect(Pipe);
+                      let next_term = self.parse_arith();
+                      BitwiseOr(~parsed_term, ~next_term)
             }
+            _ => parsed_term
         }
+    }
+
+    pub fn parse_bool_factor(&mut self) -> ExpressionComponent {
+        /*
+        Parse a boolean factor.
+
+        BOOL_FACTOR ::= ARITH [ '==' BOOL_FACTOR ]
+        */
+        let parsed_arith = self.parse_arith();
+        match self.peek() {
+            EqEq => { self.expect(EqEq);
+                      EqualsExpr(~parsed_arith, ~self.parse_bool_factor())
+            },
+            _ => parsed_arith
+        }
+    }
+
+    pub fn parse_bool_term(&mut self) -> ExpressionComponent {
+        /*
+        Parse a boolean term.
+
+        BOOL_TERM ::= BOOL_FACTOR [ '&&' BOOL_TERM ]
+        */
+        let parsed_factor = self.parse_bool_factor();
+        match self.peek() {
+            AmpAmp => { self.expect(AmpAmp);
+                        LogicalAnd(~parsed_factor, ~self.parse_bool_term())
+            },
+            _ => parsed_factor
+        }
+    }
+
+    pub fn parse_bool_arith(&mut self) -> ExpressionComponent {
+        /*
+        Parse a boolean arithmetic expression.
+
+        BOOL_ARITH ::= BOOL_TERM [ '||' BOOL_ARITH ]
+        */
+        let parsed_term = self.parse_bool_term();
+        match self.peek() {
+            PipePipe => { self.expect(PipePipe);
+                          LogicalOr(~parsed_term, ~self.parse_bool_term())
+            },
+            _ => parsed_term
+        }
+    }
+
+    pub fn parse_expr(&mut self) -> ExpressionComponent {
+        self.parse_bool_arith()
     }
 
     pub fn parse_type(&mut self) -> Type {
