@@ -17,7 +17,7 @@ mod parser;
 fn main() {
     println!("moroso compiler");
     let mut stdin = stdin();
-    let lexer = Lexer::new(~stdin.lines().map(|x| x.unwrap()));
+    let lexer = Lexer::new(stdin.lines().map(|x| x.unwrap()));
     let mut parser = Parser::new(lexer);
 
     print!("{:}\n", parser.parse_type_declaration());

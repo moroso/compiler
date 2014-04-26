@@ -1,5 +1,5 @@
 use regex::Regex;
-use std::vec::Vec;
+use std::iter;
 use std::slice::CloneableVector;
 
 /// A single regex for a token.
@@ -65,145 +65,140 @@ pub enum Token {
     Eof,
 }
 
-pub struct Lexer<T> {
-    rules: ~[LexerRule],
-    current_line: Option<~str>,
-    pos: Option<uint>,
-    line_iter: ~T,
+#[deriving(Show, Eq)]
+pub struct SourceToken {
+    pub tok: Token,
+    pub txt: ~str
 }
 
+struct LineContext {
+    pos: uint,
+    line: ~str,
+}
 
+pub struct Lexer<T> {
+    iter: T,
+    linectx: Option<LineContext>,
+    rules: Vec<LexerRule>,
+}
 
 impl<T: Iterator<~str>> Lexer<T> {
-    pub fn new(line_iter: ~T) -> Lexer<T> {
+    pub fn new(line_iter: T) -> Lexer<T> {
         macro_rules! lexer_rules {
             ( $( $t:expr => $r:expr ),*) => (
-                ~[ $( LexerRule { matcher: regex!(concat!("^(?:", $r, ")")),
-                                  token: $t } ),* ]
+                    vec!( $( LexerRule { matcher: regex!(concat!("^(?:", $r, ")")),
+                                         token: $t } ),* )
             )
         }
 
         // Note: rules are in decreasing order of priority if there's a
         // conflict. In particular, reserved words must go before Ident.
+        let rules = lexer_rules! {
+            // Whitespace
+            WS         => r"\s|//.*|(?s)/\*.*\*/",
+
+            // Reserved words
+            Let        => r"let",
+            True       => r"true",
+            False      => r"false",
+            As         => r"as",
+
+            // Basic types; TODO: add more.
+            I32        => r"[iI]32",
+            U32        => r"[uU]32",
+
+            // Symbols
+            LParen       => r"\(",
+            RParen       => r"\)",
+            LBrace       => r"\{",
+            RBrace       => r"\}",
+            LBracket     => r"\[",
+            RBracket     => r"\]",
+            Less         => r"<",
+            Greater      => r">",
+            LessEq       => r"<=",
+            GreaterEq    => r">=",
+            Ampersand    => r"&",
+            Pipe         => r"\|",
+            Xor          => r"\^",
+            AmpAmp       => r"&&",
+            PipePipe     => r"\|\|",
+            Plus         => r"\+",
+            Dash         => r"-",
+            Star         => r"\*",
+            ForwardSlash => r"/",
+            Lsh          => r"<<",
+            Rsh          => r">>",
+            Colon        => r":",
+            Semicolon    => r";",
+            Eq           => r"=",
+            EqEq         => r"==",
+            Bang         => r"!",
+            Arrow        => r"->",
+            Comma        => r",",
+            QuestionMark => r"\?",
+
+            // Literals
+            Ident      => r"[a-zA-Z_]\w*",
+            Number     => r"\d+",
+            HexNumber  => r"0[xX][:xdigit:]+",
+            String     => r#""(?:\\"|[^"])*""#
+        };
+
         Lexer {
-            current_line: None,
-            pos: None,
-            line_iter: line_iter,
-            rules:
-            lexer_rules! {
-                // Whitespace
-                WS         => r"\s|//.*|(?s)/\*.*\*/",
-
-                // Reserved words
-                Let        => r"let",
-                True       => r"true",
-                False      => r"false",
-                As         => r"as",
-
-                // Basic types; TODO: add more.
-                I32        => r"[iI]32",
-                U32        => r"[uU]32",
-
-                // Symbols
-                LParen       => r"\(",
-                RParen       => r"\)",
-                LBrace       => r"\{",
-                RBrace       => r"\}",
-                LBracket     => r"\[",
-                RBracket     => r"\]",
-                Less         => r"<",
-                Greater      => r">",
-                LessEq       => r"<=",
-                GreaterEq    => r">=",
-                Ampersand    => r"&",
-                Pipe         => r"\|",
-                Xor          => r"\^",
-                AmpAmp       => r"&&",
-                PipePipe     => r"\|\|",
-                Plus         => r"\+",
-                Dash         => r"-",
-                Star         => r"\*",
-                ForwardSlash => r"/",
-                Lsh          => r"<<",
-                Rsh          => r">>",
-                Colon        => r":",
-                Semicolon    => r";",
-                Eq           => r"=",
-                EqEq         => r"==",
-                Bang         => r"!",
-                Arrow        => r"->",
-                Comma        => r",",
-                QuestionMark => r"\?",
-
-                // Literals
-                Ident      => r"[a-zA-Z_]\w*",
-                Number     => r"\d+",
-                HexNumber  => r"0[xX][:xdigit:]+",
-                String     => r#""(?:\\"|[^"])*""#
-            }
+            iter: line_iter,
+            linectx: None,
+            rules: rules
         }
     }
 }
 
-impl<T: Iterator<~str>> Iterator<(Token, ~str)> for Lexer<T> {
-    fn next(&mut self) -> Option<(Token, ~str)> {
-        let mut tok = None;
+impl<T: Iterator<~str>> Iterator<SourceToken> for Lexer<T> {
+    fn next(&mut self) -> Option<SourceToken> {
+        loop {
+            for lc in self.linectx.mut_iter() {
+                while lc.pos < lc.line.len() {
+                    let mut longest = 0u;
+                    let mut best = None;
+                    for rule in self.rules.iter() {
+                        let m = rule.matcher.find(lc.line.slice_from(lc.pos));
+                        match m {
+                            Some((begin, end)) if begin == 0 => {
+                                let s = lc.line.slice(lc.pos, lc.pos + end);
+                                if s.len() > longest {
+                                    best = Some((rule.token, s));
+                                    longest = s.len();
+                                }
+                            },
+                            _ => {},
+                        }
+                    }
 
-        while tok.is_none() {
-            // Grab a new line if we need to
-            let pos = match self.pos {
-                Some(p) => p,
-                None => {
-                    self.current_line = match self.line_iter.next() {
-                        None => return None,
-                        line => line
-                    };
-                    0
-                }
-            };
+                    lc.pos += longest;
 
-            // Move the line out of self to avoid a copy on every iteration
-            let line = self.current_line.take_unwrap();
-
-            // Check for a match
-            let mut longest = 0u;
-
-            // Appease the borrow checker by killing 'best' early
-            {
-                let mut best = None;
-                for rule in self.rules.iter() {
-                    let m = rule.matcher.find(line.slice_from(pos));
-                    match m {
-                        Some((begin, end)) if begin == 0 => {
-                            let s = line.slice(pos, pos + end);
-                            if s.len() > longest {
-                                best = Some((rule.token, s));
-                                longest = s.len();
-                            }
-                        },
-                        _ => {},
+                    match best {
+                        None => fail!("Unexpected input"),
+                        Some((t, s)) if t != WS => {
+                            return Some(SourceToken {
+                                tok: t,
+                                txt: s.to_owned()
+                            })
+                        }
+                        _ => {}
                     }
                 }
-
-                // Save the matched token, skipping whitespace
-                tok = match best {
-                    Some((WS, _)) => None,
-                    Some((t, s))  => Some((t, s.to_owned())),
-                    None          => fail!("Unexpected input")
-                };
             }
 
-            // Advance past the token
-            let pos = pos + longest;
-            if pos == line.len() {
-                self.pos = None;
-            } else {
-                self.pos = Some(pos);
-                self.current_line = Some(line);
+            match self.iter.next() {
+                None => return None,
+                Some(line) => {
+                    self.linectx = Some(LineContext {
+                        pos: 0,
+                        line: line,
+                    });
+                }
             }
         }
-
-        tok
     }
 }
 
@@ -213,23 +208,21 @@ mod tests {
     use std::iter::Repeat;
     use std::vec::Vec;
 
-    fn compare(actual: &[(Token, ~str)], expected: &[(Token, ~str)]) {
-        for (&(actual_token, ref actual_str),
-             &(expected_token, ref expected_str))
+    fn compare(actual: &[SourceToken], expected: &[(Token, ~str)]) {
+        for (ref actual_st, ref expected_tup)
             in actual.iter().zip(expected.iter()) {
-            assert!(actual_token == expected_token &&
-                    actual_str == expected_str,
+            assert!(actual_st.tok == *expected_tup.ref0() &&
+                    actual_st.txt == *expected_tup.ref1(),
                     format!("Failure:\n  Tokens:{:?}, {:?}\n  Strings:{:s}, {:s}\n",
-                            actual_token, expected_token,
-                            *actual_str, *expected_str));
+                            actual_st.tok, *expected_tup.ref0(),
+                            actual_st.txt, *expected_tup.ref1()));
         }
     }
 
     #[test]
     fn test() {
-        let lexer1 = Lexer::new(~vec!(~r#"f(x - /* I am a comment */ 0x3f5B)+1 "Hello\" World")"#).move_iter());
-
-        let tokens1: ~[(Token, ~str)] = FromIterator::from_iter(lexer1);
+        let lexer1 = Lexer::new(vec!(~r#"f(x - /* I am a comment */ 0x3f5B)+1 "Hello\" World")"#).move_iter());
+        let tokens1: ~[SourceToken] = FromIterator::from_iter(lexer1);
 
         compare(tokens1,
                 [(Ident, ~"f"),
@@ -243,8 +236,8 @@ mod tests {
                   (String, ~r#""Hello\" World""#),
                 ]);
 
-        let lexer2 = Lexer::new(~vec!(~"let x: int = 5;").move_iter());
-        let tokens2: ~[(Token, ~str)] = FromIterator::from_iter(lexer2);
+        let lexer2 = Lexer::new(vec!(~"let x: int = 5;").move_iter());
+        let tokens2: ~[SourceToken] = FromIterator::from_iter(lexer2);
         compare(tokens2,
                 [(Let, ~"let"),
                  (Ident, ~"x"),

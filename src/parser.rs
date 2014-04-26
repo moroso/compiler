@@ -129,9 +129,9 @@ pub struct Parser<A, T> {
     tokens: ~Peekable<A, T>,
 }
 
-impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
-    pub fn new(tokens: T) -> Parser<(Token, ~str), T> {
-        Parser::<(Token, ~str), T> {
+impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
+    pub fn new(tokens: T) -> Parser<SourceToken, T> {
+        Parser::<SourceToken, T> {
             tokens: ~tokens.peekable(),
         }
     }
@@ -140,7 +140,7 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
     /// it from the stream.
     fn peek(&mut self) -> Token {
         match self.tokens.peek() {
-            Some(&(token, _)) => token.clone(),
+            Some(st) => st.tok,
             None => Eof,
         }
     }
@@ -149,9 +149,10 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
     /// the `expected_token`. Returns the string corresponding to that
     /// token.
     fn expect(&mut self, expected_token: Token) -> ~str {
-        let (stream_token, s) = self.tokens.next().unwrap();
-        assert_eq!(expected_token, stream_token);
-        s
+        match self.tokens.next() {
+            ref mut o@Some(ref st) if st.tok == expected_token => o.take_unwrap().txt,
+            st => fail!("Expected {:?}, found {:?}", expected_token, st.map_or(Eof, |st| st.tok))
+        }
     }
 
     fn parse_number(&mut self) -> i64 {
@@ -543,7 +544,7 @@ mod tests {
 
     #[test]
     fn test() {
-        let lexer = Lexer::new(~vec!(~r#"1+3*5/2-2*3*(5+6)"#).move_iter());
+        let lexer = Lexer::new(vec!(~r#"1+3*5/2-2*3*(5+6)"#).move_iter());
         let mut parser = Parser::new(lexer);
         assert_eq!(parser.parse_expr(),
                    Sum(
