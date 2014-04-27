@@ -19,6 +19,8 @@ pub enum Token {
     As,
     If,
     Else,
+    Fn,
+    Return,
 
     // Symbols
     LParen,
@@ -108,6 +110,8 @@ impl<T: Iterator<~str>> Lexer<T> {
             As         => r"as",
             If         => r"if",
             Else       => r"else",
+            Fn         => r"fn",
+            Return     => r"return",
 
             // Basic types; TODO: add more.
             I32        => r"[iI]32",

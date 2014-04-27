@@ -80,6 +80,7 @@ pub enum ExpressionComponent {
     Unit,
     FieldAccess(~ExpressionComponent,
                 ~str),
+    ReturnExpr(~ExpressionComponent),
 }
 
 impl Show for ExpressionComponent {
@@ -121,13 +122,59 @@ impl Show for ExpressionComponent {
             TupleExpr(ref t) => write!(f.buf, "({})", t),
             Unit => write!(f.buf, "Unit"),
             FieldAccess(ref e, ref c) => write!(f.buf, "({}.{})", e, c),
+            ReturnExpr(ref e) => write!(f.buf, "return ({});", e),
+        }
+    }
+}
+
+/// A single argument to a function.
+#[deriving(Eq)]
+pub struct FuncArg {
+    name: ~str,
+    argtype: Type,
+}
+
+impl Show for FuncArg {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f.buf, "{}: {}", self.name, self.argtype)
+    }
+}
+
+/// Anything that is declared at the top level of a file.
+#[deriving(Eq)]
+pub enum TopLevelDecl {
+    FunctionDecl(~str, Vec<FuncArg>, Type, ExpressionComponent),
+}
+
+impl Show for TopLevelDecl {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            FunctionDecl(ref name, ref args, ref functype, ref body) =>
+                write!(f.buf, "fn {}({}) -> {} {}",
+                       name, args, functype, body),
         }
     }
 }
 
 #[deriving(Eq)]
+pub enum TopLevel {
+    TopLevelStatements(Vec<TopLevelDecl>),
+}
+
+impl Show for TopLevel {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            TopLevelStatements(ref v) => {
+                write!(f.buf, "{}", v)
+            }
+        }
+    }
+}
+
+
+/// Types
+#[deriving(Eq)]
 pub enum Type {
-    // Types
     PointerTo(~Type),
     NamedType(~str),
     FunctionType(~Type, ~Type),
@@ -136,6 +183,7 @@ pub enum Type {
     UnitType,
     TupleType(Vec<Type>),
 }
+
 
 impl Show for Type {
     fn fmt(&self, f: &mut Formatter) -> Result {
@@ -620,9 +668,17 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         }
     }
 
+    pub fn parse_return_statement(&mut self) -> ExpressionComponent {
+        self.expect(Return);
+        let result = ReturnExpr(~self.parse_expr());
+        self.expect(Semicolon);
+        result
+    }
+
     pub fn parse_simple_expr(&mut self) -> ExpressionComponent {
         match self.peek() {
             If => self.parse_if_statement(),
+            Return => self.parse_return_statement(),
             _ => self.parse_possible_assignment()
         }
     }
@@ -666,6 +722,39 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         match self.peek() {
             LBrace => self.parse_compound_expr(),
             _ => self.parse_simple_expr()
+        }
+    }
+
+    pub fn parse_function_argument(&mut self) -> FuncArg {
+        let arg_name = self.expect(Ident);
+        self.expect(Colon);
+        let arg_type = self.parse_type();
+        FuncArg { name: arg_name,
+                  argtype: arg_type }
+    }
+
+    pub fn parse_function_declaration(&mut self) -> TopLevelDecl {
+        self.expect(Fn);
+        let funcname = self.expect(Ident);
+        self.expect(LParen);
+        let args = parse_list!(self.parse_function_argument() until RParen);
+        self.expect(RParen);
+        let return_type = match self.peek() {
+            Arrow => { self.expect(Arrow); self.parse_type() }
+            _ => UnitType,
+        };
+        let body = self.parse_compound_expr();
+        FunctionDecl(funcname, args, return_type, body)
+    }
+
+    pub fn parse_toplevel(&mut self) -> TopLevel {
+        let mut result = vec!();
+        loop {
+            match self.peek() {
+                Fn => result.push(self.parse_function_declaration()),
+                Eof => return TopLevelStatements(result),
+                _ => fail!()
+            }
         }
     }
 }
