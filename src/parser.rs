@@ -65,7 +65,10 @@ pub enum ExpressionComponent {
     BitwiseOr(~ExpressionComponent, ~ExpressionComponent),
     Index(~ExpressionComponent, ~ExpressionComponent),
     Assignment(~ExpressionComponent, ~ExpressionComponent),
-    FunctionApplication(~ExpressionComponent, Vec<~ExpressionComponent>),
+    FunctionApplication(~ExpressionComponent, Vec<ExpressionComponent>),
+    FunctionApplicationTypeParams(~ExpressionComponent,
+                                  Vec<Type>,
+                                  Vec<ExpressionComponent>),
     Cast(~ExpressionComponent, ~Type),
     CompoundExpression(Vec<CompoundExpressionComponent>),
     EmptyExpression,
@@ -103,6 +106,8 @@ impl Show for ExpressionComponent {
             Assignment(ref e1, ref e2) => write!(f.buf, "({}={})", e1, e2),
             FunctionApplication(ref e1, ref args) =>
                 write!(f.buf, "{}({})", e1, args),
+            FunctionApplicationTypeParams(ref e1, ref typeargs, ref args) =>
+                write!(f.buf, "{}::<{}>({})", e1, typeargs, args),
             Cast(ref e, ref t) => write!(f.buf, "({} as {})", e, t),
             CompoundExpression(ref l) =>
                 write!(f.buf, "\\{ {} \\}", l),
@@ -122,6 +127,7 @@ pub enum Type {
     NamedType(~str),
     FunctionType(~Type, ~Type),
     ArrayType(~Type, i64),
+    ParameterizedType(~str, Vec<Type>),
 }
 
 impl Show for Type {
@@ -131,6 +137,7 @@ impl Show for Type {
             NamedType(ref s) => write!(f.buf, "{}", s),
             FunctionType(ref t1, ref t2) => write!(f.buf, "({} -> {})", t1, t2),
             ArrayType(ref t1, n) => write!(f.buf, "({}[{}])", t1, n),
+            ParameterizedType(ref t, ref p) => write!(f.buf, "{}<{}>", t, p),
         }
     }
 }
@@ -155,6 +162,27 @@ Lexer<vec::MoveItems<~str>>>
     Parser::new(lexer)
 }
 
+
+macro_rules! parse_list(
+    ($parser:expr until $end_token:ident) => (
+        {
+            let mut res = vec!();
+            loop {
+                match self.peek() {
+                    $end_token => break,
+                    _ => { res.push($parser);
+                           match self.peek() {
+                               $end_token => break,
+                               Comma => { self.expect(Comma); },
+                               _ => fail!()
+                           }
+                    }
+                }
+            }
+            res
+        }
+    )
+)
 
 impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     pub fn new(tokens: T) -> Parser<SourceToken, T> {
@@ -226,27 +254,6 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         }
     }
 
-    fn parse_expr_list(&mut self) -> Vec<~ExpressionComponent> {
-        /*
-        Parse a list of expressions, as in a function call.
-
-        EXPR_LIST ::= [ EXPR [ ',' EXPR ...] [ ',' ] ]
-        */
-        let mut res = vec!();
-        loop {
-            match self.peek() {
-                RParen => return res,
-                _ => { res.push(~self.parse_expr());
-                       match self.peek() {
-                           RParen => return res,
-                           Comma => { self.expect(Comma); },
-                           _ => fail!()
-                       }
-                }
-            }
-        }
-    }
-
     fn parse_index(&mut self) -> ExpressionComponent {
         /*
         Parse a possibly-array-indexed expression.
@@ -295,9 +302,22 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 self.expect(RBracket);
                 Index(~first_index, ~indexing_expr)
             },
+            ColonColon => {
+                self.expect(ColonColon);
+                self.expect(Less);
+                let type_params = parse_list!(self.parse_type() until Greater);
+                self.expect(Greater);
+                self.expect(LParen);
+                let args = parse_list!(self.parse_expr() until RParen);
+                self.expect(RParen);
+                FunctionApplicationTypeParams(
+                    ~first_index,
+                    type_params,
+                    args)
+            }
             LParen => {
                 self.expect(LParen);
-                let args = self.parse_expr_list();
+                let args = parse_list!(self.parse_expr() until RParen);
                 self.expect(RParen);
                 FunctionApplication(~first_index, args)
             },
@@ -481,8 +501,18 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             }
             Ident => {
                 let ident_name = self.expect(Ident);
-                result = NamedType(ident_name);
-            }
+                result =
+                    match self.peek() {
+                        Less => {
+                            self.expect(Less);
+                            let params = parse_list!(self.parse_type()
+                                                     until Greater);
+                            self.expect(Greater);
+                            ParameterizedType(ident_name, params)
+                        }
+                        _ => NamedType(ident_name)
+                    }
+                }
             _ => { fail!(); }
         }
 
