@@ -20,5 +20,5 @@ fn main() {
     let lexer = Lexer::new(stdin.lines().map(|x| x.unwrap()));
     let mut parser = Parser::new(lexer);
 
-    print!("{:}\n", parser.parse_type_declaration());
+    print!("{:}\n", parser.parse_expr());
 }

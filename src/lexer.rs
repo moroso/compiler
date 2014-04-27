@@ -17,6 +17,8 @@ pub enum Token {
     // Reserved words
     Let,
     As,
+    If,
+    Else,
 
     // Symbols
     LParen,
@@ -102,6 +104,8 @@ impl<T: Iterator<~str>> Lexer<T> {
             True       => r"true",
             False      => r"false",
             As         => r"as",
+            If         => r"if",
+            Else       => r"else",
 
             // Basic types; TODO: add more.
             I32        => r"[iI]32",

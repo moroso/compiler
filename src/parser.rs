@@ -1,7 +1,9 @@
 use lexer::*;
+use lexer::SourceToken;
 use std::fmt::{Formatter, Result, Show};
 use std::iter::Peekable;
 use std::num;
+use std::vec;
 
 #[deriving(Eq)]
 pub struct NumberType {
@@ -32,6 +34,13 @@ mod defaults {
     pub static DEFAULT_NUM_TYPE: NumberType = NumberType { signedness: Signed, width: 32 };
 }
 
+#[deriving(Eq, Show)]
+/// One part of a compound expression.
+pub enum CompoundExpressionComponent {
+    Declaration(~VariableDeclarationEnum),
+    Expression(~ExpressionComponent),
+}
+
 #[deriving(Eq)]
 pub enum ExpressionComponent {
     Num(i64, NumberType),
@@ -58,9 +67,13 @@ pub enum ExpressionComponent {
     Assignment(~ExpressionComponent, ~ExpressionComponent),
     FunctionApplication(~ExpressionComponent, Vec<~ExpressionComponent>),
     Cast(~ExpressionComponent, ~Type),
-    TernaryConditional(~ExpressionComponent,
-                       ~ExpressionComponent,
-                       ~ExpressionComponent),
+    CompoundExpression(Vec<CompoundExpressionComponent>),
+    EmptyExpression,
+    IfExpression(~ExpressionComponent,
+                 ~ExpressionComponent),
+    IfElseExpression(~ExpressionComponent,
+                     ~ExpressionComponent,
+                     ~ExpressionComponent),
 }
 
 impl Show for ExpressionComponent {
@@ -91,8 +104,13 @@ impl Show for ExpressionComponent {
             FunctionApplication(ref e1, ref args) =>
                 write!(f.buf, "{}({})", e1, args),
             Cast(ref e, ref t) => write!(f.buf, "({} as {})", e, t),
-            TernaryConditional(ref e1, ref e2, ref e3) =>
-                write!(f.buf, "({} ? {} : {})", e1, e2, e3),
+            CompoundExpression(ref l) =>
+                write!(f.buf, "\\{ {} \\}", l),
+            EmptyExpression => write!(f.buf, ";"),
+            IfExpression(ref c, ref b) =>
+                write!(f.buf, "if ({}) {}", c, b),
+            IfElseExpression(ref c, ref b, ref e) =>
+                write!(f.buf, "if ({}) {} else {}", c, b, e)
         }
     }
 }
@@ -128,6 +146,15 @@ pub enum VariableDeclarationEnum {
 pub struct Parser<A, T> {
     tokens: ~Peekable<A, T>,
 }
+
+pub fn new_from_string(s: ~str) -> 
+    Parser<SourceToken,
+Lexer<vec::MoveItems<~str>>>
+{
+    let lexer = Lexer::new(vec!(s).move_iter());
+    Parser::new(lexer)
+}
+
 
 impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     pub fn new(tokens: T) -> Parser<SourceToken, T> {
@@ -225,6 +252,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         Parse a possibly-array-indexed expression.
 
         INDEX ::= '(' EXPR ')'
+                | COMPOUND_EXPRESSION
                 | Number | String | True | False
                 | INDEX '[' EXPR ']'
                 | INDEX '(' ARGLIST ')'
@@ -240,6 +268,9 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                     self.expect(RParen);
                     result
                 },
+                LBrace => {
+                    self.parse_compound_expr()
+                }
                 Number | HexNumber | True | False | String => {
                     self.parse_typed_literal()
                 },
@@ -418,7 +449,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         }
     }
 
-    pub fn parse_assignment(&mut self) -> ExpressionComponent {
+    pub fn parse_possible_assignment(&mut self) -> ExpressionComponent {
         /*
         Parse a (possible) assignment.
 
@@ -427,35 +458,11 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         let parsed_bool_arith = self.parse_bool_arith();
         match self.peek() {
             Eq => { self.expect(Eq);
-                    Assignment(~parsed_bool_arith, ~self.parse_assignment())
+                    Assignment(~parsed_bool_arith,
+                               ~self.parse_possible_assignment())
             },
             _ => parsed_bool_arith
         }
-    }
-
-    pub fn parse_ternary(&mut self) -> ExpressionComponent {
-        /*
-        Parse a (possible) ternary conditional operator.
-
-        TERNARY ::= ASSIGNMENT [ '?' ASSIGNMENT ':' ASSIGNMENT ]
-        */
-        let parsed_assignment = self.parse_assignment();
-        match self.peek() {
-            QuestionMark => {
-                self.expect(QuestionMark);
-                let second_assignment = self.parse_assignment();
-                self.expect(Colon);
-                let third_assignment = self.parse_assignment();
-                TernaryConditional(~parsed_assignment,
-                                    ~second_assignment,
-                                    ~third_assignment)
-            },
-            _ => parsed_assignment
-        }
-    }
-
-    pub fn parse_expr(&mut self) -> ExpressionComponent {
-        self.parse_ternary()
     }
 
     pub fn parse_type(&mut self) -> Type {
@@ -497,7 +504,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         }
     }
 
-    pub fn parse_type_declaration(&mut self) -> VariableDeclarationEnum {
+    pub fn parse_variable_declaration(&mut self) -> VariableDeclarationEnum {
         self.expect(Let);
         let var_name = self.expect(Ident);
         let var_type =
@@ -528,6 +535,69 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             _ => { fail!(); }
         }
     }
+
+    pub fn parse_if_statement(&mut self) -> ExpressionComponent {
+        self.expect(If);
+        let cond = self.parse_expr();
+        let conditional_statement = self.parse_compound_expr();
+        match self.peek() {
+            Else => {
+                self.expect(Else);
+                let else_statement = self.parse_compound_expr();
+                IfElseExpression(~cond, ~conditional_statement, ~else_statement)
+            },
+            _ => IfExpression(~cond, ~conditional_statement)
+        }
+    }
+
+    pub fn parse_simple_expr(&mut self) -> ExpressionComponent {
+        match self.peek() {
+            If => self.parse_if_statement(),
+            _ => self.parse_possible_assignment()
+        }
+    }
+
+    pub fn parse_compound_expr(&mut self) -> ExpressionComponent {
+        self.expect(LBrace);
+        let mut statements = vec!();
+        loop {
+            match self.peek() {
+                Let => statements.push(
+                    Declaration(~self.parse_variable_declaration())),
+                Semicolon => {
+                    // We ignore empty statements when they're not the
+                    // very last one.
+                    self.expect(Semicolon);
+                }
+                RBrace => {
+                    self.expect(RBrace);
+                    statements.push(Expression(~EmptyExpression));
+                    return CompoundExpression(statements);
+                }
+                _ => {
+                    statements.push(
+                        Expression(~self.parse_simple_expr()));
+                    match self.peek() {
+                        Semicolon => {
+                            self.expect(Semicolon);
+                        },
+                        RBrace => {
+                            self.expect(RBrace);
+                            return CompoundExpression(statements);
+                        }
+                        _ => fail!()
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn parse_expr(&mut self) -> ExpressionComponent {
+        match self.peek() {
+            LBrace => self.parse_compound_expr(),
+            _ => self.parse_simple_expr()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -536,17 +606,16 @@ mod tests {
     use super::defaults;
     use super::Parser;
     use super::ExpressionComponent;
-    use lexer::Lexer;
 
     fn mknum(n: i64) -> ExpressionComponent {
         Num(n, defaults::DEFAULT_NUM_TYPE)
     }
 
     #[test]
-    fn test() {
-        let lexer = Lexer::new(vec!(~r#"1+3*5/2-2*3*(5+6)"#).move_iter());
-        let mut parser = Parser::new(lexer);
-        assert_eq!(parser.parse_expr(),
+    fn test_basic_arith_expr() {
+        let mut parser = new_from_string(~r#"1+3*5/2-2*3*(5+6)"#);
+        let tree = parser.parse_simple_expr();
+        assert_eq!(tree,
                    Sum(
                        ~mknum(1),
                        ~Difference(
@@ -570,5 +639,21 @@ mod tests {
                                )
                            )
                    );
+        assert_eq!(format!("{}", tree),
+                   ~"(1i32+((3i32*(5i32/2i32))-(2i32*(3i32*(5i32+6i32)))))");
+    }
+
+    fn compare_canonicalized(raw: ~str, parsed: ~str) {
+        let mut parser = new_from_string(raw);
+        let tree = parser.parse_variable_declaration();
+        assert_eq!(format!("{}", tree), parsed);
+    }
+
+    #[test]
+    fn test_variable_declarations() {
+        compare_canonicalized(
+            ~r#"let x: (int -> int[4]) -> *(int[1]) = f(3*x+1, g(x)) * *p;"#,
+            ~"TypedVariableDeclarationInit(x, ((int -> (int[4])) -> (*(int[1]))), (f([((3i32*x)+1i32), g([x])])*(*p)))"
+        );
     }
 }
