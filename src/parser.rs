@@ -71,12 +71,13 @@ pub enum ExpressionComponent {
                                   Vec<ExpressionComponent>),
     Cast(~ExpressionComponent, ~Type),
     CompoundExpression(Vec<CompoundExpressionComponent>),
-    EmptyExpression,
     IfExpression(~ExpressionComponent,
                  ~ExpressionComponent),
     IfElseExpression(~ExpressionComponent,
                      ~ExpressionComponent,
                      ~ExpressionComponent),
+    TupleExpr(Vec<ExpressionComponent>),
+    Unit,
 }
 
 impl Show for ExpressionComponent {
@@ -111,11 +112,12 @@ impl Show for ExpressionComponent {
             Cast(ref e, ref t) => write!(f.buf, "({} as {})", e, t),
             CompoundExpression(ref l) =>
                 write!(f.buf, "\\{ {} \\}", l),
-            EmptyExpression => write!(f.buf, ";"),
             IfExpression(ref c, ref b) =>
                 write!(f.buf, "if ({}) {}", c, b),
             IfElseExpression(ref c, ref b, ref e) =>
-                write!(f.buf, "if ({}) {} else {}", c, b, e)
+                write!(f.buf, "if ({}) {} else {}", c, b, e),
+            TupleExpr(ref t) => write!(f.buf, "({})", t),
+            Unit => write!(f.buf, "Unit"),
         }
     }
 }
@@ -128,6 +130,8 @@ pub enum Type {
     FunctionType(~Type, ~Type),
     ArrayType(~Type, i64),
     ParameterizedType(~str, Vec<Type>),
+    UnitType,
+    TupleType(Vec<Type>),
 }
 
 impl Show for Type {
@@ -138,6 +142,8 @@ impl Show for Type {
             FunctionType(ref t1, ref t2) => write!(f.buf, "({} -> {})", t1, t2),
             ArrayType(ref t1, n) => write!(f.buf, "({}[{}])", t1, n),
             ParameterizedType(ref t, ref p) => write!(f.buf, "{}<{}>", t, p),
+            UnitType => write!(f.buf, "()"),
+            TupleType(ref v) => write!(f.buf, "({})", v),
         }
     }
 }
@@ -258,7 +264,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         /*
         Parse a possibly-array-indexed expression.
 
-        INDEX ::= '(' EXPR ')'
+        INDEX ::= '(' EXPR [ , EXPR ...] ')'
                 | COMPOUND_EXPRESSION
                 | Number | String | True | False
                 | INDEX '[' EXPR ']'
@@ -271,9 +277,16 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 // '(' expr ')'
                 LParen => {
                     self.expect(LParen);
-                    let result = self.parse_expr();
+                    let mut inner_exprs = parse_list!(self.parse_expr()
+                                                      until RParen);
                     self.expect(RParen);
-                    result
+                    if inner_exprs.len() == 0 {
+                        Unit
+                    } else if inner_exprs.len() == 1 {
+                        inner_exprs.pop().unwrap()
+                    } else {
+                        TupleExpr(inner_exprs)
+                    }
                 },
                 LBrace => {
                     self.parse_compound_expr()
@@ -495,9 +508,17 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             }
             LParen => {
                 self.expect(LParen);
-                let inner_type = self.parse_type();
+                let mut inner_types = parse_list!(self.parse_type()
+                                                  until RParen);
                 self.expect(RParen);
-                result = inner_type;
+                result =
+                    if inner_types.len() == 0 {
+                        UnitType
+                    } else if inner_types.len() == 1 {
+                        inner_types.pop().unwrap()
+                    } else {
+                        TupleType(inner_types)
+                    };
             }
             Ident => {
                 let ident_name = self.expect(Ident);
@@ -601,7 +622,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 }
                 RBrace => {
                     self.expect(RBrace);
-                    statements.push(Expression(~EmptyExpression));
+                    statements.push(Expression(~Unit));
                     return CompoundExpression(statements);
                 }
                 _ => {
