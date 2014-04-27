@@ -51,6 +51,7 @@ pub enum Token {
     Arrow,
     Comma,
     QuestionMark,
+    Period,
 
     // Literals
     Ident,
@@ -143,6 +144,7 @@ impl<T: Iterator<~str>> Lexer<T> {
             Arrow        => r"->",
             Comma        => r",",
             QuestionMark => r"\?",
+            Period       => r"\.",
 
             // Literals
             Ident      => r"[a-zA-Z_]\w*",

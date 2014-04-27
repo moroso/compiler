@@ -78,6 +78,8 @@ pub enum ExpressionComponent {
                      ~ExpressionComponent),
     TupleExpr(Vec<ExpressionComponent>),
     Unit,
+    FieldAccess(~ExpressionComponent,
+                ~str),
 }
 
 impl Show for ExpressionComponent {
@@ -118,6 +120,7 @@ impl Show for ExpressionComponent {
                 write!(f.buf, "if ({}) {} else {}", c, b, e),
             TupleExpr(ref t) => write!(f.buf, "({})", t),
             Unit => write!(f.buf, "Unit"),
+            FieldAccess(ref e, ref c) => write!(f.buf, "({}.{})", e, c),
         }
     }
 }
@@ -344,6 +347,16 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                         let type_specifier = self.parse_type();
                         Cast(~current_index, ~type_specifier)
                     },
+                    Period => {
+                        self.expect(Period);
+                        let field = self.expect(Ident);
+                        FieldAccess(~current_index, field)
+                    }
+                    Arrow => {
+                        self.expect(Arrow);
+                        let field = self.expect(Ident);
+                        FieldAccess(~Dereference(~current_index), field)
+                    }
                     _ => return current_index
                 };
         }
