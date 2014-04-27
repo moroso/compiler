@@ -1,3 +1,4 @@
+use parser;
 use regex::Regex;
 use std::iter;
 use std::slice::CloneableVector;
@@ -54,7 +55,7 @@ pub enum Token {
 
     // Literals
     Ident(~str),
-    Number(u64),
+    Number(u64, Option<parser::NumberType>),
     String(~str),
 
     // Special
@@ -114,20 +115,40 @@ impl<T: Iterator<~str>> Lexer<T> {
 
         // Rule to match a numeric literal and parse it into a number
         struct NumberRule;
-        impl RuleMatcher<u64> for NumberRule {
-            fn find(&self, s: &str) -> Option<(uint, u64)> {
+        impl RuleMatcher<(u64, Option<parser::NumberType>)> for NumberRule {
+            fn find(&self, s: &str) -> Option<(uint, (u64, Option<parser::NumberType>))> {
                 use std::num::from_str_radix;
 
-                let matcher = matcher!(r"(?:0[xX]([:xdigit:]+))|(\d+)");
+                let matcher = matcher!(r"((?:0[xX]([:xdigit:]+))|(?:\d+))(?:([uUiI])(32|16|8))?");
                 match matcher.captures(s) {
                     Some(groups) => {
-                        let t = groups.at(0);
-                        let (num_str, radix) = match groups.pos(1) {
-                            Some(_) => (groups.at(1), 16),
-                            None    => (t, 10)
+                        let t = groups.at(1);
+                        let (num_str, radix) = match groups.at(2) {
+                            ""  => (t, 10),
+                            hex => (hex, 16),
                         };
 
-                        Some((t.len(), from_str_radix(num_str, radix).take_unwrap()))
+                        let s = groups.at(3);
+                        let kind = if s.len() > 0 {
+                            let s = match s.char_at(0) {
+                                'u' | 'U' => parser::Unsigned,
+                                'i' | 'I' => parser::Signed,
+                                _ => fail!(),
+                            };
+
+                            let w = match from_str_radix(groups.at(4), 10) {
+                                Some(32) => 32,
+                                Some(16) => 16,
+                                Some(8)  => 8,
+                                _ => fail!(),
+                            };
+
+                            Some(parser::NumberType { signedness: s, width: w })
+                        } else {
+                            None
+                        };
+
+                        Some((t.len(), (from_str_radix(num_str, radix).take_unwrap(), kind)))
                     },
                     _ => None
                 }
@@ -281,6 +302,10 @@ impl<T> TokenMaker<T> for fn(T) -> Token {
     fn mk_tok(&self, arg: T) -> Token{ (*self)(arg) }
 }
 
+impl<A, B> TokenMaker<(A, B)> for fn(A, B) -> Token {
+    fn mk_tok(&self, (a, b): (A, B)) -> Token{ (*self)(a, b) }
+}
+
 // A RuleMatcher accepts a string slice and tests the encapsulated rule on it.
 // If there is a match it can optionally hand back a string slice corresponding
 // to that match. (The "optionally" part is determined by whether or not the
@@ -352,10 +377,10 @@ mod tests {
                   LParen,
                   Ident(~"x"),
                   Dash,
-                  Number(0x3f5B),
+                  Number(0x3f5B, None),
                   RParen,
                   Plus,
-                  Number(1),
+                  Number(1, None),
                   String(~r#"Hello\" World"#),
                 ]);
 
@@ -367,7 +392,7 @@ mod tests {
                  Colon,
                  Ident(~"int"),
                  Eq,
-                 Number(5),
+                 Number(5, None),
                  ]);
     }
 }

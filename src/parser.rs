@@ -5,13 +5,13 @@ use std::iter::Peekable;
 use std::num;
 use std::vec;
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub struct NumberType {
-    signedness: Signedness,
-    width: u8,
+    pub signedness: Signedness,
+    pub width: u8,
 }
 
-#[deriving(Eq, Show)]
+#[deriving(Eq, Clone, Show)]
 pub enum Signedness {
     Signed,
     Unsigned,
@@ -30,7 +30,7 @@ impl Show for NumberType {
 
 // Numbers by default are 32-bit, signed.
 mod defaults {
-    use super::{NumberType, Signed, Unsigned};
+    use super::{NumberType, Signed};
     pub static DEFAULT_NUM_TYPE: NumberType = NumberType { signedness: Signed, width: 32 };
 }
 
@@ -294,7 +294,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
     fn expect_number(&mut self) -> u64 {
         match self.eat() {
-            Number(num) => num,
+            Number(num, _) => num,
             tok => self.error(format!("Unexpected {} where number expected", tok))
         }
     }
@@ -305,18 +305,11 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
     fn parse_typed_literal(&mut self) -> ExpressionComponent {
         match self.eat() {
-            True => TrueConstant,
-            False => FalseConstant,
-            String(s) => StringConstant(s),
-            Number(num) => {
-                let num_type = match *self.peek() {
-                    U32 => { self.expect(U32); NumberType { signedness: Unsigned, width: 32 } },
-                    I32 => { self.expect(I32); NumberType { signedness: Signed, width: 32 } },
-                    _ => defaults::DEFAULT_NUM_TYPE
-                };
-                Num(num, num_type)
-            },
-            tok => self.error(format!("Unexpected {} where literal expected", tok))
+            True              => TrueConstant,
+            False             => FalseConstant,
+            String(s)         => StringConstant(s),
+            Number(num, kind) => Num(num, kind.unwrap_or(defaults::DEFAULT_NUM_TYPE)),
+            tok               => self.error(format!("Unexpected {} where literal expected", tok))
         }
     }
 
@@ -352,7 +345,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 LBrace => {
                     self.parse_compound_expr()
                 }
-                Number(_) | True | False | String(_) => {
+                Number(..) | True | False | String(..) => {
                     self.parse_typed_literal()
                 },
                 Ident(_) => {
