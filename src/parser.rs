@@ -43,7 +43,7 @@ pub enum CompoundExpressionComponent {
 
 #[deriving(Eq)]
 pub enum ExpressionComponent {
-    Num(i64, NumberType),
+    Num(u64, NumberType),
     StringConstant(~str),
     TrueConstant,
     FalseConstant,
@@ -187,7 +187,7 @@ pub enum Type {
     PointerTo(~Type),
     NamedType(~str),
     FunctionType(~Type, ~Type),
-    ArrayType(~Type, i64),
+    ArrayType(~Type, u64),
     ParameterizedType(~str, Vec<Type>),
     UnitType,
     TupleType(Vec<Type>),
@@ -234,10 +234,10 @@ macro_rules! parse_list(
         {
             let mut res = vec!();
             loop {
-                match self.peek() {
+                match *self.peek() {
                     $end_token => break,
                     _ => { res.push($parser);
-                           match self.peek() {
+                           match *self.peek() {
                                $end_token => break,
                                Comma => { self.expect(Comma); },
                                _ => fail!()
@@ -250,6 +250,8 @@ macro_rules! parse_list(
     )
 )
 
+static EOF: Token = Eof;
+
 impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     pub fn new(tokens: T) -> Parser<SourceToken, T> {
         Parser::<SourceToken, T> {
@@ -259,64 +261,62 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
     /// "Peek" at the next token, returning the token, without consuming
     /// it from the stream.
-    fn peek(&mut self) -> Token {
+    fn peek<'a>(&'a mut self) -> &'a Token {
         match self.tokens.peek() {
+            Some(st) => &st.tok,
+            None => &EOF,
+        }
+    }
+
+    fn eat(&mut self) -> Token {
+        match self.tokens.next() {
             Some(st) => st.tok,
             None => Eof,
         }
     }
 
     /// Consume one token from the stream, erroring if it's not
-    /// the `expected_token`. Returns the string corresponding to that
+    /// the `expected`. Returns the string corresponding to that
     /// token.
-    fn expect(&mut self, expected_token: Token) -> ~str {
-        match self.tokens.next() {
-            ref mut o@Some(ref st) if st.tok == expected_token => o.take_unwrap().txt,
-            st => fail!("Expected {:?}, found {:?}", expected_token, st.map_or(Eof, |st| st.tok))
+    fn expect(&mut self, expected: Token) {
+        let tok = self.eat();
+        if tok != expected{
+            self.error(format!("Expected {:?}, found {:?}", expected, tok));
         }
     }
 
-    fn parse_number(&mut self) -> i64 {
-        match self.peek() {
-            Number => {
-                let num = self.expect(Number);
-                return from_str(num).unwrap();
-            },
-            HexNumber => {
-                let num = self.expect(HexNumber);
-                assert_eq!(num[0], '0' as u8);
-                assert!(num[1] == ('x' as u8) || num[1] == ('X' as u8));
-                let x: Option<i64> = num::from_str_radix(num.slice_from(2), 16);
-                let y: i64 = x.unwrap();
-                return y;
-            },
-            _ => { fail!("Parse error."); }
-        }        
+    fn expect_ident(&mut self) -> ~str {
+        match self.eat() {
+            Ident(name) => name,
+            tok => self.error(format!("Expected ident, found {}", tok))
+        }
+    }
+
+    fn expect_number(&mut self) -> u64 {
+        match self.eat() {
+            Number(num) => num,
+            tok => self.error(format!("Unexpected {} where number expected", tok))
+        }
+    }
+
+    fn error<'a>(&self, message: &'a str) -> ! {
+        fail!("{}", message)
     }
 
     fn parse_typed_literal(&mut self) -> ExpressionComponent {
-        match self.peek() {
-            True => { self.expect(True); TrueConstant },
-            False => { self.expect(False); FalseConstant },
-            String => { StringConstant(self.expect(String)) },
-            Number => {
-                let num = self.parse_number();
-                let number_type_str = match self.peek() {
-                    x if x == U32 || x == I32 => {
-                        self.expect(x)
-                    },
-                    _ => return Num(num, defaults::DEFAULT_NUM_TYPE)
+        match self.eat() {
+            True => TrueConstant,
+            False => FalseConstant,
+            String(s) => StringConstant(s),
+            Number(num) => {
+                let num_type = match *self.peek() {
+                    U32 => { self.expect(U32); NumberType { signedness: Unsigned, width: 32 } },
+                    I32 => { self.expect(I32); NumberType { signedness: Signed, width: 32 } },
+                    _ => defaults::DEFAULT_NUM_TYPE
                 };
-                let signedness = match number_type_str[0] as char {
-                    'i' | 'I' => Signed,
-                    'u' | 'U' => Unsigned,
-                    _ => fail!()
-                };
-                let width = from_str(number_type_str.slice_from(1)).unwrap();
-                Num(num, NumberType { signedness: signedness,
-                                      width: width })
+                Num(num, num_type)
             },
-            _ => fail!()
+            tok => self.error(format!("Unexpected {} where literal expected", tok))
         }
     }
 
@@ -334,7 +334,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 | IDENT
         */
         let mut current_index =
-            match self.peek() {
+            match *self.peek() {
                 // '(' expr ')'
                 LParen => {
                     self.expect(LParen);
@@ -352,12 +352,11 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 LBrace => {
                     self.parse_compound_expr()
                 }
-                Number | HexNumber | True | False | String => {
+                Number(_) | True | False | String(_) => {
                     self.parse_typed_literal()
                 },
-                Ident => {
-                    let ident_name = self.expect(Ident);
-                    Identifier(ident_name)
+                Ident(_) => {
+                    Identifier(self.expect_ident())
                 }
                 Star => {
                     self.expect(Star);
@@ -372,7 +371,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
         loop {
             current_index =
-                match self.peek() {
+                match *self.peek() {
                     LBracket => {
                         self.expect(LBracket);
                         let indexing_expr = self.parse_expr();
@@ -406,12 +405,12 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                     },
                     Period => {
                         self.expect(Period);
-                        let field = self.expect(Ident);
+                        let field = self.expect_ident();
                         FieldAccess(~current_index, field)
                     }
                     Arrow => {
                         self.expect(Arrow);
-                        let field = self.expect(Ident);
+                        let field = self.expect_ident();
                         FieldAccess(~Dereference(~current_index), field)
                     }
                     _ => return current_index
@@ -428,7 +427,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                  | '*' INDEX
                  | '&' INDEX
         */
-        match self.peek() {
+        match *self.peek() {
             Star => {
                 self.expect(Star);
                 Dereference(~self.parse_index())
@@ -450,7 +449,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                | FACTOR [ '&' TERM ]
         */
         let matched_factor = self.parse_factor();
-        match self.peek() {
+        match *self.peek() {
             Star => {
                 self.expect(Star);
                 let next_term = self.parse_term();
@@ -480,7 +479,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
          */
         
         let parsed_term = self.parse_term();
-        match self.peek() {
+        match *self.peek() {
             Plus => { self.expect(Plus);
                       let next_term = self.parse_arith();
                       Sum(~parsed_term, ~next_term)
@@ -508,7 +507,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                       | ARITH [ '>' BOOL_FACTOR ]
         */
         let parsed_arith = self.parse_arith();
-        match self.peek() {
+        match *self.peek() {
             EqEq => { self.expect(EqEq);
                       EqualsExpr(~parsed_arith, ~self.parse_bool_factor())
             },
@@ -535,7 +534,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         BOOL_TERM ::= BOOL_FACTOR [ '&&' BOOL_TERM ]
         */
         let parsed_factor = self.parse_bool_factor();
-        match self.peek() {
+        match *self.peek() {
             AmpAmp => { self.expect(AmpAmp);
                         LogicalAnd(~parsed_factor, ~self.parse_bool_term())
             },
@@ -550,7 +549,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         BOOL_ARITH ::= BOOL_TERM [ '||' BOOL_ARITH ]
         */
         let parsed_term = self.parse_bool_term();
-        match self.peek() {
+        match *self.peek() {
             PipePipe => { self.expect(PipePipe);
                           LogicalOr(~parsed_term, ~self.parse_bool_term())
             },
@@ -565,7 +564,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         ASSIGN ::= BOOL_ARITH [ '=' ASSIGN ]
         */
         let parsed_bool_arith = self.parse_bool_arith();
-        match self.peek() {
+        match *self.peek() {
             Eq => { self.expect(Eq);
                     Assignment(~parsed_bool_arith,
                                ~self.parse_possible_assignment())
@@ -575,46 +574,43 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     }
 
     pub fn parse_type(&mut self) -> Type {
-        let mut result;
-        match self.peek() {
+        let mut result = match *self.peek() {
             Star => {
                 self.expect(Star);
                 let inner_type = self.parse_type();
-                result = PointerTo(~inner_type);
+                PointerTo(~inner_type)
             }
             LParen => {
                 self.expect(LParen);
                 let mut inner_types = parse_list!(self.parse_type()
                                                   until RParen);
                 self.expect(RParen);
-                result =
-                    if inner_types.len() == 0 {
-                        UnitType
-                    } else if inner_types.len() == 1 {
-                        inner_types.pop().unwrap()
-                    } else {
-                        TupleType(inner_types)
-                    };
-            }
-            Ident => {
-                let ident_name = self.expect(Ident);
-                result =
-                    match self.peek() {
-                        Less => {
-                            self.expect(Less);
-                            let params = parse_list!(self.parse_type()
-                                                     until Greater);
-                            self.expect(Greater);
-                            ParameterizedType(ident_name, params)
-                        }
-                        _ => NamedType(ident_name)
-                    }
+                if inner_types.len() == 0 {
+                    UnitType
+                } else if inner_types.len() == 1 {
+                    inner_types.pop().unwrap()
+                } else {
+                    TupleType(inner_types)
                 }
+            }
+            Ident(_) => {
+                let ident_name = self.expect_ident();
+                match *self.peek() {
+                    Less => {
+                        self.expect(Less);
+                        let params = parse_list!(self.parse_type()
+                                                 until Greater);
+                        self.expect(Greater);
+                        ParameterizedType(ident_name, params)
+                    }
+                    _ => NamedType(ident_name)
+                }
+            }
             _ => { fail!(); }
-        }
+        };
 
         loop {
-            match self.peek() {
+            match *self.peek() {
                 Arrow => {
                     self.expect(Arrow);
                     let dest_type = self.parse_type();
@@ -622,7 +618,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 },
                 LBracket => {
                     self.expect(LBracket);
-                    let dimension = self.parse_number();
+                    let dimension = self.expect_number();
                     self.expect(RBracket);
                     result = ArrayType(~result, dimension);
                 }
@@ -633,17 +629,17 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
     pub fn parse_variable_declaration(&mut self) -> VariableDeclarationEnum {
         self.expect(Let);
-        let var_name = self.expect(Ident);
-        let var_type =
-            match self.peek() {
-                Colon => {
-                    self.expect(Colon);
-                    Some(self.parse_type())
-                },
-                Eq => None,
-                _ => fail!()
-            };
-        match self.peek() {
+        let var_name = self.expect_ident();
+        let var_type = match *self.peek() {
+            Colon => {
+                self.expect(Colon);
+                Some(self.parse_type())
+            },
+            Eq => None,
+            _ => fail!()
+        };
+
+        match *self.peek() {
             Semicolon => {
                 self.expect(Semicolon);
                 VariableDeclaration(var_name, ~var_type.unwrap())
@@ -667,7 +663,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         self.expect(If);
         let cond = self.parse_expr();
         let conditional_statement = self.parse_compound_expr();
-        match self.peek() {
+        match *self.peek() {
             Else => {
                 self.expect(Else);
                 let else_statement = self.parse_compound_expr();
@@ -685,7 +681,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     }
 
     pub fn parse_simple_expr(&mut self) -> ExpressionComponent {
-        match self.peek() {
+        match *self.peek() {
             If => self.parse_if_statement(),
             Return => self.parse_return_statement(),
             _ => self.parse_possible_assignment()
@@ -696,7 +692,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         self.expect(LBrace);
         let mut statements = vec!();
         loop {
-            match self.peek() {
+            match *self.peek() {
                 Let => statements.push(
                     Declaration(~self.parse_variable_declaration())),
                 Semicolon => {
@@ -712,7 +708,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 _ => {
                     statements.push(
                         Expression(~self.parse_simple_expr()));
-                    match self.peek() {
+                    match *self.peek() {
                         Semicolon => {
                             self.expect(Semicolon);
                         },
@@ -728,14 +724,14 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     }
 
     pub fn parse_expr(&mut self) -> ExpressionComponent {
-        match self.peek() {
+        match *self.peek() {
             LBrace => self.parse_compound_expr(),
             _ => self.parse_simple_expr()
         }
     }
 
     pub fn parse_function_argument(&mut self) -> FuncArg {
-        let arg_name = self.expect(Ident);
+        let arg_name = self.expect_ident();
         self.expect(Colon);
         let arg_type = self.parse_type();
         FuncArg { name: arg_name,
@@ -744,11 +740,12 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
     pub fn parse_function_declaration(&mut self) -> TopLevelDecl {
         self.expect(Fn);
-        let funcname = self.expect(Ident);
-        let type_params = match self.peek() {
+        let funcname = self.expect_ident();
+        let type_params = match *self.peek() {
             Less => {
                 self.expect(Less);
-                let p = Some(parse_list!(self.expect(Ident) until Greater));
+                let p = Some(parse_list!(self.expect_ident()
+                                         until Greater));
                 self.expect(Greater);
                 p
             },
@@ -758,7 +755,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         self.expect(LParen);
         let args = parse_list!(self.parse_function_argument() until RParen);
         self.expect(RParen);
-        let return_type = match self.peek() {
+        let return_type = match *self.peek() {
             Arrow => { self.expect(Arrow); self.parse_type() }
             _ => UnitType,
         };
@@ -773,7 +770,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     pub fn parse_toplevel(&mut self) -> TopLevel {
         let mut result = vec!();
         loop {
-            match self.peek() {
+            match *self.peek() {
                 Fn => result.push(self.parse_function_declaration()),
                 Eof => return TopLevelStatements(result),
                 _ => fail!()
@@ -789,7 +786,7 @@ mod tests {
     use super::Parser;
     use super::ExpressionComponent;
 
-    fn mknum(n: i64) -> ExpressionComponent {
+    fn mknum(n: u64) -> ExpressionComponent {
         Num(n, defaults::DEFAULT_NUM_TYPE)
     }
 
