@@ -1,3 +1,4 @@
+use ast::IntKind;
 use lexer::*;
 use lexer::SourceToken;
 use std::fmt::{Formatter, Result, Show};
@@ -5,33 +6,10 @@ use std::iter::Peekable;
 use std::num;
 use std::vec;
 
-#[deriving(Eq, Clone)]
-pub struct NumberType {
-    pub signedness: Signedness,
-    pub width: u8,
-}
-
-#[deriving(Eq, Clone, Show)]
-pub enum Signedness {
-    Signed,
-    Unsigned,
-}
-
-impl Show for NumberType {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f.buf, "{}{}",
-               match self.signedness {
-                   Signed => 'i',
-                   Unsigned => 'u',
-               },
-               self.width)
-    }
-}
-
 // Numbers by default are 32-bit, signed.
 mod defaults {
-    use super::{NumberType, Signed};
-    pub static DEFAULT_NUM_TYPE: NumberType = NumberType { signedness: Signed, width: 32 };
+    use ast::{IntKind, Signed, Width32};
+    pub static DEFAULT_INT_KIND: IntKind = IntKind { signedness: Signed, width: Width32 };
 }
 
 #[deriving(Eq, Show)]
@@ -43,7 +21,7 @@ pub enum CompoundExpressionComponent {
 
 #[deriving(Eq)]
 pub enum ExpressionComponent {
-    Num(u64, NumberType),
+    Num(u64, IntKind),
     StringConstant(~str),
     TrueConstant,
     FalseConstant,
@@ -308,7 +286,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             True              => TrueConstant,
             False             => FalseConstant,
             String(s)         => StringConstant(s),
-            Number(num, kind) => Num(num, kind.unwrap_or(defaults::DEFAULT_NUM_TYPE)),
+            Number(num, kind) => Num(num, kind.unwrap_or(defaults::DEFAULT_INT_KIND)),
             tok               => self.error(format!("Unexpected {} where literal expected", tok))
         }
     }
@@ -780,7 +758,7 @@ mod tests {
     use super::ExpressionComponent;
 
     fn mknum(n: u64) -> ExpressionComponent {
-        Num(n, defaults::DEFAULT_NUM_TYPE)
+        Num(n, defaults::DEFAULT_INT_KIND)
     }
 
     #[test]

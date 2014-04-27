@@ -1,4 +1,4 @@
-use parser;
+use ast;
 use span::{Span, SourcePos, mk_sp};
 use regex::Regex;
 use std::iter;
@@ -56,7 +56,7 @@ pub enum Token {
 
     // Literals
     Ident(~str),
-    Number(u64, Option<parser::NumberType>),
+    Number(u64, Option<ast::IntKind>),
     String(~str),
 
     // Special
@@ -117,8 +117,8 @@ impl<T: Iterator<~str>> Lexer<T> {
 
         // Rule to match a numeric literal and parse it into a number
         struct NumberRule;
-        impl RuleMatcher<(u64, Option<parser::NumberType>)> for NumberRule {
-            fn find(&self, s: &str) -> Option<(uint, (u64, Option<parser::NumberType>))> {
+        impl RuleMatcher<(u64, Option<ast::IntKind>)> for NumberRule {
+            fn find(&self, s: &str) -> Option<(uint, (u64, Option<ast::IntKind>))> {
                 use std::num::from_str_radix;
 
                 let matcher = matcher!(r"((?:0[xX]([:xdigit:]+))|(?:\d+))(?:([uUiI])(32|16|8))?");
@@ -133,19 +133,19 @@ impl<T: Iterator<~str>> Lexer<T> {
                         let s = groups.at(3);
                         let kind = if s.len() > 0 {
                             let s = match s.char_at(0) {
-                                'u' | 'U' => parser::Unsigned,
-                                'i' | 'I' => parser::Signed,
+                                'u' | 'U' => ast::Unsigned,
+                                'i' | 'I' => ast::Signed,
                                 _ => fail!(),
                             };
 
                             let w = match from_str_radix(groups.at(4), 10) {
-                                Some(32) => 32,
-                                Some(16) => 16,
-                                Some(8)  => 8,
+                                Some(32) => ast::Width32,
+                                Some(16) => ast::Width16,
+                                Some(8)  => ast::Width8,
                                 _ => fail!(),
                             };
 
-                            Some(parser::NumberType { signedness: s, width: w })
+                            Some(ast::IntKind { signedness: s, width: w })
                         } else {
                             None
                         };

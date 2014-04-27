@@ -8,7 +8,7 @@ docs: doc/regexp/index.html
 doc/%/index.html: %.rs
 	rustdoc $<
 
-MC_FILES := src/main.rs src/lexer.rs src/parser.rs src/span.rs
+MC_FILES := src/main.rs src/lexer.rs src/parser.rs src/span.rs src/ast.rs
 
 mc: $(MC_FILES)
 	rustc $< -o $@
