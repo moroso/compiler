@@ -2,7 +2,6 @@ use lexer::*;
 use std::fmt::{Formatter, Result, Show};
 use std::iter::Peekable;
 use std::num;
-mod lexer;
 
 #[deriving(Eq)]
 pub struct NumberType {
@@ -25,6 +24,12 @@ impl Show for NumberType {
                },
                self.width)
     }
+}
+
+// Numbers by default are 32-bit, signed.
+mod defaults {
+    use super::{NumberType, Signed, Unsigned};
+    pub static DEFAULT_NUM_TYPE: NumberType = NumberType { signedness: Signed, width: 32 };
 }
 
 #[deriving(Eq)]
@@ -178,9 +183,7 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
                     x if x == U32 || x == I32 => {
                         self.expect(x)
                     },
-                    // Numbers by default are 32 bit, signed.
-                    _ => return Num(num, NumberType { signedness: Signed,
-                                                      width: 32 })
+                    _ => return Num(num, defaults::DEFAULT_NUM_TYPE)
                 };
                 let signedness = match number_type_str[0] as char {
                     'i' | 'I' => Signed,
@@ -529,9 +532,14 @@ impl<T: Iterator<(Token, ~str)>> Parser<(Token, ~str), T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::defaults;
     use super::Parser;
     use super::ExpressionComponent;
     use lexer::Lexer;
+
+    fn mknum(n: i64) -> ExpressionComponent {
+        Num(n, defaults::DEFAULT_NUM_TYPE)
+    }
 
     #[test]
     fn test() {
@@ -539,22 +547,22 @@ mod tests {
         let mut parser = Parser::new(lexer);
         assert_eq!(parser.parse_expr(),
                    Sum(
-                       ~Num(1),
+                       ~mknum(1),
                        ~Difference(
                            ~Product(
-                               ~Num(3),
+                               ~mknum(3),
                                ~Quotient(
-                                   ~Num(5),
-                                   ~Num(2)
-                                       )
+                                   ~mknum(5),
+                                   ~mknum(2)
+                                        )
                                    ),
                            ~Product(
-                               ~Num(2),
+                               ~mknum(2),
                                ~Product(
-                                   ~Num(3),
+                                   ~mknum(3),
                                    ~Sum(
-                                       ~Num(5),
-                                       ~Num(6)
+                                       ~mknum(5),
+                                       ~mknum(6)
                                            )
                                        )
                                    )
