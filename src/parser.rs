@@ -144,6 +144,8 @@ impl Show for FuncArg {
 #[deriving(Eq)]
 pub enum TopLevelDecl {
     FunctionDecl(~str, Vec<FuncArg>, Type, ExpressionComponent),
+    FunctionDeclWithTypeParam(~str, Vec<~str>, Vec<FuncArg>, Type,
+                              ExpressionComponent),
 }
 
 impl Show for TopLevelDecl {
@@ -152,6 +154,11 @@ impl Show for TopLevelDecl {
             FunctionDecl(ref name, ref args, ref functype, ref body) =>
                 write!(f.buf, "fn {}({}) -> {} {}",
                        name, args, functype, body),
+            FunctionDeclWithTypeParam(ref name, ref type_params, ref args,
+                                      ref functype, ref body) =>
+                write!(f.buf, "fn {}<{}>({}) -> {} {}",
+                       name, type_params, args, functype, body),
+
         }
     }
 }
@@ -165,7 +172,9 @@ impl Show for TopLevel {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
             TopLevelStatements(ref v) => {
-                write!(f.buf, "{}", v)
+                write!(f.buf, "{}",
+                       v.iter()
+                       .fold(~"", |s, i| (s+"\n"+format!("{}", i))))
             }
         }
     }
@@ -736,6 +745,16 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     pub fn parse_function_declaration(&mut self) -> TopLevelDecl {
         self.expect(Fn);
         let funcname = self.expect(Ident);
+        let type_params = match self.peek() {
+            Less => {
+                self.expect(Less);
+                let p = Some(parse_list!(self.expect(Ident) until Greater));
+                self.expect(Greater);
+                p
+            },
+            LParen => None,
+            _ => fail!(),
+        };
         self.expect(LParen);
         let args = parse_list!(self.parse_function_argument() until RParen);
         self.expect(RParen);
@@ -744,7 +763,11 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             _ => UnitType,
         };
         let body = self.parse_compound_expr();
-        FunctionDecl(funcname, args, return_type, body)
+        match type_params {
+            Some(v) => FunctionDeclWithTypeParam(funcname, v, args,
+                                                 return_type, body),
+            None => FunctionDecl(funcname, args, return_type, body)
+        }
     }
 
     pub fn parse_toplevel(&mut self) -> TopLevel {
