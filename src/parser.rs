@@ -269,10 +269,11 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 | Number | String | True | False
                 | INDEX '[' EXPR ']'
                 | INDEX '(' ARGLIST ')'
+                | INDEX '.' IDENT
                 | INDEX 'as' TYPE
                 | IDENT
         */
-        let first_index =
+        let mut current_index =
             match self.peek() {
                 // '(' expr ')'
                 LParen => {
@@ -308,38 +309,43 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 }
                 _ => { fail!("Parse error."); }
             };
-        match self.peek() {
-            LBracket => {
-                self.expect(LBracket);
-                let indexing_expr = self.parse_expr();
-                self.expect(RBracket);
-                Index(~first_index, ~indexing_expr)
-            },
-            ColonColon => {
-                self.expect(ColonColon);
-                self.expect(Less);
-                let type_params = parse_list!(self.parse_type() until Greater);
-                self.expect(Greater);
-                self.expect(LParen);
-                let args = parse_list!(self.parse_expr() until RParen);
-                self.expect(RParen);
-                FunctionApplicationTypeParams(
-                    ~first_index,
-                    type_params,
-                    args)
-            }
-            LParen => {
-                self.expect(LParen);
-                let args = parse_list!(self.parse_expr() until RParen);
-                self.expect(RParen);
-                FunctionApplication(~first_index, args)
-            },
-            As => {
-                self.expect(As);
-                let type_specifier = self.parse_type();
-                Cast(~first_index, ~type_specifier)
-            },
-            _ => first_index
+
+        loop {
+            current_index =
+                match self.peek() {
+                    LBracket => {
+                        self.expect(LBracket);
+                        let indexing_expr = self.parse_expr();
+                        self.expect(RBracket);
+                        Index(~current_index, ~indexing_expr)
+                    },
+                    ColonColon => {
+                        self.expect(ColonColon);
+                        self.expect(Less);
+                        let type_params = parse_list!(self.parse_type()
+                                                      until Greater);
+                        self.expect(Greater);
+                        self.expect(LParen);
+                        let args = parse_list!(self.parse_expr() until RParen);
+                        self.expect(RParen);
+                        FunctionApplicationTypeParams(
+                            ~current_index,
+                            type_params,
+                            args)
+                    }
+                    LParen => {
+                        self.expect(LParen);
+                        let args = parse_list!(self.parse_expr() until RParen);
+                        self.expect(RParen);
+                        FunctionApplication(~current_index, args)
+                    },
+                    As => {
+                        self.expect(As);
+                        let type_specifier = self.parse_type();
+                        Cast(~current_index, ~type_specifier)
+                    },
+                    _ => return current_index
+                };
         }
 
     }
