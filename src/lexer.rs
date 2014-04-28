@@ -1,4 +1,5 @@
 use parser;
+use span::{Span, SourcePos, mk_sp};
 use regex::Regex;
 use std::iter;
 use std::slice::CloneableVector;
@@ -65,10 +66,11 @@ pub enum Token {
 #[deriving(Show, Eq)]
 pub struct SourceToken {
     pub tok: Token,
+    pub sp: Span,
 }
 
 struct LineContext {
-    pos: uint,
+    pos: SourcePos,
     line: ~str,
 }
 
@@ -99,7 +101,7 @@ impl<A, T: RuleMatcher<A>, U: TokenMaker<A>> LexerRuleT for LexerRule<T, U> {
 }
 
 pub struct Lexer<T> {
-    iter: T,
+    iter: iter::Enumerate<T>,
     linectx: Option<LineContext>,
     rules: Vec<~LexerRuleT>,
 }
@@ -230,7 +232,7 @@ impl<T: Iterator<~str>> Lexer<T> {
         };
 
         Lexer {
-            iter: line_iter,
+            iter: line_iter.enumerate(),
             linectx: None,
             rules: rules
         }
@@ -242,15 +244,15 @@ impl<T: Iterator<~str>> Iterator<SourceToken> for Lexer<T> {
     fn next(&mut self) -> Option<SourceToken> {
         loop {
             for lc in self.linectx.mut_iter() {
-                while lc.pos < lc.line.len() {
+                while lc.pos.col < lc.line.len() {
                     let mut longest = 0u;
                     let mut best = None;
                     for rule in self.rules.iter() {
-                        let m = rule.run(lc.line.slice_from(lc.pos));
+                        let m = rule.run(lc.line.slice_from(lc.pos.col));
                         match m {
                             Some((len, tok)) => {
                                 if len > longest {
-                                    best = Some(tok);
+                                    best = Some((mk_sp(lc.pos, len), tok));
                                     longest = len;
                                 }
                             },
@@ -258,14 +260,15 @@ impl<T: Iterator<~str>> Iterator<SourceToken> for Lexer<T> {
                         }
                     }
 
-                    lc.pos += longest;
+                    lc.pos.col += longest;
 
                     match best {
                         None => fail!("Unexpected input"),
-                        Some(WS) => {}
-                        Some(tok) => {
+                        Some((_, WS)) => {}
+                        Some((sp, tok)) => {
                             return Some(SourceToken {
                                 tok: tok,
+                                sp: sp,
                             })
                         }
                     }
@@ -274,9 +277,9 @@ impl<T: Iterator<~str>> Iterator<SourceToken> for Lexer<T> {
 
             match self.iter.next() {
                 None => return None,
-                Some(line) => {
+                Some((row, line)) => {
                     self.linectx = Some(LineContext {
-                        pos: 0,
+                        pos: SourcePos { row: row, col: 0 },
                         line: line,
                     });
                 }
