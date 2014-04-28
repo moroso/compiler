@@ -13,6 +13,7 @@ use parser::Parser;
 
 mod lexer;
 mod parser;
+mod span;
 
 fn main() {
     println!("moroso compiler");
