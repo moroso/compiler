@@ -28,6 +28,21 @@ impl Ord for SourcePos {
     fn lt(&self, other: &SourcePos) -> bool {
         self.row < other.row || (self.row == other.row && self.col < other.col)
     }
+
+    #[inline]
+    fn le(&self, other: &SourcePos) -> bool {
+        self.row < other.row || (self.row == other.row && self.col <= other.col)
+    }
+
+    #[inline]
+    fn gt(&self, other: &SourcePos) -> bool {
+        self.row >= other.row || (self.row == other.row && self.col > other.col)
+    }
+
+    #[inline]
+    fn ge(&self, other: &SourcePos) -> bool {
+        self.row >= other.row || (self.row == other.row && self.col >= other.col)
+    }
 }
 
 impl fmt::Show for SourcePos {
@@ -36,9 +51,15 @@ impl fmt::Show for SourcePos {
     }
 }
 
-#[deriving(Clone, Eq)]
+impl SourcePos {
+    pub fn new() -> SourcePos {
+        SourcePos { row: 0, col: 0 }
+    }
+}
+
+#[deriving(Clone, Eq, Ord, TotalEq, TotalOrd)]
 pub struct Span {
-    pub begin: SourcePos,
+    begin: SourcePos,
     pub end:   SourcePos,
 }
 
@@ -50,7 +71,7 @@ impl fmt::Show for Span {
 
 impl Span {
     pub fn to(self, other: Span) -> Span {
-        assert!(self.end <= other.begin);
+        assert!(self <= other);
         Span {
             begin: self.begin,
             end: other.end,
@@ -60,6 +81,6 @@ impl Span {
 
 pub fn mk_sp(begin: SourcePos, len: uint) -> Span {
     let mut end = begin.clone();
-    end.col -= len;
+    end.col += len;
     Span { begin: begin, end: end }
 }
