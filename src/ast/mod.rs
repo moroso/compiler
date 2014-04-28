@@ -2,6 +2,8 @@ use lexer::{Token, SourceToken};
 use span::{Spanned, Span};
 use std::fmt::{Formatter, Result, Show};
 
+mod visit;
+
 // Spanned type decls
 macro_rules! spanned {
     ( $( $s:ident => $n:ident ),* ) => ( $( pub type $s = Spanned<$n>; )* )
