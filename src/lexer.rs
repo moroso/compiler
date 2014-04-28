@@ -55,9 +55,9 @@ pub enum Token {
     Period,
 
     // Literals
-    Ident(~str),
-    Number(u64, Option<ast::IntKind>),
-    String(~str),
+    IdentTok(~str),
+    NumberTok(u64, Option<ast::IntKind>),
+    StringTok(~str),
 
     // Special
     Eof,
@@ -87,7 +87,7 @@ trait LexerRuleT {
 // The idea behind this is to allow very flexible lexer rules in the lexer_rules!
 // macro.  A LexerRule has a rule with which to check for a match, and a factory
 // to produce a Token if the rule's match succeeds (some tokens like Number, String,
-// and Ident carry additional context about what matched).  This way, we can specify
+// and IdentTok carry additional context about what matched).  This way, we can specify
 // a raw string as a rule to do a simple string-prefix match, a Regex to check
 // for a regex match, or optionally more complicated rules to e.g. use capture
 // groups from a Regex and construct a token from those.
@@ -173,7 +173,7 @@ impl<T: Iterator<~str>> Lexer<T> {
         }
 
         // Note: rules are in decreasing order of priority if there's a
-        // conflict. In particular, reserved words must go before Ident.
+        // conflict. In particular, reserved words must go before IdentTok.
         let rules = lexer_rules! {
             // Whitespace
             WS         => matcher!(r"\s|//.*|(?s)/\*.*\*/"),
@@ -226,9 +226,9 @@ impl<T: Iterator<~str>> Lexer<T> {
             Period       => ".",
 
             // Literals
-            Ident      => matcher!(r"[a-zA-Z_]\w*"),
-            Number     => NumberRule,
-            String     => StringRule
+            IdentTok     => matcher!(r"[a-zA-Z_]\w*"),
+            NumberTok    => NumberRule,
+            StringTok    => StringRule
         };
 
         Lexer {
@@ -298,7 +298,7 @@ impl TokenMaker<()> for Token {
     fn mk_tok(&self, _: ()) -> Token { self.clone() }
 }
 
-// A Token constructor (Number, String, Ident, etc.) requires arguments for the
+// A Token constructor (NumberTok, StringTok, IdentTok, etc.) requires arguments for the
 // constructor to make the token, so accept a tuple of those arguments and hand back
 // the constructed token.
 impl<T> TokenMaker<T> for fn(T) -> Token {
@@ -312,7 +312,7 @@ impl<A, B> TokenMaker<(A, B)> for fn(A, B) -> Token {
 // A RuleMatcher accepts a string slice and tests the encapsulated rule on it.
 // If there is a match it can optionally hand back a string slice corresponding
 // to that match. (The "optionally" part is determined by whether or not the
-// TokenMaker for this RuleMatcher requires the match as an argument, like Ident;
+// TokenMaker for this RuleMatcher requires the match as an argument, like IdentTok;
 // the type magic is handled by MaybeArg).
 trait RuleMatcher<T> {
     fn find<'a>(&self, s: &'a str) -> Option<(uint, T)>;
@@ -376,26 +376,26 @@ mod tests {
         let tokens1: ~[SourceToken] = FromIterator::from_iter(lexer1);
 
         compare(tokens1,
-                [Ident(~"f"),
+                [IdentTok(~"f"),
                   LParen,
-                  Ident(~"x"),
+                  IdentTok(~"x"),
                   Dash,
-                  Number(0x3f5B, None),
+                  NumberTok(0x3f5B, None),
                   RParen,
                   Plus,
-                  Number(1, None),
-                  String(~r#"Hello\" World"#),
+                  NumberTok(1, None),
+                  StringTok(~r#"Hello\" World"#),
                 ]);
 
         let lexer2 = Lexer::new(vec!(~"let x: int = 5;").move_iter());
         let tokens2: ~[SourceToken] = FromIterator::from_iter(lexer2);
         compare(tokens2,
                 [Let,
-                 Ident(~"x"),
+                 IdentTok(~"x"),
                  Colon,
-                 Ident(~"int"),
+                 IdentTok(~"int"),
                  Eq,
-                 Number(5, None),
+                 NumberTok(5, None),
                  ]);
     }
 }

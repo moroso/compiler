@@ -1,5 +1,5 @@
 use lexer::{Token, SourceToken};
-use span::{Spanned};
+use span::{Spanned, Span};
 use std::fmt::{Formatter, Result, Show};
 
 // Spanned type decls
@@ -13,8 +13,6 @@ spanned! {
     UnOp     => UnOpNode,
     Lit      => LitNode,
     Expr     => ExprNode,
-    FuncArg  => FuncArgNode,
-    Block    => BlockNode,
     Stmt     => StmtNode,
     Item     => ItemNode
 }
@@ -63,73 +61,91 @@ impl Show for Width {
     }
 }
 
+#[deriving(Eq)]
+pub struct Ident {
+    pub id: u64,
+    pub sp: Span,
+    pub tps: Option<Vec<Type>>,
+    pub name: ~str,
+}
+
+impl Show for Ident {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        try!(write!(f.buf, "{}", self.name));
+        for tps in self.tps.iter() {
+            if tps.len() > 0 {
+                try!(write!(f.buf, "<{}>", tps));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Types
 #[deriving(Eq)]
 pub enum TypeNode {
     BoolType,
     UnitType,
     IntType(IntKind),
-    PointerTo(~Type),
-    NamedType(~str /* module path */),
+    PtrType(~Type),
+    NamedType(Ident),
     FuncType(~Type, ~Type),
     ArrayType(~Type, u64),
     TupleType(Vec<Type>),
-    ParamType(~str /* ident */),
 }
 
 impl Show for TypeNode {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
-            BoolType                => write!(f.buf, "bool"),
-            UnitType                => write!(f.buf, "()"),
-            IntType(k)              => write!(f.buf, "{}", k),
-            PointerTo(ref t)        => write!(f.buf, "*{}", t),
-            NamedType(ref n)        => write!(f.buf, "{}", n),
-            FuncType(ref d, ref r)  => write!(f.buf, "{} -> {}", d, r),
-            ArrayType(ref t, d)     => write!(f.buf, "{}[{}]", t, d),
-            TupleType(ref ts)       => write!(f.buf, "({})", ts),
-            ParamType(ref n)        => write!(f.buf, "{}", n),
+            BoolType                  => write!(f.buf, "bool"),
+            UnitType                  => write!(f.buf, "()"),
+            IntType(k)                => write!(f.buf, "{}", k),
+            PtrType(ref t)            => write!(f.buf, "*({})", t),
+            NamedType(ref n)          => write!(f.buf, "{}", n),
+            FuncType(ref d, ref r)    => write!(f.buf, "({} -> {})", d, r),
+            ArrayType(ref t, d)       => write!(f.buf, "({})[{}]", t, d),
+            TupleType(ref ts)         => write!(f.buf, "({})", ts),
         }
     }
 }
 
 #[deriving(Eq)]
 pub enum BinOpNode {
-    Plus,
-    Minus,
-    Times,
-    Divide,
-    Mod,
-    Equals,
-    Less,
-    LessEq,
-    Greater,
-    GreaterEq,
-    AndAlso,
-    OrElse,
-    BitAnd,
-    BitOr,
-    BitXor,
+    PlusOp,
+    MinusOp,
+    TimesOp,
+    DivideOp,
+    ModOp,
+    EqualsOp,
+    LessOp,
+    LessEqOp,
+    GreaterOp,
+    GreaterEqOp,
+    AndAlsoOp,
+    OrElseOp,
+    BitAndOp,
+    BitOrOp,
+    BitXorOp,
 }
 
 impl Show for BinOpNode {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(f.buf, "{}", match *self {
-            Plus      => "+",
-            Minus     => "-",
-            Times     => "*",
-            Divide    => "/",
-            Mod       => "%",
-            Equals    => "==",
-            Less      => "<",
-            LessEq    => "<=",
-            Greater   => ">",
-            GreaterEq => ">=",
-            AndAlso   => "&&",
-            OrElse    => "||",
-            BitAnd    => "&",
-            BitOr     => "|",
-            BitXor    => "^",
+            PlusOp      => "+",
+            MinusOp     => "-",
+            TimesOp     => "*",
+            DivideOp    => "/",
+            ModOp       => "%",
+            EqualsOp    => "==",
+            LessOp      => "<",
+            LessEqOp    => "<=",
+            GreaterOp   => ">",
+            GreaterEqOp => ">=",
+            AndAlsoOp   => "&&",
+            OrElseOp    => "||",
+            BitAndOp    => "&",
+            BitOrOp     => "|",
+            BitXorOp    => "^",
         })
     }
 }
@@ -154,8 +170,6 @@ pub enum LitNode {
     NumLit(u64, IntKind),
     StringLit(~str),
     BoolLit(bool),
-    UnitLit,
-    TupleLit(Vec<Lit>)
 }
 
 impl Show for LitNode {
@@ -164,19 +178,21 @@ impl Show for LitNode {
             NumLit(i, nt)     => write!(f.buf, "{}{}", i, nt),
             StringLit(ref s)  => write!(f.buf, "\"{}\"", s),
             BoolLit(b)        => write!(f.buf, "{}", b),
-            UnitLit           => write!(f.buf, "()"),
-            TupleLit(ref vs)  => write!(f.buf, "({})", vs),
         }
     }
 }
 
+#[deriving(Eq)]
 pub enum ExprNode {
+    UnitExpr,
     LitExpr(Lit),
-    IdentExpr(~str /* ident */),
+    TupleExpr(Vec<Expr>),
+    IdentExpr(Ident),
     BinOpExpr(BinOp, ~Expr, ~Expr),
     UnOpExpr(UnOp, ~Expr),
     IndexExpr(~Expr, ~Expr),
-    FieldExpr(~Expr, ~str /* ident */),
+    DotExpr(~Expr, Ident),
+    ArrowExpr(~Expr, Ident),
     AssignExpr(~Expr, ~Expr),
     CallExpr(~Expr, Vec<Expr>),
     CastExpr(~Expr, Type),
@@ -188,24 +204,28 @@ pub enum ExprNode {
 impl Show for ExprNode {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
-            LitExpr(ref l)                  => write!(f.buf, "{}", l),
-            IdentExpr(ref id)               => write!(f.buf, "{}", id),
-            BinOpExpr(op, ref l, ref r)     => write!(f.buf, "({}{}{})", l, op, r),
-            UnOpExpr(op, ref e)             => write!(f.buf, "({}{})", op, e),
-            IndexExpr(ref e, ref i)         => write!(f.buf, "{}[{}]", e, i),
-            FieldExpr(ref e, ref fld)       => write!(f.buf, "{}.{}", e, fld),
-            AssignExpr(ref lv, ref rv)      => write!(f.buf, "({}={})", lv, rv),
-            CallExpr(ref id, ref args)      => write!(f.buf, "{}({})", id, args),
-            CastExpr(ref e, ref t)          => write!(f.buf, "({} as {})", e, t),
-            IfExpr(ref c, ref bt, ref bf)   => write!(f.buf, "if {} \\{\n{}\\} else \\{\n{}\\}", c, bt, bf),
-            BlockExpr(ref b)                => write!(f.buf, "{}", b),
-            ReturnExpr(ref e)               => write!(f.buf, "return {}", e),
+            UnitExpr                            => write!(f.buf, "()"),
+            LitExpr(ref l)                      => write!(f.buf, "{}", l),
+            TupleExpr(ref vs)                   => write!(f.buf, "({})", vs),
+            IdentExpr(ref id)                   => write!(f.buf, "{}", id),
+            BinOpExpr(op, ref l, ref r)         => write!(f.buf, "({}{}{})", l, op, r),
+            UnOpExpr(op, ref e)                 => write!(f.buf, "({}{})", op, e),
+            IndexExpr(ref e, ref i)             => write!(f.buf, "{}[{}]", e, i),
+            DotExpr(ref e, ref fld)             => write!(f.buf, "{}.{}", e, fld),
+            ArrowExpr(ref e, ref fld)           => write!(f.buf, "{}->{}", e, fld),
+            AssignExpr(ref lv, ref rv)          => write!(f.buf, "({}={})", lv, rv),
+            CallExpr(ref id, ref args)          => write!(f.buf, "{}({})", id, args),
+            CastExpr(ref e, ref t)              => write!(f.buf, "({} as {})", e, t),
+            IfExpr(ref c, ref bt, ref bf)       => write!(f.buf, "if {} \\{\n{}\\} else \\{\n{}\\}", c, bt, bf),
+            BlockExpr(ref b)                    => write!(f.buf, "{}", b),
+            ReturnExpr(ref e)                   => write!(f.buf, "return {}", e),
         }
     }
 }
 
+#[deriving(Eq)]
 pub enum StmtNode {
-    LetStmt(~str /* ident now, pattern eventually */, Type, Option<Expr>),
+    LetStmt(Ident /* pattern */, Option<Type>, Option<Expr>),
     ExprStmt(Expr), // no trailing semicolon, must have unit type
     SemiStmt(Expr), // trailing semicolon, any type OK
 }
@@ -214,31 +234,36 @@ impl Show for StmtNode {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
             LetStmt(ref id, ref t, ref expr) => {
-                try!(write!(f.buf, "let {}: {}", id, t));
+                try!(write!(f.buf, "let {}", id));
+                match *t {
+                    Some(ref t) => { try!(write!(f.buf, ": {}", t)); },
+                    None => {}
+                }
                 match *expr {
                     Some(ref e) => { try!(write!(f.buf, " = {}", e)); },
                     None => {}
                 }
-                try!(write!(f.buf, ";"));
+                write!(f.buf, ";")
             },
             ExprStmt(ref e) => {
-                try!(write!(f.buf, "{}", e));
+                write!(f.buf, "{}", e)
             },
             SemiStmt(ref e) => {
-                try!(write!(f.buf, "{};", e));
+                write!(f.buf, "{};", e)
             },
         }
-        Ok(())
     }
 }
 
-pub struct BlockNode {
-    items: Vec<Item>,
-    stmts: Vec<Stmt>,
-    expr:  Option<Expr>,
+#[deriving(Eq)]
+pub struct Block {
+    pub items: Vec<Item>,
+    pub stmts: Vec<Stmt>,
+    pub expr:  Option<Expr>,
+    pub sp:    Span,
 }
 
-impl Show for BlockNode {
+impl Show for Block {
     fn fmt(&self, f: &mut Formatter) -> Result {
         try!(write!(f.buf, "{}\n", "{"));
         for item in self.items.iter() {
@@ -263,19 +288,22 @@ impl Show for BlockNode {
     }
 }
 
-pub struct FuncArgNode {
-    name: ~str /* ident */,
-    argtype: Type
+#[deriving(Eq)]
+pub struct FuncArg {
+    pub ident:   Ident,
+    pub argtype: Type,
+    pub sp:      Span,
 }
 
-impl Show for FuncArgNode {
+impl Show for FuncArg {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f.buf, "{}: {}", self.name, self.argtype)
+        write!(f.buf, "{}: {}", self.ident, self.argtype)
     }
 }
 
+#[deriving(Eq)]
 pub enum ItemNode {
-    FuncItem(~str /* ident */, Vec<FuncArg>, Type, Block, Vec<~str>),
+    FuncItem(Ident, Vec<FuncArg>, Type, Block, Vec<Ident>),
 }
 
 impl Show for ItemNode {
@@ -286,7 +314,21 @@ impl Show for ItemNode {
                 if tps.len() > 0 {
                     try!(write!(f.buf, "<{}>", tps));
                 }
-                try!(write!(f.buf, "({}) -> {} {}", args, t, def))
+                write!(f.buf, "({}) -> {} {}", args, t, def)
+            }
+        }
+    }
+}
+
+pub struct Module {
+    pub items: Vec<Item>
+}
+
+impl Show for Module {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        for item in self.items.iter() {
+            for line in format!("{}", item).lines() {
+                try!(write!(f.buf, "{}\n", line));
             }
         }
         Ok(())

@@ -265,14 +265,14 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
     fn expect_ident(&mut self) -> ~str {
         match self.eat() {
-            Ident(name) => name,
+            IdentTok(name) => name,
             tok => self.error(format!("Expected ident, found {}", tok))
         }
     }
 
     fn expect_number(&mut self) -> u64 {
         match self.eat() {
-            Number(num, _) => num,
+            NumberTok(num, _) => num,
             tok => self.error(format!("Unexpected {} where number expected", tok))
         }
     }
@@ -283,11 +283,11 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
     fn parse_typed_literal(&mut self) -> ExpressionComponent {
         match self.eat() {
-            True              => TrueConstant,
-            False             => FalseConstant,
-            String(s)         => StringConstant(s),
-            Number(num, kind) => Num(num, kind.unwrap_or(defaults::DEFAULT_INT_KIND)),
-            tok               => self.error(format!("Unexpected {} where literal expected", tok))
+            True                 => TrueConstant,
+            False                => FalseConstant,
+            StringTok(s)         => StringConstant(s),
+            NumberTok(num, kind) => Num(num, kind.unwrap_or(defaults::DEFAULT_INT_KIND)),
+            tok                  => self.error(format!("Unexpected {} where literal expected", tok))
         }
     }
 
@@ -323,10 +323,10 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 LBrace => {
                     self.parse_compound_expr()
                 }
-                Number(..) | True | False | String(..) => {
+                NumberTok(..) | True | False | StringTok(..) => {
                     self.parse_typed_literal()
                 },
-                Ident(_) => {
+                IdentTok(_) => {
                     Identifier(self.expect_ident())
                 }
                 Star => {
@@ -564,7 +564,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                     TupleType(inner_types)
                 }
             }
-            Ident(_) => {
+            IdentTok(_) => {
                 let ident_name = self.expect_ident();
                 match *self.peek() {
                     Less => {
