@@ -1,18 +1,18 @@
 use ast::*;
 
 pub trait Visitor {
-    fn visit_item(&self, item: &Item) { walk_item(self, item) }
-    fn visit_type(&self, t: &Type) { walk_type(self, t) }
-    fn visit_func_arg(&self, arg: &FuncArg) { walk_func_arg(self, arg) }
-    fn visit_block(&self, block: &Block) { walk_block(self, block) }
-    fn visit_stmt(&self, stmt: &Stmt) { walk_stmt(self, stmt) }
-    fn visit_expr(&self, expr: &Expr) { walk_expr(self, expr) }
-    fn visit_lit(&self, lit: &Lit) { walk_lit(self, lit) }
-    fn visit_ident(&self, ident: &Ident) { walk_ident(self, ident) }
-    fn visit_module(&self, module: &Module) { walk_module(self, module) }
+    fn visit_item(&mut self, item: &Item) { walk_item(self, item) }
+    fn visit_type(&mut self, t: &Type) { walk_type(self, t) }
+    fn visit_func_arg(&mut self, arg: &FuncArg) { walk_func_arg(self, arg) }
+    fn visit_block(&mut self, block: &Block) { walk_block(self, block) }
+    fn visit_stmt(&mut self, stmt: &Stmt) { walk_stmt(self, stmt) }
+    fn visit_expr(&mut self, expr: &Expr) { walk_expr(self, expr) }
+    fn visit_lit(&mut self, lit: &Lit) { walk_lit(self, lit) }
+    fn visit_ident(&mut self, ident: &Ident) { walk_ident(self, ident) }
+    fn visit_module(&mut self, module: &Module) { walk_module(self, module) }
 }
 
-pub fn walk_item<T: Visitor>(visitor: &T, item: &Item) {
+pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
     match item.val {
         FuncItem(ref id, ref args, ref t, ref def, ref tps) => {
             visitor.visit_ident(id);
@@ -24,7 +24,7 @@ pub fn walk_item<T: Visitor>(visitor: &T, item: &Item) {
     }
 }
 
-pub fn walk_type<T: Visitor>(visitor: &T, t: &Type) {
+pub fn walk_type<T: Visitor>(visitor: &mut T, t: &Type) {
     match t.val {
         PtrType(ref p) => {
             visitor.visit_type(*p);
@@ -46,18 +46,18 @@ pub fn walk_type<T: Visitor>(visitor: &T, t: &Type) {
     }
 }
 
-pub fn walk_func_arg<T: Visitor>(visitor: &T, arg: &FuncArg) {
+pub fn walk_func_arg<T: Visitor>(visitor: &mut T, arg: &FuncArg) {
     visitor.visit_ident(&arg.ident);
     visitor.visit_type(&arg.argtype);
 }
 
-pub fn walk_block<T: Visitor>(visitor: &T, block: &Block) {
+pub fn walk_block<T: Visitor>(visitor: &mut T, block: &Block) {
     for item in block.items.iter() { visitor.visit_item(item); }
     for stmt in block.stmts.iter() { visitor.visit_stmt(stmt); }
     for expr in block.expr.iter()  { visitor.visit_expr(expr); }
 }
 
-pub fn walk_stmt<T: Visitor>(visitor: &T, stmt: &Stmt) {
+pub fn walk_stmt<T: Visitor>(visitor: &mut T, stmt: &Stmt) {
     match stmt.val {
         LetStmt(ref id, ref t, ref e) => {
             visitor.visit_ident(id);
@@ -73,7 +73,7 @@ pub fn walk_stmt<T: Visitor>(visitor: &T, stmt: &Stmt) {
     }
 }
 
-pub fn walk_expr<T: Visitor>(visitor: &T, expr: &Expr) {
+pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
     match expr.val {
         LitExpr(ref l) => {
             visitor.visit_lit(l);
@@ -136,13 +136,13 @@ pub fn walk_lit<T: Visitor>(_: &T, lit: &Lit) {
     }
 }
 
-pub fn walk_ident<T: Visitor>(visitor: &T, ident: &Ident) {
+pub fn walk_ident<T: Visitor>(visitor: &mut T, ident: &Ident) {
     for tps in ident.tps.iter() {
         for tp in tps.iter() { visitor.visit_type(tp); }
     }
 }
 
-pub fn walk_module<T: Visitor>(visitor: &T, module: &Module) {
+pub fn walk_module<T: Visitor>(visitor: &mut T, module: &Module) {
     for item in module.items.iter() { visitor.visit_item(item); }
 }
 
