@@ -2,7 +2,7 @@ use lexer::{Token, SourceToken};
 use span::{Spanned, Span};
 use std::fmt::{Formatter, Result, Show};
 
-mod visit;
+pub mod visit;
 
 // Spanned type decls
 macro_rules! spanned {
