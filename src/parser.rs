@@ -44,7 +44,9 @@ macro_rules! parse_list(
                            match *self.peek() {
                                $end_token => break,
                                Comma => { self.expect(Comma); },
-                               _ => fail!()
+                               _ => self.peek_error(
+                                   format!("Expected {} or comma when parsing list",
+                                           $end_token))
                            }
                     }
                 }
@@ -98,8 +100,19 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     fn expect(&mut self, expected: Token) {
         let tok = self.eat();
         if tok != expected{
-            self.error(format!("Expected {:?}, found {:?}", expected, tok));
+            self.error(format!("Expected {}, found {}",
+                               expected, tok),
+                       self.last_span.get_begin());
         }
+    }
+    fn error<'a>(&self, message: &'a str, pos: SourcePos) -> ! {
+        fail!("\n{}\nat {}", message, pos)
+    }
+
+    fn peek_error<'a>(&mut self, message: &'a str) -> ! {
+        let token = self.peek().clone();
+        let pos = self.peek_span().get_begin();
+        self.error(format!("{} (got token {})", message, token), pos)
     }
 
     fn new_id(&mut self) -> u64 {
@@ -116,19 +129,17 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 tps: None,
                 name: name,
             },
-            tok => self.error(format!("Expected ident, found {}", tok))
+            tok => self.error(format!("Expected ident, found {}", tok),
+                              self.last_span.get_begin())
         }
     }
 
     fn expect_number(&mut self) -> u64 {
         match self.eat() {
             NumberTok(num, _) => num,
-            tok => self.error(format!("Unexpected {} where number expected", tok))
+            tok => self.error(format!("Unexpected {} where number expected",
+                                      tok), self.last_span.get_begin())
         }
-    }
-
-    fn error<'a>(&self, message: &'a str) -> ! {
-        fail!("{}", message)
     }
 
     fn parse_typed_literal(&mut self) -> Lit {
@@ -143,7 +154,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                                                defaults::DEFAULT_INT_KIND
                                            )
                                     ),
-            tok                  => self.error(format!("Unexpected {} where literal expected", tok))
+            tok                  => self.error(format!("Unexpected {} where literal expected", tok), self.last_span.get_begin())
         };
 
         span!(node, span)
@@ -197,7 +208,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 let op = span!(AddrOf, self.last_span);
                 UnOpExpr(op, ~self.parse_factor())
             }
-            _ => { fail!("Parse error."); }
+            _ => self.peek_error("Got unexpected token"),
         };
 
         // lol this is what you get for having block expressions
@@ -394,7 +405,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 };
                 NamedType(id)
             }
-            _ => { fail!(); }
+            _ => self.peek_error("Expected *, opening paren, or a type name"),
         };
 
         let mut result;
@@ -429,7 +440,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 Some(self.parse_type())
             },
             Eq => None,
-            _ => fail!()
+            _ => self.peek_error("Expected \": type\" or \"=\""),
         };
 
         match *self.peek() {
@@ -447,7 +458,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 span!(LetStmt(var_name, var_type, Some(var_value)),
                             span)
             },
-            _ => { fail!(); }
+            _ => self.peek_error("Expected semicolon or \"=\""),
         }
     }
 
@@ -464,7 +475,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 self.parse_block_expr()
             }
             _ => {
-                let fake_span = mk_sp(self.last_span.end, 0);
+                let fake_span = mk_sp(self.last_span.get_end(), 0);
                 Block {
                     items: vec!(),
                     stmts: vec!(),
@@ -539,7 +550,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                                 sp: start_span.to(self.last_span)
                             }
                         }
-                        _ => fail!()
+                        _ => self.peek_error("Expected a semicolon or closing brace"),
                     }
                 }
             }
@@ -582,7 +593,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 Some(tps.val)
             },
             LParen => None,
-            _ => fail!(),
+            _ => self.peek_error("Expected type parameters or argument list"),
         }.unwrap_or(vec!());
         self.expect(LParen);
         let args = parse_list!(self.parse_func_arg() until RParen);
@@ -590,7 +601,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         let return_type = match *self.peek() {
             Arrow => { self.expect(Arrow); self.parse_type() }
             _ => span!(UnitType,
-                             mk_sp(self.last_span.end, 0)),
+                       mk_sp(self.last_span.get_end(), 0)),
         };
         let body = self.parse_block_expr();
         span!(FuncItem(funcname, args.val, return_type, body, type_params),
@@ -605,7 +616,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 Eof => return Module{
                     items: items
                 },
-                _ => fail!()
+                _ => self.peek_error("Expected a function declaration"),
             }
         }
     }

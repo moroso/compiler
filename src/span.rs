@@ -47,7 +47,7 @@ impl Ord for SourcePos {
 
 impl fmt::Show for SourcePos {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f.buf, "{}:{}", self.row, self.col)
+        write!(f.buf, "line {}, column {}", self.row, self.col)
     }
 }
 
@@ -59,8 +59,10 @@ impl SourcePos {
 
 #[deriving(Clone, Eq, Ord, TotalEq, TotalOrd)]
 pub struct Span {
+    // Private, so that we must use mk_span (which enforces invariants)
+    // to make a Span.
     begin: SourcePos,
-    pub end:   SourcePos,
+    end:   SourcePos,
 }
 
 impl fmt::Show for Span {
@@ -76,6 +78,14 @@ impl Span {
             begin: self.begin,
             end: other.end,
         }
+    }
+
+    pub fn get_begin(&self) -> SourcePos {
+        self.begin
+    }
+
+    pub fn get_end(&self) -> SourcePos {
+        self.end
     }
 }
 
