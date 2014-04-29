@@ -1,5 +1,6 @@
 use std::fmt;
 
+#[deriving(Clone)]
 pub struct Spanned<T> {
     pub sp: Span,
     pub val: T,

@@ -14,6 +14,7 @@ MC_FILES := src/main.rs \
             src/span.rs \
             src/ast/mod.rs \
             src/ast/visit.rs \
+            src/ast/defmap.rs \
 
 mc: $(MC_FILES)
 	rustc $< -o $@

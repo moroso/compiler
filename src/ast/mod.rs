@@ -3,6 +3,7 @@ use span::{Spanned, Span};
 use std::fmt::{Formatter, Result, Show};
 
 pub mod visit;
+pub mod defmap;
 
 // Spanned type decls
 macro_rules! spanned {
@@ -19,7 +20,7 @@ spanned! {
     Item     => ItemNode
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone, Ord, TotalEq, TotalOrd, Show)]
 pub struct DefId(pub u64);
 
 #[deriving(Eq, Clone)]
@@ -66,7 +67,7 @@ impl Show for Width {
     }
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub struct Ident {
     pub id: DefId,
     pub sp: Span,
@@ -87,7 +88,7 @@ impl Show for Ident {
 }
 
 /// Types
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub enum TypeNode {
     BoolType,
     UnitType,
