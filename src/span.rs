@@ -47,7 +47,7 @@ impl Ord for SourcePos {
 
 impl fmt::Show for SourcePos {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f.buf, "line {}, column {}", self.row, self.col)
+        write!(f.buf, "line {}, column {}", self.row+1, self.col+1)
     }
 }
 
