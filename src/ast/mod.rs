@@ -119,6 +119,7 @@ pub enum BinOpNode {
     DivideOp,
     ModOp,
     EqualsOp,
+    NotEqualsOp,
     LessOp,
     LessEqOp,
     GreaterOp,
@@ -128,6 +129,8 @@ pub enum BinOpNode {
     BitAndOp,
     BitOrOp,
     BitXorOp,
+    LeftShiftOp,
+    RightShiftOp,
 }
 
 impl Show for BinOpNode {
@@ -148,6 +151,9 @@ impl Show for BinOpNode {
             BitAndOp    => "&",
             BitOrOp     => "|",
             BitXorOp    => "^",
+            NotEqualsOp => "!=",
+            LeftShiftOp => "<<",
+            RightShiftOp=> ">>",
         })
     }
 }

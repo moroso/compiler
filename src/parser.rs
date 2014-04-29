@@ -56,15 +56,6 @@ macro_rules! parse_list(
 
 static EOF: Token = Eof;
 
-macro_rules! binop_handler {
-    ($tok:ident, $op:ident, $parse_rest:expr, $parsed:expr) =>
-        ({
-            self.expect($tok);
-            let __op_sp__ = self.last_span;
-            BinOpExpr(span!($op, __op_sp__), ~$parsed, ~$parse_rest)
-        });
-}
-
 impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     pub fn new(tokens: T) -> Parser<SourceToken, T> {
         Parser::<SourceToken, T> {
@@ -287,121 +278,66 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         span!(node, start_span.to(self.last_span))
     }
 
-    fn parse_term(&mut self) -> Expr {
-        /*
-        Parse a term.
 
-        TERM ::= FACTOR [ '*' TERM ]
-               | FACTOR [ '/' TERM ]
-               | FACTOR [ '&' TERM ]
-        */
-        let start_span = self.peek_span();
-        let parsed_factor = self.parse_factor();
-        macro_rules! term(
-            ($tok:ident, $op:ident)
-                => (binop_handler!($tok, $op, self.parse_term(), parsed_factor)))
-        let node = match *self.peek() {
-            Star         => term!(Star, TimesOp),
-            ForwardSlash => term!(ForwardSlash, DivideOp),
-            Ampersand    => term!(Ampersand, BitAndOp),
-            _            => return parsed_factor
-        };
+    fn parse_binop(&mut self, precedence: uint) -> Expr {
+        let num_precedences = 9;
 
-        span!(node, start_span.to(self.last_span))
-    }
+        if precedence == num_precedences {
+            return self.parse_factor();
+        }
 
-    pub fn parse_arith(&mut self) -> Expr {
-        /*
-        Parse an arithmetic expression.
+        let mut current = self.parse_binop(precedence+1);
 
-        ARITH ::= TERM [ '+' ARITH ]
-                | TERM [ '-' ARITH ]
-                | TERM [ '|' ARITH ]
-         */
-        let start_span = self.peek_span();
-        let parsed_term = self.parse_term();
-        macro_rules! arith(
-            ($tok:ident, $op:ident)
-                => (binop_handler!($tok, $op, self.parse_arith(), parsed_term)))
-        let node = match *self.peek() {
-            Plus => arith!(Plus, PlusOp),
-            Dash => arith!(Dash, MinusOp),
-            Pipe => arith!(Pipe, BitOrOp),
-            _    => return parsed_term
-        };
+        macro_rules! binop(
+            ( $( ($token:ident, $ast_op:ident, $precedence:expr) ),* )
+                => ({
+                    match *self.peek() {
+                        $(
+                            $token if precedence == $precedence => {
+                                self.expect($token);
+                                let rhs = self.parse_binop(precedence+1);
+                                let op_span = self.last_span;
+                                let exp_span = current.sp.to(rhs.sp);
+                                current = 
+                                    span!(BinOpExpr(span!($ast_op, op_span),
+                                                    ~current, ~rhs),
+                                          exp_span);
+                            },
+                        )+
+                            _ => {
+                                return current;
+                            }
+                    }
+                })
+            );
 
-        span!(node, start_span.to(self.last_span))
-    }
+        loop {
+            binop!((Star, TimesOp, num_precedences-1),
+                   (ForwardSlash, DivideOp, num_precedences-1),
+                   (Percent, ModOp, num_precedences-1),
 
-    pub fn parse_bool_factor(&mut self) -> Expr {
-        /*
-        Parse a boolean factor.
+                   (Plus, PlusOp, 7),
+                   (Dash, MinusOp, 7),
 
-        BOOL_FACTOR ::= ARITH [ '==' BOOL_FACTOR ]
-                      | ARITH [ '<=' BOOL_FACTOR ]
-                      | ARITH [ '>=' BOOL_FACTOR ]
-                      | ARITH [ '<' BOOL_FACTOR ]
-                      | ARITH [ '>' BOOL_FACTOR ]
-        */
-        let start_span = self.peek_span();
-        let parsed_arith = self.parse_arith();
+                   (Lsh, LeftShiftOp, 6),
+                   (Rsh, RightShiftOp, 6),
 
-        macro_rules! bool_factor(
-            ($tok:ident, $op:ident)
-                => (binop_handler!($tok, $op, self.parse_bool_factor(), parsed_arith)))
+                   (Ampersand, BitAndOp, 5),
+                   (Caret, BitXorOp, 4),
+                   (Pipe, BitOrOp, 3),
 
-        let node = match *self.peek() {
-            EqEq      => bool_factor!(EqEq, EqualsOp),
-            LessEq    => bool_factor!(LessEq, LessEqOp),
-            Less      => bool_factor!(Less, LessOp),
-            GreaterEq => bool_factor!(GreaterEq, GreaterEqOp),
-            Greater   => bool_factor!(Greater, GreaterOp),
-            _         => return parsed_arith
-        };
+                   (EqEq, EqualsOp, 2),
+                   (BangEq, NotEqualsOp, 2),
+                   (LessEq, LessEqOp, 2),
+                   (Less, LessOp, 2),
+                   (GreaterEq, GreaterEqOp, 2),
+                   (Greater, GreaterOp, 2),
 
-        span!(node, start_span.to(self.last_span))
-    }
-
-    pub fn parse_bool_term(&mut self) -> Expr {
-        /*
-        Parse a boolean term.
-
-        BOOL_TERM ::= BOOL_FACTOR [ '&&' BOOL_TERM ]
-        */
-        let start_span = self.peek_span();
-        let parsed_factor = self.parse_bool_factor();
-
-        macro_rules! bool_term(
-            ($tok:ident, $op:ident)
-                => (binop_handler!($tok, $op, self.parse_bool_term(), parsed_factor)))
-
-        let node = match *self.peek() {
-            AmpAmp => bool_term!(AmpAmp, AndAlsoOp),
-            _      => return parsed_factor
-        };
-
-        span!(node, start_span.to(self.last_span))
-    }
-
-    pub fn parse_bool_arith(&mut self) -> Expr {
-        /*
-        Parse a boolean arithmetic expression.
-
-        BOOL_ARITH ::= BOOL_TERM [ '||' BOOL_ARITH ]
-        */
-        let start_span = self.peek_span();
-        let parsed_term = self.parse_bool_term();
-
-        macro_rules! bool_arith(
-            ($tok:ident, $op:ident)
-                => (binop_handler!($tok, $op, self.parse_bool_arith(), parsed_term)))
-
-        let node = match *self.peek() {
-            PipePipe => bool_arith!(PipePipe, OrElseOp),
-            _        => return parsed_term
-        };
-
-        span!(node, start_span.to(self.last_span))
+                   (AmpAmp, AndAlsoOp, 1),
+                   (PipePipe, OrElseOp, 0)
+                   );
+        }
+                
     }
 
     pub fn parse_possible_assignment(&mut self) -> Expr {
@@ -411,7 +347,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         ASSIGN ::= BOOL_ARITH [ '=' ASSIGN ]
         */
         let start_span = self.peek_span();
-        let parsed_bool_arith = self.parse_bool_arith();
+        let parsed_bool_arith = self.parse_binop(0);
 
         let node = match *self.peek() {
             Eq => {
@@ -696,7 +632,6 @@ mod tests {
         assert_eq!(tree,
                    Sum(
                        ~mknum(1),
-                       ~Difference(
                            ~Product(
                                ~mknum(3),
                                ~Quotient(
@@ -719,7 +654,7 @@ mod tests {
                    );
         */
         assert_eq!(format!("{}", tree),
-                   ~"(1i32+((3i32*(5i32/2i32))-(2i32*(3i32*(5i32+6i32)))))");
+                   ~"((1i32+((3i32*5i32)/2i32))-((2i32*3i32)*(5i32+6i32)))");
     }
 
     fn compare_canonicalized(raw: ~str, parsed: ~str) {
