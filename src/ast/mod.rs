@@ -162,13 +162,15 @@ impl Show for BinOpNode {
 pub enum UnOpNode {
     Deref,
     AddrOf,
+    Negate,
 }
 
 impl Show for UnOpNode {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(f.buf, "{}", match *self {
             Deref  => "*",
-            AddrOf => "&"
+            AddrOf => "&",
+            Negate => "!",
         })
     }
 }
@@ -185,7 +187,7 @@ impl Show for LitNode {
         match *self {
             NumLit(i, nt)     => write!(f.buf, "{}{}", i, nt),
             StringLit(ref s)  => write!(f.buf, "\"{}\"", s),
-            BoolLit(b)        => write!(f.buf, "{}", b),
+            BoolLit(b)        => write!(f.buf, "BoolLit:{}", b),
         }
     }
 }

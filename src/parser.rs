@@ -270,6 +270,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         FACTOR ::= INDEX
                  | '*' INDEX
                  | '&' INDEX
+                 | '!' EXPR
         */
         let start_span = self.peek_span();
         let node = match *self.peek() {
@@ -282,6 +283,11 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 self.expect(Ampersand);
                 let index = self.parse_index();
                 UnOpExpr( span!(AddrOf, start_span), ~index)
+            }
+            Bang => {
+                self.expect(Bang);
+                let index = self.parse_expr();
+                UnOpExpr( span!(Negate, start_span), ~index)
             }
             _ => return self.parse_index()
         };
