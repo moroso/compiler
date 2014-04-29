@@ -115,10 +115,10 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         self.error(format!("{} (got token {})", message, token), pos)
     }
 
-    fn new_id(&mut self) -> u64 {
+    fn new_id(&mut self) -> DefId {
         let id = self.next_id;
         self.next_id += 1;
-        id
+        DefId(id)
     }
 
     fn parse_ident(&mut self) -> Ident {

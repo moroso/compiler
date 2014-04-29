@@ -19,6 +19,9 @@ spanned! {
     Item     => ItemNode
 }
 
+#[deriving(Eq)]
+pub struct DefId(pub u64);
+
 #[deriving(Eq, Clone)]
 pub struct IntKind {
     pub signedness: Signedness,
@@ -65,7 +68,7 @@ impl Show for Width {
 
 #[deriving(Eq)]
 pub struct Ident {
-    pub id: u64,
+    pub id: DefId,
     pub sp: Span,
     pub tps: Option<Vec<Type>>,
     pub name: ~str,
