@@ -275,7 +275,7 @@ impl Show for Block {
         }
         for stmt in self.stmts.iter() {
             for line in format!("{}", stmt).lines() {
-                try!(write!(f.buf, "    {}\n", line));
+                try!(write!(f.buf, "    {};\n", line));
             }
         }
         match self.expr {

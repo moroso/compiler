@@ -585,14 +585,13 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 }
                 _ => {
                     let simple_expr = self.parse_simple_expr();
-                    statements.push(
-                        span!(
-                            ExprStmt(self.parse_simple_expr()),
-                            simple_expr.sp
-                        )
-                    );
                     match *self.peek() {
                         Semicolon => {
+                            let span = simple_expr.sp.clone();
+                            let simple_expr_span = span!(
+                                ExprStmt(simple_expr),
+                                span);
+                            statements.push(simple_expr_span);
                             self.expect(Semicolon);
                         },
                         RBrace => {
@@ -600,7 +599,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                             return Block {
                                 items: vec!(),
                                 stmts: statements,
-                                expr: None, // TODO:!!!!!!!!!!
+                                expr: Some(simple_expr),
                                 sp: start_span.to(self.last_span)
                             }
                         }
