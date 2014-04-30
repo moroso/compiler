@@ -95,13 +95,11 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
             visitor.visit_expr(*a);
             visitor.visit_expr(*i);
         }
-        DotExpr(ref e, ref id) => {
+        DotExpr(ref e, _) => {
             visitor.visit_expr(*e);
-            visitor.visit_ident(id);
         }
-        ArrowExpr(ref e, ref id) => {
+        ArrowExpr(ref e, _) => {
             visitor.visit_expr(*e);
-            visitor.visit_ident(id);
         }
         AssignExpr(ref lv, ref rv) => {
             visitor.visit_expr(*lv);

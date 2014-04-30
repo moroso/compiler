@@ -120,16 +120,20 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         DefId(id)
     }
 
-    fn parse_ident(&mut self) -> Ident {
+    fn parse_ident_token(&mut self) -> AstString {
         match self.eat() {
-            IdentTok(name) => Ident {
-                id: self.new_id(),
-                sp: self.last_span,
-                tps: None,
-                name: name,
-            },
+            IdentTok(name) => name,
             tok => self.error(format!("Expected ident, found {}", tok),
                               self.last_span.get_begin())
+        }
+    }
+
+    fn parse_ident(&mut self) -> Ident {
+        Ident {
+            name: self.parse_ident_token(),
+            id: self.new_id(),
+            sp: self.last_span,
+            tps: None,
         }
     }
 
@@ -248,12 +252,12 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 },
                 Period => {
                     self.expect(Period);
-                    let field = self.parse_ident();
+                    let field = self.parse_ident_token();
                     DotExpr(~current_index, field)
                 }
                 Arrow => {
                     self.expect(Arrow);
-                    let field = self.parse_ident();
+                    let field = self.parse_ident_token();
                     ArrowExpr(~current_index, field)
                 }
                 _ => return current_index

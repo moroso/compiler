@@ -11,6 +11,7 @@ doc/%/index.html: %.rs
 LIB_FILES := src/lexer.rs \
              src/parser.rs \
              src/span.rs \
+             src/resolve.rs \
              src/ast/mod.rs \
              src/ast/visit.rs \
              src/ast/defmap.rs \

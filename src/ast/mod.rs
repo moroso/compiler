@@ -67,12 +67,15 @@ impl Show for Width {
     }
 }
 
+// Change this when we decide to intern strings
+pub type AstString = ~str;
+
 #[deriving(Eq, Clone)]
 pub struct Ident {
     pub id: DefId,
     pub sp: Span,
     pub tps: Option<Vec<Type>>,
-    pub name: ~str,
+    pub name: AstString,
 }
 
 impl Show for Ident {
@@ -182,7 +185,7 @@ impl Show for UnOpNode {
 #[deriving(Eq)]
 pub enum LitNode {
     NumLit(u64, IntKind),
-    StringLit(~str),
+    StringLit(AstString),
     BoolLit(bool),
 }
 
@@ -205,8 +208,8 @@ pub enum ExprNode {
     BinOpExpr(BinOp, ~Expr, ~Expr),
     UnOpExpr(UnOp, ~Expr),
     IndexExpr(~Expr, ~Expr),
-    DotExpr(~Expr, Ident),
-    ArrowExpr(~Expr, Ident),
+    DotExpr(~Expr, AstString),
+    ArrowExpr(~Expr, AstString),
     AssignExpr(~Expr, ~Expr),
     CallExpr(~Expr, Vec<Expr>),
     CastExpr(~Expr, Type),
