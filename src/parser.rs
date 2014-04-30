@@ -481,7 +481,18 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         let false_block = match *self.peek() {
             Else => {
                 self.expect(Else);
-                self.parse_block_expr()
+                match *self.peek() {
+                    If => {
+                        let if_span = self.peek_span();
+                        Block {
+                            items: vec!(),
+                            stmts: vec!(),
+                            expr: Some(self.parse_simple_expr()),
+                            sp: if_span.to(self.last_span)
+                        }
+                    },
+                    _ => self.parse_block_expr()
+                }
             }
             _ => {
                 let fake_span = mk_sp(self.last_span.get_end(), 0);
