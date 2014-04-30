@@ -514,7 +514,6 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         self.expect(Return);
         let result = ReturnExpr(~self.parse_expr());
         let span = start_span.to(self.peek_span());
-        self.expect(Semicolon);
         span!(result, span)
     }
 
