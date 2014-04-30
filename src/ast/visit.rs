@@ -33,7 +33,7 @@ pub fn walk_type<T: Visitor>(visitor: &mut T, t: &Type) {
             visitor.visit_ident(id);
         }
         FuncType(ref d, ref r) => {
-            visitor.visit_type(*d);
+            for a in d.iter() { visitor.visit_type(a); }
             visitor.visit_type(*r);
         }
         ArrayType(ref a, _) => {

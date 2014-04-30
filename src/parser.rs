@@ -36,7 +36,6 @@ macro_rules! parse_list(
     ($parser:expr until $end_token:ident) => (
         {
             let mut res = vec!();
-            let sp = self.peek_span();
             loop {
                 match *self.peek() {
                     $end_token => break,
@@ -51,7 +50,7 @@ macro_rules! parse_list(
                     }
                 }
             }
-            span!(res, sp.to(self.last_span))
+            res
         }
     )
 )
@@ -181,12 +180,12 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 let mut inner_exprs = parse_list!(self.parse_expr()
                                                   until RParen);
                 self.expect(RParen);
-                if inner_exprs.val.len() == 0 {
+                if inner_exprs.len() == 0 {
                     UnitExpr
-                } else if inner_exprs.val.len() == 1 {
-                    inner_exprs.val.pop().take_unwrap().val
+                } else if inner_exprs.len() == 1 {
+                    inner_exprs.pop().take_unwrap().val
                 } else {
-                    TupleExpr(inner_exprs.val)
+                    TupleExpr(inner_exprs)
                 }
             },
             LBrace => {
@@ -241,7 +240,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                     self.expect(LParen);
                     let args = parse_list!(self.parse_expr() until RParen);
                     self.expect(RParen);
-                    CallExpr(~current_index, args.val)
+                    CallExpr(~current_index, args)
                 },
                 As => {
                     self.expect(As);
@@ -389,12 +388,12 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 let mut inner_types = parse_list!(self.parse_type()
                                                   until RParen);
                 self.expect(RParen);
-                if inner_types.val.len() == 0 {
+                if inner_types.len() == 0 {
                     UnitType
-                } else if inner_types.val.len() == 1 {
-                    inner_types.val.pop().take_unwrap().val
+                } else if inner_types.len() == 1 {
+                    inner_types.pop().take_unwrap().val
                 } else {
-                    TupleType(inner_types.val)
+                    TupleType(inner_types)
                 }
             }
             IdentTok(_) => {
@@ -405,13 +404,21 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                         let ps = parse_list!(self.parse_type()
                                              until Greater);
                         self.expect(Greater);
-                        Some(ps.val)
+                        Some(ps)
                     }
                     _ => None
                 };
                 NamedType(id)
             }
-            _ => self.peek_error("Expected *, opening paren, or a type name"),
+            Fn => {
+                self.expect(Fn);
+                self.expect(LParen);
+                let arglist = parse_list!(self.parse_type() until RParen);
+                self.expect(RParen);
+                self.expect(Arrow);
+                FuncType(arglist, ~self.parse_type())
+            }
+            _ => self.peek_error("Expected *, opening paren, a type name, or fn"),
         };
 
         let mut result;
@@ -420,10 +427,6 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             true
         } {
             node = match *self.peek() {
-                Arrow => {
-                    self.expect(Arrow);
-                    FuncType(~result, ~self.parse_type())
-                },
                 LBracket => {
                     self.expect(LBracket);
                     let len = self.expect_number();
@@ -596,7 +599,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 let tps = parse_list!(self.parse_ident()
                                       until Greater);
                 self.expect(Greater);
-                Some(tps.val)
+                Some(tps)
             },
             LParen => None,
             _ => self.peek_error("Expected type parameters or argument list"),
@@ -610,7 +613,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                        mk_sp(self.last_span.get_end(), 0)),
         };
         let body = self.parse_block_expr();
-        span!(FuncItem(funcname, args.val, return_type, body, type_params),
+        span!(FuncItem(funcname, args, return_type, body, type_params),
                     begin.to(self.last_span))
     }
 
@@ -677,22 +680,22 @@ mod tests {
     fn compare_canonicalized(raw: ~str, parsed: ~str) {
         let mut parser = new_from_string(raw);
         let tree = parser.parse_variable_declaration();
-        assert_eq!(format!("{}", tree), parsed);
+        assert_eq!(parsed, format!("{}", tree));
     }
 
     #[test]
     fn test_variable_declarations() {
         compare_canonicalized(
-            ~r#"let x: (int -> int[4]) -> *(int[1]) = f(3*x+1, g(x)) * *p;"#,
-            ~"let x: ((int -> (int)[4]) -> *((int)[1])) = (f([((3i32*x)+1i32), g([x])])*(*p));"
+            ~r#"let x: fn(fn(int) -> int[4]) -> *(int[1]) = f(3*x+1, g(x)) * *p;"#,
+            ~"let x: ([([int] -> (int)[4])] -> *((int)[1])) = (f([((3i32*x)+1i32), g([x])])*(*p));"
         );
     }
 
     #[test]
     fn test_variable_declarations_again() {
         compare_canonicalized(
-            ~r#"let x: int -> int[4] -> (*int)[1] = f(3*x+1, g(x)) * *p;"#,
-            ~"let x: (int -> ((int)[4] -> (*(int))[1])) = (f([((3i32*x)+1i32), g([x])])*(*p));"
+            ~r#"let x: fn(int) -> fn(int[4]) -> (*int)[1] = f(3*x+1, g(x)) * *p;"#,
+            ~"let x: ([int] -> ([(int)[4]] -> (*(int))[1])) = (f([((3i32*x)+1i32), g([x])])*(*p));"
         );
     }
 }

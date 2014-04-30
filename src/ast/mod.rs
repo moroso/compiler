@@ -95,7 +95,7 @@ pub enum TypeNode {
     IntType(IntKind),
     PtrType(~Type),
     NamedType(Ident),
-    FuncType(~Type, ~Type),
+    FuncType(Vec<Type>, ~Type),
     ArrayType(~Type, u64),
     TupleType(Vec<Type>),
 }
