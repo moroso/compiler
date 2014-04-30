@@ -51,7 +51,11 @@ impl CCrossCompiler {
         match(block.expr) {
             Some(ref x) => {
                 print!("return ");
-                self.visit_expr(x);
+                // TODO: this is a hack, and should be done properly.
+                match x.val {
+                    ReturnExpr(ref e) => self.visit_expr(*e),
+                    _ => self.visit_expr(x),
+                }
                 print!(";");
             },
             None => {},
@@ -89,7 +93,10 @@ impl Visitor for CCrossCompiler {
         self.print_list(&block.stmts, |s, t| s.visit_stmt(t), "; ");
         match(block.expr) {
             Some(ref x) => { print!("return ");
-                             self.visit_expr(x);
+                             match x.val {
+                                 ReturnExpr(ref e) => self.visit_expr(*e),
+                                 _ => self.visit_expr(x),
+                             }
                              print!(";"); }
             None => print!("{}", "return;"),
         }
@@ -179,7 +186,7 @@ impl Visitor for CCrossCompiler {
 
     fn visit_expr(&mut self, expr: &Expr) {
         match expr.val {
-            UnitExpr => print!("{}", "{}"),
+            UnitExpr => print!("{}", "({})"),
             LitExpr(ref l) => self.visit_lit(l),
             TupleExpr(ref t) => fail!("Tuples not yet supported."),
             IdentExpr(ref i) => self.visit_ident(i),
@@ -248,9 +255,12 @@ impl Visitor for CCrossCompiler {
                 self.visit_expr_block(*b2);
                 print!("{}", ")");
             },
-            BlockExpr(ref b) => self.visit_expr_block(*b), /*
-    ReturnExpr(~Expr),*/
-            _ => {}
+            BlockExpr(ref b) => self.visit_expr_block(*b),
+            ReturnExpr(ref e) => {
+                print!("return/*expr*/ ");
+                self.visit_expr(*e);
+                print!(";");
+            }
         }
     }
 }
