@@ -20,6 +20,8 @@ pub enum Token {
     False,
     U32,
     I32,
+    While,
+    For,
 
     // Symbols
     LParen,
@@ -189,6 +191,8 @@ impl<T: Iterator<~str>> Lexer<T> {
             Return     => "return",
             True       => "true",
             False      => "false",
+            While      => "while",
+            For        => "for",
 
             // Basic types; TODO: add more.
             I32        => matcher!(r"[iI]32"),

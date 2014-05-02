@@ -124,6 +124,16 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
         ReturnExpr(ref e) => {
             visitor.visit_expr(*e);
         }
+        WhileExpr(ref e, ref b) => {
+            visitor.visit_expr(*e);
+            visitor.visit_block(*b);
+        }
+        ForExpr(ref e1, ref e2, ref e3, ref b) => {
+            visitor.visit_expr(*e1);
+            visitor.visit_expr(*e2);
+            visitor.visit_expr(*e3);
+            visitor.visit_block(*b);
+        }
         UnitExpr => {}
     }
 }

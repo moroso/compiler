@@ -216,6 +216,8 @@ pub enum ExprNode {
     IfExpr(~Expr, ~Block, ~Block),
     BlockExpr(~Block),
     ReturnExpr(~Expr),
+    WhileExpr(~Expr, ~Block),
+    ForExpr(~Expr, ~Expr, ~Expr, ~Block),
 }
 
 impl Show for ExprNode {
@@ -236,6 +238,8 @@ impl Show for ExprNode {
             IfExpr(ref c, ref bt, ref bf)       => write!(f.buf, "if {} \\{\n{}\\} else \\{\n{}\\}", c, bt, bf),
             BlockExpr(ref b)                    => write!(f.buf, "{}", b),
             ReturnExpr(ref e)                   => write!(f.buf, "return {}", e),
+            WhileExpr(ref e, ref b)             => write!(f.buf, "while {} {}", e, b),
+            ForExpr(ref e1, ref e2, ref e3, ref b) => write!(f.buf, "for ({};{};{}) {}", e1, e2, e3, b),
         }
     }
 }

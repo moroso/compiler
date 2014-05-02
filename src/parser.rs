@@ -521,9 +521,35 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         span!(result, span)
     }
 
+    pub fn parse_while_loop(&mut self) -> Expr {
+        let start_span = self.peek_span();
+        self.expect(While);
+        let cond = self.parse_expr();
+        let body = self.parse_block_expr();
+        let span = start_span.to(self.last_span);
+        span!(WhileExpr(~cond, ~body), span)
+    }
+
+    pub fn parse_for_loop(&mut self) -> Expr {
+        let start_span = self.peek_span();
+        self.expect(For);
+        self.expect(LParen);
+        let init = self.parse_expr();
+        self.expect(Semicolon);
+        let cond = self.parse_expr();
+        self.expect(Semicolon);
+        let iter = self.parse_expr();
+        self.expect(RParen);
+        let body = self.parse_block_expr();
+        let span = start_span.to(self.last_span);
+        span!(ForExpr(~init, ~cond, ~iter, ~body), span)
+    }
+
     pub fn parse_simple_expr(&mut self) -> Expr {
         match *self.peek() {
             If => self.parse_if_statement(),
+            For => self.parse_for_loop(),
+            While => self.parse_while_loop(),
             Return => self.parse_return_statement(),
             _ => self.parse_possible_assignment()
         }
