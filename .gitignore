@@ -3,3 +3,5 @@ mc
 mc2c
 mc-tests
 doc/
+test/*.c
+test/test

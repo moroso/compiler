@@ -45,22 +45,17 @@ impl CCrossCompiler {
 
     // A block, as an expression.
     fn visit_expr_block(&mut self, block: &Block) {
-        print!("{}", "({ int _() {");
+        print!("{}", "({ ");
         self.print_list(&block.items, |s, t| s.visit_item(t), "; ");
         self.print_list(&block.stmts, |s, t| s.visit_stmt(t), "; ");
         match(block.expr) {
             Some(ref x) => {
-                print!("return ");
-                // TODO: this is a hack, and should be done properly.
-                match x.val {
-                    ReturnExpr(ref e) => self.visit_expr(*e),
-                    _ => self.visit_expr(x),
-                }
+                self.visit_expr(x);
                 print!(";");
             },
             None => {},
         }
-        print!("{}", "}; _(); })");
+        print!("{}", "})");
     }
 
 }
@@ -215,14 +210,12 @@ impl Visitor for CCrossCompiler {
             DotExpr(ref exp, ref field) => {
                 print!("(");
                 self.visit_expr(*exp);
-                print!(").");
-                self.visit_ident(field);
+                print!(").{}", field);
             },
             ArrowExpr(ref exp, ref field) => {
                 print!("(");
                 self.visit_expr(*exp);
-                print!(")->");
-                self.visit_ident(field);
+                print!(")->{}", field);
             },
             AssignExpr(ref lhs, ref rhs) => {
                 print!("(");
@@ -260,13 +253,18 @@ impl Visitor for CCrossCompiler {
                 print!("return/*expr*/ ");
                 self.visit_expr(*e);
                 print!(";");
-            }
+            },
+            WhileExpr(ref e, ref b) => {},
+            ForExpr(ref e1, ref e2, ref e3, ref b) => {},
         }
     }
 }
 
 fn main() {
-    print!("cross-compiler\n");
+    print!("{}", r##"#include <stdio.h>
+#include <stdlib.h>
+void print_int(int x) { printf("%d\n", x); }
+"##);
     let mut stdin = stdin();
     let lexer = Lexer::new(stdin.lines().map(|x| x.unwrap()));
     let mut parser = Parser::new(lexer);
@@ -274,7 +272,8 @@ fn main() {
     let mut cc: CCrossCompiler = CCrossCompiler;
 
     let ast = parser.parse_module();
-    print!("{}", ast);
+    let mut stderr = std::io::stdio::stderr();
+    stderr.write_str(format!("{}", ast));
 
     walk_module(&mut cc, &ast);
     print!("\n");

@@ -22,6 +22,13 @@ MC_FILES := src/main.rs \
 MC2C_FILES := src/mc2c.rs \
               $(LIB_FILES)
 
+%.c: %.mc mc2c
+	./mc2c < $< > $@
+	cat $@
+
+test/%: test/%.c
+	gcc $< -o $@
+
 mc: $(MC_FILES)
 	rustc $< -o $@
 
