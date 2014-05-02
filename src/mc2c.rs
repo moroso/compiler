@@ -30,7 +30,7 @@ impl CCrossCompiler {
             visit(self, t);
             count += 1;
             if count < list.len() {
-                print!("{}", delimiter);
+                print!("{}\n", delimiter);
             }
         }
     }
@@ -58,6 +58,22 @@ impl CCrossCompiler {
         print!("{}", "})");
     }
 
+    fn visit_name_and_type(&mut self, name: &str, t: &Type) {
+        match t.val {
+            // We have to special case this, because of the way things of
+            // a function pointer type are declared in C.
+            FuncType(ref d, ref r) => {
+                self.visit_type(*r);
+                print!("(*{})(", name);
+                self.print_list(d, |s, x| s.visit_type(x), ", ");
+                print!(")");
+            },
+            _ => {
+                self.visit_type(t);
+                print!(" {}", name);
+            }
+        }
+    }
 }
 
 impl Visitor for CCrossCompiler {
@@ -87,10 +103,14 @@ impl Visitor for CCrossCompiler {
         self.print_list(&block.items, |s, t| s.visit_item(t), "; ");
         self.print_list(&block.stmts, |s, t| s.visit_stmt(t), "; ");
         match(block.expr) {
-            Some(ref x) => { print!("return ");
-                             match x.val {
+            Some(ref x) => { match x.val {
                                  ReturnExpr(ref e) => self.visit_expr(*e),
-                                 _ => self.visit_expr(x),
+                                 WhileExpr(_, _) =>
+                                     self.visit_expr(x),
+                                 _ => {
+                                     print!("return ");
+                                     self.visit_expr(x);
+                                 }
                              }
                              print!(";"); }
             None => print!("{}", "return;"),
@@ -116,27 +136,20 @@ impl Visitor for CCrossCompiler {
                 print!("{}", ")");
                 self.visit_block(block);
             }
+            StructItem(ref name, ref fields, _) => {
+                print!("typedef struct {} \\{", name);
+                for &(ref fieldname, ref fieldtype) in fields.iter() {
+                    self.visit_name_and_type(*fieldname,
+                                             fieldtype);
+                    print!(";\n");
+                }
+                print!("{} {};", "}", name);
+            }
         }
     }
 
     fn visit_func_arg(&mut self, arg: &FuncArg) {
-        match arg.argtype.val {
-            // We have to special case this, because of the way things of
-            // a function pointer type are declared in C.
-            FuncType(ref d, ref r) => {
-                self.visit_type(*r);
-                print!("(*");
-                self.visit_ident(&arg.ident);
-                print!(")(");
-                self.print_list(d, |s, x| s.visit_type(x), ", ");
-                print!(")");
-            },
-            _ => {
-                self.visit_type(&arg.argtype);
-                print!(" ");
-                self.visit_ident(&arg.ident);
-            }
-        }
+        self.visit_name_and_type(arg.ident.name, &arg.argtype);
     }
 
     fn visit_type(&mut self, t: &Type) {
@@ -146,6 +159,12 @@ impl Visitor for CCrossCompiler {
                 print!("*");
             }
             NamedType(ref id) => {
+                // TODO: this is a hack, and once we have functions that
+                // give us better insight into our types, this should
+                // be fixed.
+                if id.name != ~"int" {
+                    print!("struct ");
+                }
                 self.visit_ident(id);
             }
             FuncType(ref d, ref r) => {
@@ -225,9 +244,8 @@ impl Visitor for CCrossCompiler {
                 print!(")");
             }
             CallExpr(ref f, ref args) => {
-                print!("(");
                 self.visit_expr(*f);
-                print!(")(");
+                print!("(");
 
                 self.print_list(args, |s, x| s.visit_expr(x), ", ");
                 print!(")");
@@ -254,8 +272,24 @@ impl Visitor for CCrossCompiler {
                 self.visit_expr(*e);
                 print!(";");
             },
-            WhileExpr(ref e, ref b) => {},
-            ForExpr(ref e1, ref e2, ref e3, ref b) => {},
+            WhileExpr(ref e, ref b) => {
+                print!("while(");
+                self.visit_expr(*e);
+                print!(") \\{\n");
+                self.visit_expr_block(*b);
+                print!(";\\}\n");
+            },
+            ForExpr(ref e1, ref e2, ref e3, ref b) => {
+                print!("for(");
+                self.visit_expr(*e1);
+                print!(";");
+                self.visit_expr(*e2);
+                print!(";");
+                self.visit_expr(*e3);
+                print!(") \\{\n");
+                self.visit_expr_block(*b);
+                print!(";\\}\n");
+            },
         }
     }
 }

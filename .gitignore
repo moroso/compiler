@@ -5,3 +5,4 @@ mc-tests
 doc/
 test/*.c
 test/test
+test/test_linkedlist
