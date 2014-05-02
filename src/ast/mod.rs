@@ -325,6 +325,7 @@ impl Show for FuncArg {
 #[deriving(Eq)]
 pub enum ItemNode {
     FuncItem(Ident, Vec<FuncArg>, Type, Block, Vec<Ident>),
+    StructItem(Ident, Vec<(AstString, Type)>, Vec<Ident>),
 }
 
 impl Show for ItemNode {
@@ -336,6 +337,17 @@ impl Show for ItemNode {
                     try!(write!(f.buf, "<{}>", tps));
                 }
                 write!(f.buf, "({}) -> {} {}", args, t, def)
+            },
+            StructItem(ref id, ref fields, ref tps) => {
+                try!(write!(f.buf, "struct {}", id));
+                if tps.len() > 0 {
+                    try!(write!(f.buf, "<{}>", tps));
+                }
+                try!(write!(f.buf, "{}\n", " {"));
+                for &(ref name, ref fieldtype) in fields.iter() {
+                    try!(write!(f.buf, "    {}: {},\n", name, fieldtype));
+                }
+                write!(f.buf, "{}", "}")
             }
         }
     }

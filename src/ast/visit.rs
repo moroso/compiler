@@ -20,6 +20,13 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
             visitor.visit_type(t);
             visitor.visit_block(def);
             for id in tps.iter() { visitor.visit_ident(id); }
+        },
+        StructItem(ref id, ref fields, ref tps) => {
+            visitor.visit_ident(id);
+            for &(ref name, ref fieldtype) in fields.iter() {
+                visitor.visit_type(fieldtype);
+            }
+            for id in tps.iter() { visitor.visit_ident(id); }
         }
     }
 }

@@ -44,6 +44,7 @@ impl Subscope {
                     self.insert(TypeNS, tp);
                 }
             }
+            StructItem(_, _, _) => {} // TODO: fill this out.
         }
     }
 

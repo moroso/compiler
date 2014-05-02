@@ -67,7 +67,8 @@ impl Visitor for DefMap {
                 self.table.insert(ident.id, FuncDef(t.val.clone(), arg_def_ids, tp_def_ids));
 
                 self.visit_block(def);
-            }
+            },
+            StructItem(_, _, _) => {} // TODO: fill this out.
         }
     }
 }
