@@ -1,3 +1,22 @@
+/* This is the parser for the Moroso compiler, taking the stream of tokens
+ * produced by the lexer and giving us an abstract syntax tree (AST).
+ *
+ * The parser is a predictive recursive descent parser
+ * (see http://en.wikipedia.org/wiki/Recursive_descent_parser ). The idea
+ * is that for each node in the grammar, we have a corresponding function
+ * to parse that node. We may peek at the next token in the stream (this
+ * is done with the peek() function), or consume tokens from the stream
+ * (with the expect(token) function, which verifies that the token we're
+ * consuming is the one we expected to have, or the eat() function, which
+ * will consume the next token regardless of what it is).
+ *
+ * Each item in the token stream, and each node in the AST, also has a "span"
+ * associated with it, which keeps track of what characters in the input file
+ * correspond to it. As we build AST nodes, we have to take the spans for
+ * the tokens and the other AST nodes and use those to build spans for the
+ * nodes we build.
+ */
+
 use span::{SourcePos, Span, Spanned, mk_sp};
 use ast::IntKind;
 use lexer::*;
@@ -14,12 +33,19 @@ mod defaults {
     pub static DEFAULT_INT_KIND: IntKind = IntKind { signedness: Signed, width: Width32 };
 }
 
+/// The parser object, which stores all state we need during the process of
+/// parsing.
 pub struct Parser<A, T> {
+    /// The token stream.
     tokens: ~Peekable<A, T>,
+    /// The span corresponding to the last token we consumed from the stream.
     last_span: Span,
+    /// Each identifier is given a unique number. This keeps track of the
+    /// next number to assign to an identifier.
     next_id: u64,
 }
 
+/// A convenience function to tokenize and parse a string.
 pub fn new_from_string(s: ~str) -> 
     Parser<SourceToken,
            Lexer<vec::MoveItems<~str>>>
@@ -32,6 +58,19 @@ macro_rules! span {
     ( $n:expr, $s:expr ) => ( Spanned { val: $n, sp: $s } );
 }
 
+/**
+A helper macro to parse a comma-separated lists.
+`parser` is an expression to parse one item of the list, and
+`end_token` is the token that indicates the end of the list (probably
+a closing paren, brace, or similar).
+For example,
+```ignore
+self.expect(LParen);
+parse_list(self.parse_expr() until RParen);
+self.expect(RParen);
+```
+will parse a parenthesized, comma-separated list of expressions.
+**/
 macro_rules! parse_list(
     ($parser:expr until $end_token:ident) => (
         {
@@ -83,6 +122,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         }
     }
 
+    /// Consume the next token from the stream, returning it.
     fn eat(&mut self) -> Token {
         match self.tokens.next() {
             Some(st) => {
@@ -104,10 +144,13 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                        self.last_span.get_begin());
         }
     }
+
     fn error<'a>(&self, message: &'a str, pos: SourcePos) -> ! {
         fail!("\n{}\nat {}", message, pos)
     }
 
+    /// A convenience function to generate an error message when we've
+    /// peeked at a token, but it doesn't match any token we were expecting.
     fn peek_error<'a>(&mut self, message: &'a str) -> ! {
         let token = self.peek().clone();
         let pos = self.peek_span().get_begin();
@@ -119,6 +162,11 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         self.next_id += 1;
         DefId(id)
     }
+
+    /////////////////////////////////////////////////////////////////////
+    // The actual parser functions begin here!
+    // Most functions from this point on are for parsing a specific node
+    // in the grammar.
 
     fn parse_ident_token(&mut self) -> AstString {
         match self.eat() {
@@ -300,8 +348,22 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
 
     fn parse_binop(&mut self, precedence: uint) -> Expr {
+        // This function is a bit more general than the other parsing
+        // functions. It's responsible for all binary operations that
+        // appear in expressions. Most of the work is done by the
+        // `binop` macro, which takes the token corresponding to the
+        // binary operation, the BinOpNode that represents this binary
+        // operation in the AST, and the precendence (starting from 0,
+        // the lowest precedence, all the way up to num_precedences).
+
+        // How many levels of precedence there are. (Note that this is one
+        // higher than the highest precedence, since we start at 0). If you
+        // ever add new operators that have a different precedence from
+        // any operator already there, remember to update this.
         let num_precedences = 9;
 
+        // If the precedence we're given is higher than any of the binary
+        // operators, our work here is done.
         if precedence == num_precedences {
             return self.parse_factor();
         }
@@ -313,6 +375,8 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 => ({
                     match *self.peek() {
                         $(
+                            // If the token matches, *and* the precedence
+                            // matches, we can process it.
                             $token if precedence == $precedence => {
                                 self.expect($token);
                                 let rhs = self.parse_binop(precedence+1);
@@ -381,6 +445,9 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     }
 
     pub fn parse_type(&mut self) -> Type {
+        /*
+        Parse a type.
+        */
         let start_span = self.peek_span();
         let mut node = match *self.peek() {
             Star => {
@@ -556,6 +623,9 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     }
 
     pub fn parse_block_expr(&mut self) -> Block {
+        /* Parse a "block expression" (compound expression), such as
+           `{ 1+1; f(x); 2 }`.
+        */
         let start_span = self.peek_span();
         self.expect(LBrace);
         let mut statements = vec!();
@@ -618,6 +688,11 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     }
 
     pub fn parse_func_arg(&mut self) -> FuncArg {
+        /* Parse a single argument as part of a function declaration.
+           For example, in
+           `let f(x: int, y: int) -> int { ... }`,
+           this would parse "`x: int`" or "`y: int`".
+        */
         let start_span = self.peek_span();
         let arg_id = self.parse_ident();
         self.expect(Colon);
@@ -655,6 +730,9 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     }
 
     pub fn parse_type_params(&mut self, other_token: Token) -> Vec<Ident> {
+        /* Parse type parameters to a function or struct declaration.
+           This is the `<T>` in `let f<T>(x: *T)`, for example.
+        */
         match self.peek().clone() {
             Less => {
                 self.expect(Less);
@@ -681,6 +759,9 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     }
 
     pub fn parse_module(&mut self) -> Module {
+        /* This is the highest level node of the AST. This function
+           is the one that will parse an entire file.
+        */
         let mut items = vec!();
         loop {
             match *self.peek() {

@@ -1,3 +1,9 @@
+/* The lexer.
+ * This takes an interator of streams, and gives us an iterator of tokens.
+ * Each token has an associated "span", which tells us where in the source
+ * file the token was.
+ */
+
 use ast;
 use span::{Span, SourcePos, mk_sp};
 use regex::Regex;
@@ -68,6 +74,8 @@ pub enum Token {
     Eof,
 }
 
+/// A token together with a Span, to keep track of where in the source file
+/// it was.
 #[deriving(Show, Eq)]
 pub struct SourceToken {
     pub tok: Token,
@@ -79,6 +87,9 @@ struct LineContext {
     line: ~str,
 }
 
+/// A single rule for the lexer. This includes a `matcher`, which matches
+/// a string in the input, and a `maker`, which generates the token from
+/// the matched string.
 struct LexerRule<T, U> {
     matcher: T,
     maker: U,
@@ -181,6 +192,7 @@ impl<T: Iterator<~str>> Lexer<T> {
         // conflict. In particular, reserved words must go before IdentTok.
         let rules = lexer_rules! {
             // Whitespace
+            // Note: This includes comments.
             WS         => matcher!(r"\s|//.*|(?s)/\*.*\*/"),
 
             // Reserved words
