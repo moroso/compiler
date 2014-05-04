@@ -16,6 +16,7 @@ mod parser;
 mod span;
 mod ast;
 mod resolve;
+mod typecheck;
 
 fn main() {
     println!("moroso compiler");
