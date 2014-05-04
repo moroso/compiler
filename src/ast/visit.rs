@@ -27,6 +27,15 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
                 visitor.visit_type(fieldtype);
             }
             for id in tps.iter() { visitor.visit_ident(id); }
+        },
+        EnumItem(ref id, ref fields, ref tps) => {
+            visitor.visit_ident(id);
+            for ref field in fields.iter() {
+                for fieldarg in field.val.args.iter() {
+                    visitor.visit_type(fieldarg);
+                }
+            }
+            for id in tps.iter() { visitor.visit_ident(id); }
         }
     }
 }

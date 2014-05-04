@@ -722,16 +722,12 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                     begin.to(self.last_span))
     }
 
-    pub fn parse_struct_item(&mut self) -> (AstString, Type) {
-        let name = self.parse_ident_token();
-        self.expect(Colon);
-        let field_type = self.parse_type();
-        (name, field_type)
-    }
-
     pub fn parse_type_params(&mut self, other_token: Token) -> Vec<Ident> {
         /* Parse type parameters to a function or struct declaration.
            This is the `<T>` in `let f<T>(x: *T)`, for example.
+
+           `other_token` is the token that indicates that there are no
+           type parameters. In the example above, it would be LParen.
         */
         match self.peek().clone() {
             Less => {
@@ -746,6 +742,13 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         }.unwrap_or(vec!())
     }
 
+    pub fn parse_struct_item(&mut self) -> (AstString, Type) {
+        let name = self.parse_ident_token();
+        self.expect(Colon);
+        let field_type = self.parse_type();
+        (name, field_type)
+    }
+
     pub fn parse_struct_decl(&mut self) -> Item {
         let start_span = self.peek_span();
         self.expect(Struct);
@@ -758,6 +761,36 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         span!(StructItem(structname, body, type_params), span)
     }
 
+    pub fn parse_enum_item(&mut self) -> EnumItem {
+        let start_span = self.peek_span();
+        let name = self.parse_ident_token();
+        let types = match *self.peek() {
+            LParen => {
+                self.expect(LParen);
+                let typelist = parse_list!(self.parse_type() until RParen);
+                self.expect(RParen);
+                typelist
+            },
+            _ => {
+                vec!()
+            }
+        };
+        let span = start_span.to(self.last_span);
+        span!(EnumItemNode { name: name, args: types }, span)
+    }
+
+    pub fn parse_enum_decl(&mut self) -> Item {
+        let start_span = self.peek_span();
+        self.expect(Enum);
+        let enumname = self.parse_ident();
+        let type_params = self.parse_type_params(LBrace);
+        self.expect(LBrace);
+        let body = parse_list!(self.parse_enum_item() until RBrace);
+        self.expect(RBrace);
+        let span = start_span.to(self.last_span);
+        span!(EnumItem(enumname, body, type_params), span)
+    }
+
     pub fn parse_module(&mut self) -> Module {
         /* This is the highest level node of the AST. This function
            is the one that will parse an entire file.
@@ -767,6 +800,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             match *self.peek() {
                 Fn => items.push(self.parse_func_decl()),
                 Struct => items.push(self.parse_struct_decl()),
+                Enum => items.push(self.parse_enum_decl()),
                 Eof => return Module{
                     items: items
                 },

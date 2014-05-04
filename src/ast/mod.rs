@@ -17,7 +17,8 @@ spanned! {
     Lit      => LitNode,
     Expr     => ExprNode,
     Stmt     => StmtNode,
-    Item     => ItemNode
+    Item     => ItemNode,
+    EnumItem => EnumItemNode
 }
 
 #[deriving(Eq, Clone, Ord, TotalEq, TotalOrd, Show)]
@@ -323,9 +324,26 @@ impl Show for FuncArg {
 }
 
 #[deriving(Eq)]
+pub struct EnumItemNode {
+    pub name: AstString,
+    pub args: Vec<Type>,
+}
+
+impl Show for EnumItemNode {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        try!(write!(f.buf, "{}(", self.name));
+        for ref argtype in self.args.iter() {
+            try!(write!(f.buf, "{}, ", argtype));
+        }
+        write!(f.buf, ")")
+    }
+}
+
+#[deriving(Eq)]
 pub enum ItemNode {
     FuncItem(Ident, Vec<FuncArg>, Type, Block, Vec<Ident>),
     StructItem(Ident, Vec<(AstString, Type)>, Vec<Ident>),
+    EnumItem(Ident, Vec<EnumItem>, Vec<Ident>),
 }
 
 impl Show for ItemNode {
@@ -346,6 +364,17 @@ impl Show for ItemNode {
                 try!(write!(f.buf, "{}\n", " {"));
                 for &(ref name, ref fieldtype) in fields.iter() {
                     try!(write!(f.buf, "    {}: {},\n", name, fieldtype));
+                }
+                write!(f.buf, "{}", "}")
+            },
+            EnumItem(ref id, ref items, ref tps) => {
+                try!(write!(f.buf, "enum {}", id));
+                if tps.len() > 0 {
+                    try!(write!(f.buf, "<{}>", tps));
+                }
+                try!(write!(f.buf, "{}\n", " {"));
+                for ref item in items.iter() {
+                    try!(write!(f.buf, "    {},\n", item));
                 }
                 write!(f.buf, "{}", "}")
             }

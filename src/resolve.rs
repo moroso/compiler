@@ -45,6 +45,7 @@ impl Subscope {
                 }
             }
             StructItem(_, _, _) => {} // TODO: fill this out.
+            EnumItem(_, _, _) => {} // TODO: fill this out.
         }
     }
 

@@ -69,6 +69,7 @@ impl Visitor for DefMap {
                 self.visit_block(def);
             },
             StructItem(_, _, _) => {} // TODO: fill this out.
+            EnumItem(_, _, _) => {} // TODO: fill this out.
         }
     }
 }
