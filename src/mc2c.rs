@@ -12,13 +12,53 @@ use std::io::stdio::stdin;
 use lexer::Lexer;
 use parser::Parser;
 use ast::visit::{Visitor, walk_module};
+use collections::hashmap::{HashSet, HashMap};
 
 mod lexer;
 mod parser;
 mod span;
 mod ast;
 
-struct CCrossCompiler;
+struct CCrossCompiler {
+    structnames: HashSet<~str>,
+    enumitemnames: HashMap<~str, (Ident, Vec<EnumItem>, int)>,
+}
+
+fn find_structs(module: &Module) -> HashSet<~str> {
+    let mut ht = HashSet::<~str>::new();
+    for item in module.items.iter() {
+        match item.val {
+            StructItem(ref id, _, _) => { ht.insert(id.name.clone()); },
+            _ => {}
+        }
+    }
+
+    ht
+}
+
+fn find_enum_item_names(module: &Module) -> HashMap<~str,
+                                                    (Ident,
+                                                     Vec<EnumItem>,
+                                                     int)> {
+    let mut ht = HashMap::<~str, (Ident, Vec<EnumItem>, int)>::new();
+    for enumitem in module.items.iter() {
+        match enumitem.val {
+            EnumItem(ref name, ref items, _) => {
+                let mut pos = 0;
+                for item in items.iter() {
+                    ht.insert(item.val.name.clone(),
+                              (name.clone(), items.clone(), pos));
+                    pos += 1;
+                }
+            },
+            _ => {}
+        }
+    }
+
+    ht
+}
+
+
 
 impl CCrossCompiler {
     fn visit_list<T>(&mut self, list: &Vec<T>,
@@ -137,7 +177,21 @@ impl CCrossCompiler {
                 res + 
                     format!("{} {};", "}", name)
             }
-            EnumItem(_, _, _) => "".to_owned(), // TODO
+            EnumItem(ref name, ref items, _) => {
+                let mut res = format!("typedef struct {} \\{\n    int tag;\n    union \\{\n",
+                                      name).to_owned();
+                for item in items.iter() {
+                    res = res + "        struct {\n";
+                    let mut num = 0;
+                    for t in item.val.args.iter() {
+                        res = res + "            " + self.visit_type(t) +
+                            " " + format!("field{};\n", num);
+                        num += 1;
+                    }
+                    res = res + format!("        \\} {};\n", item.val.name);
+                }
+                res + format!("\n    \\} val;\n\\} {};", name)
+            }
         }
     }
 
@@ -155,9 +209,11 @@ impl CCrossCompiler {
                 // TODO: this is a hack, and once we have functions that
                 // give us better insight into our types, this should
                 // be fixed.
-                if id.name != "int".to_owned() {
+                if self.structnames.contains(&id.name) {
                     "struct "
-                } else { "" }.to_owned() +
+                } else {
+                    ""
+                }.to_owned() +
                     self.visit_ident(id)
             }
             FuncType(ref d, ref r) => {
@@ -183,7 +239,12 @@ impl CCrossCompiler {
     }
 
     fn visit_ident(&mut self, ident: &Ident) -> ~str {
-        format!("{}", ident.name)
+        match self.enumitemnames.find_equiv(&ident.name) {
+            Some(&(ref enumname, ref enumitems, ref pos)) => {
+                format!("\\{ .tag = {} \\}", pos)
+            }
+            None => format!("{}", ident.name),
+        }
     }
 
     fn visit_lit(&mut self, lit: &Lit) -> ~str {
@@ -240,10 +301,45 @@ impl CCrossCompiler {
                 ")"
             }
             CallExpr(ref f, ref args) => {
-                self.visit_expr(*f) +
-                "(" +
-                self.visit_list(args, |s, x| s.visit_expr(x), ", ") +
-                ")"
+                match f.val {
+                    IdentExpr(ref i) => {
+                        // TODO: Why on earth is this needed? (The borrow
+                        // checker complains otherwise; why?)
+                        let cloned_tab = self.enumitemnames.clone();
+                        match cloned_tab.find_equiv(&i.name) {
+                            Some(&(ref enumname, ref enumitems, ref pos)) => {
+                                let mut res = format!("\\{ .tag = {}, ", pos).to_owned();
+                                let this_variant = enumitems.get(*pos as uint).val.clone();
+                                let mut i = 0;
+                                for item in this_variant.args.iter() {
+                                    res = res + format!(".val.{}.field{} = {}, ",
+                                                        this_variant.name,
+                                                        i,
+                                                        self.visit_expr(
+                                                            args.get(i)
+                                                            )
+                                                            );
+                                    i += 1;
+                                }
+                                res + "}"
+                            },
+                            None => {
+                                let mut res = format!("{}", i.name);
+                                res +
+                                    "(" +
+                                    self.visit_list(args, |s, x| s.visit_expr(x), ", ") +
+                                    ")"
+                            }
+                        }
+                    },
+                    _ => {
+                        self.visit_expr(*f) +
+                            "(" +
+                            self.visit_list(args, |s, x| s.visit_expr(x), ", ") +
+                            ")"
+                    }
+
+                }
             },
             CastExpr(ref e, ref t) => {
                 "(".to_owned() +
@@ -285,7 +381,35 @@ impl CCrossCompiler {
                 self.visit_expr_block(*b) +
                 ";}\n"
             },
-            MatchExpr(_, _) => "".to_owned() // TODO
+            MatchExpr(ref e, ref items) => {
+                // TODO: make this actually result in a value.
+                let mut res = "switch((".to_owned() +
+                    self.visit_expr(*e) + ").tag) {\n";
+                for item in items.iter() {
+                    // TODO: Why on earth is this needed? (The borrow
+                    // checker complains otherwise; why?)
+                    let cloned_tab = self.enumitemnames.clone();
+
+                    let &(_, ref enumitems, idx) = cloned_tab.find_equiv(
+                        &item.val.name).unwrap();
+                    let this_variant = enumitems.get(idx as uint).val.clone();
+                    res = res + format!("    case {}: \\{", idx);
+
+                    let mut i = 0;
+                    for var in this_variant.args.iter() {
+                        res = res + format!("{} {} = {}.val.{}.field{};",
+                                            self.visit_type(var),
+                                            item.val.vars.get(i as uint).name,
+                                            self.visit_expr(*e),
+                                            item.val.name,
+                                            i
+                                            );
+                        i += 1;
+                    }
+                    res = res + self.visit_expr(&item.val.body) + "; break;}\n";
+                }
+                res + "\n};"
+            }
         }
     }
 
@@ -307,11 +431,16 @@ void print_int(int x) { printf("%d\n", x); }
     let lexer = Lexer::new(stdin.lines().map(|x| x.unwrap()));
     let mut parser = Parser::new(lexer);
 
-    let mut cc: CCrossCompiler = CCrossCompiler;
-
     let ast = parser.parse_module();
     let mut stderr = std::io::stdio::stderr();
     stderr.write_str(format!("{}", ast));
+
+    stderr.write_str(format!("{}\n", find_enum_item_names(&ast)));
+
+    let mut cc: CCrossCompiler = CCrossCompiler {
+        structnames: find_structs(&ast),
+        enumitemnames: find_enum_item_names(&ast),
+    };
 
     print!("{}\n", cc.visit_module(&ast));
 }

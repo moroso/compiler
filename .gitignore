@@ -6,3 +6,4 @@ doc/
 test/*.c
 test/test
 test/test_linkedlist
+test/test_enums

@@ -120,7 +120,7 @@ impl Show for TypeNode {
     }
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub enum BinOpNode {
     PlusOp,
     MinusOp,
@@ -167,7 +167,7 @@ impl Show for BinOpNode {
     }
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub enum UnOpNode {
     Deref,
     AddrOf,
@@ -184,7 +184,7 @@ impl Show for UnOpNode {
     }
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub enum LitNode {
     NumLit(u64, IntKind),
     StringLit(AstString),
@@ -201,7 +201,7 @@ impl Show for LitNode {
     }
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub struct MatchItemNode {
     pub name: AstString,
     pub vars: Vec<Ident>,
@@ -218,7 +218,7 @@ impl Show for MatchItemNode {
     }
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub enum ExprNode {
     UnitExpr,
     LitExpr(Lit),
@@ -271,7 +271,7 @@ impl Show for ExprNode {
     }
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub enum StmtNode {
     LetStmt(Ident, Option<Type>, Option<Expr>),
     DeconstructTupleStmt(Vec<Ident>, Expr),
@@ -311,7 +311,7 @@ impl Show for StmtNode {
     }
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub struct Block {
     pub items: Vec<Item>,
     pub stmts: Vec<Stmt>,
@@ -344,7 +344,7 @@ impl Show for Block {
     }
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub struct FuncArg {
     pub ident:   Ident,
     pub argtype: Type,
@@ -357,7 +357,7 @@ impl Show for FuncArg {
     }
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub struct EnumItemNode {
     pub name: AstString,
     pub args: Vec<Type>,
@@ -373,7 +373,7 @@ impl Show for EnumItemNode {
     }
 }
 
-#[deriving(Eq)]
+#[deriving(Eq, Clone)]
 pub enum ItemNode {
     FuncItem(Ident, Vec<FuncArg>, Type, Block, Vec<Ident>),
     StructItem(Ident, Vec<(AstString, Type)>, Vec<Ident>),
