@@ -273,7 +273,8 @@ impl Show for ExprNode {
 
 #[deriving(Eq)]
 pub enum StmtNode {
-    LetStmt(Ident /* pattern */, Option<Type>, Option<Expr>),
+    LetStmt(Ident, Option<Type>, Option<Expr>),
+    DeconstructTupleStmt(Vec<Ident>, Expr),
     ExprStmt(Expr), // no trailing semicolon, must have unit type
     SemiStmt(Expr), // trailing semicolon, any type OK
 }
@@ -292,6 +293,13 @@ impl Show for StmtNode {
                     None => {}
                 }
                 write!(f.buf, ";")
+            },
+            DeconstructTupleStmt(ref ids, ref e) => {
+                try!(write!(f.buf, "let ("));
+                for ident in ids.iter() {
+                    try!(write!(f.buf, "{}, ", ident));
+                }
+                write!(f.buf, ") = {}", e)
             },
             ExprStmt(ref e) => {
                 write!(f.buf, "{}", e)

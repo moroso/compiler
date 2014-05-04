@@ -23,7 +23,7 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
         },
         StructItem(ref id, ref fields, ref tps) => {
             visitor.visit_ident(id);
-            for &(ref name, ref fieldtype) in fields.iter() {
+            for &(_, ref fieldtype) in fields.iter() {
                 visitor.visit_type(fieldtype);
             }
             for id in tps.iter() { visitor.visit_ident(id); }
@@ -84,6 +84,10 @@ pub fn walk_stmt<T: Visitor>(visitor: &mut T, stmt: &Stmt) {
             visitor.visit_expr(e);
         }
         SemiStmt(ref e) => {
+            visitor.visit_expr(e);
+        }
+        DeconstructTupleStmt(ref ids, ref e) => {
+            for ident in ids.iter() { visitor.visit_ident(ident); }
             visitor.visit_expr(e);
         }
     }

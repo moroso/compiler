@@ -511,34 +511,55 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     }
 
     pub fn parse_variable_declaration(&mut self) -> Stmt {
+        /* Parse a 'let' statement. There are a bunch of variations on this:
+         * * `let x: int` to declare a typed variable, but not initialize it;
+         * * `let x: int = 5` to declare a typed variable and initialize it;
+         * * `let x = 5` to declare and initialize x, and infer the type;
+         * * `let (x, y, z) = t` to deconstruct the tuple t into components.
+         */
         let start_span = self.peek_span();
         self.expect(Let);
-        let var_name = self.parse_ident();
-        let var_type = match *self.peek() {
-            Colon => {
-                self.expect(Colon);
-                Some(self.parse_type())
-            },
-            Eq => None,
-            _ => self.peek_error("Expected \": type\" or \"=\""),
-        };
-
         match *self.peek() {
-            Semicolon => {
-                let span = start_span.to(self.peek_span());
-                self.expect(Semicolon);
-                span!(LetStmt(var_name, var_type, None),
-                            span)
-            },
-            Eq => {
+            LParen => {
+                // This is a tuple deconstruction.
+                self.expect(LParen);
+                let vars = parse_list!(self.parse_ident() until RParen);
+                self.expect(RParen);
                 self.expect(Eq);
-                let var_value = self.parse_expr();
-                let span = start_span.to(self.peek_span());
-                self.expect(Semicolon);
-                span!(LetStmt(var_name, var_type, Some(var_value)),
-                            span)
+                let expr = self.parse_expr();
+                let span = start_span.to(self.last_span);
+                span!(DeconstructTupleStmt(vars, expr), span)
             },
-            _ => self.peek_error("Expected semicolon or \"=\""),
+            _ => {
+                // One of the three other cases.
+                let var_name = self.parse_ident();
+                let var_type = match *self.peek() {
+                    Colon => {
+                        self.expect(Colon);
+                        Some(self.parse_type())
+                    },
+                    Eq => None,
+                    _ => self.peek_error("Expected \": type\" or \"=\""),
+                };
+
+                match *self.peek() {
+                    Semicolon => {
+                        let span = start_span.to(self.peek_span());
+                        self.expect(Semicolon);
+                        span!(LetStmt(var_name, var_type, None),
+                              span)
+                    },
+                    Eq => {
+                        self.expect(Eq);
+                        let var_value = self.parse_expr();
+                        let span = start_span.to(self.peek_span());
+                        self.expect(Semicolon);
+                        span!(LetStmt(var_name, var_type, Some(var_value)),
+                              span)
+                    },
+                    _ => self.peek_error("Expected semicolon or \"=\""),
+                }
+            }
         }
     }
 
@@ -890,7 +911,7 @@ mod tests {
 
     fn compare_canonicalized(raw: ~str, parsed: ~str) {
         let mut parser = new_from_string(raw);
-        let tree = parser.parse_variable_declaration();
+        let tree = parser.parse_expr();
         assert_eq!(parsed, format!("{}", tree));
     }
 

@@ -2,6 +2,7 @@ use ast::*;
 use ast::visit::*;
 use collections::{SmallIntMap, HashMap};
 
+#[allow(non_camel_case_types)]
 enum NS {
     TypeNS = 0u,
     ValNS,
