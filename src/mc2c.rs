@@ -21,276 +21,280 @@ mod ast;
 struct CCrossCompiler;
 
 impl CCrossCompiler {
-
-    fn print_list<T>(&mut self, list: &Vec<T>,
-                     visit: |&mut CCrossCompiler, &T|,
-                     delimiter: &str) {
+    fn visit_list<T>(&mut self, list: &Vec<T>,
+                     visit: |&mut CCrossCompiler, &T| -> ~str,
+                     delimiter: &str) -> ~str {
+        let mut res = "".to_owned();
         let mut count = 0;
         for t in list.iter() {
-            visit(self, t);
+            res = res + visit(self, t);
             count += 1;
             if count < list.len() {
-                print!("{}\n", delimiter);
+                res = res + format!("{}\n", delimiter);
             }
         }
+        res
     }
 
-    fn visit_binop(&mut self, op: &BinOp) {
-        print!("{}", op);
+    fn visit_binop(&mut self, op: &BinOp) -> ~str {
+        format!("{}", op)
     }
 
-    fn visit_unop(&mut self, op: &UnOp) {
-        print!("{}", op);
+    fn visit_unop(&mut self, op: &UnOp) -> ~str {
+        format!("{}", op)
     }
 
     // A block, as an expression.
-    fn visit_expr_block(&mut self, block: &Block) {
-        print!("{}", "({ ");
-        self.print_list(&block.items, |s, t| s.visit_item(t), "; ");
-        self.print_list(&block.stmts, |s, t| s.visit_stmt(t), "; ");
-        match(block.expr) {
-            Some(ref x) => {
-                self.visit_expr(x);
-                print!(";");
-            },
-            None => {},
-        }
-        print!("{}", "})");
+    fn visit_expr_block(&mut self, block: &Block) -> ~str {
+        "({ ".to_owned() +
+            self.visit_list(&block.items, |s, t| s.visit_item(t), "; ") +
+            self.visit_list(&block.stmts, |s, t| s.visit_stmt(t), "; ") +
+            match(block.expr) {
+                Some(ref x) => {
+                    self.visit_expr(x) +
+                    ";"
+                },
+                None => "".to_owned(),
+            } +
+            "})"
     }
 
-    fn visit_name_and_type(&mut self, name: &str, t: &Type) {
+    fn visit_name_and_type(&mut self, name: &str, t: &Type) -> ~str {
         match t.val {
             // We have to special case this, because of the way things of
             // a function pointer type are declared in C.
             FuncType(ref d, ref r) => {
-                self.visit_type(*r);
-                print!("(*{})(", name);
-                self.print_list(d, |s, x| s.visit_type(x), ", ");
-                print!(")");
+                self.visit_type(*r) +
+                    format!("(*{})(", name) +
+                    self.visit_list(d, |s, x| s.visit_type(x), ", ") +
+                    ")"
             },
             _ => {
-                self.visit_type(t);
-                print!(" {}", name);
+                self.visit_type(t) +
+                    format!(" {}", name)
             }
         }
     }
-}
 
-impl Visitor for CCrossCompiler {
-    fn visit_stmt(&mut self, stmt: &Stmt) {
+    fn visit_stmt(&mut self, stmt: &Stmt) -> ~str {
         match stmt.val {
             LetStmt(ref i, ref t, ref e) => {
                 if t.is_none() { fail!("Must specify types now.") };
-                self.visit_type(&t.clone().unwrap());
-                print!(" ");
-                self.visit_ident(i);
-                match *e {
-                    Some(ref exp) => {
-                        print!(" = ");
-                        self.visit_expr(exp);
-                    },
-                    None => {},
-                }
-                print!(";");
+                self.visit_type(&t.clone().unwrap()) +
+                    " " +
+                    self.visit_ident(i) +
+                    match *e {
+                        Some(ref exp) => {
+                            " = ".to_owned() +
+                                self.visit_expr(exp)
+                        },
+                        None => "".to_owned(),
+                    } +
+                    ";"
             },
-            ExprStmt(ref e) => { self.visit_expr(e); print!(";"); },
-            SemiStmt(ref e) => { self.visit_expr(e); print!(";"); },
+            ExprStmt(ref e) => { self.visit_expr(e) + ";" },
+            SemiStmt(ref e) => { self.visit_expr(e) + ";" },
+            DeconstructTupleStmt(ref v, ref e) => "".to_owned(), // TODO
         }
     }
 
-    fn visit_block(&mut self, block: &Block) {
-        print!("{}", "{");
-        self.print_list(&block.items, |s, t| s.visit_item(t), "; ");
-        self.print_list(&block.stmts, |s, t| s.visit_stmt(t), "; ");
-        match(block.expr) {
-            Some(ref x) => { match x.val {
-                                 ReturnExpr(ref e) => self.visit_expr(*e),
-                                 WhileExpr(_, _) =>
-                                     self.visit_expr(x),
-                                 _ => {
-                                     print!("return ");
-                                     self.visit_expr(x);
-                                 }
-                             }
-                             print!(";"); }
-            None => print!("{}", "return;"),
-        }
-        print!("{}", "}");
+    fn visit_block(&mut self, block: &Block) -> ~str {
+        "{".to_owned() +
+            self.visit_list(&block.items, |s, t| s.visit_item(t), "; ") +
+            self.visit_list(&block.stmts, |s, t| s.visit_stmt(t), "; ") +
+            match(block.expr) {
+                Some(ref x) => { match x.val {
+                                     ReturnExpr(ref e) => self.visit_expr(*e),
+                                     WhileExpr(_, _) =>
+                                         self.visit_expr(x),
+                                     _ => {
+                                         "return ".to_owned() +
+                                         self.visit_expr(x)
+                                     }
+                                  }
+                }
+            None => "return".to_owned(),
+        } + ";}"
     }
 
-    fn visit_item(&mut self, item: &Item) {
+    fn visit_item(&mut self, item: &Item) -> ~str {
         match item.val {
             FuncItem(ref name, ref args, ref t, ref block, _) => {
-                self.visit_type(t);
-                print!(" ");
-                self.visit_ident(name);
-                print!("(");
-                let mut count = 0;
-                for arg in args.iter().peekable() {
-                    self.visit_func_arg(arg);
-                    count += 1;
-                    if count < args.len() {
-                        print!(", ");
-                    }
-                }
-                print!("{}", ")");
-                self.visit_block(block);
+                self.visit_type(t) +
+                    " " +
+                    self.visit_ident(name) +
+                    "(" +
+                    self.visit_list(args, |s, x| s.visit_func_arg(x), ", ") +
+                    ")" +
+                    self.visit_block(block)
             }
             StructItem(ref name, ref fields, _) => {
-                print!("typedef struct {} \\{", name);
+                let mut res = format!("typedef struct {} \\{", name).to_owned();
                 for &(ref fieldname, ref fieldtype) in fields.iter() {
-                    self.visit_name_and_type(*fieldname,
-                                             fieldtype);
-                    print!(";\n");
+                    res = res + self.visit_name_and_type(*fieldname,
+                                                         fieldtype) + ";\n";
                 }
-                print!("{} {};", "}", name);
+                res + 
+                    format!("{} {};", "}", name)
             }
+            EnumItem(_, _, _) => "".to_owned(), // TODO
         }
     }
 
-    fn visit_func_arg(&mut self, arg: &FuncArg) {
-        self.visit_name_and_type(arg.ident.name, &arg.argtype);
+    fn visit_func_arg(&mut self, arg: &FuncArg) -> ~str {
+        self.visit_name_and_type(arg.ident.name, &arg.argtype)
     }
 
-    fn visit_type(&mut self, t: &Type) {
+    fn visit_type(&mut self, t: &Type) -> ~str {
         match t.val {
             PtrType(ref p) => {
-                self.visit_type(*p);
-                print!("*");
+                self.visit_type(*p) +
+                "*"
             }
             NamedType(ref id) => {
                 // TODO: this is a hack, and once we have functions that
                 // give us better insight into our types, this should
                 // be fixed.
                 if id.name != "int".to_owned() {
-                    print!("struct ");
-                }
-                self.visit_ident(id);
+                    "struct "
+                } else { "" }.to_owned() +
+                    self.visit_ident(id)
             }
             FuncType(ref d, ref r) => {
-                self.visit_type(*r);
-                print!("(*)(")
-
-                self.print_list(d, |s, x| s.visit_type(x), ", ");
-                print!(")");
+                self.visit_type(*r) +
+                    "(*)(" +
+                    self.visit_list(d, |s, x| s.visit_type(x), ", ") +
+                    ")"
             }
             ArrayType(ref a, _) => {
-                self.visit_type(*a);
+                self.visit_type(*a)
             }
             TupleType(ref ts) => {
-                ts.iter().map(|t| self.visit_type(t)).all(|_|true);
+                let mut res = "".to_owned();
+                for t in ts.iter() {
+                    res = res + self.visit_type(t);
+                }
+                res
             }
-            BoolType => print!("int"),
-            UnitType => print!("void"),
-            IntType(..) => print!("int"),
+            BoolType => "int".to_owned(),
+            UnitType => "void".to_owned(),
+            IntType(..) => "int".to_owned(),
         }
     }
 
-    fn visit_ident(&mut self, ident: &Ident) {
-        print!("{}", ident.name);
+    fn visit_ident(&mut self, ident: &Ident) -> ~str {
+        format!("{}", ident.name)
     }
 
-    fn visit_lit(&mut self, lit: &Lit) {
+    fn visit_lit(&mut self, lit: &Lit) -> ~str {
         match lit.val {
-            NumLit(ref n, _) => print!("{}", n),
+            NumLit(ref n, _) => format!("{}", n),
             StringLit(ref s) => fail!("TODO"),
-            BoolLit(ref b) => print!("{}", if *b { 1 } else { 0 }),
+            BoolLit(ref b) => format!("{}", if *b { 1 } else { 0 }),
         }
     }
 
-    fn visit_expr(&mut self, expr: &Expr) {
+    fn visit_expr(&mut self, expr: &Expr) -> ~str {
         match expr.val {
-            UnitExpr => print!("{}", "({})"),
+            UnitExpr => "({})".to_owned(),
             LitExpr(ref l) => self.visit_lit(l),
             TupleExpr(ref t) => fail!("Tuples not yet supported."),
             IdentExpr(ref i) => self.visit_ident(i),
             BinOpExpr(ref op, ref lhs, ref rhs) => {
-                print!("(");
-                self.visit_expr(*lhs);
-                print!(")");
-                self.visit_binop(op);
-                print!("(");
-                self.visit_expr(*rhs);
-                print!(")");
+                "(".to_owned() +
+                self.visit_expr(*lhs) +
+                ")" +
+                self.visit_binop(op) +
+                "(" +
+                self.visit_expr(*rhs) +
+                ")"
             },
             UnOpExpr(ref op, ref expr) => {
-                self.visit_unop(op);
-                print!("(");
-                self.visit_expr(*expr);
-                print!(")");
+                self.visit_unop(op) +
+                "(" + 
+                self.visit_expr(*expr) +
+                ")"
             },
             IndexExpr(ref exp, ref idx) => {
-                print!("(");
-                self.visit_expr(*exp);
-                print!(")[");
-                self.visit_expr(*idx);
-                print!("]");
+                "(".to_owned() +
+                self.visit_expr(*exp) +
+                ")[" +
+                self.visit_expr(*idx) +
+                "]"
             },
             DotExpr(ref exp, ref field) => {
-                print!("(");
-                self.visit_expr(*exp);
-                print!(").{}", field);
+                "(".to_owned() +
+                self.visit_expr(*exp) +
+                format!(").{}", field)
             },
             ArrowExpr(ref exp, ref field) => {
-                print!("(");
-                self.visit_expr(*exp);
-                print!(")->{}", field);
+                "(".to_owned() +
+                self.visit_expr(*exp) +
+                format!(")->{}", field)
             },
             AssignExpr(ref lhs, ref rhs) => {
-                print!("(");
-                self.visit_expr(*lhs);
-                print!(") = (");
-                self.visit_expr(*rhs);
-                print!(")");
+                "(".to_owned() +
+                self.visit_expr(*lhs) +
+                ") = (" +
+                self.visit_expr(*rhs) +
+                ")"
             }
             CallExpr(ref f, ref args) => {
-                self.visit_expr(*f);
-                print!("(");
-
-                self.print_list(args, |s, x| s.visit_expr(x), ", ");
-                print!(")");
+                self.visit_expr(*f) +
+                "(" +
+                self.visit_list(args, |s, x| s.visit_expr(x), ", ") +
+                ")"
             },
             CastExpr(ref e, ref t) => {
-                print!("(");
-                self.visit_type(t);
-                print!(")(");
-                self.visit_expr(*e);
-                print!(")");
+                "(".to_owned() +
+                self.visit_type(t) +
+                ")(" +
+                self.visit_expr(*e) +
+                ")"
             },
             IfExpr(ref e, ref b1, ref b2) => {
-                print!("((");
-                self.visit_expr(*e);
-                print!("{}", ")?");
-                self.visit_expr_block(*b1);
-                print!("{}", ":");
-                self.visit_expr_block(*b2);
-                print!("{}", ")");
+                "((".to_owned() +
+                self.visit_expr(*e) +
+                ")?" +
+                self.visit_expr_block(*b1) +
+                ":" +
+                self.visit_expr_block(*b2) +
+                ")"
             },
             BlockExpr(ref b) => self.visit_expr_block(*b),
             ReturnExpr(ref e) => {
-                print!("return/*expr*/ ");
-                self.visit_expr(*e);
-                print!(";");
+                "return/*expr*/ ".to_owned() +
+                self.visit_expr(*e) +
+                ";"
             },
             WhileExpr(ref e, ref b) => {
-                print!("while(");
-                self.visit_expr(*e);
-                print!(") \\{\n");
-                self.visit_expr_block(*b);
-                print!(";\\}\n");
+                "while(".to_owned() +
+                self.visit_expr(*e) +
+                ") {\n" +
+                self.visit_expr_block(*b) +
+                ";}\n"
             },
             ForExpr(ref e1, ref e2, ref e3, ref b) => {
-                print!("for(");
-                self.visit_expr(*e1);
-                print!(";");
-                self.visit_expr(*e2);
-                print!(";");
-                self.visit_expr(*e3);
-                print!(") \\{\n");
-                self.visit_expr_block(*b);
-                print!(";\\}\n");
+                "for(".to_owned() +
+                self.visit_expr(*e1) +
+                ";" +
+                self.visit_expr(*e2) +
+                ";" +
+                self.visit_expr(*e3) +
+                ") {\n" +
+                self.visit_expr_block(*b) +
+                ";}\n"
             },
+            MatchExpr(_, _) => "".to_owned() // TODO
         }
+    }
+
+    fn visit_module(&mut self, module: &Module) -> ~str {
+        let mut res = "".to_owned();
+        for item in module.items.iter() {
+            res = res + self.visit_item(item);
+        }
+        res
     }
 }
 
@@ -309,6 +313,5 @@ void print_int(int x) { printf("%d\n", x); }
     let mut stderr = std::io::stdio::stderr();
     stderr.write_str(format!("{}", ast));
 
-    walk_module(&mut cc, &ast);
-    print!("\n");
+    print!("{}\n", cc.visit_module(&ast));
 }
