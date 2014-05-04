@@ -400,28 +400,28 @@ mod tests {
 
     #[test]
     fn test() {
-        let lexer1 = Lexer::new(vec!(~r#"f(x - /* I am a comment */ 0x3f5B)+1 "Hello\" World")"#).move_iter());
+        let lexer1 = Lexer::new(vec!(r#"f(x - /* I am a comment */ 0x3f5B)+1 "Hello\" World")"#.to_owned()).move_iter());
         let tokens1: ~[SourceToken] = FromIterator::from_iter(lexer1);
 
         compare(tokens1,
-                [IdentTok(~"f"),
+                [IdentTok("f".to_owned()),
                   LParen,
-                  IdentTok(~"x"),
+                  IdentTok("x".to_owned()),
                   Dash,
                   NumberTok(0x3f5B, None),
                   RParen,
                   Plus,
                   NumberTok(1, None),
-                  StringTok(~r#"Hello\" World"#),
+                  StringTok(r#"Hello\" World"#.to_owned()),
                 ]);
 
-        let lexer2 = Lexer::new(vec!(~"let x: int = 5;").move_iter());
+        let lexer2 = Lexer::new(vec!("let x: int = 5;".to_owned()).move_iter());
         let tokens2: ~[SourceToken] = FromIterator::from_iter(lexer2);
         compare(tokens2,
                 [Let,
-                 IdentTok(~"x"),
+                 IdentTok("x".to_owned()),
                  Colon,
-                 IdentTok(~"int"),
+                 IdentTok("int".to_owned()),
                  Eq,
                  NumberTok(5, None),
                  ]);

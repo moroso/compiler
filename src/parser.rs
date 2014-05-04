@@ -46,11 +46,11 @@ pub struct Parser<A, T> {
 }
 
 /// A convenience function to tokenize and parse a string.
-pub fn new_from_string(s: ~str) -> 
+pub fn new_from_string(s: &str) ->
     Parser<SourceToken,
            Lexer<vec::MoveItems<~str>>>
 {
-    let lexer = Lexer::new(vec!(s).move_iter());
+    let lexer = Lexer::new(vec!(s.to_owned()).move_iter());
     Parser::new(lexer)
 }
 
@@ -872,7 +872,7 @@ mod tests {
 
     #[test]
     fn test_basic_arith_expr() {
-        let mut parser = new_from_string(~r#"1+3*5/2-2*3*(5+6)"#);
+        let mut parser = new_from_string(r#"1+3*5/2-2*3*(5+6)"#);
         let tree = parser.parse_simple_expr();
 
         /* TODO handroll the new AST
@@ -906,28 +906,29 @@ mod tests {
                    );
         */
         assert_eq!(format!("{}", tree),
-                   ~"((1i32+((3i32*5i32)/2i32))-((2i32*3i32)*(5i32+6i32)))");
+                   "((1i32+((3i32*5i32)/2i32))-((2i32*3i32)*(5i32+6i32)))"
+                   .to_owned());
     }
 
-    fn compare_canonicalized(raw: ~str, parsed: ~str) {
+    fn compare_canonicalized(raw: &str, parsed: &str) {
         let mut parser = new_from_string(raw);
-        let tree = parser.parse_expr();
-        assert_eq!(parsed, format!("{}", tree));
+        let tree = parser.parse_variable_declaration();
+        assert_eq!(parsed.to_owned(), format!("{}", tree));
     }
 
     #[test]
     fn test_variable_declarations() {
         compare_canonicalized(
-            ~r#"let x: fn(fn(int) -> int[4]) -> *(int[1]) = f(3*x+1, g(x)) * *p;"#,
-            ~"let x: ([([int] -> (int)[4])] -> *((int)[1])) = (f([((3i32*x)+1i32), g([x])])*(*p));"
+            r#"let x: fn(fn(int) -> int[4]) -> *(int[1]) = f(3*x+1, g(x)) * *p;"#,
+            "let x: ([([int] -> (int)[4])] -> *((int)[1])) = (f([((3i32*x)+1i32), g([x])])*(*p));"
         );
     }
 
     #[test]
     fn test_variable_declarations_again() {
         compare_canonicalized(
-            ~r#"let x: fn(int) -> fn(int[4]) -> (*int)[1] = f(3*x+1, g(x)) * *p;"#,
-            ~"let x: ([int] -> ([(int)[4]] -> (*(int))[1])) = (f([((3i32*x)+1i32), g([x])])*(*p));"
+            r#"let x: fn(int) -> fn(int[4]) -> (*int)[1] = f(3*x+1, g(x)) * *p;"#,
+            "let x: ([int] -> ([(int)[4]] -> (*(int))[1])) = (f([((3i32*x)+1i32), g([x])])*(*p));"
         );
     }
 }

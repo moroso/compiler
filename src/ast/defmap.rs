@@ -84,12 +84,15 @@ mod tests {
 
     #[test]
     fn compare_canonicalized() {
-        let mut parser = new_from_string(~"fn wot<T>(t: T) { let u = t; }");
+        let mut parser = new_from_string("fn wot<T>(t: T) { let u = t; }"
+                                         .to_owned());
         let tree = parser.parse_module();
         let mut defmap = DefMap::new();
         defmap.visit_module(&tree);
 
-        assert_eq!(format!("{}", defmap.find(&DefId(0))), ~"Some(FuncDef((), [DefId(2)], [DefId(1)]))");
-        assert_eq!(format!("{}", defmap.find(&DefId(4))), ~"Some(LetDef(None))");
+        assert_eq!(format!("{}", defmap.find(&DefId(0))),
+                   "Some(FuncDef((), [DefId(2)], [DefId(1)]))".to_owned());
+        assert_eq!(format!("{}", defmap.find(&DefId(4))),
+                   "Some(LetDef(None))".to_owned());
     }
 }

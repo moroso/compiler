@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     fn basic_resolver_test() {
-        let mut parser = new_from_string(~"fn wot<T>(t: T) { let u = t; }");
+        let mut parser = new_from_string("fn wot<T>(t: T) { let u = t; }");
         let tree = parser.parse_module();
         let mut resolver = Resolver::new();
         resolver.visit_module(&tree);
@@ -172,7 +172,7 @@ mod tests {
     #[test]
     #[should_fail]
     fn unresolved_name() {
-        let mut parser = new_from_string(~"fn lol<T>(t: T) { let u = wot; }"); // unresolved name wot
+        let mut parser = new_from_string("fn lol<T>(t: T) { let u = wot; }"); // unresolved name wot
         let tree = parser.parse_module();
         let mut resolver = Resolver::new();
         resolver.visit_module(&tree);
@@ -181,7 +181,7 @@ mod tests {
     #[test]
     #[should_fail]
     fn unresolved_type() {
-        let mut parser = new_from_string(~"fn welp<T>(t: U) { let u = t; }"); // unresolved name U
+        let mut parser = new_from_string("fn welp<T>(t: U) { let u = t; }"); // unresolved name U
         let tree = parser.parse_module();
         let mut resolver = Resolver::new();
         resolver.visit_module(&tree);
