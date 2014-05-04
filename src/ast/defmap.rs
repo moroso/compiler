@@ -1,14 +1,13 @@
 use ast::visit::*;
 use ast::*;
 use collections::TreeMap;
-use Type = ast::TypeNode;
 
 #[deriving(Show)]
 pub enum Def {
-    TypeDef(Type),
-    FuncDef(Type, Vec<DefId>, Vec<DefId>),
-    LetDef(Option<Type>),
-    FuncArgDef(Type),
+    TypeDef(TypeNode),
+    FuncDef(Vec<DefId>, TypeNode, Vec<DefId>),
+    LetDef(Option<TypeNode>),
+    FuncArgDef(TypeNode),
     ModDef(Vec<DefId>),
 }
 
