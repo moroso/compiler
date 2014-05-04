@@ -27,12 +27,6 @@ use std::num;
 use std::vec;
 use ast::*;
 
-// Numbers by default are 32-bit, signed.
-mod defaults {
-    use ast::{IntKind, Signed, Width32};
-    pub static DEFAULT_INT_KIND: IntKind = IntKind { signedness: Signed, width: Width32 };
-}
-
 /// The parser object, which stores all state we need during the process of
 /// parsing.
 pub struct Parser<A, T> {
@@ -200,11 +194,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             True                 => BoolLit(true),
             False                => BoolLit(false),
             StringTok(s)         => StringLit(s),
-            NumberTok(num, kind) => NumLit(num,
-                                           kind.unwrap_or(
-                                               defaults::DEFAULT_INT_KIND
-                                           )
-                                    ),
+            NumberTok(num, kind) => NumLit(num, kind),
             tok                  => self.error(format!("Unexpected {} where literal expected", tok), self.last_span.get_begin())
         };
 
@@ -450,13 +440,9 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         */
         let start_span = self.peek_span();
         let mut node = match *self.peek() {
-            U32 => {
-                self.expect(U32);
-                IntType(IntKind { signedness: Unsigned, width: Width32 })
-            }
-            I32 => {
-                self.expect(I32);
-                IntType(IntKind { signedness: Signed, width: Width32 })
+            IntTypeTok(ik) => {
+                self.eat();
+                IntType(ik)
             }
             Bool => {
                 self.expect(Bool);
@@ -885,7 +871,6 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::defaults;
     use super::Parser;
     use ast::Expr;
 
@@ -897,7 +882,7 @@ mod tests {
         /* TODO handroll the new AST
 
         fn mknum(n: u64) -> Expr {
-            Num(n, defaults::DEFAULT_INT_KIND)
+            Num(n, GenericInt)
         }
 
         assert_eq!(tree,
@@ -925,7 +910,7 @@ mod tests {
                    );
         */
         assert_eq!(format!("{}", tree),
-                   "((1i32+((3i32*5i32)/2i32))-((2i32*3i32)*(5i32+6i32)))"
+                   "((1+((3*5)/2))-((2*3)*(5+6)))"
                    .to_owned());
     }
 
@@ -939,7 +924,7 @@ mod tests {
     fn test_variable_declarations() {
         compare_canonicalized(
             r#"let x: fn(fn(int) -> int[4]) -> *(int[1]) = f(3*x+1, g(x)) * *p;"#,
-            "let x: ([([int] -> (int)[4])] -> *((int)[1])) = (f([((3i32*x)+1i32), g([x])])*(*p));"
+            "let x: ([([int] -> (int)[4])] -> *((int)[1])) = (f([((3*x)+1), g([x])])*(*p));"
         );
     }
 
@@ -947,7 +932,7 @@ mod tests {
     fn test_variable_declarations_again() {
         compare_canonicalized(
             r#"let x: fn(int) -> fn(int[4]) -> (*int)[1] = f(3*x+1, g(x)) * *p;"#,
-            "let x: ([int] -> ([(int)[4]] -> (*(int))[1])) = (f([((3i32*x)+1i32), g([x])])*(*p));"
+            "let x: ([int] -> ([(int)[4]] -> (*(int))[1])) = (f([((3*x)+1), g([x])])*(*p));"
         );
     }
 }

@@ -31,45 +31,37 @@ impl DefId {
 }
 
 #[deriving(Eq, Clone)]
-pub struct IntKind {
-    pub signedness: Signedness,
-    pub width: Width,
+pub enum IntKind {
+    GenericInt,
+    SignedInt(Width),
+    UnsignedInt(Width),
 }
 
 impl Show for IntKind {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f.buf, "{}{}", self.signedness.show_char(), self.width)
-    }
-}
-
-#[deriving(Eq, Show, Clone)]
-pub enum Signedness {
-    Signed,
-    Unsigned,
-}
-
-impl Signedness {
-    fn show_char(&self) -> &'static str {
         match *self {
-            Signed => "i",
-            Unsigned => "u"
+            GenericInt     => write!(f.buf, ""),
+            SignedInt(w)   => write!(f.buf, "i{}", w),
+            UnsignedInt(w) => write!(f.buf, "u{}", w),
         }
     }
 }
 
 #[deriving(Eq, Clone)]
 pub enum Width {
+    AnyWidth,
     Width32,
     Width16,
-    Width8
+    Width8,
 }
 
 impl Show for Width {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(f.buf, "{}", match *self {
-            Width32 => 32,
-            Width16 => 16,
-            Width8  => 8,
+            AnyWidth => "",
+            Width32 => "32",
+            Width16 => "16",
+            Width8  => "8",
         })
     }
 }

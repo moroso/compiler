@@ -24,8 +24,7 @@ pub enum Token {
     Return,
     True,
     False,
-    U32,
-    I32,
+    IntTypeTok(ast::IntKind),
     Bool,
     While,
     For,
@@ -71,7 +70,7 @@ pub enum Token {
 
     // Literals
     IdentTok(~str),
-    NumberTok(u64, Option<ast::IntKind>),
+    NumberTok(u64, ast::IntKind),
     StringTok(~str),
 
     // Special
@@ -135,10 +134,39 @@ impl<T: Iterator<~str>> Lexer<T> {
             )
         }
 
+        // Rule to match U32, U16, U8, I32, I16, I8
+        struct IntTypeRule;
+        impl RuleMatcher<ast::IntKind> for IntTypeRule {
+            fn find(&self, s: &str) -> Option<(uint, ast::IntKind)> {
+                use std::num::from_str_radix;
+
+                let matcher = matcher!(r"[uUiI](32|16|8)");
+                match matcher.captures(s) {
+                    Some(groups) => {
+                        let ctor = match s.char_at(0) {
+                            'u' | 'U' => ast::UnsignedInt,
+                            'i' | 'I' => ast::SignedInt,
+                            _ => fail!(),
+                        };
+
+                        let w = match from_str_radix(groups.at(1), 10) {
+                            Some(32) => ast::Width32,
+                            Some(16) => ast::Width16,
+                            Some(8)  => ast::Width8,
+                            _ => fail!(),
+                        };
+
+                        Some((groups.at(0).len(), ctor(w)))
+                    },
+                    _ => None
+                }
+            }
+        }
+
         // Rule to match a numeric literal and parse it into a number
         struct NumberRule;
-        impl RuleMatcher<(u64, Option<ast::IntKind>)> for NumberRule {
-            fn find(&self, s: &str) -> Option<(uint, (u64, Option<ast::IntKind>))> {
+        impl RuleMatcher<(u64, ast::IntKind)> for NumberRule {
+            fn find(&self, s: &str) -> Option<(uint, (u64, ast::IntKind))> {
                 use std::num::from_str_radix;
 
                 let matcher = matcher!(r"((?:0[xX]([:xdigit:]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?");
@@ -151,23 +179,23 @@ impl<T: Iterator<~str>> Lexer<T> {
 
                         let s = groups.at(3);
                         let kind = if s.len() > 0 {
-                            let s = match s.char_at(0) {
-                                'u' | 'U' => ast::Unsigned,
-                                'i' | 'I' => ast::Signed,
+                            let ctor = match s.char_at(0) {
+                                'u' | 'U' => ast::UnsignedInt,
+                                'i' | 'I' => ast::SignedInt,
                                 _ => fail!(),
                             };
 
                             let w = match from_str_radix(groups.at(4), 10) {
-                                None     => ast::Width32,
+                                None     => ast::AnyWidth,
                                 Some(32) => ast::Width32,
                                 Some(16) => ast::Width16,
                                 Some(8)  => ast::Width8,
                                 _ => fail!(),
                             };
 
-                            Some(ast::IntKind { signedness: s, width: w })
+                            ctor(w)
                         } else {
-                            None
+                            ast::GenericInt
                         };
 
                         Some((groups.at(0).len(), (from_str_radix(num_str, radix).take_unwrap(), kind)))
@@ -200,25 +228,23 @@ impl<T: Iterator<~str>> Lexer<T> {
             WS         => matcher!(r"\s|//.*|(?s)/\*.*\*/"),
 
             // Reserved words
-            Let        => "let",
-            As         => "as",
-            If         => "if",
-            Else       => "else",
-            Fn         => "fn",
-            Return     => "return",
-            True       => "true",
-            False      => "false",
-            While      => "while",
-            For        => "for",
-            Struct     => "struct",
-            Enum       => "enum",
-            Match      => "match",
+            Let          => "let",
+            As           => "as",
+            If           => "if",
+            Else         => "else",
+            Fn           => "fn",
+            Return       => "return",
+            True         => "true",
+            False        => "false",
+            While        => "while",
+            For          => "for",
+            Struct       => "struct",
+            Enum         => "enum",
+            Match        => "match",
 
             // Basic types; TODO: add more.
-            I32        => matcher!(r"[iI]32"),
-            U32        => matcher!(r"[uU]32"),
-
-            Bool       => "bool",
+            IntTypeTok   => IntTypeRule,
+            Bool         => "bool",
 
             // Symbols
             LParen       => "(",
@@ -391,6 +417,7 @@ mod tests {
     use super::*;
     use std::iter::Repeat;
     use std::vec::Vec;
+    use ast;
 
     fn compare(actual: &[SourceToken], expected: &[Token]) {
         for (actual_st, expected_tok)
@@ -411,10 +438,10 @@ mod tests {
                   LParen,
                   IdentTok("x".to_owned()),
                   Dash,
-                  NumberTok(0x3f5B, None),
+                  NumberTok(0x3f5B, ast::GenericInt),
                   RParen,
                   Plus,
-                  NumberTok(1, None),
+                  NumberTok(1, ast::GenericInt),
                   StringTok(r#"Hello\" World"#.to_owned()),
                 ]);
 
@@ -426,7 +453,7 @@ mod tests {
                  Colon,
                  IdentTok("int".to_owned()),
                  Eq,
-                 NumberTok(5, None),
+                 NumberTok(5, ast::GenericInt),
                  ]);
     }
 }

@@ -19,8 +19,9 @@ impl BoundsId {
 #[deriving(Eq, Show)]
 enum Ty {
     BoolTy,
-    IntTy(u8),
-    UintTy(u8),
+    GenericIntTy,
+    IntTy(Width),
+    UintTy(Width),
     StrTy,
     UnitTy,
     PtrTy(~Ty),
@@ -55,10 +56,9 @@ impl Ty {
                 set.add(ShrKind);
                 set.add(ShlKind);
             }
-            IntTy(..) | UintTy(..) => {
+            GenericIntTy | IntTy(..) | UintTy(..) => {
                 set.add(EqKind);
                 set.add(CmpKind);
-                set.add(NegKind);
                 set.add(AddKind);
                 set.add(SubKind);
                 set.add(MulKind);
@@ -85,7 +85,6 @@ impl Ty {
 enum Kind {
     EqKind,
     CmpKind,
-    NegKind,
     AddKind,
     SubKind,
     MulKind,
@@ -107,17 +106,16 @@ impl CLike for Kind {
         match u {
             0 => EqKind,
             1 => CmpKind,
-            2 => NegKind,
-            3 => AddKind,
-            4 => SubKind,
-            5 => MulKind,
-            6 => DivKind,
-            7 => RemKind,
-            8 => BitAndKind,
-            9 => BitOrKind,
-            10 => BitXorKind,
-            11 => ShrKind,
-            12 => ShlKind,
+            2 => AddKind,
+            3 => SubKind,
+            4 => MulKind,
+            5 => DivKind,
+            6 => RemKind,
+            7 => BitAndKind,
+            8 => BitOrKind,
+            9 => BitXorKind,
+            10 => ShrKind,
+            11 => ShlKind,
             _ => fail!(),
         }
     }
@@ -128,7 +126,6 @@ impl fmt::Show for Kind {
         match *self {
             EqKind => write!(f.buf, "Eq"),
             CmpKind => write!(f.buf, "Cmp"),
-            NegKind => write!(f.buf, "Neg"),
             AddKind => write!(f.buf, "Add"),
             SubKind => write!(f.buf, "Sub"),
             MulKind => write!(f.buf, "Mul"),
@@ -169,18 +166,11 @@ pub struct Typechecker<'a> {
 }
 
 fn intkind_to_ty(ik: IntKind) -> Ty {
-    let tyctor = match ik.signedness {
-        Signed => IntTy,
-        Unsigned => UintTy,
-    };
-
-    let width = match ik.width {
-        Width32 => 32,
-        Width16 => 16,
-        Width8 => 8,
-    };
-
-    tyctor(width)
+    match ik {
+        GenericInt     => GenericIntTy,
+        SignedInt(w)   => IntTy(w),
+        UnsignedInt(w) => UintTy(w),
+    }
 }
 
 impl<'a> Typechecker<'a> {
@@ -327,12 +317,7 @@ impl<'a> Typechecker<'a> {
                 let expr_ty = match op.val {
                     Deref => self.unify(PtrTy(~BottomTy), ty),
                     AddrOf => PtrTy(~ty),
-                    Negate => {
-                        match ty {
-                            IntTy(w) | UintTy(w) => IntTy(w),
-                            _ => self.check_bounds(ty, Constrained(NegKind)),
-                        }
-                    }
+                    Negate => self.unify(IntTy(AnyWidth), ty),
                 };
 
                 expr_ty
@@ -346,10 +331,7 @@ impl<'a> Typechecker<'a> {
                     _ => self.unify(ArrayTy(~BottomTy, 0), a_ty),
                 };
 
-                let i_ty = match i_ty {
-                    UintTy(w) => UintTy(w),
-                    _ => self.unify(UintTy(0), i_ty),
-                };
+                let i_ty = self.unify(UintTy(AnyWidth), i_ty);
 
                 ty
             }
@@ -422,6 +404,28 @@ impl<'a> Typechecker<'a> {
         // TODO pointers and ints together
         match (t1, t2) {
             (BottomTy, t) | (t, BottomTy) => t,
+            (GenericIntTy, IntTy(w)) | (IntTy(w), GenericIntTy) => IntTy(w),
+            (GenericIntTy, UintTy(w)) | (UintTy(w), GenericIntTy) => UintTy(w),
+            (ref t@IntTy(ref w1), IntTy(ref w2)) | (ref t@UintTy(ref w1), UintTy(ref w2)) => {
+                let ctor = match *t {
+                    IntTy(..) => IntTy,
+                    UintTy(..) => UintTy,
+                    _ => fail!(),
+                };
+
+                let w = match (*w1, *w2) {
+                    (AnyWidth, w) | (w, AnyWidth) => w,
+                    (w1, w2) => {
+                        if w1 == w2 {
+                            w1
+                        } else {
+                            self.mismatch(&ctor(w1), &ctor(w2))
+                        }
+                    }
+                };
+
+                ctor(w)
+            },
             (BoundTy(..), _) | (_, BoundTy(..)) =>
                 fail!("Generics aren't ready yet"), //TODO lookup and check bounds with other
             (PtrTy(p1), PtrTy(p2)) =>
