@@ -89,7 +89,7 @@ impl CCrossCompiler {
         "({ ".to_owned() +
             self.visit_list(&block.items, |s, t| s.visit_item(t), "; ") +
             self.visit_list(&block.stmts, |s, t| s.visit_stmt(t), "; ") +
-            match(block.expr) {
+            match block.expr {
                 Some(ref x) => {
                     self.visit_expr(x) +
                     ";"
@@ -141,7 +141,7 @@ impl CCrossCompiler {
         "{".to_owned() +
             self.visit_list(&block.items, |s, t| s.visit_item(t), "; ") +
             self.visit_list(&block.stmts, |s, t| s.visit_stmt(t), "; ") +
-            match(block.expr) {
+            match block.expr {
                 Some(ref x) => { match x.val {
                                      ReturnExpr(ref e) => self.visit_expr(*e),
                                      WhileExpr(_, _) =>
@@ -239,7 +239,7 @@ impl CCrossCompiler {
 
     fn visit_ident(&mut self, ident: &Ident) -> ~str {
         match self.enumitemnames.find_equiv(&ident.name) {
-            Some(&(ref enumname, ref variants, ref pos)) => {
+            Some(&(_, _, ref pos)) => {
                 format!("\\{ .tag = {} \\}", pos)
             }
             None => format!("{}", ident.name),
@@ -249,7 +249,7 @@ impl CCrossCompiler {
     fn visit_lit(&mut self, lit: &Lit) -> ~str {
         match lit.val {
             NumLit(ref n, _) => format!("{}", n),
-            StringLit(ref s) => fail!("TODO"),
+            StringLit(_) => fail!("TODO"),
             BoolLit(ref b) => format!("{}", if *b { 1 } else { 0 }),
         }
     }
@@ -306,7 +306,7 @@ impl CCrossCompiler {
                         // checker complains otherwise; why?)
                         let cloned_tab = self.enumitemnames.clone();
                         match cloned_tab.find_equiv(&i.name) {
-                            Some(&(ref enumname, ref variants, ref pos)) => {
+                            Some(&(_, ref variants, ref pos)) => {
                                 let mut res = format!("\\{ .tag = {}, ", pos).to_owned();
                                 let this_variant = variants.get(*pos as uint).clone();
                                 let mut i = 0;
@@ -323,7 +323,7 @@ impl CCrossCompiler {
                                 res + "}"
                             },
                             None => {
-                                let mut res = format!("{}", i.name);
+                                let res = format!("{}", i.name);
                                 res +
                                     "(" +
                                     self.visit_list(args, |s, x| s.visit_expr(x), ", ") +
@@ -381,8 +381,8 @@ impl CCrossCompiler {
                 ";}\n"
             },
             MatchExpr(ref e, ref arms) => {
-                // TODO: make this actually result in a value.
-                let mut res = "switch((".to_owned() +
+                // TODO: allow types other than ints.
+                let mut res = "({ int _; switch((".to_owned() +
                     self.visit_expr(*e) + ").tag) {\n";
                 for arm in arms.iter() {
                     // TODO: Why on earth is this needed? (The borrow
@@ -405,9 +405,10 @@ impl CCrossCompiler {
                                             );
                         i += 1;
                     }
-                    res = res + self.visit_expr(&arm.body) + "; break;}\n";
+                    res = res + " _ = " +self.visit_expr(&arm.body) + 
+                        "; break;}\n";
                 }
-                res + "\n};"
+                res + "\n} _; })"
             }
         }
     }
@@ -424,7 +425,7 @@ impl CCrossCompiler {
 fn main() {
     print!("{}", r##"#include <stdio.h>
 #include <stdlib.h>
-void print_int(int x) { printf("%d\n", x); }
+int print_int(int x) { printf("%d\n", x); return x; }
 "##);
     let mut stdin = stdin();
     let lexer = Lexer::new(stdin.lines().map(|x| x.unwrap()));
