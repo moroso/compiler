@@ -27,12 +27,6 @@ impl DefMap {
     }
 }
 
-/*
-macro_rules! descend {
-    ( $id:expr, $b:expr ) => ( { let old_parent = self.parent; self.parent = $id; self.visit_block($b); self.parent = old_parent; } );
-}
-*/
-
 /* TODO intern strings so clone is cheaper for NamedTypes */
 
 impl Visitor for DefMap {
@@ -54,7 +48,7 @@ impl Visitor for DefMap {
         match item.val {
             FuncItem(ref ident, ref args, ref t, ref def, ref tps) => {
                 let arg_def_ids = args.iter().map(|arg| {
-                    self.visit_func_arg(arg);
+                    self.table.insert(arg.ident.id, FuncArgDef(arg.argtype.val.clone())); // would be ParamType or somesuch if we had things like trait bounds
                     arg.ident.id
                 }).collect();
 
@@ -63,12 +57,11 @@ impl Visitor for DefMap {
                     tp.id
                 }).collect();
 
-                self.table.insert(ident.id, FuncDef(t.val.clone(), arg_def_ids, tp_def_ids));
+                self.table.insert(ident.id, FuncDef(arg_def_ids, t.val.clone(), tp_def_ids));
 
                 self.visit_block(def);
             },
-            StructItem(_, _, _) => {} // TODO: fill this out.
-            EnumItem(_, _, _) => {} // TODO: fill this out.
+            StructItem(..) | EnumItem(..) => {} // TODO this
         }
     }
 }
@@ -90,7 +83,7 @@ mod tests {
         defmap.visit_module(&tree);
 
         assert_eq!(format!("{}", defmap.find(&DefId(0))),
-                   "Some(FuncDef((), [DefId(2)], [DefId(1)]))".to_owned());
+                   "Some(FuncDef([DefId(2)], (), [DefId(1)]))".to_owned());
         assert_eq!(format!("{}", defmap.find(&DefId(4))),
                    "Some(LetDef(None))".to_owned());
     }

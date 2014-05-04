@@ -21,7 +21,7 @@ mod ast;
 
 struct CCrossCompiler {
     structnames: HashSet<~str>,
-    enumitemnames: HashMap<~str, (Ident, Vec<EnumItem>, int)>,
+    enumitemnames: HashMap<~str, (Ident, Vec<Variant>, int)>,
 }
 
 fn find_structs(module: &Module) -> HashSet<~str> {
@@ -38,15 +38,15 @@ fn find_structs(module: &Module) -> HashSet<~str> {
 
 fn find_enum_item_names(module: &Module) -> HashMap<~str,
                                                     (Ident,
-                                                     Vec<EnumItem>,
+                                                     Vec<Variant>,
                                                      int)> {
-    let mut ht = HashMap::<~str, (Ident, Vec<EnumItem>, int)>::new();
+    let mut ht = HashMap::<~str, (Ident, Vec<Variant>, int)>::new();
     for enumitem in module.items.iter() {
         match enumitem.val {
             EnumItem(ref name, ref items, _) => {
                 let mut pos = 0;
                 for item in items.iter() {
-                    ht.insert(item.val.name.clone(),
+                    ht.insert(item.name.clone(),
                               (name.clone(), items.clone(), pos));
                     pos += 1;
                 }
@@ -134,7 +134,6 @@ impl CCrossCompiler {
             },
             ExprStmt(ref e) => { self.visit_expr(e) + ";" },
             SemiStmt(ref e) => { self.visit_expr(e) + ";" },
-            DeconstructTupleStmt(ref v, ref e) => "".to_owned(), // TODO
         }
     }
 
@@ -170,25 +169,25 @@ impl CCrossCompiler {
             }
             StructItem(ref name, ref fields, _) => {
                 let mut res = format!("typedef struct {} \\{", name).to_owned();
-                for &(ref fieldname, ref fieldtype) in fields.iter() {
-                    res = res + self.visit_name_and_type(*fieldname,
-                                                         fieldtype) + ";\n";
+                for field in fields.iter() {
+                    res = res + self.visit_name_and_type(field.name,
+                                                         &field.fldtype) + ";\n";
                 }
                 res + 
                     format!("{} {};", "}", name)
             }
-            EnumItem(ref name, ref items, _) => {
+            EnumItem(ref name, ref variants, _) => {
                 let mut res = format!("typedef struct {} \\{\n    int tag;\n    union \\{\n",
                                       name).to_owned();
-                for item in items.iter() {
+                for variant in variants.iter() {
                     res = res + "        struct {\n";
                     let mut num = 0;
-                    for t in item.val.args.iter() {
+                    for t in variant.args.iter() {
                         res = res + "            " + self.visit_type(t) +
                             " " + format!("field{};\n", num);
                         num += 1;
                     }
-                    res = res + format!("        \\} {};\n", item.val.name);
+                    res = res + format!("        \\} {};\n", variant.name);
                 }
                 res + format!("\n    \\} val;\n\\} {};", name)
             }
@@ -240,7 +239,7 @@ impl CCrossCompiler {
 
     fn visit_ident(&mut self, ident: &Ident) -> ~str {
         match self.enumitemnames.find_equiv(&ident.name) {
-            Some(&(ref enumname, ref enumitems, ref pos)) => {
+            Some(&(ref enumname, ref variants, ref pos)) => {
                 format!("\\{ .tag = {} \\}", pos)
             }
             None => format!("{}", ident.name),
@@ -307,9 +306,9 @@ impl CCrossCompiler {
                         // checker complains otherwise; why?)
                         let cloned_tab = self.enumitemnames.clone();
                         match cloned_tab.find_equiv(&i.name) {
-                            Some(&(ref enumname, ref enumitems, ref pos)) => {
+                            Some(&(ref enumname, ref variants, ref pos)) => {
                                 let mut res = format!("\\{ .tag = {}, ", pos).to_owned();
-                                let this_variant = enumitems.get(*pos as uint).val.clone();
+                                let this_variant = variants.get(*pos as uint).clone();
                                 let mut i = 0;
                                 for item in this_variant.args.iter() {
                                     res = res + format!(".val.{}.field{} = {}, ",
@@ -381,32 +380,32 @@ impl CCrossCompiler {
                 self.visit_expr_block(*b) +
                 ";}\n"
             },
-            MatchExpr(ref e, ref items) => {
+            MatchExpr(ref e, ref arms) => {
                 // TODO: make this actually result in a value.
                 let mut res = "switch((".to_owned() +
                     self.visit_expr(*e) + ").tag) {\n";
-                for item in items.iter() {
+                for arm in arms.iter() {
                     // TODO: Why on earth is this needed? (The borrow
                     // checker complains otherwise; why?)
                     let cloned_tab = self.enumitemnames.clone();
 
-                    let &(_, ref enumitems, idx) = cloned_tab.find_equiv(
-                        &item.val.name).unwrap();
-                    let this_variant = enumitems.get(idx as uint).val.clone();
+                    let &(_, ref variants, idx) = cloned_tab.find_equiv(
+                        &arm.name).unwrap();
+                    let this_variant = variants.get(idx as uint).clone();
                     res = res + format!("    case {}: \\{", idx);
 
                     let mut i = 0;
                     for var in this_variant.args.iter() {
                         res = res + format!("{} {} = {}.val.{}.field{};",
                                             self.visit_type(var),
-                                            item.val.vars.get(i as uint).name,
+                                            arm.vars.get(i as uint).name,
                                             self.visit_expr(*e),
-                                            item.val.name,
+                                            arm.name,
                                             i
                                             );
                         i += 1;
                     }
-                    res = res + self.visit_expr(&item.val.body) + "; break;}\n";
+                    res = res + self.visit_expr(&arm.body) + "; break;}\n";
                 }
                 res + "\n};"
             }

@@ -21,22 +21,7 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
             visitor.visit_block(def);
             for id in tps.iter() { visitor.visit_ident(id); }
         },
-        StructItem(ref id, ref fields, ref tps) => {
-            visitor.visit_ident(id);
-            for &(_, ref fieldtype) in fields.iter() {
-                visitor.visit_type(fieldtype);
-            }
-            for id in tps.iter() { visitor.visit_ident(id); }
-        },
-        EnumItem(ref id, ref fields, ref tps) => {
-            visitor.visit_ident(id);
-            for ref field in fields.iter() {
-                for fieldarg in field.val.args.iter() {
-                    visitor.visit_type(fieldarg);
-                }
-            }
-            for id in tps.iter() { visitor.visit_ident(id); }
-        }
+        StructItem(..) | EnumItem(..) => {} // TODO this
     }
 }
 
@@ -86,15 +71,12 @@ pub fn walk_stmt<T: Visitor>(visitor: &mut T, stmt: &Stmt) {
         SemiStmt(ref e) => {
             visitor.visit_expr(e);
         }
-        DeconstructTupleStmt(ref ids, ref e) => {
-            for ident in ids.iter() { visitor.visit_ident(ident); }
-            visitor.visit_expr(e);
-        }
     }
 }
 
 pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
     match expr.val {
+        UnitExpr => {}
         LitExpr(ref l) => {
             visitor.visit_lit(l);
         }
@@ -154,14 +136,14 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
             visitor.visit_expr(*e3);
             visitor.visit_block(*b);
         }
-        UnitExpr => {}
-        MatchExpr(ref e, ref items) => {
+        MatchExpr(ref e, ref arms) => {
             visitor.visit_expr(*e);
-            for item in items.iter() {
-                for var in item.val.vars.iter() {
+            for arm in arms.iter() {
+                for var in arm.vars.iter() {
                     visitor.visit_ident(var);
-                }
-                visitor.visit_expr(&item.val.body);
+                }  //TODO visit_arm function
+
+                visitor.visit_expr(&arm.body);
             }
         }
     }

@@ -42,7 +42,7 @@ pub struct Parser<A, T> {
     last_span: Span,
     /// Each identifier is given a unique number. This keeps track of the
     /// next number to assign to an identifier.
-    next_id: u64,
+    next_id: uint,
 }
 
 /// A convenience function to tokenize and parse a string.
@@ -450,6 +450,18 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         */
         let start_span = self.peek_span();
         let mut node = match *self.peek() {
+            U32 => {
+                self.expect(U32);
+                IntType(IntKind { signedness: Unsigned, width: Width32 })
+            }
+            I32 => {
+                self.expect(I32);
+                IntType(IntKind { signedness: Signed, width: Width32 })
+            }
+            Bool => {
+                self.expect(Bool);
+                BoolType
+            }
             Star => {
                 self.expect(Star);
                 PtrType(~self.parse_type())
@@ -519,48 +531,33 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
          */
         let start_span = self.peek_span();
         self.expect(Let);
-        match *self.peek() {
-            LParen => {
-                // This is a tuple deconstruction.
-                self.expect(LParen);
-                let vars = parse_list!(self.parse_ident() until RParen);
-                self.expect(RParen);
-                self.expect(Eq);
-                let expr = self.parse_expr();
-                let span = start_span.to(self.last_span);
-                span!(DeconstructTupleStmt(vars, expr), span)
-            },
-            _ => {
-                // One of the three other cases.
-                let var_name = self.parse_ident();
-                let var_type = match *self.peek() {
-                    Colon => {
-                        self.expect(Colon);
-                        Some(self.parse_type())
-                    },
-                    Eq => None,
-                    _ => self.peek_error("Expected \": type\" or \"=\""),
-                };
 
-                match *self.peek() {
-                    Semicolon => {
-                        let span = start_span.to(self.peek_span());
-                        self.expect(Semicolon);
-                        span!(LetStmt(var_name, var_type, None),
-                              span)
-                    },
-                    Eq => {
-                        self.expect(Eq);
-                        let var_value = self.parse_expr();
-                        let span = start_span.to(self.peek_span());
-                        self.expect(Semicolon);
-                        span!(LetStmt(var_name, var_type, Some(var_value)),
-                              span)
-                    },
-                    _ => self.peek_error("Expected semicolon or \"=\""),
-                }
-            }
-        }
+        let var_name = self.parse_ident();
+        let var_type = match *self.peek() {
+            Colon => {
+                self.expect(Colon);
+                Some(self.parse_type())
+            },
+            Eq => None,
+            _ => self.peek_error("Expected \": <type>\" or \"=\""),
+        };
+
+        let expr = match *self.peek() {
+            Semicolon => {
+                self.expect(Semicolon);
+                None
+            },
+            Eq => {
+                self.expect(Eq);
+                let var_value = self.parse_expr();
+                self.expect(Semicolon);
+                Some(var_value)
+            },
+            _ => self.peek_error("Expected semicolon or \"=\""),
+        };
+
+        let span = start_span.to(self.last_span);
+        span!(LetStmt(var_name, var_type, expr), span)
     }
 
     pub fn parse_if_statement(&mut self) -> Expr {
@@ -633,7 +630,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         span!(ForExpr(~init, ~cond, ~iter, ~body), span)
     }
 
-    pub fn parse_match_item(&mut self) -> MatchItem {
+    pub fn parse_match_item(&mut self) -> MatchArm {
         let start_span = self.peek_span();
         let name = self.parse_ident_token();
         let vars = match *self.peek() {
@@ -649,8 +646,13 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         };
         self.expect(DoubleArrow);
         let body = self.parse_expr();
-        let span = start_span.to(self.last_span);
-        span!(MatchItemNode { name: name, vars: vars, body: body }, span)
+
+        MatchArm {
+            name: name,
+            vars: vars,
+            body: body,
+            sp:   start_span.to(self.last_span),
+        }
     }
 
     pub fn parse_match_expr(&mut self) -> Expr {
@@ -683,6 +685,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         self.expect(LBrace);
         let mut statements = vec!();
         loop {
+            // TODO split this out into parse_stmt
             match *self.peek() {
                 Let => {
                     let variable_decl = self.parse_variable_declaration();
@@ -708,7 +711,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                         Semicolon => {
                             let span = simple_expr.sp.clone();
                             let simple_expr_span = span!(
-                                ExprStmt(simple_expr),
+                                SemiStmt(simple_expr),
                                 span);
                             statements.push(simple_expr_span);
                             self.expect(Semicolon);
@@ -722,7 +725,13 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                                 sp: start_span.to(self.last_span)
                             }
                         }
-                        _ => self.peek_error("Expected a semicolon or closing brace"),
+                        _ => {
+                            let span = simple_expr.sp.clone();
+                            let simple_expr_span = span!(
+                                ExprStmt(simple_expr),
+                                span);
+                            statements.push(simple_expr_span);
+                        },
                     }
                 }
             }
@@ -757,7 +766,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         }
     }
 
-    pub fn parse_func_decl(&mut self) -> Item {
+    pub fn parse_func_item(&mut self) -> Item {
         self.expect(Fn);
         let begin = self.last_span;
         let funcname = self.parse_ident();
@@ -795,26 +804,32 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         }.unwrap_or(vec!())
     }
 
-    pub fn parse_struct_item(&mut self) -> (AstString, Type) {
+    pub fn parse_struct_field(&mut self) -> Field {
+        let start_span = self.peek_span();
         let name = self.parse_ident_token();
         self.expect(Colon);
         let field_type = self.parse_type();
-        (name, field_type)
+
+        Field {
+            name:    name,
+            fldtype: field_type,
+            sp:      start_span.to(self.last_span),
+        }
     }
 
-    pub fn parse_struct_decl(&mut self) -> Item {
+    pub fn parse_struct_item(&mut self) -> Item {
         let start_span = self.peek_span();
         self.expect(Struct);
         let structname = self.parse_ident();
         let type_params = self.parse_type_params(LBrace);
         self.expect(LBrace);
-        let body = parse_list!(self.parse_struct_item() until RBrace);
+        let body = parse_list!(self.parse_struct_field() until RBrace);
         self.expect(RBrace);
         let span = start_span.to(self.last_span);
         span!(StructItem(structname, body, type_params), span)
     }
 
-    pub fn parse_enum_item(&mut self) -> EnumItem {
+    pub fn parse_variant(&mut self) -> Variant {
         let start_span = self.peek_span();
         let name = self.parse_ident_token();
         let types = match *self.peek() {
@@ -828,17 +843,21 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 vec!()
             }
         };
-        let span = start_span.to(self.last_span);
-        span!(EnumItemNode { name: name, args: types }, span)
+
+        Variant {
+            name: name,
+            args: types,
+            sp:   start_span.to(self.last_span),
+        }
     }
 
-    pub fn parse_enum_decl(&mut self) -> Item {
+    pub fn parse_enum_item(&mut self) -> Item {
         let start_span = self.peek_span();
         self.expect(Enum);
         let enumname = self.parse_ident();
         let type_params = self.parse_type_params(LBrace);
         self.expect(LBrace);
-        let body = parse_list!(self.parse_enum_item() until RBrace);
+        let body = parse_list!(self.parse_variant() until RBrace);
         self.expect(RBrace);
         let span = start_span.to(self.last_span);
         span!(EnumItem(enumname, body, type_params), span)
@@ -851,9 +870,9 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         let mut items = vec!();
         loop {
             match *self.peek() {
-                Fn => items.push(self.parse_func_decl()),
-                Struct => items.push(self.parse_struct_decl()),
-                Enum => items.push(self.parse_enum_decl()),
+                Fn => items.push(self.parse_func_item()),
+                Struct => items.push(self.parse_struct_item()),
+                Enum => items.push(self.parse_enum_item()),
                 Eof => return Module{
                     items: items
                 },

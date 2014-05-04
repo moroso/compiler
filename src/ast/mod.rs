@@ -17,13 +17,18 @@ spanned! {
     Lit      => LitNode,
     Expr     => ExprNode,
     Stmt     => StmtNode,
-    Item     => ItemNode,
-    EnumItem => EnumItemNode,
-    MatchItem=> MatchItemNode
+    Item     => ItemNode
 }
 
 #[deriving(Eq, Clone, Ord, TotalEq, TotalOrd, Show)]
-pub struct DefId(pub u64);
+pub struct DefId(pub uint);
+
+impl DefId {
+    pub fn to_uint(&self) -> uint {
+        let DefId(did) = *self;
+        did
+    }
+}
 
 #[deriving(Eq, Clone)]
 pub struct IntKind {
@@ -202,13 +207,14 @@ impl Show for LitNode {
 }
 
 #[deriving(Eq, Clone)]
-pub struct MatchItemNode {
+pub struct MatchArm {
     pub name: AstString,
     pub vars: Vec<Ident>,
     pub body: Expr,
+    pub sp: Span,
 }
 
-impl Show for MatchItemNode {
+impl Show for MatchArm {
     fn fmt(&self, f: &mut Formatter) -> Result {
         try!(write!(f.buf, "{}(", self.name));
         for ref var in self.vars.iter() {
@@ -237,7 +243,7 @@ pub enum ExprNode {
     ReturnExpr(~Expr),
     WhileExpr(~Expr, ~Block),
     ForExpr(~Expr, ~Expr, ~Expr, ~Block),
-    MatchExpr(~Expr, Vec<MatchItem>),
+    MatchExpr(~Expr, Vec<MatchArm>),
 }
 
 impl Show for ExprNode {
@@ -253,9 +259,9 @@ impl Show for ExprNode {
             DotExpr(ref e, ref fld)             => write!(f.buf, "{}.{}", e, fld),
             ArrowExpr(ref e, ref fld)           => write!(f.buf, "{}->{}", e, fld),
             AssignExpr(ref lv, ref rv)          => write!(f.buf, "({}={})", lv, rv),
-            CallExpr(ref id, ref args)          => write!(f.buf, "{}({})", id, args),
+            CallExpr(ref e, ref args)           => write!(f.buf, "{}({})", e, args),
             CastExpr(ref e, ref t)              => write!(f.buf, "({} as {})", e, t),
-            IfExpr(ref c, ref bt, ref bf)       => write!(f.buf, "if {} \\{\n{}\\} else \\{\n{}\\}", c, bt, bf),
+            IfExpr(ref c, ref bt, ref bf)       => write!(f.buf, "if {} \\{\n    {}\\} else \\{\n    {}\\}", c, bt, bf),
             BlockExpr(ref b)                    => write!(f.buf, "{}", b),
             ReturnExpr(ref e)                   => write!(f.buf, "return {}", e),
             WhileExpr(ref e, ref b)             => write!(f.buf, "while {} {}", e, b),
@@ -274,7 +280,6 @@ impl Show for ExprNode {
 #[deriving(Eq, Clone)]
 pub enum StmtNode {
     LetStmt(Ident, Option<Type>, Option<Expr>),
-    DeconstructTupleStmt(Vec<Ident>, Expr),
     ExprStmt(Expr), // no trailing semicolon, must have unit type
     SemiStmt(Expr), // trailing semicolon, any type OK
 }
@@ -293,13 +298,6 @@ impl Show for StmtNode {
                     None => {}
                 }
                 write!(f.buf, ";")
-            },
-            DeconstructTupleStmt(ref ids, ref e) => {
-                try!(write!(f.buf, "let ("));
-                for ident in ids.iter() {
-                    try!(write!(f.buf, "{}, ", ident));
-                }
-                write!(f.buf, ") = {}", e)
             },
             ExprStmt(ref e) => {
                 write!(f.buf, "{}", e)
@@ -358,12 +356,13 @@ impl Show for FuncArg {
 }
 
 #[deriving(Eq, Clone)]
-pub struct EnumItemNode {
+pub struct Variant {
     pub name: AstString,
     pub args: Vec<Type>,
+    pub sp:   Span,
 }
 
-impl Show for EnumItemNode {
+impl Show for Variant {
     fn fmt(&self, f: &mut Formatter) -> Result {
         try!(write!(f.buf, "{}(", self.name));
         for ref argtype in self.args.iter() {
@@ -374,10 +373,23 @@ impl Show for EnumItemNode {
 }
 
 #[deriving(Eq, Clone)]
+pub struct Field {
+    pub name:    AstString,
+    pub fldtype: Type,
+    pub sp:      Span,
+}
+
+impl Show for Field {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f.buf, "{}: {}", self.name, self.fldtype)
+    }
+}
+
+#[deriving(Eq, Clone)]
 pub enum ItemNode {
     FuncItem(Ident, Vec<FuncArg>, Type, Block, Vec<Ident>),
-    StructItem(Ident, Vec<(AstString, Type)>, Vec<Ident>),
-    EnumItem(Ident, Vec<EnumItem>, Vec<Ident>),
+    StructItem(Ident, Vec<Field>, Vec<Ident>),
+    EnumItem(Ident, Vec<Variant>, Vec<Ident>),
 }
 
 impl Show for ItemNode {
@@ -396,8 +408,8 @@ impl Show for ItemNode {
                     try!(write!(f.buf, "<{}>", tps));
                 }
                 try!(write!(f.buf, "{}\n", " {"));
-                for &(ref name, ref fieldtype) in fields.iter() {
-                    try!(write!(f.buf, "    {}: {},\n", name, fieldtype));
+                for field in fields.iter() {
+                    try!(write!(f.buf, "    {},\n", field));
                 }
                 write!(f.buf, "{}", "}")
             },
