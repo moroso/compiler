@@ -30,6 +30,7 @@ pub enum Token {
     For,
     Struct,
     Enum,
+    Match,
 
     // Symbols
     LParen,
@@ -62,6 +63,7 @@ pub enum Token {
     BangEq,
     Bang,
     Arrow,
+    DoubleArrow,
     Comma,
     QuestionMark,
     Period,
@@ -209,6 +211,7 @@ impl<T: Iterator<~str>> Lexer<T> {
             For        => "for",
             Struct     => "struct",
             Enum       => "enum",
+            Match      => "match",
 
             // Basic types; TODO: add more.
             I32        => matcher!(r"[iI]32"),
@@ -245,6 +248,7 @@ impl<T: Iterator<~str>> Lexer<T> {
             BangEq       => "!=",
             Bang         => "!",
             Arrow        => "->",
+            DoubleArrow  => "=>",
             Comma        => ",",
             QuestionMark => "?",
             Period       => ".",

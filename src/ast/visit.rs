@@ -151,6 +151,15 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
             visitor.visit_block(*b);
         }
         UnitExpr => {}
+        MatchExpr(ref e, ref items) => {
+            visitor.visit_expr(*e);
+            for item in items.iter() {
+                for var in item.val.vars.iter() {
+                    visitor.visit_ident(var);
+                }
+                visitor.visit_expr(&item.val.body);
+            }
+        }
     }
 }
 

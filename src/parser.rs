@@ -612,12 +612,44 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         span!(ForExpr(~init, ~cond, ~iter, ~body), span)
     }
 
+    pub fn parse_match_item(&mut self) -> MatchItem {
+        let start_span = self.peek_span();
+        let name = self.parse_ident_token();
+        let vars = match *self.peek() {
+            LParen => {
+                self.expect(LParen);
+                let identlist = parse_list!(self.parse_ident() until RParen);
+                self.expect(RParen);
+                identlist
+            },
+            _ => {
+                vec!()
+            }
+        };
+        self.expect(DoubleArrow);
+        let body = self.parse_expr();
+        let span = start_span.to(self.last_span);
+        span!(MatchItemNode { name: name, vars: vars, body: body }, span)
+    }
+
+    pub fn parse_match_expr(&mut self) -> Expr {
+        let start_span = self.peek_span();
+        self.expect(Match);
+        let matched_expr = self.parse_expr();
+        self.expect(LBrace);
+        let match_items = parse_list!(self.parse_match_item() until RBrace);
+        self.expect(RBrace);
+        let span = start_span.to(self.last_span);
+        span!(MatchExpr(~matched_expr, match_items), span)
+    }
+
     pub fn parse_simple_expr(&mut self) -> Expr {
         match *self.peek() {
             If => self.parse_if_statement(),
             For => self.parse_for_loop(),
             While => self.parse_while_loop(),
             Return => self.parse_return_statement(),
+            Match => self.parse_match_expr(),
             _ => self.parse_possible_assignment()
         }
     }

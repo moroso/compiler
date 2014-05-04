@@ -18,7 +18,8 @@ spanned! {
     Expr     => ExprNode,
     Stmt     => StmtNode,
     Item     => ItemNode,
-    EnumItem => EnumItemNode
+    EnumItem => EnumItemNode,
+    MatchItem=> MatchItemNode
 }
 
 #[deriving(Eq, Clone, Ord, TotalEq, TotalOrd, Show)]
@@ -201,6 +202,23 @@ impl Show for LitNode {
 }
 
 #[deriving(Eq)]
+pub struct MatchItemNode {
+    pub name: AstString,
+    pub vars: Vec<Ident>,
+    pub body: Expr,
+}
+
+impl Show for MatchItemNode {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        try!(write!(f.buf, "{}(", self.name));
+        for ref var in self.vars.iter() {
+            try!(write!(f.buf, "{}, ", var));
+        }
+        write!(f.buf, ") => {}", self.body)
+    }
+}
+
+#[deriving(Eq)]
 pub enum ExprNode {
     UnitExpr,
     LitExpr(Lit),
@@ -219,6 +237,7 @@ pub enum ExprNode {
     ReturnExpr(~Expr),
     WhileExpr(~Expr, ~Block),
     ForExpr(~Expr, ~Expr, ~Expr, ~Block),
+    MatchExpr(~Expr, Vec<MatchItem>),
 }
 
 impl Show for ExprNode {
@@ -241,6 +260,13 @@ impl Show for ExprNode {
             ReturnExpr(ref e)                   => write!(f.buf, "return {}", e),
             WhileExpr(ref e, ref b)             => write!(f.buf, "while {} {}", e, b),
             ForExpr(ref e1, ref e2, ref e3, ref b) => write!(f.buf, "for ({};{};{}) {}", e1, e2, e3, b),
+            MatchExpr(ref e, ref items) => {
+                try!(write!(f.buf, "match {} \\{\n", e));
+                for item in items.iter() {
+                    try!(write!(f.buf, "    {},\n", item));
+                }
+                write!(f.buf, "{}", "}")
+            }
         }
     }
 }
