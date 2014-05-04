@@ -162,7 +162,7 @@ impl Visitor for CCrossCompiler {
                 // TODO: this is a hack, and once we have functions that
                 // give us better insight into our types, this should
                 // be fixed.
-                if id.name != ~"int" {
+                if id.name != "int".to_owned() {
                     print!("struct ");
                 }
                 self.visit_ident(id);
