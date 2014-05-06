@@ -162,17 +162,15 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     // Most functions from this point on are for parsing a specific node
     // in the grammar.
 
-    fn parse_ident_token(&mut self) -> AstString {
-        match self.eat() {
+    fn parse_ident(&mut self) -> Ident {
+        let name = match self.eat() {
             IdentTok(name) => name,
             tok => self.error(format!("Expected ident, found {}", tok),
                               self.last_span.get_begin())
-        }
-    }
+        };
 
-    fn parse_ident(&mut self) -> Ident {
         Ident {
-            name: self.parse_ident_token(),
+            name: name,
             id: self.new_id(),
             sp: self.last_span,
             tps: None,
@@ -290,12 +288,12 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 },
                 Period => {
                     self.expect(Period);
-                    let field = self.parse_ident_token();
+                    let field = self.parse_ident();
                     DotExpr(~current_index, field)
                 }
                 Arrow => {
                     self.expect(Arrow);
-                    let field = self.parse_ident_token();
+                    let field = self.parse_ident();
                     ArrowExpr(~current_index, field)
                 }
                 _ => return current_index
@@ -618,7 +616,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
     pub fn parse_match_item(&mut self) -> MatchArm {
         let start_span = self.peek_span();
-        let name = self.parse_ident_token();
+        let ident = self.parse_ident();
         let vars = match *self.peek() {
             LParen => {
                 self.expect(LParen);
@@ -634,10 +632,10 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         let body = self.parse_expr();
 
         MatchArm {
-            name: name,
-            vars: vars,
-            body: body,
-            sp:   start_span.to(self.last_span),
+            ident: ident,
+            vars:  vars,
+            body:  body,
+            sp:    start_span.to(self.last_span),
         }
     }
 
@@ -792,12 +790,12 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
     pub fn parse_struct_field(&mut self) -> Field {
         let start_span = self.peek_span();
-        let name = self.parse_ident_token();
+        let ident = self.parse_ident();
         self.expect(Colon);
         let field_type = self.parse_type();
 
         Field {
-            name:    name,
+            ident:   ident,
             fldtype: field_type,
             sp:      start_span.to(self.last_span),
         }
@@ -817,7 +815,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
     pub fn parse_variant(&mut self) -> Variant {
         let start_span = self.peek_span();
-        let name = self.parse_ident_token();
+        let ident = self.parse_ident();
         let types = match *self.peek() {
             LParen => {
                 self.expect(LParen);
@@ -831,9 +829,9 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         };
 
         Variant {
-            name: name,
-            args: types,
-            sp:   start_span.to(self.last_span),
+            ident: ident,
+            args:  types,
+            sp:    start_span.to(self.last_span),
         }
     }
 
