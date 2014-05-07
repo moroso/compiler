@@ -46,7 +46,7 @@ fn find_enum_item_names(module: &Module) -> HashMap<~str,
             EnumItem(ref name, ref items, _) => {
                 let mut pos = 0;
                 for item in items.iter() {
-                    ht.insert(item.name.clone(),
+                    ht.insert(item.ident.name.clone(),
                               (name.clone(), items.clone(), pos));
                     pos += 1;
                 }
@@ -170,7 +170,7 @@ impl CCrossCompiler {
             StructItem(ref name, ref fields, _) => {
                 let mut res = format!("typedef struct {} \\{", name).to_owned();
                 for field in fields.iter() {
-                    res = res + self.visit_name_and_type(field.name,
+                    res = res + self.visit_name_and_type(field.ident.name,
                                                          &field.fldtype) + ";\n";
                 }
                 res + 
@@ -187,7 +187,7 @@ impl CCrossCompiler {
                             " " + format!("field{};\n", num);
                         num += 1;
                     }
-                    res = res + format!("        \\} {};\n", variant.name);
+                    res = res + format!("        \\} {};\n", variant.ident.name);
                 }
                 res + format!("\n    \\} val;\n\\} {};", name)
             }
@@ -312,7 +312,7 @@ impl CCrossCompiler {
                                 let mut i = 0;
                                 for item in this_variant.args.iter() {
                                     res = res + format!(".val.{}.field{} = {}, ",
-                                                        this_variant.name,
+                                                        this_variant.ident.name,
                                                         i,
                                                         self.visit_expr(
                                                             args.get(i)
@@ -390,7 +390,7 @@ impl CCrossCompiler {
                     let cloned_tab = self.enumitemnames.clone();
 
                     let &(_, ref variants, idx) = cloned_tab.find_equiv(
-                        &arm.name).unwrap();
+                        &arm.ident.name).unwrap();
                     let this_variant = variants.get(idx as uint).clone();
                     res = res + format!("    case {}: \\{", idx);
 
@@ -400,7 +400,7 @@ impl CCrossCompiler {
                                             self.visit_type(var),
                                             arm.vars.get(i as uint).name,
                                             self.visit_expr(*e),
-                                            arm.name,
+                                            arm.ident.name,
                                             i
                                             );
                         i += 1;
