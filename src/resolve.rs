@@ -34,22 +34,6 @@ impl Subscope {
         ns.insert(ident.name.clone(), ident.id)
     }
 
-    fn insert_item(&mut self, item: &Item) {
-        match item.val {
-            FuncItem(ref ident, ref args, _, _, ref tps) => {
-                self.insert(ValNS, ident);
-                for arg in args.iter() {
-                    self.insert(ValNS, &arg.ident);
-                }
-                for tp in tps.iter() {
-                    self.insert(TypeNS, tp);
-                }
-            }
-            StructItem(_, _, _) => {} // TODO: fill this out.
-            EnumItem(_, _, _) => {} // TODO: fill this out.
-        }
-    }
-
     fn find(&self, ns: NS, ident: &Ident) -> Option<DefId> {
         let ns = ns as uint;
         self.namespaces.find(&ns)
@@ -71,10 +55,30 @@ impl Resolver {
         }
     }
 
-    fn descend(&mut self, items: &Vec<Item>, visit: |&mut Resolver|) {
+    fn descend(&mut self, items: Option<&Vec<Item>>, visit: |&mut Resolver|) {
         let mut subscope = Subscope::new();
-        for item in items.iter() {
-            subscope.insert_item(item);
+
+        match items {
+            Some(items) => {
+                for item in items.iter() {
+                    match item.val {
+                        FuncItem(ref ident, _, _, _, _) => {
+                            subscope.insert(ValNS, ident);
+                        }
+                        StructItem(ref ident, _, _) => {
+                            subscope.insert(TypeNS, ident);
+                            subscope.insert(StructNS, ident);
+                        }
+                        EnumItem(ref ident, ref variants, _) => {
+                            subscope.insert(TypeNS, ident);
+                            for variant in variants.iter() {
+                                subscope.insert(ValNS, &variant.ident);
+                            }
+                        }
+                    }
+                }
+            }
+            None => {}
         }
 
         self.scope.push(subscope);
@@ -134,25 +138,51 @@ impl Visitor for Resolver {
     }
 
     fn visit_block(&mut self, block: &Block) {
-        self.descend(&block.items, |me| {
-            for item in block.items.iter() {
-                me.visit_item(item);
+        self.descend(Some(&block.items), |me| walk_block(me, block));
+    }
+
+    fn visit_item(&mut self, item: &Item) {
+        match item.val {
+            FuncItem(_, ref args, ref t, ref block, ref tps) => {
+                self.visit_type(t);
+                self.descend(None, |me| {
+                    for tp in tps.iter() {
+                        me.add_to_scope(TypeNS, tp);
+                    }
+                    for arg in args.iter() {
+                        me.visit_type(&arg.argtype);
+                        me.add_to_scope(ValNS, &arg.ident);
+                    }
+                    me.visit_block(block);
+                });
             }
-            for stmt in block.stmts.iter() {
-                me.visit_stmt(stmt);
+            StructItem(_, ref fields, ref tps) => {
+                self.descend(None, |me| {
+                    for tp in tps.iter() {
+                        me.add_to_scope(TypeNS, tp);
+                    }
+                    for field in fields.iter() {
+                        me.visit_type(&field.fldtype);
+                    }
+                });
             }
-            for expr in block.expr.iter() {
-                me.visit_expr(expr);
+            EnumItem(_, ref variants, ref tps) => {
+                self.descend(None, |me| {
+                    for tp in tps.iter() {
+                        me.add_to_scope(TypeNS, tp);
+                    }
+                    for variant in variants.iter() {
+                        for arg in variant.args.iter() {
+                            me.visit_type(arg);
+                        }
+                    }
+                });
             }
-        });
+        }
     }
 
     fn visit_module(&mut self, module: &Module) {
-        self.descend(&module.items, |me| {
-            for item in module.items.iter() {
-                me.visit_item(item);
-            }
-        });
+        self.descend(Some(&module.items), |me| walk_module(me, module));
     }
 }
 
