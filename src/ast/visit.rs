@@ -3,10 +3,13 @@ use ast::*;
 pub trait Visitor {
     fn visit_item(&mut self, item: &Item) { walk_item(self, item) }
     fn visit_type(&mut self, t: &Type) { walk_type(self, t) }
+    fn visit_variant(&mut self, variant: &Variant) { walk_variant(self, variant) }
+    fn visit_struct_field(&mut self, field: &Field) { walk_struct_field(self, field) }
     fn visit_func_arg(&mut self, arg: &FuncArg) { walk_func_arg(self, arg) }
     fn visit_block(&mut self, block: &Block) { walk_block(self, block) }
     fn visit_stmt(&mut self, stmt: &Stmt) { walk_stmt(self, stmt) }
     fn visit_expr(&mut self, expr: &Expr) { walk_expr(self, expr) }
+    fn visit_match_arm(&mut self, arm: &MatchArm) { walk_match_arm(self, arm) }
     fn visit_lit(&mut self, lit: &Lit) { walk_lit(self, lit) }
     fn visit_ident(&mut self, ident: &Ident) { walk_ident(self, ident) }
     fn visit_module(&mut self, module: &Module) { walk_module(self, module) }
@@ -21,7 +24,16 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
             visitor.visit_block(def);
             for id in tps.iter() { visitor.visit_ident(id); }
         },
-        StructItem(..) | EnumItem(..) => {} // TODO this
+        StructItem(ref id, ref fields, ref tps) => {
+            visitor.visit_ident(id);
+            for field in fields.iter() { visitor.visit_struct_field(field); }
+            for id in tps.iter() { visitor.visit_ident(id); }
+        },
+        EnumItem(ref id, ref variants, ref tps) => {
+            visitor.visit_ident(id);
+            for variant in variants.iter() { visitor.visit_variant(variant); }
+            for id in tps.iter() { visitor.visit_ident(id); }
+        },
     }
 }
 
@@ -45,6 +57,18 @@ pub fn walk_type<T: Visitor>(visitor: &mut T, t: &Type) {
         }
         BoolType | UnitType | IntType(..) => {}
     }
+}
+
+pub fn walk_variant<T: Visitor>(visitor: &mut T, variant: &Variant) {
+    visitor.visit_ident(&variant.ident);
+    for arg in variant.args.iter() {
+        visitor.visit_type(arg);
+    }
+}
+
+pub fn walk_struct_field<T: Visitor>(visitor: &mut T, field: &Field) {
+    visitor.visit_ident(&field.ident);
+    visitor.visit_type(&field.fldtype);
 }
 
 pub fn walk_func_arg<T: Visitor>(visitor: &mut T, arg: &FuncArg) {
@@ -139,14 +163,18 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
         MatchExpr(ref e, ref arms) => {
             visitor.visit_expr(*e);
             for arm in arms.iter() {
-                for var in arm.vars.iter() {
-                    visitor.visit_ident(var);
-                }  //TODO visit_arm function
-
-                visitor.visit_expr(&arm.body);
+                visitor.visit_match_arm(arm);
             }
         }
     }
+}
+
+pub fn walk_match_arm<T: Visitor>(visitor: &mut T, arm: &MatchArm) {
+    visitor.visit_ident(&arm.ident);
+    for var in arm.vars.iter() {
+        visitor.visit_ident(var);
+    }
+    visitor.visit_expr(&arm.body);
 }
 
 pub fn walk_lit<T: Visitor>(_: &T, lit: &Lit) {

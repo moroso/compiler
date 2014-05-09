@@ -200,7 +200,7 @@ impl Show for LitNode {
 
 #[deriving(Eq, Clone)]
 pub struct MatchArm {
-    pub name: AstString,
+    pub ident: Ident,
     pub vars: Vec<Ident>,
     pub body: Expr,
     pub sp: Span,
@@ -208,7 +208,7 @@ pub struct MatchArm {
 
 impl Show for MatchArm {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        try!(write!(f.buf, "{}(", self.name));
+        try!(write!(f.buf, "{}(", self.ident));
         for ref var in self.vars.iter() {
             try!(write!(f.buf, "{}, ", var));
         }
@@ -225,8 +225,8 @@ pub enum ExprNode {
     BinOpExpr(BinOp, ~Expr, ~Expr),
     UnOpExpr(UnOp, ~Expr),
     IndexExpr(~Expr, ~Expr),
-    DotExpr(~Expr, AstString),
-    ArrowExpr(~Expr, AstString),
+    DotExpr(~Expr, Ident),
+    ArrowExpr(~Expr, Ident),
     AssignExpr(~Expr, ~Expr),
     CallExpr(~Expr, Vec<Expr>),
     CastExpr(~Expr, Type),
@@ -349,14 +349,14 @@ impl Show for FuncArg {
 
 #[deriving(Eq, Clone)]
 pub struct Variant {
-    pub name: AstString,
+    pub ident: Ident,
     pub args: Vec<Type>,
     pub sp:   Span,
 }
 
 impl Show for Variant {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        try!(write!(f.buf, "{}(", self.name));
+        try!(write!(f.buf, "{}(", self.ident));
         for ref argtype in self.args.iter() {
             try!(write!(f.buf, "{}, ", argtype));
         }
@@ -366,14 +366,14 @@ impl Show for Variant {
 
 #[deriving(Eq, Clone)]
 pub struct Field {
-    pub name:    AstString,
+    pub ident:   Ident,
     pub fldtype: Type,
     pub sp:      Span,
 }
 
 impl Show for Field {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f.buf, "{}: {}", self.name, self.fldtype)
+        write!(f.buf, "{}: {}", self.ident, self.fldtype)
     }
 }
 
