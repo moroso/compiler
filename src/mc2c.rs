@@ -176,7 +176,7 @@ impl CCrossCompiler {
             StructItem(ref name, ref fields, _) => {
                 let mut res = format!("typedef struct {} \\{", name).to_owned();
                 for field in fields.iter() {
-                    res = res + self.visit_name_and_type(field.ident.name,
+                    res = res + self.visit_name_and_type(field.name,
                                                          &field.fldtype) + ";\n";
                 }
                 res + 

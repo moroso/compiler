@@ -225,8 +225,8 @@ pub enum ExprNode {
     BinOpExpr(BinOp, ~Expr, ~Expr),
     UnOpExpr(UnOp, ~Expr),
     IndexExpr(~Expr, ~Expr),
-    DotExpr(~Expr, Ident),
-    ArrowExpr(~Expr, Ident),
+    DotExpr(~Expr, AstString),
+    ArrowExpr(~Expr, AstString),
     AssignExpr(~Expr, ~Expr),
     CallExpr(~Expr, Vec<Expr>),
     CastExpr(~Expr, Type),
@@ -366,14 +366,14 @@ impl Show for Variant {
 
 #[deriving(Eq, Clone)]
 pub struct Field {
-    pub ident:   Ident,
+    pub name:    AstString,
     pub fldtype: Type,
     pub sp:      Span,
 }
 
 impl Show for Field {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f.buf, "{}: {}", self.ident, self.fldtype)
+        write!(f.buf, "{}: {}", self.name, self.fldtype)
     }
 }
 

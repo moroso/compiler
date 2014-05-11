@@ -67,7 +67,6 @@ pub fn walk_variant<T: Visitor>(visitor: &mut T, variant: &Variant) {
 }
 
 pub fn walk_struct_field<T: Visitor>(visitor: &mut T, field: &Field) {
-    visitor.visit_ident(&field.ident);
     visitor.visit_type(&field.fldtype);
 }
 

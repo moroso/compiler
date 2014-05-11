@@ -1,6 +1,6 @@
 use ast::visit::*;
 use ast::*;
-use collections::TreeMap;
+use collections::{HashMap,TreeMap};
 
 // in case we ever want generic bounds
 use ParamType = ast::UnitType;
@@ -11,10 +11,9 @@ pub enum Def {
     TypeDef(TypeNode),
     FuncDef(Vec<DefId>, TypeNode, Vec<DefId>),
     FuncArgDef(TypeNode),
-    StructDef(Vec<DefId>, Vec<DefId>),
-    FieldDef(TypeNode),
+    StructDef(HashMap<AstString, TypeNode>, Vec<DefId>),
     EnumDef(Vec<DefId>, Vec<DefId>),
-    VariantDef(Vec<TypeNode>),
+    VariantDef(DefId, Vec<TypeNode>),
     LetDef(Option<TypeNode>),
     MatchArmDef(TypeNode),
 }
@@ -86,22 +85,22 @@ impl Visitor for DefMap {
                 self.visit_block(def);
             },
             StructItem(ref ident, ref fields, ref tps) => {
-                let field_def_ids = fields.iter().map(|field| {
-                    self.table.insert(field.ident.id, FieldDef(field.fldtype.val.clone()));
-                    field.ident.id
-                }).collect();
+                let mut field_map = HashMap::new();
+                for field in fields.iter() {
+                    field_map.insert(field.name.clone(), field.fldtype.val.clone());
+                }
 
                 let tp_def_ids = tps.iter().map(|tp| {
                     self.table.insert(tp.id, TypeDef(ParamType));
                     tp.id
                 }).collect();
 
-                self.table.insert(ident.id, StructDef(field_def_ids, tp_def_ids));
+                self.table.insert(ident.id, StructDef(field_map, tp_def_ids));
             },
             EnumItem(ref ident, ref variants, ref tps) => {
                 let variant_def_ids = variants.iter().map(|variant| {
                     let args = variant.args.iter().map(|arg| arg.val.clone()).collect();
-                    self.table.insert(variant.ident.id, VariantDef(args));
+                    self.table.insert(variant.ident.id, VariantDef(ident.id, args));
                     variant.ident.id
                 }).collect();
 

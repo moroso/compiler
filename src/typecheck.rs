@@ -28,7 +28,8 @@ enum Ty {
     ArrayTy(~Ty, u64),
     TupleTy(Vec<Ty>),
     FuncTy(Vec<Ty>, ~Ty),
-    NamedTy(DefId),
+    StructTy(DefId, Vec<BoundsId>),
+    EnumTy(DefId, Vec<BoundsId>),
     BoundTy(BoundsId),
     BottomTy,
 }
@@ -39,7 +40,7 @@ impl Ty {
         match *self {
             StrTy | UnitTy |
             TupleTy(..) | ArrayTy(..) | FuncTy(..) |
-            NamedTy(..) | BoundTy(..) => {
+            StructTy(..) | EnumTy(..) | BoundTy(..) => {
                 set.add(EqKind);
             }
             BoolTy => {
@@ -158,6 +159,7 @@ impl fmt::Show for TyBounds {
 }
 
 pub struct Typechecker<'a> {
+    defs: TreeMap<BoundsId>,
     bounds: SmallIntMap<TyBounds>,
     defmap: &'a DefMap,
     resolver: &'a Resolver,
@@ -176,6 +178,7 @@ fn intkind_to_ty(ik: IntKind) -> Ty {
 impl<'a> Typechecker<'a> {
     pub fn new(defmap: &'a DefMap, resolver: &'a Resolver) -> Typechecker<'a> {
         Typechecker {
+            defs: SmallIntMap::new(),
             bounds: SmallIntMap::new(),
             defmap: defmap,
             resolver: resolver,
@@ -188,6 +191,18 @@ impl<'a> Typechecker<'a> {
         let bid = self.next_bounds_id;
         self.next_bounds_id += 1;
         BoundsId(bid)
+    }
+
+    fn add_bound_ty(&mut self, did: DefId) -> Ty {
+        let bid = self.new_bounds_id();
+        self.defs.insert(did.to_uint(), bid);
+        self.bounds.insert(bid.to_uint(), Unconstrained);
+        BoundTy(bid)
+    }
+
+    fn get_bound_ty(&self, did: DefId) {
+        let bid = *self.defs.find(&did.to_uint()).take_unwrap();
+        BoundTy(bid)
     }
 
     fn type_to_ty(&mut self, t: &TypeNode) -> Ty {
@@ -211,8 +226,9 @@ impl<'a> Typechecker<'a> {
                         */
                         fail!("Generics aren't ready yet")
                     }
-                    None => NamedTy(did)
+                    None => {}
                 }
+                NamedTy(did)
             },
             FuncType(ref args, ref t) => {
                let ret_ty = self.type_to_ty(&t.val);
@@ -255,17 +271,40 @@ impl<'a> Typechecker<'a> {
                     FuncDef(ref args, ref t, ref tps) => {
                         let ret_ty = self.type_to_ty(t);
                         let arg_tys = args.iter().map(|t| {
-                            //self.type_to_ty()
-                        });
-                        ret_ty
+                            self.type_to_ty(t)
+                        }).collect();
+                        let bids = tps.iter().map(|_| {
+                            let bid = self.new_bounds_id();
+                            self.bounds.insert(bid, Unconstrained);
+                            bid
+                        }).collect();
+                        for (tp, bid) in tps.iter().zip(bids.move_iter()) {
+                            self.unify(BoundTy(bid), tp.clone());
+                        }
+                        FuncTy(arg_tys, ret_ty)
                     }
                     FuncArgDef(ref t) => {
                         self.type_to_ty(t)
                     }
+                    VariantDef(ref args, ref t, ref tps) => {
+                        let ret_ty = self.type_to_ty(t);
+                        let arg_tys = args.iter().map(|t| {
+                            self.type_to_ty(t)
+                        }).collect();
+                        let bids = tps.iter().map(|_| {
+                            let bid = self.new_bounds_id();
+                            self.bounds.insert(bid, Unconstrained);
+                            bid
+                        }).collect();
+                        for (tp, bid) in tps.iter().zip(bids.move_iter()) {
+                            self.unify(BoundTy(bid), tp.clone());
+                        }
+                        FuncTy(arg_tys, ret_ty)
+                    }
                     LetDef(ref t) => {
                         match *t {
                             Some(ref t) => self.type_to_ty(t),
-                            None => fail!("Inference isn't ready yet"),
+                            None => self.get_bound_ty(did)
                         }
                     }
                     _ => fail!("Expected value name"),
@@ -306,7 +345,7 @@ impl<'a> Typechecker<'a> {
                         (None, Constrained(ShrKind)),
                 };
 
-                let l_ty = self.check_bounds(l_ty, ck);
+                let l_ty = self.check_ty_bounds(l_ty, ck);
                 let ty = self.unify(l_ty, r_ty);
 
                 expr_ty.unwrap_or(ty)
@@ -391,11 +430,20 @@ impl<'a> Typechecker<'a> {
         block.expr.as_ref().map(|e| self.expr_to_ty(e)).unwrap_or(UnitTy)
     }
 
-    fn check_bounds(&mut self, t1: Ty, bounds: TyBounds) -> Ty {
+    fn check_ty_bounds(&mut self, t1: Ty, bounds: TyBounds) -> Ty {
         match bounds {
             Unconstrained => t1,
             Constrained(kind) if t1.is_of_kind(kind) => t1,
             Concrete(t2) => self.unify(t1, t2),
+            _ => fail!("Expected type {} but found type {}", bounds, t1)
+        }
+    }
+
+    fn unify_bounds(&mut self, expected: TyBounds, found: TyBounds) -> TyBounds {
+        match (expected, found) {
+            (Unconstrained, Unconstrained) => Unconstrained,
+            (Constrained(ref ke), Constrained(ref fe) if *fe == *ke => expected,
+            (Concrete(t2) => self.unify(t1, t2),
             _ => fail!("Expected type {} but found type {}", bounds, t1)
         }
     }
@@ -426,8 +474,25 @@ impl<'a> Typechecker<'a> {
 
                 ctor(w)
             },
-            (BoundTy(..), _) | (_, BoundTy(..)) =>
-                fail!("Generics aren't ready yet"), //TODO lookup and check bounds with other
+            (BoundTy(b1), BoundTy(b2) => {
+                if b1 == b2 {
+                    BoundTy(b1)
+                } else {
+                    self.merge_bounds(b1, b2)
+                }
+            },
+            (BoundTy(b), _) => {
+                let bounds = *self.bounds.find(b).take_unwrap();
+                let bounds = self.unify_bounds(bounds, Concrete(t2));
+                self.update_bounds(b, bounds);
+                t2
+            },
+            (_, BoundTy(b)) => {
+                let bounds = *self.bounds.find(b).take_unwrap();
+                let bounds = self.unify_bounds(Concrete(t1), bounds);
+                self.update_bounds(b, bounds);
+                t1
+            },
             (PtrTy(p1), PtrTy(p2)) =>
                 PtrTy(~self.unify(*p1, *p2)),
             (ArrayTy(a1, l1), ArrayTy(a2, l2)) => {
@@ -457,8 +522,18 @@ impl<'a> Typechecker<'a> {
                     self.mismatch(&FuncTy(args1, t1), &FuncTy(args2, t2))
                 }
             },
-            (NamedTy(d1), NamedTy(d2)) if d1 == d2 =>
-                NamedTy(d1), //TODO handle typedefs by getting def'd ty outside match
+            (StructTy(d1, bs1), StructTy(d2, bs2)) if d1 == d2 => {
+                if bs1.len() > 0 || bs2.len() > 0 {
+                    fail!("Generics aren't ready yet");
+                }
+                StructTy(d1, bs1)
+            },
+            (EnumTy(d1, ref bs1), EnumTy(d2, ref bs2)) if d1 == d2 => {
+                if bs1.len() > 0 || bs2.len() > 0 {
+                    fail!("Generics aren't ready yet");
+                }
+                EnumTy(d1, bs1)
+            },
             (t1, t2) => if t1 == t2 { t1 } else { self.mismatch(&t1, &t2) }
         }
     }
@@ -482,9 +557,13 @@ impl<'a> Visitor for Typechecker<'a> {
                         self.type_to_ty(&t.val);
                     }
                     (None, Some(e)) => {
-                        self.expr_to_ty(e);
+                        let ty = self.add_bound_ty(did);
+                        let e_ty = self.expr_to_ty(e);
+                        self.unify(ty, e_ty);
                     }
-                    (None, None) => fail!("Forward declaration not ready yet"),
+                    (None, None) => {
+                        self.add_bound_ty(did);
+                    }
                 }
             }
             ExprStmt(ref e) => {
