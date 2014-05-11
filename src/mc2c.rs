@@ -8,20 +8,25 @@ extern crate collections;
 extern crate regex;
 
 use ast::*;
+use ast::defmap::*;
 use std::io::stdio::stdin;
 use lexer::Lexer;
 use parser::Parser;
 use ast::visit::{Visitor, walk_module};
 use collections::hashmap::{HashSet, HashMap};
+use resolve::Resolver;
 
 mod lexer;
 mod parser;
 mod span;
 mod ast;
+mod resolve;
 
 struct CCrossCompiler {
     structnames: HashSet<~str>,
     enumitemnames: HashMap<~str, (Ident, Vec<Variant>, int)>,
+    resolver: Resolver,
+    defmap: DefMap,
 }
 
 fn find_structs(module: &Module) -> HashSet<~str> {
@@ -57,8 +62,6 @@ fn find_enum_item_names(module: &Module) -> HashMap<~str,
 
     ht
 }
-
-
 
 impl CCrossCompiler {
     fn visit_list<T>(&mut self, list: &Vec<T>,
@@ -159,13 +162,16 @@ impl CCrossCompiler {
     fn visit_item(&mut self, item: &Item) -> ~str {
         match item.val {
             FuncItem(ref name, ref args, ref t, ref block, _) => {
-                self.visit_type(t) +
-                    " " +
-                    self.visit_ident(name) +
-                    "(" +
-                    self.visit_list(args, |s, x| s.visit_func_arg(x), ", ") +
-                    ")" +
-                    self.visit_block(block)
+                // Hack for builtin functions.
+                if name.name == "print_int".to_owned() { "".to_owned() } else {
+                    self.visit_type(t) +
+                        " " +
+                        self.visit_ident(name) +
+                        "(" +
+                        self.visit_list(args, |s, x| s.visit_func_arg(x), ", ") +
+                        ")" +
+                        self.visit_block(block)
+                }
             }
             StructItem(ref name, ref fields, _) => {
                 let mut res = format!("typedef struct {} \\{", name).to_owned();
@@ -205,15 +211,26 @@ impl CCrossCompiler {
                 "*"
             }
             NamedType(ref id) => {
-                // TODO: this is a hack, and once we have functions that
-                // give us better insight into our types, this should
-                // be fixed.
-                if self.structnames.contains(&id.name) {
-                    "struct "
+                let is_param = {
+                    // Is this type a type parameter?
+                    let did = self.resolver.def_from_ident(id);
+                    let d = self.defmap.find(&did).take_unwrap();
+                    match *d {
+                        TypeDef(ref t) if *t == ast::UnitType => true,
+                        _ => false,
+                    }
+                };
+                if is_param {
+                    // Treat all type parameters as void.
+                    "void".to_owned()
                 } else {
-                    ""
-                }.to_owned() +
-                    self.visit_ident(id)
+                    if self.structnames.contains(&id.name) {
+                        "struct "
+                    } else {
+                        ""
+                    }.to_owned() +
+                        self.visit_ident(id)
+                }
             }
             FuncType(ref d, ref r) => {
                 self.visit_type(*r) +
@@ -434,12 +451,20 @@ int print_int(int x) { printf("%d\n", x); return x; }
     let ast = parser.parse_module();
     let mut stderr = std::io::stdio::stderr();
     stderr.write_str(format!("{}", ast));
-
     stderr.write_str(format!("{}\n", find_enum_item_names(&ast)));
+
+    let mut defmap = DefMap::new();
+    defmap.visit_module(&ast);
+
+    let mut resolver = Resolver::new();
+    resolver.visit_module(&ast);
+
 
     let mut cc: CCrossCompiler = CCrossCompiler {
         structnames: find_structs(&ast),
         enumitemnames: find_enum_item_names(&ast),
+        resolver: resolver,
+        defmap: defmap,
     };
 
     print!("{}\n", cc.visit_module(&ast));

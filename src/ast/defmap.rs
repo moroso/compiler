@@ -16,6 +16,7 @@ pub enum Def {
     EnumDef(Vec<DefId>, Vec<DefId>),
     VariantDef(Vec<TypeNode>),
     LetDef(Option<TypeNode>),
+    MatchArmDef(TypeNode),
 }
 
 pub struct DefMap {
@@ -37,6 +38,22 @@ impl DefMap {
 /* TODO intern strings so clone is cheaper for NamedTypes */
 
 impl Visitor for DefMap {
+    fn visit_expr(&mut self, expr: &Expr) {
+        match expr.val {
+            MatchExpr(ref e, ref arms) => {
+                walk_expr(self, *e);
+                for arm in arms.iter() {
+                    for var in arm.vars.iter() {
+                        //TODO: fill this in with the right type?
+                        self.table.insert(var.id, MatchArmDef(ParamType));
+                    }
+                    self.visit_expr(&arm.body);
+                }
+            }
+            _ => { walk_expr(self, expr); }
+        }
+    }
+
     fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt.val {
             LetStmt(ref ident, ref t, ref e) => {

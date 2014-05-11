@@ -1,14 +1,16 @@
+fn print_int(x: u32) -> u32 {}
+
 enum TestEnum {
     Foo,
-    Bar(int),
+    Bar(u32),
     Baz,
-    Quux(int, *int),
+    Quux(u32, *u32),
 }
 
 fn main() {
     let x: TestEnum = Foo;
     let y: TestEnum = Bar(5);
-    let i: int = 123;
+    let i: u32 = 123;
     let z: TestEnum = Quux(4+5, &i);
 
     match x {

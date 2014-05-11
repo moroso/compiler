@@ -121,13 +121,28 @@ impl Visitor for Resolver {
             IdentExpr(ref ident) => {
                 self.resolve(ValNS, ident);
             }
+            MatchExpr(ref e, ref arms) => {
+                walk_expr(self, *e);
+                for arm in arms.iter() {
+                    self.descend(None, |me| {
+                        for var in arm.vars.iter() {
+                            me.add_to_scope(ValNS, var);
+                        }
+                        me.visit_expr(&arm.body);
+                    });
+                }
+            }
             _ => walk_expr(self, expr)
         }
     }
 
     fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt.val {
-            LetStmt(ref ident, _, ref e) => {
+            LetStmt(ref ident, ref type_opt, ref e) => {
+                match *type_opt {
+                    Some(ref t) => self.visit_type(t),
+                    _ => {}
+                }
                 self.add_to_scope(ValNS, ident);
                 for e in e.iter() {
                     self.visit_expr(e);
@@ -144,11 +159,11 @@ impl Visitor for Resolver {
     fn visit_item(&mut self, item: &Item) {
         match item.val {
             FuncItem(_, ref args, ref t, ref block, ref tps) => {
-                self.visit_type(t);
                 self.descend(None, |me| {
                     for tp in tps.iter() {
                         me.add_to_scope(TypeNS, tp);
                     }
+                    me.visit_type(t);
                     for arg in args.iter() {
                         me.visit_type(&arg.argtype);
                         me.add_to_scope(ValNS, &arg.ident);
@@ -166,7 +181,8 @@ impl Visitor for Resolver {
                     }
                 });
             }
-            EnumItem(_, ref variants, ref tps) => {
+            EnumItem(ref id, ref variants, ref tps) => {
+                self.add_to_scope(TypeNS, id);
                 self.descend(None, |me| {
                     for tp in tps.iter() {
                         me.add_to_scope(TypeNS, tp);
