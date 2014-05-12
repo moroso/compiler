@@ -76,6 +76,9 @@ pub enum Token {
 
     // Special
     Eof,
+    // The following two serve as flags for the lexer (to indicate when we
+    // enter and exit a multi-line comment). They should never be part of
+    // the token stream it generates.
     BeginComment,
     EndComment,
 }
@@ -231,10 +234,21 @@ impl<T: Iterator<~str>> Lexer<T> {
         // Note: rules are in decreasing order of priority if there's a
         // conflict. In particular, reserved words must go before IdentTok.
         let rules = lexer_rules! {
-            // Whitespace
-            // Note: This includes comments.
+            // Whitespace, including comments.
+            // From left to right, the parts of this match:
+            // - actual whitespace,
+            // - // style comments
+            // - /* */ style comments. This clause is a little more complicated,
+            //     because we have to be sure the match doesn't contain "*/"
+            //     except at the very end. This is what ([^*]|\*[^/]) takes
+            //     care of.
             WS         => matcher!(r"\s|//.*|(?s)/\*([^*]|\*[^/])*\*/"),
+
             // A multi-line comment that's begun, but not ended.
+            // This consists of a string starting with "/*" but not
+            // containing "*/". The actual lexer body treats a "BeginComment"
+            // token specially: it sets a flag that we're inside a multi-line
+            // comment. BeginComment does not appear in the token stream.
             BeginComment => matcher!(r"/\*([^*]|\*[^/])*$"),
 
             // Reserved words
@@ -299,8 +313,19 @@ impl<T: Iterator<~str>> Lexer<T> {
             StringTok    => StringRule
         };
 
+        // A special set of rules, just for when we're within a multi-line
+        // comment.
         let comment_rules = lexer_rules! {
+            // The end of a multi-line comment. This is any sequence of
+            // characers not containing "*/" (matched by ([^*]|\*[^/])* ),
+            // followed by "*/". The lexer treats the EndComment token
+            // specially: it causes it to clear the flag that indicates
+            // we're in a multi-line comment. EndComment does not appear
+            // in the token stream.
             EndComment => matcher!(r"([^*]|\*[^/])*\*/"),
+
+            // If we're within a comment, any string not
+            // containing "*/" is considered whitespace.
             WS => matcher!(r"([^*]|\*[^/])*")
         };
 
