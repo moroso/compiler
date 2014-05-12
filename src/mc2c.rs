@@ -411,8 +411,10 @@ impl CCrossCompiler {
                     // checker complains otherwise; why?)
                     let cloned_tab = self.enumitemnames.clone();
 
+                    let empty_vec = vec!();
                     let (name, vars) = match arm.pat.val {
                         VariantPat(ref id, ref args) => (&id.val.name, args),
+                        IdentPat(ref id, _) => (&id.val.name, &empty_vec),
                         _ => fail!("Only VariantPats are supported in match arms for now")
                     };
                     let &(_, ref variants, idx) = cloned_tab.find_equiv( name).unwrap();
