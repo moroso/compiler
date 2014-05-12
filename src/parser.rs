@@ -201,6 +201,64 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         span!(node, span)
     }
 
+    fn parse_pat_common(&mut self, allow_types: bool) -> Pat {
+        let span_start = self.peek_span();
+        let pat = match *self.peek() {
+            IdentTok(..) => {
+                let ident = self.parse_ident();
+                match *self.peek() {
+                    Colon if allow_types => {
+                        self.expect(Colon);
+                        let t = self.parse_type();
+                        IdentPat(ident, Some(t))
+                    }
+                    LParen => {
+                        self.expect(LParen);
+                        let args = parse_list!(self.parse_pat_common(allow_types)
+                                               until RParen);
+                        VariantPat(ident, args)
+                    }
+                    LBrace => {
+                        self.expect(LBrace);
+                        let field_pats = parse_list!(self.parse_field_pat()
+                                                     until RBrace);
+                        StructPat(ident, field_pats)
+                    }
+                    _ => IdentPat(ident, None)
+                }
+            }
+            LParen => {
+                self.expect(LParen);
+                let args = parse_list!(self.parse_pat_common(allow_types)
+                                       until RParen);
+                TuplePat(args)
+            }
+            _ => self.peek_error("Unexpected token while parsing pattern")
+        };
+
+        span!(pat, span_start.to(self.last_span))
+    }
+
+    fn parse_pat(&mut self) -> Pat {
+        self.parse_pat_common(true)
+    }
+
+    fn parse_typeless_pat(&mut self) -> Pat {
+        self.parse_pat_common(false)
+    }
+
+    fn parse_field_pat(&mut self) -> FieldPat {
+        let span_start = self.peek_span();
+        let name = self.parse_name();
+        self.expect(Colon);
+        let pat = self.parse_typeless_pat();
+        FieldPat {
+            name: name,
+            pat: pat,
+            sp: span_start.to(self.last_span),
+        }
+    }
+
     fn parse_index(&mut self) -> Expr {
         /*
         Parse a possibly-array-indexed expression.
@@ -518,15 +576,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         let start_span = self.peek_span();
         self.expect(Let);
 
-        let var_name = self.parse_ident();
-        let var_type = match *self.peek() {
-            Colon => {
-                self.expect(Colon);
-                Some(self.parse_type())
-            },
-            Eq => None,
-            _ => self.peek_error("Expected \": <type>\" or \"=\""),
-        };
+        let pat = self.parse_pat();
 
         let expr = match *self.peek() {
             Semicolon => {
@@ -543,7 +593,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         };
 
         let span = start_span.to(self.last_span);
-        span!(LetStmt(var_name, var_type, expr), span)
+        span!(LetStmt(pat, expr), span)
     }
 
     pub fn parse_if_statement(&mut self) -> Expr {
@@ -618,24 +668,12 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
     pub fn parse_match_item(&mut self) -> MatchArm {
         let start_span = self.peek_span();
-        let ident = self.parse_ident();
-        let vars = match *self.peek() {
-            LParen => {
-                self.expect(LParen);
-                let identlist = parse_list!(self.parse_ident() until RParen);
-                self.expect(RParen);
-                identlist
-            },
-            _ => {
-                vec!()
-            }
-        };
+        let pat = self.parse_pat();
         self.expect(DoubleArrow);
         let body = self.parse_expr();
 
         MatchArm {
-            ident: ident,
-            vars:  vars,
+            pat:   pat,
             body:  body,
             sp:    start_span.to(self.last_span),
         }

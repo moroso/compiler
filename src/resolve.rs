@@ -116,18 +116,26 @@ impl Visitor for Resolver {
         }
     }
 
+    fn visit_pat(&mut self, pat: &Pat) {
+        match pat.val {
+            IdentPat(ref id, ref t) => {
+                for t in t.iter() { self.visit_type(t); }
+                self.add_to_scope(ValNS, id);
+            }
+            _ => walk_pat(self, pat)
+        }
+    }
+
     fn visit_expr(&mut self, expr: &Expr) {
         match expr.val {
             IdentExpr(ref ident) => {
                 self.resolve(ValNS, ident);
             }
             MatchExpr(ref e, ref arms) => {
-                walk_expr(self, *e);
+                self.visit_expr(*e);
                 for arm in arms.iter() {
                     self.descend(None, |me| {
-                        for var in arm.vars.iter() {
-                            me.add_to_scope(ValNS, var);
-                        }
+                        me.visit_pat(&arm.pat);
                         me.visit_expr(&arm.body);
                     });
                 }
@@ -138,12 +146,8 @@ impl Visitor for Resolver {
 
     fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt.val {
-            LetStmt(ref ident, ref type_opt, ref e) => {
-                match *type_opt {
-                    Some(ref t) => self.visit_type(t),
-                    _ => {}
-                }
-                self.add_to_scope(ValNS, ident);
+            LetStmt(ref pat, ref e) => {
+                self.visit_pat(pat);
                 for e in e.iter() {
                     self.visit_expr(e);
                 }

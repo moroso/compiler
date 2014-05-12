@@ -121,7 +121,11 @@ impl CCrossCompiler {
 
     fn visit_stmt(&mut self, stmt: &Stmt) -> ~str {
         match stmt.val {
-            LetStmt(ref i, ref t, ref e) => {
+            LetStmt(ref pat, ref e) => {
+                let (i, t) = match pat.val {
+                    IdentPat(ref i, ref t) => (i, t),
+                    _ => fail!("Only IdentPats are supported right now"),
+                };
                 if t.is_none() { fail!("Must specify types now.") };
                 self.visit_type(&t.clone().unwrap()) +
                     " " +
@@ -406,21 +410,26 @@ impl CCrossCompiler {
                     // checker complains otherwise; why?)
                     let cloned_tab = self.enumitemnames.clone();
 
-                    let &(_, ref variants, idx) = cloned_tab.find_equiv(
-                        &arm.ident.name).unwrap();
+                    let (name, vars) = match arm.pat.val {
+                        VariantPat(ref id, ref args) => (&id.name, args),
+                        _ => fail!("Only VariantPats are supported in match arms for now")
+                    };
+                    let &(_, ref variants, idx) = cloned_tab.find_equiv( name).unwrap();
                     let this_variant = variants.get(idx as uint).clone();
                     res = res + format!("    case {}: \\{", idx);
 
-                    let mut i = 0;
-                    for var in this_variant.args.iter() {
+                    for (i, var) in this_variant.args.iter().enumerate() {
+                        let varname = match vars.get(i as uint).val {
+                            IdentPat(ref id, _) => &id.name,
+                            _ => fail!("Only IdentPats are supported in the arguments of a VariantPat in a match arm for now"),
+                        };
                         res = res + format!("{} {} = {}.val.{}.field{};",
                                             self.visit_type(var),
-                                            arm.vars.get(i as uint).name,
+                                            varname,
                                             self.visit_expr(*e),
-                                            arm.ident.name,
+                                            name,
                                             i
                                             );
-                        i += 1;
                     }
                     res = res + " _ = " +self.visit_expr(&arm.body) + 
                         "; break;}\n";

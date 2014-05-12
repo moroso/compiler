@@ -15,6 +15,7 @@ spanned! {
     BinOp    => BinOpNode,
     UnOp     => UnOpNode,
     Lit      => LitNode,
+    Pat      => PatNode,
     Expr     => ExprNode,
     Stmt     => StmtNode,
     Item     => ItemNode
@@ -86,6 +87,39 @@ impl Show for Ident {
             }
         }
         Ok(())
+    }
+}
+
+#[deriving(Eq, Clone)]
+pub struct FieldPat {
+    pub name: AstString,
+    pub pat:  Pat,
+    pub sp:   Span,
+}
+
+impl Show for FieldPat {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f.buf, "{}: {}", self.name, self.pat)
+    }
+}
+
+#[deriving(Eq, Clone)]
+pub enum PatNode {
+    IdentPat(Ident, Option<Type>),
+    TuplePat(Vec<Pat>),
+    VariantPat(Ident, Vec<Pat>),
+    StructPat(Ident, Vec<FieldPat>),
+}
+
+impl Show for PatNode {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            IdentPat(ref id, ref t)       => write!(f.buf, "{}{}", id,
+                                                    t.as_ref().map(|t| format!(": {}", t)).unwrap_or(~"")),
+            TuplePat(ref args)            => write!(f.buf, "({})", args),
+            VariantPat(ref id, ref args)  => write!(f.buf, "{}({})", id, args),
+            StructPat(ref id, ref fields) => write!(f.buf, "{} \\{ {} \\}", id, fields),
+        }
     }
 }
 
@@ -200,19 +234,14 @@ impl Show for LitNode {
 
 #[deriving(Eq, Clone)]
 pub struct MatchArm {
-    pub ident: Ident,
-    pub vars: Vec<Ident>,
+    pub pat: Pat,
     pub body: Expr,
     pub sp: Span,
 }
 
 impl Show for MatchArm {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        try!(write!(f.buf, "{}(", self.ident));
-        for ref var in self.vars.iter() {
-            try!(write!(f.buf, "{}, ", var));
-        }
-        write!(f.buf, ") => {}", self.body)
+        write!(f.buf, "{} => {}", self.pat, self.body)
     }
 }
 
@@ -271,7 +300,7 @@ impl Show for ExprNode {
 
 #[deriving(Eq, Clone)]
 pub enum StmtNode {
-    LetStmt(Ident, Option<Type>, Option<Expr>),
+    LetStmt(Pat, Option<Expr>),
     ExprStmt(Expr), // no trailing semicolon, must have unit type
     SemiStmt(Expr), // trailing semicolon, any type OK
 }
@@ -279,17 +308,9 @@ pub enum StmtNode {
 impl Show for StmtNode {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
-            LetStmt(ref id, ref t, ref expr) => {
-                try!(write!(f.buf, "let {}", id));
-                match *t {
-                    Some(ref t) => { try!(write!(f.buf, ": {}", t)); },
-                    None => {}
-                }
-                match *expr {
-                    Some(ref e) => { try!(write!(f.buf, " = {}", e)); },
-                    None => {}
-                }
-                write!(f.buf, ";")
+            LetStmt(ref pat, ref expr) => {
+                write!(f.buf, "let {}{};", pat,
+                       expr.as_ref().map(|e| format!(" = {}", e)).unwrap_or(~""))
             },
             ExprStmt(ref e) => {
                 write!(f.buf, "{}", e)

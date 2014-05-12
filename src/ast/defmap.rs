@@ -14,8 +14,7 @@ pub enum Def {
     StructDef(HashMap<AstString, TypeNode>, Vec<DefId>),
     EnumDef(Vec<DefId>, Vec<DefId>),
     VariantDef(DefId, Vec<TypeNode>),
-    LetDef(Option<TypeNode>),
-    MatchArmDef(TypeNode),
+    PatDef(Option<TypeNode>),
 }
 
 pub struct DefMap {
@@ -42,10 +41,7 @@ impl Visitor for DefMap {
             MatchExpr(ref e, ref arms) => {
                 walk_expr(self, *e);
                 for arm in arms.iter() {
-                    for var in arm.vars.iter() {
-                        //TODO: fill this in with the right type?
-                        self.table.insert(var.id, MatchArmDef(ParamType));
-                    }
+                    self.visit_pat(&arm.pat);
                     self.visit_expr(&arm.body);
                 }
             }
@@ -53,11 +49,19 @@ impl Visitor for DefMap {
         }
     }
 
+    fn visit_pat(&mut self, pat: &Pat) {
+        match pat.val {
+            IdentPat(ref ident, ref t) => {
+                self.table.insert(ident.id, PatDef(t.as_ref().map(|t| t.val.clone())));
+            }
+            _ => { walk_pat(self, pat); }
+        }
+    }
+
     fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt.val {
-            LetStmt(ref ident, ref t, ref e) => {
-                self.table.insert(ident.id, LetDef(t.as_ref().map(|t| t.val.clone())));
-
+            LetStmt(ref pat, ref e) => {
+                self.visit_pat(pat);
                 for e in e.iter() {
                     self.visit_expr(e);
                 }
@@ -134,6 +138,6 @@ mod tests {
         assert_eq!(format!("{}", defmap.find(&DefId(0))),
                    "Some(FuncDef([DefId(2)], (), [DefId(1)]))".to_owned());
         assert_eq!(format!("{}", defmap.find(&DefId(4))),
-                   "Some(LetDef(None))".to_owned());
+                   "Some(PatDef(None))".to_owned());
     }
 }

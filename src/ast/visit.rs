@@ -3,6 +3,7 @@ use ast::*;
 pub trait Visitor {
     fn visit_item(&mut self, item: &Item) { walk_item(self, item) }
     fn visit_type(&mut self, t: &Type) { walk_type(self, t) }
+    fn visit_pat(&mut self, pat: &Pat) { walk_pat(self, pat) }
     fn visit_variant(&mut self, variant: &Variant) { walk_variant(self, variant) }
     fn visit_struct_field(&mut self, field: &Field) { walk_struct_field(self, field) }
     fn visit_func_arg(&mut self, arg: &FuncArg) { walk_func_arg(self, arg) }
@@ -59,6 +60,32 @@ pub fn walk_type<T: Visitor>(visitor: &mut T, t: &Type) {
     }
 }
 
+pub fn walk_pat<T: Visitor>(visitor: &mut T, pat: &Pat) {
+    match pat.val {
+        IdentPat(ref id, ref t) => {
+            visitor.visit_ident(id);
+            for t in t.iter() { visitor.visit_type(t); }
+        }
+        TuplePat(ref pats) => {
+            for pat in pats.iter() {
+                visitor.visit_pat(pat);
+            }
+        }
+        VariantPat(ref id, ref pats) => {
+            visitor.visit_ident(id);
+            for pat in pats.iter() {
+                visitor.visit_pat(pat);
+            }
+        }
+        StructPat(ref id, ref field_pats) => {
+            visitor.visit_ident(id);
+            for field_pat in field_pats.iter() {
+                visitor.visit_pat(&field_pat.pat);
+            }
+        }
+    }
+}
+
 pub fn walk_variant<T: Visitor>(visitor: &mut T, variant: &Variant) {
     visitor.visit_ident(&variant.ident);
     for arg in variant.args.iter() {
@@ -83,9 +110,8 @@ pub fn walk_block<T: Visitor>(visitor: &mut T, block: &Block) {
 
 pub fn walk_stmt<T: Visitor>(visitor: &mut T, stmt: &Stmt) {
     match stmt.val {
-        LetStmt(ref id, ref t, ref e) => {
-            visitor.visit_ident(id);
-            for t in t.iter() { visitor.visit_type(t); }
+        LetStmt(ref pat, ref e) => {
+            visitor.visit_pat(pat);
             for e in e.iter() { visitor.visit_expr(e); }
         }
         ExprStmt(ref e) => {
@@ -169,10 +195,7 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
 }
 
 pub fn walk_match_arm<T: Visitor>(visitor: &mut T, arm: &MatchArm) {
-    visitor.visit_ident(&arm.ident);
-    for var in arm.vars.iter() {
-        visitor.visit_ident(var);
-    }
+    visitor.visit_pat(&arm.pat);
     visitor.visit_expr(&arm.body);
 }
 
