@@ -156,7 +156,7 @@ mod tests {
 
         assert_eq!(format!("{}", defmap.find(&NodeId(0))),
                    "Some(FuncDef([NodeId(2)], (), [NodeId(1)]))".to_owned());
-        assert_eq!(format!("{}", defmap.find(&NodeId(4))),
+        assert_eq!(format!("{}", defmap.find(&NodeId(6))),
                    "Some(PatDef(None))".to_owned());
     }
 }
