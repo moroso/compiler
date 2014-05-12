@@ -56,7 +56,7 @@ impl fmt::Show for Span {
 
 impl Span {
     pub fn to(self, other: Span) -> Span {
-        assert!(self <= other);
+        assert!(self <= other, format!("self={}, other={}", self, other));
         Span {
             begin: self.begin,
             end: other.end,

@@ -187,11 +187,10 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     fn parse_ident(&mut self) -> Ident {
         add_id_and_span!(
             IdentNode {
-            name: self.parse_name(),
-            tps: None,
-        },
-            self.last_span
-            )
+                name: self.parse_name(),
+                tps: None,
+            },
+            self.last_span)
     }
 
     fn expect_number(&mut self) -> u64 {
@@ -238,12 +237,14 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                         self.expect(LParen);
                         let args = parse_list!(self.parse_pat_common(allow_types)
                                                until RParen);
+                        self.expect(RParen);
                         VariantPat(ident, args)
                     }
                     LBrace => {
                         self.expect(LBrace);
                         let field_pats = parse_list!(self.parse_field_pat()
                                                      until RBrace);
+                        self.expect(RBrace);
                         StructPat(ident, field_pats)
                     }
                     _ => IdentPat(ident, maybe_type(self, allow_types))
@@ -253,6 +254,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 self.expect(LParen);
                 let args = parse_list!(self.parse_pat_common(allow_types)
                                        until RParen);
+                self.expect(RParen);
                 TuplePat(args)
             }
             Underscore => {
@@ -791,7 +793,8 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         match *self.peek() {
             LBrace => {
                 let start_span = self.peek_span();
-                add_id_and_span!(BlockExpr(~self.parse_block_expr()),
+                let block_expr = BlockExpr(~self.parse_block_expr());
+                add_id_and_span!(block_expr,
                       start_span.to(self.last_span))
             }
             _ => self.parse_simple_expr()
