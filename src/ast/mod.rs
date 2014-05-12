@@ -1,16 +1,35 @@
 use lexer::{Token, SourceToken};
-use span::{Spanned, Span};
+use span::Span;
 use std::fmt::{Formatter, Result, Show};
+use std::hash::Hash;
+use std::hash::sip::SipState;
 
 pub mod visit;
 pub mod defmap;
 
-// Spanned type decls
-macro_rules! spanned {
-    ( $( $s:ident => $n:ident ),* ) => ( $( pub type $s = Spanned<$n>; )* )
+#[deriving(Clone)]
+pub struct WithId<T> {
+    pub id: NodeId,
+    pub val: T,
 }
 
-spanned! {
+impl<T: Eq> Eq for WithId<T> {
+    fn eq(&self, other: &WithId<T>) -> bool {
+        self.val.eq(&other.val)
+    }
+}
+
+impl<T: Show> Show for WithId<T> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        self.val.fmt(f)
+    }
+}
+
+macro_rules! with_id {
+    ( $( $s:ident => $n:ident ),* ) => ( $( pub type $s = WithId<$n>; )* )
+}
+
+with_id! {
     Type     => TypeNode,
     BinOp    => BinOpNode,
     UnOp     => UnOpNode,
@@ -18,16 +37,23 @@ spanned! {
     Pat      => PatNode,
     Expr     => ExprNode,
     Stmt     => StmtNode,
-    Item     => ItemNode
+    Item     => ItemNode,
+    Ident    => IdentNode
 }
 
 #[deriving(Eq, Clone, Ord, TotalEq, TotalOrd, Show)]
-pub struct DefId(pub uint);
+pub struct NodeId(pub uint);
 
-impl DefId {
+impl NodeId {
     pub fn to_uint(&self) -> uint {
-        let DefId(did) = *self;
+        let NodeId(did) = *self;
         did
+    }
+}
+
+impl Hash<SipState> for NodeId {
+    fn hash(&self, state: &mut SipState) {
+        self.to_uint().hash(state);
     }
 }
 
@@ -71,14 +97,12 @@ impl Show for Width {
 pub type AstString = ~str;
 
 #[deriving(Eq, Clone)]
-pub struct Ident {
-    pub id: DefId,
-    pub sp: Span,
+pub struct IdentNode {
     pub tps: Option<Vec<Type>>,
     pub name: AstString,
 }
 
-impl Show for Ident {
+impl Show for IdentNode {
     fn fmt(&self, f: &mut Formatter) -> Result {
         try!(write!(f.buf, "{}", self.name));
         for tps in self.tps.iter() {
@@ -116,9 +140,9 @@ impl Show for PatNode {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
             DiscardPat(ref t)             => write!(f.buf, "_{}",
-                                                    t.as_ref().map(|t| format!(": {}", t)).unwrap_or(~"")),
+                                                    t.as_ref().map(|t| format!(": {}", t)).unwrap_or("".to_owned())),
             IdentPat(ref id, ref t)       => write!(f.buf, "{}{}", id,
-                                                    t.as_ref().map(|t| format!(": {}", t)).unwrap_or(~"")),
+                                                    t.as_ref().map(|t| format!(": {}", t)).unwrap_or("".to_owned())),
             TuplePat(ref args)            => write!(f.buf, "({})", args),
             VariantPat(ref id, ref args)  => write!(f.buf, "{}({})", id, args),
             StructPat(ref id, ref fields) => write!(f.buf, "{} \\{ {} \\}", id, fields),
@@ -313,7 +337,8 @@ impl Show for StmtNode {
         match *self {
             LetStmt(ref pat, ref expr) => {
                 write!(f.buf, "let {}{};", pat,
-                       expr.as_ref().map(|e| format!(" = {}", e)).unwrap_or(~""))
+                       expr.as_ref().map(|e| format!(" = {}", e))
+                       .unwrap_or("".to_owned()))
             },
             ExprStmt(ref e) => {
                 write!(f.buf, "{}", e)

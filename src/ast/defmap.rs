@@ -5,39 +5,39 @@ use collections::{HashMap,TreeMap};
 // in case we ever want generic bounds
 use ParamType = ast::UnitType;
 
-/// DefMap maps a DefId to a Def, where a Def is anything that can be defined
+/// DefMap maps a NodeId to a Def, where a Def is anything that can be defined
 /// by an Ident.  This can be used by the Resolver to map the usages of Idents
 /// in types and expressions to the things they define.
 
 #[deriving(Show)]
 pub enum Def {
-    /// Module definition, with the DefIds of the child items
-    ModDef(Vec<DefId>),
+    /// Module definition, with the NodeIds of the child items
+    ModDef(Vec<NodeId>),
 
     /// Type definition (typedef or type paramter)
     TypeDef(TypeNode),
 
-    /// Function definition, with the DefIds of the args, the return type, and the DefIds of any type parameters
-    FuncDef(Vec<DefId>, TypeNode, Vec<DefId>),
+    /// Function definition, with the NodeIds of the args, the return type, and the NodeIds of any type parameters
+    FuncDef(Vec<NodeId>, TypeNode, Vec<NodeId>),
 
     /// Function argument definition (maybe this should be replaced with PatDef?)
     FuncArgDef(TypeNode),
 
-    /// Struct definition, with a map of fields names to their types and the DefIds of any type parameters
-    StructDef(HashMap<AstString, TypeNode>, Vec<DefId>),
+    /// Struct definition, with a map of fields names to their types and the NodeIds of any type parameters
+    StructDef(HashMap<AstString, TypeNode>, Vec<NodeId>),
 
-    /// Enum definition, with the DefIds of the variants and any type parameters
-    EnumDef(Vec<DefId>, Vec<DefId>),
+    /// Enum definition, with the NodeIds of the variants and any type parameters
+    EnumDef(Vec<NodeId>, Vec<NodeId>),
 
-    /// Enum variant definition, with the DefId of the owning enum and the types of the arguments
-    VariantDef(DefId, Vec<TypeNode>),
+    /// Enum variant definition, with the NodeId of the owning enum and the types of the arguments
+    VariantDef(NodeId, Vec<TypeNode>),
 
     /// Variable definition bound by a pattern (let statements, match arms)
     PatDef(Option<TypeNode>),
 }
 
 pub struct DefMap {
-    table: TreeMap<DefId, Def>,
+    table: TreeMap<NodeId, Def>,
 }
 
 impl DefMap {
@@ -47,7 +47,7 @@ impl DefMap {
         }
     }
 
-    pub fn find<'a>(&'a self, id: &DefId) -> Option<&'a Def> {
+    pub fn find<'a>(&'a self, id: &NodeId) -> Option<&'a Def> {
         self.table.find(id)
     }
 }
@@ -141,7 +141,7 @@ impl Visitor for DefMap {
 #[cfg(test)]
 mod tests {
     use super::DefMap;
-    use ast::DefId;
+    use ast::NodeId;
     use ast::visit::Visitor;
     use parser::new_from_string;
     use collections::TreeMap;
@@ -154,9 +154,9 @@ mod tests {
         let mut defmap = DefMap::new();
         defmap.visit_module(&tree);
 
-        assert_eq!(format!("{}", defmap.find(&DefId(0))),
-                   "Some(FuncDef([DefId(2)], (), [DefId(1)]))".to_owned());
-        assert_eq!(format!("{}", defmap.find(&DefId(4))),
+        assert_eq!(format!("{}", defmap.find(&NodeId(0))),
+                   "Some(FuncDef([NodeId(2)], (), [NodeId(1)]))".to_owned());
+        assert_eq!(format!("{}", defmap.find(&NodeId(4))),
                    "Some(PatDef(None))".to_owned());
     }
 }

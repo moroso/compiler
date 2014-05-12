@@ -1,23 +1,5 @@
 use std::fmt;
 
-#[deriving(Clone)]
-pub struct Spanned<T> {
-    pub sp: Span,
-    pub val: T,
-}
-
-impl<T: Eq> Eq for Spanned<T> {
-    fn eq(&self, other: &Spanned<T>) -> bool {
-        self.val.eq(&other.val)
-    }
-}
-
-impl<T: fmt::Show> fmt::Show for Spanned<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.val.fmt(f)
-    }
-}
-
 #[deriving(Clone, Eq, TotalEq, TotalOrd)]
 pub struct SourcePos {
     pub row: uint,

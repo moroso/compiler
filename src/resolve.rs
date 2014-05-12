@@ -12,7 +12,7 @@ pub enum NS {
 }
 
 struct Subscope {
-    namespaces: SmallIntMap<HashMap<~str, DefId>>,
+    namespaces: SmallIntMap<HashMap<~str, NodeId>>,
 }
 
 impl Subscope {
@@ -31,19 +31,19 @@ impl Subscope {
 
         let ns = self.namespaces.find_mut(&ns).take_unwrap();
 
-        ns.insert(ident.name.clone(), ident.id)
+        ns.insert(ident.val.name.clone(), ident.id)
     }
 
-    fn find(&self, ns: NS, ident: &Ident) -> Option<DefId> {
+    fn find(&self, ns: NS, ident: &Ident) -> Option<NodeId> {
         let ns = ns as uint;
         self.namespaces.find(&ns)
-            .and_then(|ns| ns.find(&ident.name))
+            .and_then(|ns| ns.find(&ident.val.name))
             .map(|id| *id)
     }
 }
 
 pub struct Resolver {
-    table: SmallIntMap<DefId>,
+    table: SmallIntMap<NodeId>,
     scope: Vec<Subscope>,
 }
 
@@ -94,7 +94,7 @@ impl Resolver {
                                .skip_while(|did| did.is_none())
                                .next() {
             Some(Some(did)) => self.table.insert(ident.id.to_uint(), did),
-            _ => fail!("Unresolved name {}", ident.name),
+            _ => fail!("Unresolved name {}", ident.val.name),
         };
     }
 
@@ -103,8 +103,8 @@ impl Resolver {
         subscope.insert(ns, ident);
     }
 
-    /// Get the DefId of the item that defines the given ident
-    pub fn def_from_ident(&self, ident: &Ident) -> DefId {
+    /// Get the NodeId of the item that defines the given ident
+    pub fn def_from_ident(&self, ident: &Ident) -> NodeId {
         *self.table.find(&ident.id.to_uint()).take_unwrap()
     }
 }
@@ -214,7 +214,7 @@ impl Visitor for Resolver {
 #[cfg(test)]
 mod tests {
     use super::Resolver;
-    use ast::DefId;
+    use ast::NodeId;
     use ast::visit::Visitor;
     use parser::new_from_string;
     use collections::TreeMap;

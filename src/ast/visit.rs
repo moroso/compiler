@@ -209,7 +209,7 @@ pub fn walk_lit<T: Visitor>(_: &T, lit: &Lit) {
 }
 
 pub fn walk_ident<T: Visitor>(visitor: &mut T, ident: &Ident) {
-    for tps in ident.tps.iter() {
+    for tps in ident.val.tps.iter() {
         for tp in tps.iter() { visitor.visit_type(tp); }
     }
 }

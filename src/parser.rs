@@ -17,7 +17,7 @@
  * nodes we build.
  */
 
-use span::{SourcePos, Span, Spanned, mk_sp};
+use span::{SourcePos, Span, mk_sp};
 use ast::IntKind;
 use lexer::*;
 use lexer::SourceToken;
@@ -26,6 +26,8 @@ use std::iter::Peekable;
 use std::num;
 use std::vec;
 use ast::*;
+use ast::WithId;
+use parser_context::ParserContext;
 
 /// The parser object, which stores all state we need during the process of
 /// parsing.
@@ -37,6 +39,7 @@ pub struct Parser<A, T> {
     /// Each identifier is given a unique number. This keeps track of the
     /// next number to assign to an identifier.
     next_id: uint,
+    context: ~ParserContext,
 }
 
 /// A convenience function to tokenize and parse a string.
@@ -48,8 +51,13 @@ pub fn new_from_string(s: &str) ->
     Parser::new(lexer)
 }
 
-macro_rules! span {
-    ( $n:expr, $s:expr ) => ( Spanned { val: $n, sp: $s } );
+macro_rules! with_id {
+    // TODO: use $s
+    ( $n:expr, $s:expr ) => ({
+        let id = self.new_id();
+        self.context.spanmap.insert(id, $s);
+        WithId { val: $n, id: id }
+    });
 }
 
 /**
@@ -92,10 +100,12 @@ static EOF: Token = Eof;
 
 impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     pub fn new(tokens: T) -> Parser<SourceToken, T> {
+        let context = box ParserContext::new();
         Parser::<SourceToken, T> {
             tokens: ~tokens.peekable(),
             last_span: mk_sp(SourcePos::new(), 0),
             next_id: 0,
+            context: context,
         }
     }
 
@@ -114,6 +124,11 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             Some(st) => &st.tok,
             None => &EOF,
         }
+    }
+
+    // Get the span of a certain node in the AST.
+    fn span_of(&self, id: &NodeId) -> Span {
+        self.context.spanmap.get(id).clone()
     }
 
     /// Consume the next token from the stream, returning it.
@@ -151,10 +166,10 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         self.error(format!("{} (got token {})", message, token), pos)
     }
 
-    fn new_id(&mut self) -> DefId {
+    fn new_id(&mut self) -> NodeId {
         let id = self.next_id;
         self.next_id += 1;
-        DefId(id)
+        NodeId(id)
     }
 
     /////////////////////////////////////////////////////////////////////
@@ -171,12 +186,13 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
     }
 
     fn parse_ident(&mut self) -> Ident {
-        Ident {
+        with_id!(
+            IdentNode {
             name: self.parse_name(),
-            id: self.new_id(),
-            sp: self.last_span,
             tps: None,
-        }
+        },
+            self.last_span
+            )
     }
 
     fn expect_number(&mut self) -> u64 {
@@ -198,7 +214,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             tok                  => self.error(format!("Unexpected {} where literal expected", tok), self.last_span.get_begin())
         };
 
-        span!(node, span)
+        with_id!(node, span)
     }
 
     fn parse_pat_common(&mut self, allow_types: bool) -> Pat {
@@ -246,7 +262,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             _ => self.peek_error("Unexpected token while parsing pattern")
         };
 
-        span!(pat, span_start.to(self.last_span))
+        with_id!(pat, span_start.to(self.last_span))
     }
 
     fn parse_pat(&mut self) -> Pat {
@@ -309,12 +325,12 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             }
             Star => {
                 self.expect(Star);
-                let op = span!(Deref, self.last_span);
+                let op = with_id!(Deref, self.last_span);
                 UnOpExpr(op, ~self.parse_factor())
             },
             Ampersand => {
                 self.expect(Ampersand);
-                let op = span!(AddrOf, self.last_span);
+                let op = with_id!(AddrOf, self.last_span);
                 UnOpExpr(op, ~self.parse_factor())
             }
             _ => self.peek_error("Got unexpected token"),
@@ -323,7 +339,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         // lol this is what you get for having block expressions
         let mut current_index;
         while {
-            current_index = span!(node, start_span.to(self.last_span));
+            current_index = with_id!(node, start_span.to(self.last_span));
             true
         } {
             node = match *self.peek() {
@@ -386,22 +402,22 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             Star => {
                 self.expect(Star);
                 let index = self.parse_index();
-                UnOpExpr(span!(Deref, start_span), ~index)
+                UnOpExpr(with_id!(Deref, start_span), ~index)
             }
             Ampersand => {
                 self.expect(Ampersand);
                 let index = self.parse_index();
-                UnOpExpr( span!(AddrOf, start_span), ~index)
+                UnOpExpr( with_id!(AddrOf, start_span), ~index)
             }
             Bang => {
                 self.expect(Bang);
                 let index = self.parse_expr();
-                UnOpExpr( span!(Negate, start_span), ~index)
+                UnOpExpr( with_id!(Negate, start_span), ~index)
             }
             _ => return self.parse_index()
         };
 
-        span!(node, start_span.to(self.last_span))
+        with_id!(node, start_span.to(self.last_span))
     }
 
 
@@ -439,9 +455,9 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                                 self.expect($token);
                                 let rhs = self.parse_binop(precedence+1);
                                 let op_span = self.last_span;
-                                let exp_span = current.sp.to(rhs.sp);
+                                let exp_span = self.span_of(&current.id).to(self.span_of(&rhs.id));
                                 current = 
-                                    span!(BinOpExpr(span!($ast_op, op_span),
+                                    with_id!(BinOpExpr(with_id!($ast_op, op_span),
                                                     ~current, ~rhs),
                                           exp_span);
                             },
@@ -499,7 +515,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             _ => return parsed_bool_arith
         };
 
-        span!(node, start_span.to(self.last_span))
+        with_id!(node, start_span.to(self.last_span))
     }
 
     pub fn parse_type(&mut self) -> Type {
@@ -535,7 +551,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
             }
             IdentTok(_) => {
                 let mut id = self.parse_ident();
-                id.tps = match *self.peek() {
+                id.val.tps = match *self.peek() {
                     Less => {
                         self.expect(Less);
                         let ps = parse_list!(self.parse_type()
@@ -560,7 +576,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
         let mut result;
         while {
-            result = span!(node, start_span.to(self.last_span));
+            result = with_id!(node, start_span.to(self.last_span));
             true
         } {
             node = match *self.peek() {
@@ -603,7 +619,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         };
 
         let span = start_span.to(self.last_span);
-        span!(LetStmt(pat, expr), span)
+        with_id!(LetStmt(pat, expr), span)
     }
 
     pub fn parse_if_statement(&mut self) -> Expr {
@@ -634,13 +650,13 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 Block {
                     items: vec!(),
                     stmts: vec!(),
-                    expr: Some(span!(UnitExpr, fake_span)),
+                    expr: Some(with_id!(UnitExpr, fake_span)),
                     sp: fake_span,
                 }
             }
         };
 
-        span!(IfExpr(~cond, ~true_block, ~false_block),
+        with_id!(IfExpr(~cond, ~true_block, ~false_block),
               start_span.to(self.last_span))
     }
 
@@ -649,7 +665,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         self.expect(Return);
         let result = ReturnExpr(~self.parse_expr());
         let span = start_span.to(self.peek_span());
-        span!(result, span)
+        with_id!(result, span)
     }
 
     pub fn parse_while_loop(&mut self) -> Expr {
@@ -658,7 +674,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         let cond = self.parse_expr();
         let body = self.parse_block_expr();
         let span = start_span.to(self.last_span);
-        span!(WhileExpr(~cond, ~body), span)
+        with_id!(WhileExpr(~cond, ~body), span)
     }
 
     pub fn parse_for_loop(&mut self) -> Expr {
@@ -673,7 +689,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         self.expect(RParen);
         let body = self.parse_block_expr();
         let span = start_span.to(self.last_span);
-        span!(ForExpr(~init, ~cond, ~iter, ~body), span)
+        with_id!(ForExpr(~init, ~cond, ~iter, ~body), span)
     }
 
     pub fn parse_match_item(&mut self) -> MatchArm {
@@ -697,7 +713,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         let match_items = parse_list!(self.parse_match_item() until RBrace);
         self.expect(RBrace);
         let span = start_span.to(self.last_span);
-        span!(MatchExpr(~matched_expr, match_items), span)
+        with_id!(MatchExpr(~matched_expr, match_items), span)
     }
 
     pub fn parse_simple_expr(&mut self) -> Expr {
@@ -743,8 +759,8 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                     let simple_expr = self.parse_simple_expr();
                     match *self.peek() {
                         Semicolon => {
-                            let span = simple_expr.sp.clone();
-                            let simple_expr_span = span!(
+                            let span = self.span_of(&simple_expr.id);
+                            let simple_expr_span = with_id!(
                                 SemiStmt(simple_expr),
                                 span);
                             statements.push(simple_expr_span);
@@ -760,8 +776,8 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                             }
                         }
                         _ => {
-                            let span = simple_expr.sp.clone();
-                            let simple_expr_span = span!(
+                            let span = self.span_of(&simple_expr.id);
+                            let simple_expr_span = with_id!(
                                 ExprStmt(simple_expr),
                                 span);
                             statements.push(simple_expr_span);
@@ -776,7 +792,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         match *self.peek() {
             LBrace => {
                 let start_span = self.peek_span();
-                span!(BlockExpr(~self.parse_block_expr()),
+                with_id!(BlockExpr(~self.parse_block_expr()),
                       start_span.to(self.last_span))
             }
             _ => self.parse_simple_expr()
@@ -810,11 +826,11 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         self.expect(RParen);
         let return_type = match *self.peek() {
             Arrow => { self.expect(Arrow); self.parse_type() }
-            _ => span!(UnitType,
+            _ => with_id!(UnitType,
                        mk_sp(self.last_span.get_end(), 0)),
         };
         let body = self.parse_block_expr();
-        span!(FuncItem(funcname, args, return_type, body, type_params),
+        with_id!(FuncItem(funcname, args, return_type, body, type_params),
                     begin.to(self.last_span))
     }
 
@@ -860,7 +876,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         let body = parse_list!(self.parse_struct_field() until RBrace);
         self.expect(RBrace);
         let span = start_span.to(self.last_span);
-        span!(StructItem(structname, body, type_params), span)
+        with_id!(StructItem(structname, body, type_params), span)
     }
 
     pub fn parse_variant(&mut self) -> Variant {
@@ -894,7 +910,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
         let body = parse_list!(self.parse_variant() until RBrace);
         self.expect(RBrace);
         let span = start_span.to(self.last_span);
-        span!(EnumItem(enumname, body, type_params), span)
+        with_id!(EnumItem(enumname, body, type_params), span)
     }
 
     pub fn parse_module(&mut self) -> Module {

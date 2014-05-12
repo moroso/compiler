@@ -1,4 +1,4 @@
-#![feature(globs,phase,macro_rules)]
+#![feature(globs,phase,macro_rules,default_type_params)]
 #![allow(dead_code,unused_imports)]
 
 #[phase(syntax)]
@@ -21,6 +21,7 @@ mod parser;
 mod span;
 mod ast;
 mod resolve;
+mod parser_context;
 
 struct CCrossCompiler {
     structnames: HashSet<~str>,
@@ -33,7 +34,7 @@ fn find_structs(module: &Module) -> HashSet<~str> {
     let mut ht = HashSet::<~str>::new();
     for item in module.items.iter() {
         match item.val {
-            StructItem(ref id, _, _) => { ht.insert(id.name.clone()); },
+            StructItem(ref id, _, _) => { ht.insert(id.val.name.clone()); },
             _ => {}
         }
     }
@@ -51,7 +52,7 @@ fn find_enum_item_names(module: &Module) -> HashMap<~str,
             EnumItem(ref name, ref items, _) => {
                 let mut pos = 0;
                 for item in items.iter() {
-                    ht.insert(item.ident.name.clone(),
+                    ht.insert(item.ident.val.name.clone(),
                               (name.clone(), items.clone(), pos));
                     pos += 1;
                 }
@@ -167,7 +168,7 @@ impl CCrossCompiler {
         match item.val {
             FuncItem(ref name, ref args, ref t, ref block, _) => {
                 // Hack for builtin functions.
-                if name.name == "print_int".to_owned() { "".to_owned() } else {
+                if name.val.name == "print_int".to_owned() { "".to_owned() } else {
                     self.visit_type(t) +
                         " " +
                         self.visit_ident(name) +
@@ -197,7 +198,7 @@ impl CCrossCompiler {
                             " " + format!("field{};\n", num);
                         num += 1;
                     }
-                    res = res + format!("        \\} {};\n", variant.ident.name);
+                    res = res + format!("        \\} {};\n", variant.ident.val.name);
                 }
                 res + format!("\n    \\} val;\n\\} {};", name)
             }
@@ -205,7 +206,7 @@ impl CCrossCompiler {
     }
 
     fn visit_func_arg(&mut self, arg: &FuncArg) -> ~str {
-        self.visit_name_and_type(arg.ident.name, &arg.argtype)
+        self.visit_name_and_type(arg.ident.val.name, &arg.argtype)
     }
 
     fn visit_type(&mut self, t: &Type) -> ~str {
@@ -228,7 +229,7 @@ impl CCrossCompiler {
                     // Treat all type parameters as void.
                     "void".to_owned()
                 } else {
-                    if self.structnames.contains(&id.name) {
+                    if self.structnames.contains(&id.val.name) {
                         "struct "
                     } else {
                         ""
@@ -259,11 +260,11 @@ impl CCrossCompiler {
     }
 
     fn visit_ident(&mut self, ident: &Ident) -> ~str {
-        match self.enumitemnames.find_equiv(&ident.name) {
+        match self.enumitemnames.find_equiv(&ident.val.name) {
             Some(&(_, _, ref pos)) => {
                 format!("\\{ .tag = {} \\}", pos)
             }
-            None => format!("{}", ident.name),
+            None => format!("{}", ident.val.name),
         }
     }
 
@@ -326,14 +327,14 @@ impl CCrossCompiler {
                         // TODO: Why on earth is this needed? (The borrow
                         // checker complains otherwise; why?)
                         let cloned_tab = self.enumitemnames.clone();
-                        match cloned_tab.find_equiv(&i.name) {
+                        match cloned_tab.find_equiv(&i.val.name) {
                             Some(&(_, ref variants, ref pos)) => {
                                 let mut res = format!("\\{ .tag = {}, ", pos).to_owned();
                                 let this_variant = variants.get(*pos as uint).clone();
                                 let mut i = 0;
                                 for item in this_variant.args.iter() {
                                     res = res + format!(".val.{}.field{} = {}, ",
-                                                        this_variant.ident.name,
+                                                        this_variant.ident.val.name,
                                                         i,
                                                         self.visit_expr(
                                                             args.get(i)
@@ -344,7 +345,7 @@ impl CCrossCompiler {
                                 res + "}"
                             },
                             None => {
-                                let res = format!("{}", i.name);
+                                let res = format!("{}", i.val.name);
                                 res +
                                     "(" +
                                     self.visit_list(args, |s, x| s.visit_expr(x), ", ") +
@@ -411,7 +412,7 @@ impl CCrossCompiler {
                     let cloned_tab = self.enumitemnames.clone();
 
                     let (name, vars) = match arm.pat.val {
-                        VariantPat(ref id, ref args) => (&id.name, args),
+                        VariantPat(ref id, ref args) => (&id.val.name, args),
                         _ => fail!("Only VariantPats are supported in match arms for now")
                     };
                     let &(_, ref variants, idx) = cloned_tab.find_equiv( name).unwrap();
@@ -420,7 +421,7 @@ impl CCrossCompiler {
 
                     for (i, var) in this_variant.args.iter().enumerate() {
                         let varname = match vars.get(i as uint).val {
-                            IdentPat(ref id, _) => &id.name,
+                            IdentPat(ref id, _) => &id.val.name,
                             _ => fail!("Only IdentPats are supported in the arguments of a VariantPat in a match arm for now"),
                         };
                         res = res + format!("{} {} = {}.val.{}.field{};",

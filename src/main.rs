@@ -1,4 +1,4 @@
-#![feature(globs,phase,macro_rules)]
+#![feature(globs,phase,macro_rules,default_type_params)]
 #![allow(dead_code,unused_imports)]
 
 #[phase(syntax)]
@@ -16,6 +16,7 @@ mod parser;
 mod span;
 mod ast;
 mod resolve;
+mod parser_context;
 //mod typecheck;
 
 fn main() {
