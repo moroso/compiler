@@ -5,15 +5,34 @@ use collections::{HashMap,TreeMap};
 // in case we ever want generic bounds
 use ParamType = ast::UnitType;
 
+/// DefMap maps a DefId to a Def, where a Def is anything that can be defined
+/// by an Ident.  This can be used by the Resolver to map the usages of Idents
+/// in types and expressions to the things they define.
+
 #[deriving(Show)]
 pub enum Def {
+    /// Module definition, with the DefIds of the child items
     ModDef(Vec<DefId>),
+
+    /// Type definition (typedef or type paramter)
     TypeDef(TypeNode),
+
+    /// Function definition, with the DefIds of the args, the return type, and the DefIds of any type parameters
     FuncDef(Vec<DefId>, TypeNode, Vec<DefId>),
+
+    /// Function argument definition (maybe this should be replaced with PatDef?)
     FuncArgDef(TypeNode),
+
+    /// Struct definition, with a map of fields names to their types and the DefIds of any type parameters
     StructDef(HashMap<AstString, TypeNode>, Vec<DefId>),
+
+    /// Enum definition, with the DefIds of the variants and any type parameters
     EnumDef(Vec<DefId>, Vec<DefId>),
+
+    /// Enum variant definition, with the DefId of the owning enum and the types of the arguments
     VariantDef(DefId, Vec<TypeNode>),
+
+    /// Variable definition bound by a pattern (let statements, match arms)
     PatDef(Option<TypeNode>),
 }
 
