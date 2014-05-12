@@ -105,6 +105,7 @@ impl Show for FieldPat {
 
 #[deriving(Eq, Clone)]
 pub enum PatNode {
+    DiscardPat(Option<Type>),
     IdentPat(Ident, Option<Type>),
     TuplePat(Vec<Pat>),
     VariantPat(Ident, Vec<Pat>),
@@ -114,6 +115,8 @@ pub enum PatNode {
 impl Show for PatNode {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
+            DiscardPat(ref t)             => write!(f.buf, "_{}",
+                                                    t.as_ref().map(|t| format!(": {}", t)).unwrap_or(~"")),
             IdentPat(ref id, ref t)       => write!(f.buf, "{}{}", id,
                                                     t.as_ref().map(|t| format!(": {}", t)).unwrap_or(~"")),
             TuplePat(ref args)            => write!(f.buf, "({})", args),

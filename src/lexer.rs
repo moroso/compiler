@@ -67,6 +67,7 @@ pub enum Token {
     Comma,
     QuestionMark,
     Period,
+    Underscore,
 
     // Literals
     IdentTok(~str),
@@ -281,6 +282,7 @@ impl<T: Iterator<~str>> Lexer<T> {
             Comma        => ",",
             QuestionMark => "?",
             Period       => ".",
+            Underscore   => "_",
 
             // Literals
             IdentTok     => matcher!(r"[a-zA-Z_]\w*"),

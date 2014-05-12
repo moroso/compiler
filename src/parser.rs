@@ -203,15 +203,22 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
 
     fn parse_pat_common(&mut self, allow_types: bool) -> Pat {
         let span_start = self.peek_span();
+
+        fn maybe_type<T: Iterator<SourceToken>>(me: &mut Parser<SourceToken, T>, allow_types: bool) -> Option<Type> {
+            match *me.peek() {
+                Colon if allow_types => {
+                    me.expect(Colon);
+                    let t = me.parse_type();
+                    Some(t)
+                }
+                _ => None
+            }
+        }
+
         let pat = match *self.peek() {
             IdentTok(..) => {
                 let ident = self.parse_ident();
                 match *self.peek() {
-                    Colon if allow_types => {
-                        self.expect(Colon);
-                        let t = self.parse_type();
-                        IdentPat(ident, Some(t))
-                    }
                     LParen => {
                         self.expect(LParen);
                         let args = parse_list!(self.parse_pat_common(allow_types)
@@ -224,7 +231,7 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                                                      until RBrace);
                         StructPat(ident, field_pats)
                     }
-                    _ => IdentPat(ident, None)
+                    _ => IdentPat(ident, maybe_type(self, allow_types))
                 }
             }
             LParen => {
@@ -232,6 +239,9 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                 let args = parse_list!(self.parse_pat_common(allow_types)
                                        until RParen);
                 TuplePat(args)
+            }
+            Underscore => {
+                DiscardPat(maybe_type(self, allow_types))
             }
             _ => self.peek_error("Unexpected token while parsing pattern")
         };

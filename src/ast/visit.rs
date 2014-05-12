@@ -62,6 +62,9 @@ pub fn walk_type<T: Visitor>(visitor: &mut T, t: &Type) {
 
 pub fn walk_pat<T: Visitor>(visitor: &mut T, pat: &Pat) {
     match pat.val {
+        DiscardPat(ref t) => {
+            for t in t.iter() { visitor.visit_type(t); }
+        }
         IdentPat(ref id, ref t) => {
             visitor.visit_ident(id);
             for t in t.iter() { visitor.visit_type(t); }
