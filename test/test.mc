@@ -1,4 +1,8 @@
-fn print_int(x: u32) -> u32 {}
+/* a */ fn foo() {} /* b */
+
+/* By golly, look at me.
+ * I'm a multi-line comment!
+ * Splendid. */  fn print_int(x: u32) -> u32 {}
 
 fn print_f_of_int(x: u32, f: fn(u32) -> u32) {
     print_int(f(x));

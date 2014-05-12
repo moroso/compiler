@@ -76,6 +76,8 @@ pub enum Token {
 
     // Special
     Eof,
+    BeginComment,
+    EndComment,
 }
 
 /// A token together with a Span, to keep track of where in the source file
@@ -123,7 +125,12 @@ impl<A, T: RuleMatcher<A>, U: TokenMaker<A>> LexerRuleT for LexerRule<T, U> {
 pub struct Lexer<T> {
     iter: iter::Enumerate<T>,
     linectx: Option<LineContext>,
+    // Ordinary rules.
     rules: Vec<~LexerRuleT>,
+    // Rules specifically for when we're within a comment. We need this
+    // for handling multi-line comments.
+    comment_rules: Vec<~LexerRuleT>,
+    in_comment: bool,
 }
 
 impl<T: Iterator<~str>> Lexer<T> {
@@ -226,7 +233,9 @@ impl<T: Iterator<~str>> Lexer<T> {
         let rules = lexer_rules! {
             // Whitespace
             // Note: This includes comments.
-            WS         => matcher!(r"\s|//.*|(?s)/\*.*\*/"),
+            WS         => matcher!(r"\s|//.*|(?s)/\*([^*]|\*[^/])*\*/"),
+            // A multi-line comment that's begun, but not ended.
+            BeginComment => matcher!(r"/\*([^*]|\*[^/])*$"),
 
             // Reserved words
             Let          => "let",
@@ -290,10 +299,17 @@ impl<T: Iterator<~str>> Lexer<T> {
             StringTok    => StringRule
         };
 
+        let comment_rules = lexer_rules! {
+            EndComment => matcher!(r"([^*]|\*[^/])*\*/"),
+            WS => matcher!(r"([^*]|\*[^/])*")
+        };
+
         Lexer {
             iter: line_iter.enumerate(),
             linectx: None,
-            rules: rules
+            rules: rules,
+            comment_rules: comment_rules,
+            in_comment: false,
         }
     }
 }
@@ -304,13 +320,23 @@ impl<T: Iterator<~str>> Iterator<SourceToken> for Lexer<T> {
         loop {
             for lc in self.linectx.mut_iter() {
                 while lc.pos.col < lc.line.len() {
+                    // We apply each rule. Of the ones that match, we take
+                    // the longest match.
                     let mut longest = 0u;
                     let mut best = None;
-                    for rule in self.rules.iter() {
+                    let mut rules = if self.in_comment {
+                        &self.comment_rules
+                    } else {
+                        &self.rules
+                    };
+
+                    for rule in rules.iter() {
                         let m = rule.run(lc.line.slice_from(lc.pos.col));
                         match m {
                             Some((len, tok)) => {
                                 if len > longest {
+                                    // We have a match that's longer than our
+                                    // previous one. Remember it.
                                     best = Some((mk_sp(lc.pos, len), tok));
                                     longest = len;
                                 }
@@ -319,11 +345,14 @@ impl<T: Iterator<~str>> Iterator<SourceToken> for Lexer<T> {
                         }
                     }
 
+                    // Advance our position within the line.
                     lc.pos.col += longest;
 
                     match best {
                         None => fail!("Unexpected input"),
-                        Some((_, WS)) => {}
+                        Some((_, WS)) => {} // Skip whitespace.
+                        Some((_, BeginComment)) => { self.in_comment = true; }
+                        Some((_, EndComment)) => { self.in_comment = false; }
                         Some((sp, tok)) => {
                             return Some(SourceToken {
                                 tok: tok,
@@ -334,6 +363,7 @@ impl<T: Iterator<~str>> Iterator<SourceToken> for Lexer<T> {
                 }
             }
 
+            // Fetch a new line, now that we're done with the previous one.
             match self.iter.next() {
                 None => return None,
                 Some((row, line)) => {
