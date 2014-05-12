@@ -55,6 +55,7 @@ impl Resolver {
         }
     }
 
+    /// Descends into a new scope, optionally seeding it with a set of items
     fn descend(&mut self, items: Option<&Vec<Item>>, visit: |&mut Resolver|) {
         let mut subscope = Subscope::new();
 
@@ -86,6 +87,7 @@ impl Resolver {
         self.scope.pop();
     }
 
+    /// Search the current scope stack local-to-global for a matching ident in the requested namespace
     fn resolve(&mut self, ns: NS, ident: &Ident) {
         match self.scope.iter().rev()
                                .map(|subscope| { subscope.find(ns, ident) })
@@ -101,6 +103,7 @@ impl Resolver {
         subscope.insert(ns, ident);
     }
 
+    /// Get the DefId of the item that defines the given ident
     pub fn def_from_ident(&self, ident: &Ident) -> DefId {
         *self.table.find(&ident.id.to_uint()).take_unwrap()
     }
@@ -157,6 +160,7 @@ impl Visitor for Resolver {
     }
 
     fn visit_block(&mut self, block: &Block) {
+        // Seed the new scope with this block's items
         self.descend(Some(&block.items), |me| walk_block(me, block));
     }
 
@@ -202,6 +206,7 @@ impl Visitor for Resolver {
     }
 
     fn visit_module(&mut self, module: &Module) {
+        // Seed the new scope with this module's items
         self.descend(Some(&module.items), |me| walk_module(me, module));
     }
 }
