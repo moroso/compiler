@@ -238,6 +238,10 @@ impl<T: Iterator<SourceToken>> Parser<SourceToken, T> {
                         self.expect(RParen);
                         VariantPat(ident, args)
                     }
+                    DoubleArrow => {
+                        // Empty variant.
+                        VariantPat(ident, vec!())
+                    }
                     LBrace => {
                         self.expect(LBrace);
                         let field_pats = parse_list!(self.parse_field_pat()
