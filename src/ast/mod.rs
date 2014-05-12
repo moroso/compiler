@@ -1,5 +1,4 @@
 use lexer::{Token, SourceToken};
-use span::Span;
 use std::fmt::{Formatter, Result, Show};
 
 pub mod visit;
@@ -110,7 +109,6 @@ impl Show for IdentNode {
 pub struct FieldPat {
     pub name: AstString,
     pub pat:  Pat,
-    pub sp:   Span,
 }
 
 impl Show for FieldPat {
@@ -255,7 +253,6 @@ impl Show for LitNode {
 pub struct MatchArm {
     pub pat: Pat,
     pub body: Expr,
-    pub sp: Span,
 }
 
 impl Show for MatchArm {
@@ -347,7 +344,6 @@ pub struct Block {
     pub items: Vec<Item>,
     pub stmts: Vec<Stmt>,
     pub expr:  Option<Expr>,
-    pub sp:    Span,
 }
 
 impl Show for Block {
@@ -379,7 +375,6 @@ impl Show for Block {
 pub struct FuncArg {
     pub ident:   Ident,
     pub argtype: Type,
-    pub sp:      Span,
 }
 
 impl Show for FuncArg {
@@ -392,7 +387,6 @@ impl Show for FuncArg {
 pub struct Variant {
     pub ident: Ident,
     pub args: Vec<Type>,
-    pub sp:   Span,
 }
 
 impl Show for Variant {
@@ -409,7 +403,6 @@ impl Show for Variant {
 pub struct Field {
     pub name:    AstString,
     pub fldtype: Type,
-    pub sp:      Span,
 }
 
 impl Show for Field {
