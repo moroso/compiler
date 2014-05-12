@@ -1,4 +1,4 @@
-#![feature(globs,phase,macro_rules,default_type_params)]
+#![feature(globs,phase,macro_rules)]
 #![allow(dead_code,unused_imports)]
 
 #[phase(syntax)]
@@ -15,6 +15,7 @@ use parser::Parser;
 use ast::visit::{Visitor, walk_module};
 use collections::hashmap::{HashSet, HashMap};
 use resolve::Resolver;
+use parser_context::ParserContext;
 
 mod lexer;
 mod parser;
@@ -26,8 +27,7 @@ mod parser_context;
 struct CCrossCompiler {
     structnames: HashSet<~str>,
     enumitemnames: HashMap<~str, (Ident, Vec<Variant>, int)>,
-    resolver: Resolver,
-    defmap: DefMap,
+    context: ~ParserContext,
 }
 
 fn find_structs(module: &Module) -> HashSet<~str> {
@@ -218,8 +218,8 @@ impl CCrossCompiler {
             NamedType(ref id) => {
                 let is_param = {
                     // Is this type a type parameter?
-                    let did = self.resolver.def_from_ident(id);
-                    let d = self.defmap.find(&did).take_unwrap();
+                    let did = self.context.resolver.def_from_ident(id);
+                    let d = self.context.defmap.find(&did).take_unwrap();
                     match *d {
                         TypeDef(ref t) if *t == ast::UnitType => true,
                         _ => false,
@@ -463,18 +463,13 @@ int print_int(int x) { printf("%d\n", x); return x; }
     stderr.write_str(format!("{}", ast));
     stderr.write_str(format!("{}\n", find_enum_item_names(&ast)));
 
-    let mut defmap = DefMap::new();
-    defmap.visit_module(&ast);
-
-    let mut resolver = Resolver::new();
-    resolver.visit_module(&ast);
-
+    parser.context.defmap.visit_module(&ast);
+    parser.context.resolver.visit_module(&ast);
 
     let mut cc: CCrossCompiler = CCrossCompiler {
         structnames: find_structs(&ast),
         enumitemnames: find_enum_item_names(&ast),
-        resolver: resolver,
-        defmap: defmap,
+        context: parser.context,
     };
 
     print!("{}\n", cc.visit_module(&ast));

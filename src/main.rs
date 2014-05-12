@@ -1,4 +1,4 @@
-#![feature(globs,phase,macro_rules,default_type_params)]
+#![feature(globs,phase,macro_rules)]
 #![allow(dead_code,unused_imports)]
 
 #[phase(syntax)]

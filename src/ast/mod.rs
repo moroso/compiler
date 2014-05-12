@@ -1,8 +1,6 @@
 use lexer::{Token, SourceToken};
 use span::Span;
 use std::fmt::{Formatter, Result, Show};
-use std::hash::Hash;
-use std::hash::sip::SipState;
 
 pub mod visit;
 pub mod defmap;
@@ -48,12 +46,6 @@ impl NodeId {
     pub fn to_uint(&self) -> uint {
         let NodeId(did) = *self;
         did
-    }
-}
-
-impl Hash<SipState> for NodeId {
-    fn hash(&self, state: &mut SipState) {
-        self.to_uint().hash(state);
     }
 }
 

@@ -4,18 +4,24 @@
  * maps.
  */
 
-use collections::hashmap::HashMap;
+use collections::TreeMap;
 use span::Span;
 use ast::NodeId;
+use ast::defmap::DefMap;
+use resolve::Resolver;
 
 pub struct ParserContext {
-    pub spanmap: HashMap<NodeId, Span>,
+    pub spanmap: TreeMap<NodeId, Span>,
+    pub defmap: DefMap,
+    pub resolver: Resolver,
 }
 
 impl ParserContext {
     pub fn new() -> ParserContext {
         ParserContext {
-            spanmap: HashMap::new()
+            spanmap: TreeMap::new(),
+            defmap: DefMap::new(),
+            resolver: Resolver::new(),
         }
     }
 }
