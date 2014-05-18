@@ -7,6 +7,7 @@ use std::fmt;
 use ast::*;
 use ast::defmap::*;
 use ast::visit::*;
+use values::*;
 
 #[deriving(Eq, Show, Clone)]
 struct BoundsId(uint);

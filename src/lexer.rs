@@ -5,6 +5,7 @@
  */
 
 use ast;
+use values;
 use span::{Span, SourcePos, mk_sp};
 use regex::Regex;
 use std::io;
@@ -26,7 +27,7 @@ pub enum Token {
     Return,
     True,
     False,
-    IntTypeTok(ast::IntKind),
+    IntTypeTok(values::IntKind),
     Bool,
     While,
     For,
@@ -73,7 +74,7 @@ pub enum Token {
 
     // Literals
     IdentTok(~str),
-    NumberTok(u64, ast::IntKind),
+    NumberTok(u64, values::IntKind),
     StringTok(~str),
 
     // Special
@@ -155,23 +156,23 @@ impl<T: Buffer> Lexer<T> {
 
         // Rule to match U32, U16, U8, I32, I16, I8
         struct IntTypeRule;
-        impl RuleMatcher<ast::IntKind> for IntTypeRule {
-            fn find(&self, s: &str) -> Option<(uint, ast::IntKind)> {
+        impl RuleMatcher<values::IntKind> for IntTypeRule {
+            fn find(&self, s: &str) -> Option<(uint, values::IntKind)> {
                 use std::num::from_str_radix;
 
                 let matcher = matcher!(r"[uUiI](32|16|8)");
                 match matcher.captures(s) {
                     Some(groups) => {
                         let ctor = match s.char_at(0) {
-                            'u' | 'U' => ast::UnsignedInt,
-                            'i' | 'I' => ast::SignedInt,
+                            'u' | 'U' => values::UnsignedInt,
+                            'i' | 'I' => values::SignedInt,
                             _ => fail!(),
                         };
 
                         let w = match from_str_radix(groups.at(1), 10) {
-                            Some(32) => ast::Width32,
-                            Some(16) => ast::Width16,
-                            Some(8)  => ast::Width8,
+                            Some(32) => values::Width32,
+                            Some(16) => values::Width16,
+                            Some(8)  => values::Width8,
                             _ => fail!(),
                         };
 
@@ -184,8 +185,8 @@ impl<T: Buffer> Lexer<T> {
 
         // Rule to match a numeric literal and parse it into a number
         struct NumberRule;
-        impl RuleMatcher<(u64, ast::IntKind)> for NumberRule {
-            fn find(&self, s: &str) -> Option<(uint, (u64, ast::IntKind))> {
+        impl RuleMatcher<(u64, values::IntKind)> for NumberRule {
+            fn find(&self, s: &str) -> Option<(uint, (u64, values::IntKind))> {
                 use std::num::from_str_radix;
 
                 let matcher = matcher!(r"((?:0[xX]([:xdigit:]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?");
@@ -199,22 +200,22 @@ impl<T: Buffer> Lexer<T> {
                         let s = groups.at(3);
                         let kind = if s.len() > 0 {
                             let ctor = match s.char_at(0) {
-                                'u' | 'U' => ast::UnsignedInt,
-                                'i' | 'I' => ast::SignedInt,
+                                'u' | 'U' => values::UnsignedInt,
+                                'i' | 'I' => values::SignedInt,
                                 _ => fail!(),
                             };
 
                             let w = match from_str_radix(groups.at(4), 10) {
-                                None     => ast::AnyWidth,
-                                Some(32) => ast::Width32,
-                                Some(16) => ast::Width16,
-                                Some(8)  => ast::Width8,
+                                None     => values::AnyWidth,
+                                Some(32) => values::Width32,
+                                Some(16) => values::Width16,
+                                Some(8)  => values::Width8,
                                 _ => fail!(),
                             };
 
                             ctor(w)
                         } else {
-                            ast::GenericInt
+                            values::GenericInt
                         };
 
                         Some((groups.at(0).len(), (from_str_radix(num_str, radix).take_unwrap(), kind)))
@@ -533,6 +534,7 @@ mod tests {
     use std::iter::Repeat;
     use std::vec::Vec;
     use ast;
+    use values;
 
     fn compare(actual: &[SourceToken], expected: &[Token]) {
         for (actual_st, expected_tok)
@@ -554,10 +556,10 @@ mod tests {
                     LParen,
                     IdentTok("x".to_owned()),
                     Dash,
-                    NumberTok(0x3f5B, ast::GenericInt),
+                    NumberTok(0x3f5B, values::GenericInt),
                     RParen,
                     Plus,
-                    NumberTok(1, ast::GenericInt),
+                    NumberTok(1, values::GenericInt),
                     StringTok(r#"Hello\" World"#.to_owned()),
                 }.as_slice());
 
@@ -570,7 +572,7 @@ mod tests {
                     Colon,
                     IdentTok("int".to_owned()),
                     Eq,
-                    NumberTok(5, ast::GenericInt),
+                    NumberTok(5, values::GenericInt),
                 }.as_slice());
     }
 }

@@ -1,5 +1,6 @@
 use ast::visit::*;
 use ast::*;
+use values::*;
 use collections::{HashMap,TreeMap};
 
 /// DefMap maps a NodeId to a Def, where a Def is anything that can be defined
@@ -24,7 +25,7 @@ pub enum Def {
     FuncArgDef(Type),
 
     /// Struct definition, with a map of fields names to their types and the NodeIds of any type parameters
-    StructDef(HashMap<AstString, Type>, Vec<NodeId>),
+    StructDef(HashMap<StringValue, Type>, Vec<NodeId>),
 
     /// Enum definition, with the NodeIds of the variants and any type parameters
     EnumDef(Vec<NodeId>, Vec<NodeId>),

@@ -1,8 +1,10 @@
 use lexer::{Token, SourceToken};
 use std::fmt::{Formatter, Result, Show};
+use values::*;
 
 pub mod visit;
 pub mod defmap;
+//pub mod values;
 
 #[deriving(Clone)]
 pub struct WithId<T> {
@@ -49,48 +51,9 @@ impl NodeId {
 }
 
 #[deriving(Eq, Clone)]
-pub enum IntKind {
-    GenericInt,
-    SignedInt(Width),
-    UnsignedInt(Width),
-}
-
-impl Show for IntKind {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        match *self {
-            GenericInt     => write!(f, ""),
-            SignedInt(w)   => write!(f, "i{}", w),
-            UnsignedInt(w) => write!(f, "u{}", w),
-        }
-    }
-}
-
-#[deriving(Eq, Clone)]
-pub enum Width {
-    AnyWidth,
-    Width32,
-    Width16,
-    Width8,
-}
-
-impl Show for Width {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "{}", match *self {
-            AnyWidth => "",
-            Width32 => "32",
-            Width16 => "16",
-            Width8  => "8",
-        })
-    }
-}
-
-// Change this when we decide to intern strings
-pub type AstString = ~str;
-
-#[deriving(Eq, Clone)]
 pub struct IdentNode {
     pub tps: Option<Vec<Type>>,
-    pub name: AstString,
+    pub name: StringValue,
 }
 
 impl Show for IdentNode {
@@ -107,7 +70,7 @@ impl Show for IdentNode {
 
 #[deriving(Eq, Clone)]
 pub struct FieldPat {
-    pub name: AstString,
+    pub name: StringValue,
     pub pat:  Pat,
 }
 
@@ -233,23 +196,6 @@ impl Show for UnOpNode {
 }
 
 #[deriving(Eq, Clone)]
-pub enum LitNode {
-    NumLit(u64, IntKind),
-    StringLit(AstString),
-    BoolLit(bool),
-}
-
-impl Show for LitNode {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        match *self {
-            NumLit(i, nt)     => write!(f, "{}{}", i, nt),
-            StringLit(ref s)  => write!(f, "\"{}\"", s),
-            BoolLit(b)        => write!(f, "BoolLit:{}", b),
-        }
-    }
-}
-
-#[deriving(Eq, Clone)]
 pub struct MatchArm {
     pub pat: Pat,
     pub body: Expr,
@@ -270,8 +216,8 @@ pub enum ExprNode {
     BinOpExpr(BinOp, Box<Expr>, Box<Expr>),
     UnOpExpr(UnOp, Box<Expr>),
     IndexExpr(Box<Expr>, Box<Expr>),
-    DotExpr(Box<Expr>, AstString),
-    ArrowExpr(Box<Expr>, AstString),
+    DotExpr(Box<Expr>, StringValue),
+    ArrowExpr(Box<Expr>, StringValue),
     AssignExpr(Box<Expr>, Box<Expr>),
     CallExpr(Box<Expr>, Vec<Expr>),
     CastExpr(Box<Expr>, Type),
@@ -401,7 +347,7 @@ impl Show for Variant {
 
 #[deriving(Eq, Clone)]
 pub struct Field {
-    pub name:    AstString,
+    pub name:    StringValue,
     pub fldtype: Type,
 }
 

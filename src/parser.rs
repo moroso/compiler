@@ -27,6 +27,7 @@ use std::fmt::{Formatter, Result, Show};
 use std::iter::Peekable;
 
 use ast::*;
+use values::*;
 use lexer::*;
 
 /// Context associated with a full parsing session
@@ -37,7 +38,7 @@ pub struct Parser {
     /// Tracks the corresponding source position of each AST node.
     spanmap: TreeMap<NodeId, Span>,
     /// Tracks the corresponding file name of each AST node.
-    filemap: TreeMap<NodeId, AstString>,
+    filemap: TreeMap<NodeId, StringValue>,
 }
 
 /// The state for parsing a stream of tokens into an AST node
@@ -45,7 +46,7 @@ pub struct StreamParser<'a, T> {
     /// The token stream.
     tokens: Peekable<SourceToken, Lexer< T>>,
     /// The filename of the current stream being parsed.
-    filename: AstString,
+    filename: StringValue,
     /// The span corresponding to the last token we consumed from the stream.
     last_span: Span,
     /// The parser that is parsing this stream
@@ -73,7 +74,7 @@ impl Parser {
     }
 
     /// Get the filename of a certain node in the AST.
-    pub fn filename_of(&self, id: &NodeId) -> AstString {
+    pub fn filename_of(&self, id: &NodeId) -> StringValue {
         self.filemap.find(id).unwrap().clone() // TODO remove clone when interned
     }
 
@@ -81,7 +82,7 @@ impl Parser {
         self.parse_with(lexer, |p| p.parse_module())
     }
 
-    fn parse_with<'a, T: Buffer, U>(&mut self, lexer: Lexer<T>, f: |&mut StreamParser<T>| -> U) -> U {
+    pub fn parse_with<'a, T: Buffer, U>(&mut self, lexer: Lexer<T>, f: |&mut StreamParser<T>| -> U) -> U {
         let mut tokp = StreamParser::new(lexer, self);
         f(&mut tokp)
     }
@@ -208,7 +209,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     // Most functions from this point on are for parsing a specific node
     // in the grammar.
 
-    fn parse_name(&mut self) -> AstString {
+    fn parse_name(&mut self) -> StringValue {
         match self.eat() {
             IdentTok(name) => name,
             tok => self.error(format!("Expected ident, found {}", tok),
