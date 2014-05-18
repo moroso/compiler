@@ -2,7 +2,7 @@
 
 /* By golly, look at me.
  * I'm a multi-line comment!
- * Splendid. */  fn print_int(x: u32) -> u32 {}
+ * Splendid. */  fn print_int(x: u32) {}
 
 fn print_f_of_int(x: u32, f: fn(u32) -> u32) {
     print_int(f(x));
@@ -17,7 +17,7 @@ fn bar(n: u32) -> u32 {
 fn fib(x: u32) -> u32 {
     if x==0 { return 1; 0 }
     else if x==1 { bar(6) }
-    else { fib(x-1) + fib(x-2) }
+    else { fib(x-1) + fib(x-2) };
     fib2(x)
 }
 

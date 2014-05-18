@@ -221,7 +221,7 @@ impl CCrossCompiler {
                     let did = self.session.resolver.def_from_ident(id);
                     let d = self.session.defmap.find(&did).take_unwrap();
                     match *d {
-                        TypeDef(ref t) if *t == ast::UnitType => true,
+                        GenericDef => true,
                         _ => false,
                     }
                 };

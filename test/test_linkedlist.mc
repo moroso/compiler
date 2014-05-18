@@ -1,5 +1,7 @@
+fn print_int(i: i32) {}
+
 struct ll {
-    data: int,
+    data: i32,
     next: *ll,
 }
 
@@ -7,14 +9,14 @@ fn ll_empty() -> *ll {
     NULL
 }
 
-fn ll_prepend(data: int, list: *ll) -> *ll {
+fn ll_prepend(data: i32, list: *ll) -> *ll {
     let result: *ll = malloc(sizeof(ll));
     result->data = data;
     result->next = list;
     result
 }
 
-fn main() -> int {
+fn main() -> i32 {
     let list: *ll = ll_empty();
     list = ll_prepend(5, list);
     list = ll_prepend(6, list);

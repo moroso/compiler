@@ -27,7 +27,7 @@ enum Ty {
     StrTy,
     UnitTy,
     PtrTy(Box<Ty>),
-    ArrayTy(Box<Ty>, u64),
+    ArrayTy(Box<Ty>, Option<u64>),
     TupleTy(Vec<Ty>),
     FuncTy(Vec<Ty>, Box<Ty>),
     StructTy(NodeId, Vec<Ty>),
@@ -195,6 +195,8 @@ impl<'a> Typechecker<'a> {
                 ts.iter().map(|t| self.type_to_ty(&t.val)).collect(),
             None if infer =>
                 tps.iter().map(|_| BoundTy(self.add_bounds())).collect(),
+            None if tps.len() == 0 =>
+                vec!(),
             _ =>
                 fail!("Expected {} type parameters, but found {}", tps.len(), ts.as_ref().map_or(0, |ts| ts.len())),
         }
@@ -279,7 +281,7 @@ impl<'a> Typechecker<'a> {
             },
             ArrayType(ref t, len) => {
                 let ty = self.type_to_ty(&t.val);
-                ArrayTy(box ty, len)
+                ArrayTy(box ty, Some(len))
             }
             TupleType(ref ts) => {
                let tys = ts.iter().map(|t| {
@@ -495,7 +497,12 @@ impl<'a> Typechecker<'a> {
                 let ty = self.expr_to_ty(*e);
 
                 let expr_ty = match op.val {
-                    Deref => self.unify(PtrTy(box BottomTy), ty),
+                    Deref => {
+                        match self.unify(PtrTy(box BottomTy), ty) {
+                            PtrTy(ty) => *ty,
+                            _ => unreachable!(),
+                        }
+                    }
                     AddrOf => PtrTy(box ty),
                     Negate => self.unify(IntTy(AnyWidth), ty),
                 };
@@ -508,9 +515,9 @@ impl<'a> Typechecker<'a> {
 
                 self.unify(UintTy(AnyWidth), i_ty);
 
-                match a_ty {
+                match self.unify(ArrayTy(box BottomTy, None), a_ty) {
                     ArrayTy(ty, _) => *ty,
-                    _ => self.unify(a_ty, ArrayTy(box BottomTy, 0)),
+                    _ => unreachable!(),
                 }
             }
             IfExpr(ref c, ref tb, ref fb) => {
@@ -668,11 +675,13 @@ impl<'a> Typechecker<'a> {
             (PtrTy(p1), PtrTy(p2)) =>
                 PtrTy(box self.unify(*p1, *p2)),
             (ArrayTy(a1, l1), ArrayTy(a2, l2)) => {
-                if l1 == l2 {
-                    ArrayTy(box self.unify(*a1, *a2), l1)
-                } else {
-                    self.mismatch(&ArrayTy(a1, l1), &ArrayTy(a2, l2))
-                }
+                let l = match (l1, l2) {
+                    (None, l) | (l, None) => l,
+                    (Some(l1), Some(l2)) if l1 == l2 => Some(l1),
+                    _ => self.mismatch(&ArrayTy(a1, l1), &ArrayTy(a2, l2)),
+                };
+
+                ArrayTy(box self.unify(*a1, *a2), l)
             },
             (TupleTy(ts1), TupleTy(ts2)) => {
                 if ts1.len() == ts2.len() {
