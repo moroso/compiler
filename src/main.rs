@@ -8,22 +8,18 @@ extern crate collections;
 extern crate regex;
 
 use std::io::stdio::stdin;
-use lexer::Lexer;
-use parser::Parser;
+use session::Session;
 
 mod lexer;
 mod parser;
 mod span;
 mod ast;
-mod resolve;
-mod parser_context;
+mod resolver;
+mod session;
 //mod typecheck;
 
 fn main() {
     println!("moroso compiler");
-    let mut stdin = stdin();
-    let lexer = Lexer::new(stdin.lines().map(|x| x.unwrap()));
-    let mut parser = Parser::new(lexer);
-
-    print!("{:}\n", parser.parse_module());
+    let mut session = Session::new();
+    print!("{:}\n", session.parse_buffer(stdin()));
 }

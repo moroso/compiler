@@ -3,7 +3,7 @@ use ast::defmap::*;
 use ast::visit::*;
 use collections::{SmallIntMap, HashMap, EnumSet};
 use collections::enum_set::CLike;
-use resolve::Resolver;
+use resolver::Resolver;
 use std::fmt;
 
 #[deriving(Eq, Show)]

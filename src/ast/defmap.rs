@@ -143,14 +143,12 @@ mod tests {
     use super::DefMap;
     use ast::NodeId;
     use ast::visit::Visitor;
-    use parser::new_from_string;
+    use parser::ast_from_str;
     use collections::TreeMap;
 
     #[test]
     fn compare_canonicalized() {
-        let mut parser = new_from_string("fn wot<T>(t: T) { let u = t; }"
-                                         .to_owned());
-        let tree = parser.parse_module();
+        let tree = ast_from_str("fn wot<T>(t: T) { let u = t; }".to_owned(), |p| p.parse_module());
         let mut defmap = DefMap::new();
         defmap.visit_module(&tree);
 

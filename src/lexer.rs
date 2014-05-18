@@ -7,6 +7,8 @@
 use ast;
 use span::{Span, SourcePos, mk_sp};
 use regex::Regex;
+use std::io;
+use std::option;
 use std::iter;
 use std::slice::CloneableVector;
 
@@ -126,22 +128,32 @@ impl<A, T: RuleMatcher<A>, U: TokenMaker<A>> LexerRuleT for LexerRule<T, U> {
 }
 
 pub struct Lexer<T> {
-    iter: iter::Enumerate<T>,
+    lines: Option<NumberedLines<T>>,
     linectx: Option<LineContext>,
+    filename: ~str,
     // Ordinary rules.
-    rules: Vec<~LexerRuleT>,
+    rules: Vec<Box<LexerRuleT>>,
     // Rules specifically for when we're within a comment. We need this
     // for handling multi-line comments.
-    comment_rules: Vec<~LexerRuleT>,
-    in_comment: bool,
+    comment_rules: Vec<Box<LexerRuleT>>,
+    comment_nest: uint,
+    eof: bool,
 }
 
-impl<T: Iterator<~str>> Lexer<T> {
-    pub fn new(line_iter: T) -> Lexer<T> {
+// Convenience for tests
+pub fn lexer_from_str(s: &str) -> Lexer<io::BufferedReader<io::MemReader>> {
+    use std::str::StrSlice;
+    let bytes = Vec::from_slice(s.as_bytes());
+    let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
+    Lexer::new("test".to_owned(), buffer)
+}
+
+impl<T: Buffer> Lexer<T> {
+    pub fn new(filename: ~str, buffer: T) -> Lexer<T> {
         macro_rules! matcher { ( $e:expr ) => ( regex!(concat!("^(?:", $e, ")"))) }
         macro_rules! lexer_rules {
             ( $( $c:expr => $m:expr ),*) => (
-                vec!( $( ~LexerRule { matcher: $m, maker: $c } as ~LexerRuleT ),* )
+                vec!( $( box LexerRule { matcher: $m, maker: $c } as Box<LexerRuleT> ),* )
             )
         }
 
@@ -234,22 +246,13 @@ impl<T: Iterator<~str>> Lexer<T> {
         // Note: rules are in decreasing order of priority if there's a
         // conflict. In particular, reserved words must go before IdentTok.
         let rules = lexer_rules! {
-            // Whitespace, including comments.
-            // From left to right, the parts of this match:
-            // - actual whitespace,
-            // - // style comments
-            // - /* */ style comments. This clause is a little more complicated,
-            //     because we have to be sure the match doesn't contain "*/"
-            //     except at the very end. This is what ([^*]|\*[^/]) takes
-            //     care of.
-            WS         => matcher!(r"\s|//.*|(?s)/\*([^*]|\*[^/])*\*/"),
+            // Whitespace, including the empty string (for EOF) and C-style comments.
+            WS         => matcher!(r"\s*|//.*$"),
 
-            // A multi-line comment that's begun, but not ended.
-            // This consists of a string starting with "/*" but not
-            // containing "*/". The actual lexer body treats a "BeginComment"
-            // token specially: it sets a flag that we're inside a multi-line
-            // comment. BeginComment does not appear in the token stream.
-            BeginComment => matcher!(r"/\*([^*]|\*[^/])*$"),
+            // The start of a multi-line comment.
+            // BeginComment does not appear in the token stream.
+            // Instead, it sets a counter indicating we are in a multiline comment.
+            BeginComment => matcher!(r"/\*"),
 
             // Reserved words
             Let          => "let",
@@ -316,40 +319,61 @@ impl<T: Iterator<~str>> Lexer<T> {
         // A special set of rules, just for when we're within a multi-line
         // comment.
         let comment_rules = lexer_rules! {
-            // The end of a multi-line comment. This is any sequence of
-            // characers not containing "*/" (matched by ([^*]|\*[^/])* ),
-            // followed by "*/". The lexer treats the EndComment token
-            // specially: it causes it to clear the flag that indicates
-            // we're in a multi-line comment. EndComment does not appear
-            // in the token stream.
-            EndComment => matcher!(r"([^*]|\*[^/])*\*/"),
+            // The start of a multi-line comment.
+            // This is to properly handle nested multiline comments.
+            // We increase the multiline-comment-nesting-counter with this.
+            BeginComment => matcher!(r"/\*"),
+
+            // The end of a multi-line comment.
+            // We decrease the multiline-comment-nesting-counter with this.
+            EndComment => matcher!(r"\*/"),
 
             // If we're within a comment, any string not
-            // containing "*/" is considered whitespace.
-            WS => matcher!(r"([^*]|\*[^/])*")
+            // containing "/*" or "*/" is considered whitespace.
+            WS => matcher!(r"(?:[^*/]|/[^*]|\*[^/])*")
         };
 
         Lexer {
-            iter: line_iter.enumerate(),
+            lines: Some(NumberedLines::new(buffer)),
             linectx: None,
+            filename: filename,
             rules: rules,
             comment_rules: comment_rules,
-            in_comment: false,
+            comment_nest: 0,
+            eof: false,
         }
+    }
+
+    pub fn get_filename(&self) -> ~str {
+        self.filename.clone()
     }
 }
 
 // The meat of the lexer (read this as a stateful flat-map)
-impl<T: Iterator<~str>> Iterator<SourceToken> for Lexer<T> {
+impl<T: Buffer> Iterator<SourceToken> for Lexer<T> {
     fn next(&mut self) -> Option<SourceToken> {
         loop {
+            if self.eof {
+                self.lines = None;
+                if self.comment_nest > 0 {
+                    fail!("Unterminated multiline comment found in input stream");
+                }
+
+                return self.linectx.take().map(|lc| {
+                    SourceToken {
+                        tok: Eof,
+                        sp: mk_sp(lc.pos, 0),
+                    }
+                });
+            }
+
             for lc in self.linectx.mut_iter() {
                 while lc.pos.col < lc.line.len() {
                     // We apply each rule. Of the ones that match, we take
                     // the longest match.
                     let mut longest = 0u;
                     let mut best = None;
-                    let mut rules = if self.in_comment {
+                    let rules = if self.comment_nest > 0 {
                         &self.comment_rules
                     } else {
                         &self.rules
@@ -376,8 +400,8 @@ impl<T: Iterator<~str>> Iterator<SourceToken> for Lexer<T> {
                     match best {
                         None => fail!("Unexpected input"),
                         Some((_, WS)) => {} // Skip whitespace.
-                        Some((_, BeginComment)) => { self.in_comment = true; }
-                        Some((_, EndComment)) => { self.in_comment = false; }
+                        Some((_, BeginComment)) => { self.comment_nest += 1; }
+                        Some((_, EndComment)) => { self.comment_nest -= 1; }
                         Some((sp, tok)) => {
                             return Some(SourceToken {
                                 tok: tok,
@@ -389,13 +413,18 @@ impl<T: Iterator<~str>> Iterator<SourceToken> for Lexer<T> {
             }
 
             // Fetch a new line, now that we're done with the previous one.
-            match self.iter.next() {
-                None => return None,
-                Some((row, line)) => {
+            match self.lines.as_mut().and_then(|lines| lines.next()) {
+                Some(Ok((row, line))) => {
                     self.linectx = Some(LineContext {
-                        pos: SourcePos { row: row, col: 0 },
+                        pos:  SourcePos { row: row, col: 0 },
                         line: line,
                     });
+                }
+                Some(Err(e)) => {
+                    fail!("error in input stream: {}", e);
+                }
+                None => {
+                    self.eof = true;
                 }
             }
         }
@@ -469,6 +498,39 @@ impl MaybeArg for ~str {
     fn maybe_arg<'a>(s: &'a str) -> ~str { s.to_owned() }
 }
 
+struct NumberedLines<T> {
+    lineno: uint,
+    buffer: T,
+}
+
+impl<T: Buffer> NumberedLines<T> {
+    fn new(buffer: T) -> NumberedLines<T> {
+        NumberedLines {
+            lineno: 0,
+            buffer: buffer,
+        }
+    }
+}
+
+impl<T: Buffer> Iterator<io::IoResult<(uint, ~str)>> for NumberedLines<T> {
+    fn next(&mut self) -> Option<io::IoResult<(uint, ~str)>> {
+        match self.buffer.read_line() {
+            Ok(line) => {
+                let lineno = self.lineno;
+                self.lineno += 1;
+                Some(Ok((lineno, line)))
+            }
+            Err(e) => {
+                if e.kind != io::EndOfFile {
+                    Some(Err(e))
+                } else {
+                    None
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -487,30 +549,32 @@ mod tests {
 
     #[test]
     fn test() {
-        let lexer1 = Lexer::new(vec!(r#"f(x - /* I am a comment */ 0x3f5B)+1 "Hello\" World")"#.to_owned()).move_iter());
-        let tokens1: ~[SourceToken] = FromIterator::from_iter(lexer1);
+        let lexer1 = lexer_from_str(r#"f(x - /* I am a comment */ 0x3f5B)+1 "Hello\" World")"#);
+        let tokens1: Vec<SourceToken> = FromIterator::from_iter(lexer1);
 
-        compare(tokens1,
-                [IdentTok("f".to_owned()),
-                  LParen,
-                  IdentTok("x".to_owned()),
-                  Dash,
-                  NumberTok(0x3f5B, ast::GenericInt),
-                  RParen,
-                  Plus,
-                  NumberTok(1, ast::GenericInt),
-                  StringTok(r#"Hello\" World"#.to_owned()),
-                ]);
+        compare(tokens1.as_slice(),
+                vec! {
+                    IdentTok("f".to_owned()),
+                    LParen,
+                    IdentTok("x".to_owned()),
+                    Dash,
+                    NumberTok(0x3f5B, ast::GenericInt),
+                    RParen,
+                    Plus,
+                    NumberTok(1, ast::GenericInt),
+                    StringTok(r#"Hello\" World"#.to_owned()),
+                }.as_slice());
 
-        let lexer2 = Lexer::new(vec!("let x: int = 5;".to_owned()).move_iter());
-        let tokens2: ~[SourceToken] = FromIterator::from_iter(lexer2);
-        compare(tokens2,
-                [Let,
-                 IdentTok("x".to_owned()),
-                 Colon,
-                 IdentTok("int".to_owned()),
-                 Eq,
-                 NumberTok(5, ast::GenericInt),
-                 ]);
+        let lexer2 = lexer_from_str("let x: int = 5;");
+        let tokens2: Vec<SourceToken> = FromIterator::from_iter(lexer2);
+        compare(tokens2.as_slice(),
+                vec! {
+                    Let,
+                    IdentTok("x".to_owned()),
+                    Colon,
+                    IdentTok("int".to_owned()),
+                    Eq,
+                    NumberTok(5, ast::GenericInt),
+                }.as_slice());
     }
 }

@@ -14,20 +14,20 @@ use lexer::Lexer;
 use parser::Parser;
 use ast::visit::{Visitor, walk_module};
 use collections::hashmap::{HashSet, HashMap};
-use resolve::Resolver;
-use parser_context::ParserContext;
+use resolver::Resolver;
+use session::Session;
 
 mod lexer;
 mod parser;
 mod span;
 mod ast;
-mod resolve;
-mod parser_context;
+mod resolver;
+mod session;
 
 struct CCrossCompiler {
     structnames: HashSet<~str>,
     enumitemnames: HashMap<~str, (Ident, Vec<Variant>, int)>,
-    context: ~ParserContext,
+    session: Session,
 }
 
 fn find_structs(module: &Module) -> HashSet<~str> {
@@ -218,8 +218,8 @@ impl CCrossCompiler {
             NamedType(ref id) => {
                 let is_param = {
                     // Is this type a type parameter?
-                    let did = self.context.resolver.def_from_ident(id);
-                    let d = self.context.defmap.find(&did).take_unwrap();
+                    let did = self.session.resolver.def_from_ident(id);
+                    let d = self.session.defmap.find(&did).take_unwrap();
                     match *d {
                         TypeDef(ref t) if *t == ast::UnitType => true,
                         _ => false,
@@ -455,21 +455,17 @@ fn main() {
 int print_int(int x) { printf("%d\n", x); return x; }
 "##);
     let mut stdin = stdin();
-    let lexer = Lexer::new(stdin.lines().map(|x| x.unwrap()));
-    let mut parser = Parser::new(lexer);
-
-    let ast = parser.parse_module();
     let mut stderr = std::io::stdio::stderr();
+    let mut session = Session::new();
+    let mut ast = session.parse_buffer(stdin);
+
     stderr.write_str(format!("{}", ast));
     stderr.write_str(format!("{}\n", find_enum_item_names(&ast)));
-
-    parser.context.defmap.visit_module(&ast);
-    parser.context.resolver.visit_module(&ast);
 
     let mut cc: CCrossCompiler = CCrossCompiler {
         structnames: find_structs(&ast),
         enumitemnames: find_enum_item_names(&ast),
-        context: parser.context,
+        session: session,
     };
 
     print!("{}\n", cc.visit_module(&ast));
