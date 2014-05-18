@@ -393,7 +393,7 @@ impl<'a> Typechecker<'a> {
             TupleExpr(ref es) => TupleTy(es.iter().map(|e| self.expr_to_ty(e)).collect()),
             IdentExpr(ref ident) => {
                 let nid = self.session.resolver.def_from_ident(ident);
-                let t = match *self.session.defmap.find(&nid).take_unwrap() {
+                match *self.session.defmap.find(&nid).take_unwrap() {
                     FuncDef(ref args, ref t, ref tps) => {
                         let tp_tys = self.tps_to_tys(tps, &ident.val.tps, true);
                         let mut gs = TreeMap::new();
@@ -437,9 +437,7 @@ impl<'a> Typechecker<'a> {
                         }
                     }
                     _ => fail!("Expected value name"),
-                };
-
-                t
+                }
             }
             BinOpExpr(ref op, ref l, ref r) => {
                 let l_ty = self.expr_to_ty(*l);
