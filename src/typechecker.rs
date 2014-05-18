@@ -192,7 +192,7 @@ impl<'a> Typechecker<'a> {
     fn tps_to_tys(&mut self, tps: &Vec<NodeId>, ts: &Option<Vec<Type>>, infer: bool) -> Vec<Ty> {
         match *ts {
             Some(ref ts) if ts.len() == tps.len() =>
-                ts.iter().map(|t| self.type_to_ty(&t.val)).collect(),
+                ts.iter().map(|t| self.type_to_ty(t)).collect(),
             None if infer =>
                 tps.iter().map(|_| BoundTy(self.add_bounds())).collect(),
             None if tps.len() == 0 =>
@@ -249,12 +249,12 @@ impl<'a> Typechecker<'a> {
         }
     }
 
-    fn type_to_ty(&mut self, t: &TypeNode) -> Ty {
-        match *t {
+    fn type_to_ty(&mut self, t: &Type) -> Ty {
+        match t.val {
             BoolType => BoolTy,
             UnitType => UnitTy,
             IntType(ik) => intkind_to_ty(ik),
-            PtrType(ref t) => PtrTy(box self.type_to_ty(&t.val)),
+            PtrType(ref t) => PtrTy(box self.type_to_ty(*t)),
             NamedType(ref ident) => {
                 let nid = self.session.resolver.def_from_ident(ident);
                 match *self.session.defmap.find(&nid).take_unwrap() {
@@ -272,20 +272,20 @@ impl<'a> Typechecker<'a> {
                 }
             },
             FuncType(ref args, ref t) => {
-               let ret_ty = self.type_to_ty(&t.val);
+               let ret_ty = self.type_to_ty(*t);
                let arg_tys = args.iter().map(|arg| {
-                   self.type_to_ty(&arg.val)
+                   self.type_to_ty(arg)
                }).collect();
 
                FuncTy(arg_tys, box ret_ty)
             },
             ArrayType(ref t, len) => {
-                let ty = self.type_to_ty(&t.val);
+                let ty = self.type_to_ty(*t);
                 ArrayTy(box ty, Some(len))
             }
             TupleType(ref ts) => {
                let tys = ts.iter().map(|t| {
-                   self.type_to_ty(&t.val)
+                   self.type_to_ty(t)
                }).collect();
 
                TupleTy(tys)
@@ -297,13 +297,13 @@ impl<'a> Typechecker<'a> {
         match pat.val {
             DiscardPat(ref t) => {
                 match *t {
-                    Some(ref t) => self.type_to_ty(&t.val),
+                    Some(ref t) => self.type_to_ty(t),
                     None => BoundTy(self.add_bounds()),
                 }
             }
             IdentPat(ref ident, ref t) => {
                 match *t {
-                    Some(ref t) => self.type_to_ty(&t.val),
+                    Some(ref t) => self.type_to_ty(t),
                     None => self.add_bound_ty(ident.id),
                 }
             }
@@ -375,7 +375,7 @@ impl<'a> Typechecker<'a> {
         }
     }
 
-    fn func_def_to_ty(&mut self, arg_ids: &Vec<NodeId>, ret_t: &TypeNode) -> Ty {
+    fn func_def_to_ty(&mut self, arg_ids: &Vec<NodeId>, ret_t: &Type) -> Ty {
         let ret_ty = self.type_to_ty(ret_t);
         let arg_tys = arg_ids.iter().map(|arg_id| {
             match *self.session.defmap.find(arg_id).take_unwrap() {
@@ -780,7 +780,7 @@ impl<'a> Visitor for Typechecker<'a> {
                     let ty = me.block_to_ty(b);
                     me.exits.push(ty);
 
-                    let mut ty = me.type_to_ty(&t.val);
+                    let mut ty = me.type_to_ty(t);
                     for i in range(0, me.exits.len()).rev() {
                         let exit_ty = me.exits.swap_remove(i).take_unwrap();
                         ty = me.unify(ty, exit_ty);
