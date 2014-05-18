@@ -29,8 +29,11 @@ fn main() {
     let mut session = Session::new();
     let tree = session.parse_buffer("<stdin>", stdin);
 
-    let mut tyck = Typechecker::new(&session);
-    tyck.visit_module(&tree);
+    let _typemap = {
+        let mut typeck = Typechecker::new(&session);
+        typeck.visit_module(&tree);
+        typeck.get_typemap()
+    };
 
     print!("{:}\n", tree);
 }

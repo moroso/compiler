@@ -160,13 +160,18 @@ impl fmt::Show for TyBounds {
     }
 }
 
+pub struct Typemap {
+    pub types: SmallIntMap<Ty>,
+    pub bounds: SmallIntMap<TyBounds>,
+}
+
 pub struct Typechecker<'a> {
     defs: TreeMap<NodeId, BoundsId>,
-    bounds: SmallIntMap<TyBounds>,
     generics: Vec<TreeMap<NodeId, Ty>>,
     session: &'a Session,
     next_bounds_id: uint,
     exits: Vec<Ty>,
+    typemap: Typemap,
 }
 
 fn intkind_to_ty(ik: IntKind) -> Ty {
@@ -177,16 +182,27 @@ fn intkind_to_ty(ik: IntKind) -> Ty {
     }
 }
 
+macro_rules! save_ty {
+    ($n:expr, $t:expr) => ({ let ty = $t; self.typemap.types.insert($n.id.to_uint(), ty.clone()); ty })
+}
+
 impl<'a> Typechecker<'a> {
     pub fn new(session: &'a Session) -> Typechecker<'a> {
         Typechecker {
             defs: TreeMap::new(),
-            bounds: SmallIntMap::new(),
             generics: vec!(),
             session: session,
             next_bounds_id: 0,
             exits: vec!(),
+            typemap: Typemap { 
+                types: SmallIntMap::new(),
+                bounds: SmallIntMap::new(),
+            }
         }
+    }
+
+    pub fn get_typemap(self) -> Typemap { 
+        self.typemap
     }
 
     fn tps_to_tys(&mut self, tps: &Vec<NodeId>, ts: &Option<Vec<Type>>, infer: bool) -> Vec<Ty> {
@@ -217,16 +233,16 @@ impl<'a> Typechecker<'a> {
 
     fn add_bounds(&mut self) -> BoundsId {
         let bid = self.new_bounds_id();
-        self.bounds.insert(bid.to_uint(), Unconstrained);
+        self.typemap.bounds.insert(bid.to_uint(), Unconstrained);
         bid
     }
 
     fn get_bounds(&self, bid: BoundsId) -> TyBounds {
-        self.bounds.find(&bid.to_uint()).take_unwrap().clone()
+        self.typemap.bounds.find(&bid.to_uint()).take_unwrap().clone()
     }
 
     fn update_bounds(&mut self, bid: BoundsId, bounds: TyBounds) {
-        self.bounds.swap(bid.to_uint(), bounds);
+        self.typemap.bounds.swap(bid.to_uint(), bounds);
     }
 
     fn add_bound_ty(&mut self, nid: NodeId) -> Ty {
@@ -250,7 +266,7 @@ impl<'a> Typechecker<'a> {
     }
 
     fn type_to_ty(&mut self, t: &Type) -> Ty {
-        match t.val {
+        save_ty!(t, match t.val {
             BoolType => BoolTy,
             UnitType => UnitTy,
             IntType(ik) => intkind_to_ty(ik),
@@ -290,11 +306,11 @@ impl<'a> Typechecker<'a> {
 
                TupleTy(tys)
             },
-        }
+        })
     }
 
     fn pat_to_ty(&mut self, pat: &Pat) -> Ty {
-        match pat.val {
+        save_ty!(pat, match pat.val {
             DiscardPat(ref t) => {
                 match *t {
                     Some(ref t) => self.type_to_ty(t),
@@ -364,15 +380,15 @@ impl<'a> Typechecker<'a> {
                     _ => unreachable!(),
                 }
             }
-        }
+        })
     }
 
     fn lit_to_ty(&mut self, lit: &Lit) -> Ty {
-        match lit.val {
+        save_ty!(lit, match lit.val {
             NumLit(_, ik) => intkind_to_ty(ik),
             StringLit(..) => StrTy,
             BoolLit(..) => BoolTy,
-        }
+        })
     }
 
     fn func_def_to_ty(&mut self, arg_ids: &Vec<NodeId>, ret_t: &Type) -> Ty {
@@ -387,7 +403,7 @@ impl<'a> Typechecker<'a> {
     }
 
     fn expr_to_ty(&mut self, expr: &Expr) -> Ty {
-        match expr.val {
+        save_ty!(expr, match expr.val {
             UnitExpr => UnitTy,
             LitExpr(ref l) => self.lit_to_ty(l),
             TupleExpr(ref es) => TupleTy(es.iter().map(|e| self.expr_to_ty(e)).collect()),
@@ -576,7 +592,7 @@ impl<'a> Typechecker<'a> {
                 }
                 ty
             }
-        }
+        })
     }
 
     fn block_to_ty(&mut self, block: &Block) -> Ty {
