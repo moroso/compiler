@@ -9,7 +9,7 @@ extern crate regex;
 
 use ast::*;
 use ast::defmap::*;
-use std::io::stdio::stdin;
+use std::io::stdio;
 use lexer::Lexer;
 use parser::Parser;
 use ast::visit::{Visitor, walk_module};
@@ -454,8 +454,8 @@ fn main() {
 #include <stdlib.h>
 int print_int(int x) { printf("%d\n", x); return x; }
 "##);
-    let mut stdin = stdin();
-    let mut stderr = std::io::stdio::stderr();
+    let mut stdin = stdio::stdin();
+    let mut stderr = stdio::stderr();
     let mut session = Session::new();
     let mut ast = session.parse_buffer(stdin);
 

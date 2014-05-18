@@ -7,7 +7,7 @@ extern crate regex_macros;
 extern crate collections;
 extern crate regex;
 
-use std::io::stdio::stdin;
+use std::io::stdio;
 use session::Session;
 
 mod lexer;
@@ -20,6 +20,7 @@ mod session;
 
 fn main() {
     println!("moroso compiler");
+    let stdin = stdio::stdin();
     let mut session = Session::new();
-    print!("{:}\n", session.parse_buffer(stdin()));
+    print!("{:}\n", session.parse_buffer(stdin));
 }
