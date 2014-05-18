@@ -457,7 +457,7 @@ int print_int(int x) { printf("%d\n", x); return x; }
     let mut stdin = stdio::stdin();
     let mut stderr = stdio::stderr();
     let mut session = Session::new();
-    let mut ast = session.parse_buffer(stdin);
+    let mut ast = session.parse_buffer("<stdin>", stdin);
 
     stderr.write_str(format!("{}", ast));
     stderr.write_str(format!("{}\n", find_enum_item_names(&ast)));

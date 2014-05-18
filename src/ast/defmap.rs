@@ -2,9 +2,6 @@ use ast::visit::*;
 use ast::*;
 use collections::{HashMap,TreeMap};
 
-// in case we ever want generic bounds
-use ParamType = ast::UnitType;
-
 /// DefMap maps a NodeId to a Def, where a Def is anything that can be defined
 /// by an Ident.  This can be used by the Resolver to map the usages of Idents
 /// in types and expressions to the things they define.
@@ -14,8 +11,11 @@ pub enum Def {
     /// Module definition, with the NodeIds of the child items
     ModDef(Vec<NodeId>),
 
-    /// Type definition (typedef or type paramter)
+    /// Shorthand type definition
     TypeDef(TypeNode),
+
+    /// Type parameter definition
+    GenericDef,
 
     /// Function definition, with the NodeIds of the args, the return type, and the NodeIds of any type parameters
     FuncDef(Vec<NodeId>, TypeNode, Vec<NodeId>),
@@ -99,7 +99,7 @@ impl Visitor for DefMap {
                 }).collect();
 
                 let tp_def_ids = tps.iter().map(|tp| {
-                    self.table.insert(tp.id, TypeDef(ParamType));
+                    self.table.insert(tp.id, GenericDef);
                     tp.id
                 }).collect();
 
@@ -114,7 +114,7 @@ impl Visitor for DefMap {
                 }
 
                 let tp_def_ids = tps.iter().map(|tp| {
-                    self.table.insert(tp.id, TypeDef(ParamType));
+                    self.table.insert(tp.id, GenericDef);
                     tp.id
                 }).collect();
 
@@ -128,7 +128,7 @@ impl Visitor for DefMap {
                 }).collect();
 
                 let tp_def_ids = tps.iter().map(|tp| {
-                    self.table.insert(tp.id, TypeDef(ParamType));
+                    self.table.insert(tp.id, GenericDef);
                     tp.id
                 }).collect();
 

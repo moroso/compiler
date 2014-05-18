@@ -90,11 +90,10 @@ impl Resolver {
     /// Search the current scope stack local-to-global for a matching ident in the requested namespace
     fn resolve(&mut self, ns: NS, ident: &Ident) {
         match self.scope.iter().rev()
-                               .map(|subscope| { subscope.find(ns, ident) })
-                               .skip_while(|did| did.is_none())
+                               .filter_map(|subscope| subscope.find(ns, ident))
                                .next() {
-            Some(Some(did)) => self.table.insert(ident.id.to_uint(), did),
-            _ => fail!("Unresolved name {}", ident.val.name),
+            Some(did) => self.table.insert(ident.id.to_uint(), did),
+            None => fail!("Unresolved name {}", ident.val.name),
         };
     }
 
@@ -114,6 +113,14 @@ impl Visitor for Resolver {
         match t.val {
             NamedType(ref ident) => {
                 self.resolve(TypeNS, ident);
+                match ident.val.tps {
+                    Some(ref tps) => {
+                        for tp in tps.iter() {
+                            self.visit_type(tp);
+                        }
+                    }
+                    None => {}
+                }
             }
             _ => walk_type(self, t)
         }
@@ -121,9 +128,17 @@ impl Visitor for Resolver {
 
     fn visit_pat(&mut self, pat: &Pat) {
         match pat.val {
-            IdentPat(ref id, ref t) => {
+            IdentPat(ref ident, ref t) => {
                 for t in t.iter() { self.visit_type(t); }
-                self.add_to_scope(ValNS, id);
+                self.add_to_scope(ValNS, ident);
+            }
+            VariantPat(ref ident, ref pats) => {
+                self.resolve(ValNS, ident);
+                for pat in pats.iter() { self.visit_pat(pat); }
+            }
+            StructPat(ref ident, ref fps) => {
+                self.resolve(StructNS, ident);
+                for fp in fps.iter() { self.visit_pat(&fp.pat); }
             }
             _ => walk_pat(self, pat)
         }
@@ -221,7 +236,7 @@ mod tests {
 
     #[test]
     fn basic_resolver_test() {
-        let tree = ast_from_str("fn wot<T>(t: T) { let u = t; }", |p| p.parse_module());
+        let tree = ast_from_str("fn wot<T>(t: T) -> T { let u = t; }", |p| p.parse_module());
         let mut resolver = Resolver::new();
         resolver.visit_module(&tree);
     }
