@@ -1,4 +1,4 @@
-all: mc
+all: mc mc2c mc-tests ir_tests
 
 test: mc-tests
 	./mc-tests

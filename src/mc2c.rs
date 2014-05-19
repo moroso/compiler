@@ -9,6 +9,7 @@ extern crate regex;
 
 use ast::*;
 use ast::defmap::*;
+use values::*;
 use std::io::stdio;
 use lexer::Lexer;
 use parser::Parser;
@@ -25,6 +26,7 @@ mod ast;
 mod resolver;
 mod session;
 mod typechecker;
+mod values;
 
 struct CCrossCompiler {
     structnames: HashSet<~str>,
