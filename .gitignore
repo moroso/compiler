@@ -1,7 +1,7 @@
 *~
 mc
 mc2c
-ir_tests
+ir-tests
 mc-tests
 doc/
 test/*.c

@@ -1,12 +1,3 @@
-#![feature(globs,phase,macro_rules)]
-#![allow(dead_code,unused_imports)]
-
-#[phase(syntax)]
-extern crate regex_macros;
-
-extern crate collections;
-extern crate regex;
-
 use ast::*;
 use ast::defmap::*;
 use values::*;
@@ -17,16 +8,9 @@ use ast::visit::{Visitor, walk_module};
 use collections::hashmap::{HashSet, HashMap};
 use resolver::Resolver;
 use session::Session;
+use package::Package;
+use target::Target;
 use typechecker::{Typechecker, Typemap};
-
-mod lexer;
-mod parser;
-mod span;
-mod ast;
-mod resolver;
-mod session;
-mod typechecker;
-mod values;
 
 struct CCrossCompiler {
     structnames: HashSet<~str>,
@@ -454,31 +438,44 @@ impl CCrossCompiler {
     }
 }
 
-fn main() {
-    print!("{}", r##"#include <stdio.h>
-#include <stdlib.h>
-int print_int(int x) { printf("%d\n", x); return x; }
-"##);
-    let mut stdin = stdio::stdin();
-    let mut stderr = stdio::stderr();
-    let mut session = Session::new();
-    let mut ast = session.parse_buffer("<stdin>", stdin);
+pub struct CTarget {
+    opts: (),
+}
 
-    let typemap = {
-        let mut typeck = Typechecker::new(&session);
-        typeck.visit_module(&ast);
-        typeck.get_typemap()
-    };
+impl Target for CTarget {
+    fn new(_args: Vec<StrBuf>) -> CTarget {
+        CTarget { opts: () }
+    }
 
-    stderr.write_str(format!("{}", ast));
-    stderr.write_str(format!("{}\n", find_enum_item_names(&ast)));
+    fn compile(&self, p: Package) {
+        let mut stderr = stdio::stderr();
 
-    let mut cc = CCrossCompiler {
-        structnames: find_structs(&ast),
-        enumitemnames: find_enum_item_names(&ast),
-        session: session,
-        typemap: typemap,
-    };
+        let Package {
+            module:  module,
+            session: session,
+            typemap: typemap,
+        } = p;
 
-    print!("{}\n", cc.visit_module(&ast));
+        let mut cc = CCrossCompiler {
+            structnames: find_structs(&module),
+            enumitemnames: find_enum_item_names(&module),
+            session: session,
+            typemap: typemap,
+        };
+
+        match writeln!(stderr, "{}", module) {
+            Err(e) => fail!("{}", e),
+            _ => {}
+        }
+
+        match writeln!(stderr, "{}", cc.enumitemnames) {
+            Err(e) => fail!("{}", e),
+            _ => {}
+        }
+
+        println!("{}",  r#"#include <stdio.h>"# +
+                 "\n" + r#"#include <stdlib.h>"# +
+                 "\n" + r#"int print_int(int x) { printf("%d\n", x); return x; }"#);
+        println!("{}", cc.visit_module(&module));
+    }
 }

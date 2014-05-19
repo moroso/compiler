@@ -1,10 +1,11 @@
 use lexer::{Token, SourceToken};
-use std::fmt::{Formatter, Result, Show};
-use values::*;
+use util::{IntKind, Name, Width};
+
+use std::fmt;
+use std::fmt::{Formatter, Show};
 
 pub mod visit;
 pub mod defmap;
-//pub mod values;
 
 #[deriving(Clone)]
 pub struct WithId<T> {
@@ -19,7 +20,7 @@ impl<T: Eq> Eq for WithId<T> {
 }
 
 impl<T: Show> Show for WithId<T> {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.val.fmt(f)
     }
 }
@@ -53,11 +54,11 @@ impl NodeId {
 #[deriving(Eq, Clone)]
 pub struct IdentNode {
     pub tps: Option<Vec<Type>>,
-    pub name: StringValue,
+    pub name: Name,
 }
 
 impl Show for IdentNode {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         try!(write!(f, "{}", self.name));
         for tps in self.tps.iter() {
             if tps.len() > 0 {
@@ -70,12 +71,12 @@ impl Show for IdentNode {
 
 #[deriving(Eq, Clone)]
 pub struct FieldPat {
-    pub name: StringValue,
+    pub name: Name,
     pub pat:  Pat,
 }
 
 impl Show for FieldPat {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}: {}", self.name, self.pat)
     }
 }
@@ -90,7 +91,7 @@ pub enum PatNode {
 }
 
 impl Show for PatNode {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             DiscardPat(ref t)             => write!(f, "_{}",
                                                     t.as_ref().map(|t| format!(": {}", t)).unwrap_or("".to_owned())),
@@ -117,7 +118,7 @@ pub enum TypeNode {
 }
 
 impl Show for TypeNode {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             BoolType                  => write!(f, "bool"),
             UnitType                  => write!(f, "()"),
@@ -154,7 +155,7 @@ pub enum BinOpNode {
 }
 
 impl Show for BinOpNode {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", match *self {
             PlusOp      => "+",
             MinusOp     => "-",
@@ -186,12 +187,29 @@ pub enum UnOpNode {
 }
 
 impl Show for UnOpNode {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", match *self {
             Deref  => "*",
             AddrOf => "&",
             Negate => "!",
         })
+    }
+}
+
+#[deriving(Eq, Clone)]
+pub enum LitNode {
+    NumLit(u64, IntKind),
+    StringLit(~str),
+    BoolLit(bool),
+}
+
+impl Show for LitNode {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match *self {
+            NumLit(i, nt)     => write!(f, "{}{}", i, nt),
+            StringLit(ref s)  => write!(f, "\"{}\"", s),
+            BoolLit(b)        => write!(f, "BoolLit:{}", b),
+        }
     }
 }
 
@@ -202,7 +220,7 @@ pub struct MatchArm {
 }
 
 impl Show for MatchArm {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{} => {}", self.pat, self.body)
     }
 }
@@ -216,8 +234,8 @@ pub enum ExprNode {
     BinOpExpr(BinOp, Box<Expr>, Box<Expr>),
     UnOpExpr(UnOp, Box<Expr>),
     IndexExpr(Box<Expr>, Box<Expr>),
-    DotExpr(Box<Expr>, StringValue),
-    ArrowExpr(Box<Expr>, StringValue),
+    DotExpr(Box<Expr>, Name),
+    ArrowExpr(Box<Expr>, Name),
     AssignExpr(Box<Expr>, Box<Expr>),
     CallExpr(Box<Expr>, Vec<Expr>),
     CastExpr(Box<Expr>, Type),
@@ -230,7 +248,7 @@ pub enum ExprNode {
 }
 
 impl Show for ExprNode {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             UnitExpr                            => write!(f, "()"),
             LitExpr(ref l)                      => write!(f, "{}", l),
@@ -268,7 +286,7 @@ pub enum StmtNode {
 }
 
 impl Show for StmtNode {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             LetStmt(ref pat, ref expr) => {
                 write!(f, "let {}{};", pat,
@@ -293,7 +311,7 @@ pub struct Block {
 }
 
 impl Show for Block {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         try!(write!(f, "{}\n", "{"));
         for item in self.items.iter() {
             for line in format!("{}", item).lines() {
@@ -324,7 +342,7 @@ pub struct FuncArg {
 }
 
 impl Show for FuncArg {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}: {}", self.ident, self.argtype)
     }
 }
@@ -336,7 +354,7 @@ pub struct Variant {
 }
 
 impl Show for Variant {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         try!(write!(f, "{}(", self.ident));
         for ref argtype in self.args.iter() {
             try!(write!(f, "{}, ", argtype));
@@ -347,12 +365,12 @@ impl Show for Variant {
 
 #[deriving(Eq, Clone)]
 pub struct Field {
-    pub name:    StringValue,
+    pub name:    Name,
     pub fldtype: Type,
 }
 
 impl Show for Field {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}: {}", self.name, self.fldtype)
     }
 }
@@ -365,7 +383,7 @@ pub enum ItemNode {
 }
 
 impl Show for ItemNode {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             FuncItem(ref id, ref args, ref t, ref def, ref tps) => {
                 try!(write!(f, "fn {}", id));
@@ -405,7 +423,7 @@ pub struct Module {
 }
 
 impl Show for Module {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         for item in self.items.iter() {
             for line in format!("{}", item).lines() {
                 try!(write!(f, "{}\n", line));

@@ -1,6 +1,6 @@
 // Liveness analysis
 
-use intermediate::*;
+use ir::*;
 use ast::*;
 use values::*;
 

@@ -1,6 +1,6 @@
 // Constant folding.
 
-use intermediate::*;
+use ir::*;
 use ast::*;
 use values::*;
 

@@ -1,55 +1,52 @@
-all: mc mc2c mc-tests ir_tests
 
-test: mc-tests
+MC_FILES := src/main.rs \
+            src/lexer.rs \
+            src/parser.rs \
+            src/span.rs \
+            src/typechecker.rs \
+            src/package.rs \
+            src/resolver.rs \
+            src/util.rs \
+            src/values.rs \
+            src/ast/mod.rs \
+            src/ast/visit.rs \
+            src/ast/defmap.rs \
+			src/target/ccross.rs \
+            src/ir/mod.rs \
+            src/ir/ast_to_intermediate.rs \
+            src/ir/liveness.rs \
+            src/ir/constant_fold.rs \
+			src/intermediate_tests.rs \
+
+mc: $(MC_FILES)
+	rustc $< -o $@
+
+mc-tests: $(MC_FILES)
+	rustc --test $< -o $@ -g
+
+ir-tests: $(MC_FILES)
+	rustc $< --cfg ir_tests -o $@
+
+all: mc mc-tests ir-tests
+
+check: mc-tests
 	./mc-tests
+
+test-ir: ir-tests
+	./ir-tests
 
 docs: doc/regexp/index.html
 
 doc/%/index.html: %.rs
 	rustdoc $<
 
-LIB_FILES := src/lexer.rs \
-             src/parser.rs \
-             src/span.rs \
-             src/typechecker.rs \
-             src/resolver.rs \
-             src/values.rs \
-             src/ast/mod.rs \
-             src/ast/visit.rs \
-             src/ast/defmap.rs \
-	           src/intermediate/mod.rs \
-	           src/intermediate/ast_to_intermediate.rs \
-	           src/intermediate/liveness.rs \
-	           src/intermediate/constant_fold.rs \
-
-MC_FILES := src/main.rs \
-            $(LIB_FILES)
-
-MC2C_FILES := src/mc2c.rs \
-              $(LIB_FILES)
-
-IR_TEST_FILES := src/intermediate_tests.rs \
-              $(LIB_FILES)
-
-%.c: %.mc mc2c
-	./mc2c < $< > $@
+%.c: %.mc mc
+	./mc --target ccross < $< > $@
 	cat $@
 
 test/%: test/%.c
 	gcc $< -o $@
 
-mc: $(MC_FILES)
-	rustc $< -o $@
-
-mc2c: $(MC2C_FILES)
-	rustc $< -o $@
-
-ir_tests: $(IR_TEST_FILES)
-	rustc $< -o $@
-
-mc-tests: $(MC_FILES)
-	rustc --test $< -o $@ -g
-
-.PHONY: all test docs clean
+.PHONY: all check docs clean
 clean:
-	rm -rf *~ doc mc mc-tests mc2c
+	rm -rf *~ doc mc mc-tests ir-tests

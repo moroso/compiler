@@ -1,6 +1,5 @@
 use std::fmt::{Formatter, Result, Show};
-use ast::{BinOpNode};
-use values::LitNode;
+use ast::{LitNode, BinOpNode};
 
 pub mod ast_to_intermediate;
 pub mod liveness;

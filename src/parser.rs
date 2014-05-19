@@ -19,11 +19,9 @@
 
 use collections::TreeMap;
 use span::{SourcePos, Span, mk_sp};
-use std::io;
-use std::mem;
-use std::num;
-use std::vec;
-use std::fmt::{Formatter, Result, Show};
+use util::Name;
+
+use std::{io, mem, num, vec};
 use std::iter::Peekable;
 
 use ast::*;
@@ -38,15 +36,15 @@ pub struct Parser {
     /// Tracks the corresponding source position of each AST node.
     spanmap: TreeMap<NodeId, Span>,
     /// Tracks the corresponding file name of each AST node.
-    filemap: TreeMap<NodeId, StringValue>,
+    filemap: TreeMap<NodeId, Name>,
 }
 
 /// The state for parsing a stream of tokens into an AST node
 pub struct StreamParser<'a, T> {
     /// The token stream.
     tokens: Peekable<SourceToken, Lexer< T>>,
-    /// The filename of the current stream being parsed.
-    filename: StringValue,
+    /// The name of the current stream being parsed.
+    name: Name,
     /// The span corresponding to the last token we consumed from the stream.
     last_span: Span,
     /// The parser that is parsing this stream
@@ -73,8 +71,8 @@ impl Parser {
         *self.spanmap.find(id).unwrap()
     }
 
-    /// Get the filename of a certain node in the AST.
-    pub fn filename_of(&self, id: &NodeId) -> StringValue {
+    /// Get the name of a certain node in the AST.
+    pub fn name_of(&self, id: &NodeId) -> Name {
         self.filemap.find(id).unwrap().clone() // TODO remove clone when interned
     }
 
@@ -92,7 +90,7 @@ macro_rules! add_id_and_span {
     ( $n:expr, $s:expr ) => ({
         let id = self.new_id();
         self.parser.spanmap.insert(id, $s);
-        self.parser.filemap.insert(id, self.filename.clone()); // TODO remove clone when interned
+        self.parser.filemap.insert(id, self.name.clone()); // TODO remove clone when interned
         WithId { val: $n, id: id }
     });
 }
@@ -135,11 +133,11 @@ macro_rules! parse_list(
 
 impl<'a, T: Buffer> StreamParser<'a, T> {
     fn new(lexer: Lexer<T>, parser: &'a mut Parser) -> StreamParser<'a, T> {
-        let filename = lexer.get_filename();
+        let name = lexer.get_name();
         let tokens = lexer.peekable();
 
         StreamParser {
-            filename: filename,
+            name: name,
             tokens: tokens,
             parser: parser,
             last_span: mk_sp(SourcePos::new(), 0),
@@ -209,7 +207,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     // Most functions from this point on are for parsing a specific node
     // in the grammar.
 
-    fn parse_name(&mut self) -> StringValue {
+    fn parse_name(&mut self) -> Name {
         match self.eat() {
             IdentTok(name) => name,
             tok => self.error(format!("Expected ident, found {}", tok),

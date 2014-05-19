@@ -1,5 +1,5 @@
 use ast::*;
-use intermediate::*;
+use ir::*;
 
 pub struct ASTToIntermediate {
     var_count: uint,

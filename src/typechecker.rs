@@ -2,12 +2,14 @@ use collections::{SmallIntMap, TreeMap, HashMap, EnumSet};
 use collections::enum_set::CLike;
 use resolver::Resolver;
 use session::Session;
+use util::{IntKind, GenericInt, SignedInt, UnsignedInt};
+use util::{Width, AnyWidth, Width8, Width16, Width32};
+
 use std::fmt;
 
 use ast::*;
 use ast::defmap::*;
 use ast::visit::*;
-use values::*;
 
 #[deriving(Eq, Show, Clone)]
 struct BoundsId(uint);

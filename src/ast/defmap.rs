@@ -1,7 +1,8 @@
+use collections::{HashMap,TreeMap};
+use util::Name;
+
 use ast::visit::*;
 use ast::*;
-use values::*;
-use collections::{HashMap,TreeMap};
 
 /// DefMap maps a NodeId to a Def, where a Def is anything that can be defined
 /// by an Ident.  This can be used by the Resolver to map the usages of Idents
@@ -25,7 +26,7 @@ pub enum Def {
     FuncArgDef(Type),
 
     /// Struct definition, with a map of fields names to their types and the NodeIds of any type parameters
-    StructDef(HashMap<StringValue, Type>, Vec<NodeId>),
+    StructDef(HashMap<Name, Type>, Vec<NodeId>),
 
     /// Enum definition, with the NodeIds of the variants and any type parameters
     EnumDef(Vec<NodeId>, Vec<NodeId>),

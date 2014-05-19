@@ -5,13 +5,14 @@
  */
 
 use ast;
-use values;
 use span::{Span, SourcePos, mk_sp};
+use util::{IntKind, GenericInt, SignedInt, UnsignedInt};
+use util::{Width, AnyWidth, Width8, Width16, Width32};
+
 use regex::Regex;
-use std::io;
-use std::option;
-use std::iter;
+use std::{io, option, iter};
 use std::slice::CloneableVector;
+
 
 #[deriving(Eq, Clone, Show)]
 pub enum Token {
@@ -27,7 +28,7 @@ pub enum Token {
     Return,
     True,
     False,
-    IntTypeTok(values::IntKind),
+    IntTypeTok(IntKind),
     Bool,
     While,
     For,
@@ -74,7 +75,7 @@ pub enum Token {
 
     // Literals
     IdentTok(~str),
-    NumberTok(u64, values::IntKind),
+    NumberTok(u64, IntKind),
     StringTok(~str),
 
     // Special
@@ -127,7 +128,7 @@ pub struct Lexer<T> {
     lines: Option<NumberedLines<T>>,
     line: Option<~str>,
     pos: SourcePos,
-    filename: ~str,
+    name: ~str,
     // Ordinary rules.
     rules: Vec<Box<LexerRuleT>>,
     // Rules specifically for when we're within a comment. We need this
@@ -146,7 +147,7 @@ pub fn lexer_from_str(s: &str) -> Lexer<io::BufferedReader<io::MemReader>> {
 }
 
 impl<T: Buffer> Lexer<T> {
-    pub fn new(filename: ~str, buffer: T) -> Lexer<T> {
+    pub fn new(name: ~str, buffer: T) -> Lexer<T> {
         macro_rules! matcher { ( $e:expr ) => ( regex!(concat!("^(?:", $e, ")"))) }
         macro_rules! lexer_rules {
             ( $( $c:expr => $m:expr ),*) => (
@@ -156,23 +157,23 @@ impl<T: Buffer> Lexer<T> {
 
         // Rule to match U32, U16, U8, I32, I16, I8
         struct IntTypeRule;
-        impl RuleMatcher<values::IntKind> for IntTypeRule {
-            fn find(&self, s: &str) -> Option<(uint, values::IntKind)> {
+        impl RuleMatcher<IntKind> for IntTypeRule {
+            fn find(&self, s: &str) -> Option<(uint, IntKind)> {
                 use std::num::from_str_radix;
 
                 let matcher = matcher!(r"[uUiI](32|16|8)");
                 match matcher.captures(s) {
                     Some(groups) => {
                         let ctor = match s.char_at(0) {
-                            'u' | 'U' => values::UnsignedInt,
-                            'i' | 'I' => values::SignedInt,
+                            'u' | 'U' => UnsignedInt,
+                            'i' | 'I' => SignedInt,
                             _ => fail!(),
                         };
 
                         let w = match from_str_radix(groups.at(1), 10) {
-                            Some(32) => values::Width32,
-                            Some(16) => values::Width16,
-                            Some(8)  => values::Width8,
+                            Some(32) => Width32,
+                            Some(16) => Width16,
+                            Some(8)  => Width8,
                             _ => fail!(),
                         };
 
@@ -185,8 +186,8 @@ impl<T: Buffer> Lexer<T> {
 
         // Rule to match a numeric literal and parse it into a number
         struct NumberRule;
-        impl RuleMatcher<(u64, values::IntKind)> for NumberRule {
-            fn find(&self, s: &str) -> Option<(uint, (u64, values::IntKind))> {
+        impl RuleMatcher<(u64, IntKind)> for NumberRule {
+            fn find(&self, s: &str) -> Option<(uint, (u64, IntKind))> {
                 use std::num::from_str_radix;
 
                 let matcher = matcher!(r"((?:0[xX]([:xdigit:]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?");
@@ -200,22 +201,22 @@ impl<T: Buffer> Lexer<T> {
                         let s = groups.at(3);
                         let kind = if s.len() > 0 {
                             let ctor = match s.char_at(0) {
-                                'u' | 'U' => values::UnsignedInt,
-                                'i' | 'I' => values::SignedInt,
+                                'u' | 'U' => UnsignedInt,
+                                'i' | 'I' => SignedInt,
                                 _ => fail!(),
                             };
 
                             let w = match from_str_radix(groups.at(4), 10) {
-                                None     => values::AnyWidth,
-                                Some(32) => values::Width32,
-                                Some(16) => values::Width16,
-                                Some(8)  => values::Width8,
+                                None     => AnyWidth,
+                                Some(32) => Width32,
+                                Some(16) => Width16,
+                                Some(8)  => Width8,
                                 _ => fail!(),
                             };
 
                             ctor(w)
                         } else {
-                            values::GenericInt
+                            GenericInt
                         };
 
                         Some((groups.at(0).len(), (from_str_radix(num_str, radix).take_unwrap(), kind)))
@@ -334,7 +335,7 @@ impl<T: Buffer> Lexer<T> {
             lines: Some(NumberedLines::new(buffer)),
             pos:  SourcePos::new(),
             line: None,
-            filename: filename,
+            name: name,
             rules: rules,
             comment_rules: comment_rules,
             comment_nest: 0,
@@ -342,8 +343,8 @@ impl<T: Buffer> Lexer<T> {
         }
     }
 
-    pub fn get_filename(&self) -> ~str {
-        self.filename.clone()
+    pub fn get_name(&self) -> ~str {
+        self.name.clone()
     }
 }
 
@@ -534,7 +535,7 @@ mod tests {
     use std::iter::Repeat;
     use std::vec::Vec;
     use ast;
-    use values;
+    use util::GenericInt;
 
     fn compare(actual: &[SourceToken], expected: &[Token]) {
         for (actual_st, expected_tok)
@@ -556,10 +557,10 @@ mod tests {
                     LParen,
                     IdentTok("x".to_owned()),
                     Dash,
-                    NumberTok(0x3f5B, values::GenericInt),
+                    NumberTok(0x3f5B, GenericInt),
                     RParen,
                     Plus,
-                    NumberTok(1, values::GenericInt),
+                    NumberTok(1, GenericInt),
                     StringTok(r#"Hello\" World"#.to_owned()),
                 }.as_slice());
 
@@ -572,7 +573,7 @@ mod tests {
                     Colon,
                     IdentTok("int".to_owned()),
                     Eq,
-                    NumberTok(5, values::GenericInt),
+                    NumberTok(5, GenericInt),
                 }.as_slice());
     }
 }
