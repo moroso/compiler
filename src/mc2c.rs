@@ -16,6 +16,7 @@ use ast::visit::{Visitor, walk_module};
 use collections::hashmap::{HashSet, HashMap};
 use resolver::Resolver;
 use session::Session;
+use typechecker::{Typechecker, Typemap};
 
 mod lexer;
 mod parser;
@@ -23,11 +24,13 @@ mod span;
 mod ast;
 mod resolver;
 mod session;
+mod typechecker;
 
 struct CCrossCompiler {
     structnames: HashSet<~str>,
     enumitemnames: HashMap<~str, (Ident, Vec<Variant>, int)>,
     session: Session,
+    typemap: Typemap,
 }
 
 fn find_structs(module: &Module) -> HashSet<~str> {
@@ -221,7 +224,7 @@ impl CCrossCompiler {
                     let did = self.session.resolver.def_from_ident(id);
                     let d = self.session.defmap.find(&did).take_unwrap();
                     match *d {
-                        TypeDef(ref t) if *t == ast::UnitType => true,
+                        GenericDef => true,
                         _ => false,
                     }
                 };
@@ -457,15 +460,22 @@ int print_int(int x) { printf("%d\n", x); return x; }
     let mut stdin = stdio::stdin();
     let mut stderr = stdio::stderr();
     let mut session = Session::new();
-    let mut ast = session.parse_buffer(stdin);
+    let mut ast = session.parse_buffer("<stdin>", stdin);
+
+    let typemap = {
+        let mut typeck = Typechecker::new(&session);
+        typeck.visit_module(&ast);
+        typeck.get_typemap()
+    };
 
     stderr.write_str(format!("{}", ast));
     stderr.write_str(format!("{}\n", find_enum_item_names(&ast)));
 
-    let mut cc: CCrossCompiler = CCrossCompiler {
+    let mut cc = CCrossCompiler {
         structnames: find_structs(&ast),
         enumitemnames: find_enum_item_names(&ast),
         session: session,
+        typemap: typemap,
     };
 
     print!("{}\n", cc.visit_module(&ast));

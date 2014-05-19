@@ -1,4 +1,4 @@
-fn print_int(x: u32) -> u32 {}
+fn print_int(x: u32) {}
 
 enum TestEnum {
     Foo,

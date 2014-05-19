@@ -93,11 +93,6 @@ pub struct SourceToken {
     pub sp: Span,
 }
 
-struct LineContext {
-    pos: SourcePos,
-    line: ~str,
-}
-
 /// A single rule for the lexer. This includes a `matcher`, which matches
 /// a string in the input, and a `maker`, which generates the token from
 /// the matched string.
@@ -129,7 +124,8 @@ impl<A, T: RuleMatcher<A>, U: TokenMaker<A>> LexerRuleT for LexerRule<T, U> {
 
 pub struct Lexer<T> {
     lines: Option<NumberedLines<T>>,
-    linectx: Option<LineContext>,
+    line: Option<~str>,
+    pos: SourcePos,
     filename: ~str,
     // Ordinary rules.
     rules: Vec<Box<LexerRuleT>>,
@@ -246,8 +242,8 @@ impl<T: Buffer> Lexer<T> {
         // Note: rules are in decreasing order of priority if there's a
         // conflict. In particular, reserved words must go before IdentTok.
         let rules = lexer_rules! {
-            // Whitespace, including the empty string (for EOF) and C-style comments.
-            WS         => matcher!(r"\s*|//.*$"),
+            // Whitespace, including C-style comments
+            WS         => matcher!(r"//.*|\s"),
 
             // The start of a multi-line comment.
             // BeginComment does not appear in the token stream.
@@ -335,7 +331,8 @@ impl<T: Buffer> Lexer<T> {
 
         Lexer {
             lines: Some(NumberedLines::new(buffer)),
-            linectx: None,
+            pos:  SourcePos::new(),
+            line: None,
             filename: filename,
             rules: rules,
             comment_rules: comment_rules,
@@ -359,16 +356,16 @@ impl<T: Buffer> Iterator<SourceToken> for Lexer<T> {
                     fail!("Unterminated multiline comment found in input stream");
                 }
 
-                return self.linectx.take().map(|lc| {
+                return self.line.take().map(|_| {
                     SourceToken {
                         tok: Eof,
-                        sp: mk_sp(lc.pos, 0),
+                        sp: mk_sp(self.pos, 0),
                     }
                 });
             }
 
-            for lc in self.linectx.mut_iter() {
-                while lc.pos.col < lc.line.len() {
+            for line in self.line.iter() {
+                while self.pos.col < line.len() {
                     // We apply each rule. Of the ones that match, we take
                     // the longest match.
                     let mut longest = 0u;
@@ -380,13 +377,13 @@ impl<T: Buffer> Iterator<SourceToken> for Lexer<T> {
                     };
 
                     for rule in rules.iter() {
-                        let m = rule.run(lc.line.slice_from(lc.pos.col));
+                        let m = rule.run(line.slice_from(self.pos.col));
                         match m {
                             Some((len, tok)) => {
                                 if len > longest {
                                     // We have a match that's longer than our
                                     // previous one. Remember it.
-                                    best = Some((mk_sp(lc.pos, len), tok));
+                                    best = Some((mk_sp(self.pos, len), tok));
                                     longest = len;
                                 }
                             },
@@ -395,7 +392,7 @@ impl<T: Buffer> Iterator<SourceToken> for Lexer<T> {
                     }
 
                     // Advance our position within the line.
-                    lc.pos.col += longest;
+                    self.pos.col += longest;
 
                     match best {
                         None => fail!("Unexpected input"),
@@ -415,15 +412,14 @@ impl<T: Buffer> Iterator<SourceToken> for Lexer<T> {
             // Fetch a new line, now that we're done with the previous one.
             match self.lines.as_mut().and_then(|lines| lines.next()) {
                 Some(Ok((row, line))) => {
-                    self.linectx = Some(LineContext {
-                        pos:  SourcePos { row: row, col: 0 },
-                        line: line,
-                    });
+                    self.line = Some(line);
+                    self.pos = SourcePos { row: row, col: 0 };
                 }
                 Some(Err(e)) => {
                     fail!("error in input stream: {}", e);
                 }
                 None => {
+                    self.line = Some("".to_owned());
                     self.eof = true;
                 }
             }

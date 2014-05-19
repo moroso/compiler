@@ -30,8 +30,8 @@ impl Session {
         }
     }
 
-    fn parse_common<T: Buffer>(&mut self, filename: ~str, buffer: T) -> Module {
-        let lexer = Lexer::new(filename, buffer);
+    pub fn parse_buffer<T: Buffer>(&mut self, name: &str, buffer: T) -> Module {
+        let lexer = Lexer::new(name.to_owned(), buffer);
         let module = self.parser.parse(lexer);
         self.defmap.visit_module(&module);
         self.resolver.visit_module(&module);
@@ -40,10 +40,13 @@ impl Session {
 
     pub fn parse_file(&mut self, file: io::File) -> Module {
         let filename = format!("{}", file.path().display());
-        self.parse_common(filename, io::BufferedReader::new(file))
+        self.parse_buffer(filename, io::BufferedReader::new(file))
     }
 
-    pub fn parse_buffer<T: Buffer>(&mut self, buffer: T) -> Module {
-        self.parse_common("<input>".to_owned(), buffer)
+    pub fn parse_str(&mut self, s: &str) -> Module {
+        use std::str::StrSlice;
+        let bytes = Vec::from_slice(s.as_bytes());
+        let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
+        self.parse_buffer("<input>", buffer)
     }
 }
