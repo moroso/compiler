@@ -20,6 +20,7 @@ mod ast;
 mod resolver;
 mod session;
 mod typechecker;
+mod values;
 
 fn main() {
     println!("moroso compiler");
