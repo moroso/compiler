@@ -30,7 +30,7 @@ impl Ord for SourcePos {
 
 impl fmt::Show for SourcePos {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f.buf, "line {}, column {}", self.row+1, self.col+1)
+        write!(f, "line {}, column {}", self.row+1, self.col+1)
     }
 }
 
@@ -50,7 +50,7 @@ pub struct Span {
 
 impl fmt::Show for Span {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f.buf, "{}: {}", self.begin, self.end)
+        write!(f, "{}: {}", self.begin, self.end)
     }
 }
 
