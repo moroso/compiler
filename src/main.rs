@@ -35,6 +35,12 @@ mod ir;
 mod target;
 mod values;
 
+struct NullTarget;
+impl Target for NullTarget {
+    fn new(_: Vec<StrBuf>) -> NullTarget { NullTarget }
+    fn compile(&self, _: Package) { }
+}
+
 fn package_from_stdin() -> Package {
     Package::new("<stdin>", stdio::stdin())
 }
@@ -59,7 +65,7 @@ fn main() {
     };
 
     let opts = [
-        optopt("", "target", "Set the output target.", "<target>"),
+        optopt("", "target", "Set the output target.", "[c|null]"),
         optflag("h", "help", "Show this help message."),
     ];
 
@@ -72,14 +78,8 @@ fn main() {
             None => {}
         }
 
-        let brief =
-            "Usage:" +
-            format!("\n    {} --help", arg0) +
-            format!("\n    {} --target <target>", arg0);
-
-        println!("");
+        let brief = format!("Usage: {} [OPTIONS]", arg0);
         println!("{}", getopts::usage(brief, opts));
-        println!("    Valid values for <target> are: c");
     };
 
     let matches = match getopts(args.as_slice(), opts) {
@@ -91,20 +91,12 @@ fn main() {
         return bail(None);
     }
 
-    // Require target for now
-    //TODO: 'Validate' target as default; just parse, typecheck, and exit
-    let target_arg = match matches.opt_str("target") {
-        Some(t) => t,
-        None => {
-            let msg = OptionMissing("target".to_strbuf()).to_err_msg().into_owned();
-            return bail(Some(msg));
-        }
-    };
-
     let targets = targets! {
         "c" => CTarget,
+        "null" => NullTarget,
     };
 
+    let target_arg = matches.opt_str("target").unwrap_or("null".to_strbuf());
     let target = match targets.move_iter()
                         .filter(|&(ref t, _)| t.eq_ignore_ascii_case(target_arg.as_slice()))
                         .map(|(_, ctor)| ctor(vec!()))
