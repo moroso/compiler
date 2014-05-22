@@ -29,7 +29,7 @@ ir-tests: $(MC_FILES)
 
 all: mc mc-tests ir-tests
 
-check: mc-tests
+test: mc-tests
 	./mc-tests
 
 test-ir: ir-tests
@@ -41,12 +41,12 @@ doc/%/index.html: %.rs
 	rustdoc $<
 
 %.c: %.mc mc
-	./mc --target ccross < $< > $@
+	./mc --target c < $< > $@
 	cat $@
 
 test/%: test/%.c
 	gcc $< -o $@
 
-.PHONY: all check docs clean
+.PHONY: all test docs clean
 clean:
 	rm -rf *~ doc mc mc-tests ir-tests
