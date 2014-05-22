@@ -136,6 +136,9 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
         TupleExpr(ref es) => {
             for e in es.iter() { visitor.visit_expr(e); }
         }
+        GroupExpr(ref e) => {
+            visitor.visit_expr(*e);
+        }
         IdentExpr(ref id) => {
             visitor.visit_ident(id);
         }

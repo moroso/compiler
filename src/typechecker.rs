@@ -189,6 +189,16 @@ macro_rules! save_ty {
     ($n:expr, $t:expr) => ({ let ty = $t; self.typemap.types.insert($n.id.to_uint(), ty.clone()); ty })
 }
 
+macro_rules! constrained {
+    ($k:expr) => (
+        {
+            let mut ks = EnumSet::empty();
+            ks.add($k);
+            Constrained(ks)
+        }
+    )
+}
+
 impl<'a> Typechecker<'a> {
     pub fn new(session: &'a Session) -> Typechecker<'a> {
         Typechecker {
@@ -410,6 +420,7 @@ impl<'a> Typechecker<'a> {
             UnitExpr => UnitTy,
             LitExpr(ref l) => self.lit_to_ty(l),
             TupleExpr(ref es) => TupleTy(es.iter().map(|e| self.expr_to_ty(e)).collect()),
+            GroupExpr(ref e) => self.expr_to_ty(*e),
             IdentExpr(ref ident) => {
                 let nid = self.session.resolver.def_from_ident(ident);
                 match *self.session.defmap.find(&nid).take_unwrap() {
@@ -497,12 +508,8 @@ impl<'a> Typechecker<'a> {
                 };
 
                 let bounds = match ck {
-                    Kind(k) => {
-                        let mut ks = EnumSet::empty();
-                        ks.add(k);
-                        Constrained(ks)
-                    }
-                    Ty(ty) => Concrete(ty)
+                    Kind(k) => constrained!(k),
+                    Ty(ty) => Concrete(ty),
                 };
 
                 let l_ty = self.check_ty_bounds(l_ty, bounds);
@@ -512,16 +519,17 @@ impl<'a> Typechecker<'a> {
             }
             UnOpExpr(ref op, ref e) => {
                 let ty = self.expr_to_ty(*e);
-
                 let expr_ty = match op.val {
+                    Negate => self.check_ty_bounds(ty, constrained!(SubKind)),
+                    BitNot => self.check_ty_bounds(ty, constrained!(BitXorKind)),
+                    LogNot => self.unify(BoolTy, ty),
+                    AddrOf => PtrTy(box ty),
                     Deref => {
                         match self.unify(PtrTy(box BottomTy), ty) {
                             PtrTy(ty) => *ty,
                             _ => unreachable!(),
                         }
                     }
-                    AddrOf => PtrTy(box ty),
-                    Negate => self.unify(IntTy(AnyWidth), ty),
                 };
 
                 expr_ty

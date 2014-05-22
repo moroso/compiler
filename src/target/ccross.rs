@@ -270,6 +270,7 @@ impl CCrossCompiler {
             UnitExpr => "({})".to_owned(),
             LitExpr(ref l) => self.visit_lit(l),
             TupleExpr(ref t) => fail!("Tuples not yet supported."),
+            GroupExpr(ref e) => format!("({})", self.visit_expr(*e)),
             IdentExpr(ref i) => self.visit_ident(i),
             BinOpExpr(ref op, ref lhs, ref rhs) => {
                 "(".to_owned() +

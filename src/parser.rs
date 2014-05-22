@@ -51,6 +51,89 @@ pub struct StreamParser<'a, T> {
     parser: &'a mut Parser,
 }
 
+enum Assoc {
+    LeftAssoc,
+    RightAssoc,
+    NonAssoc,
+}
+
+struct OpTable {
+    rows: &'static [OpTableRow],
+}
+
+struct OpTableRow {
+    assoc: Assoc,
+    ops: uint,
+}
+
+fn unop_from_token(t: &Token) -> Option<UnOpNode> {
+    match *t {
+        Dash => Some(Negate),
+        Tilde => Some(BitNot),
+        Bang => Some(LogNot),
+        Ampersand => Some(AddrOf),
+        Star => Some(Deref),
+        _ => None,
+    }
+}
+
+fn binop_from_token(t: &Token) -> Option<BinOpNode> {
+    match *t {
+        Plus => Some(PlusOp),
+        Dash => Some(MinusOp),
+        Star => Some(TimesOp),
+        ForwardSlash => Some(DivideOp),
+        Percent => Some(ModOp),
+        EqEq => Some(EqualsOp),
+        BangEq => Some(NotEqualsOp),
+        Less => Some(LessOp),
+        LessEq => Some(LessEqOp),
+        Greater => Some(GreaterOp),
+        GreaterEq => Some(GreaterEqOp),
+        AmpAmp => Some(AndAlsoOp),
+        PipePipe => Some(OrElseOp),
+        Ampersand => Some(BitAndOp),
+        Pipe => Some(BitOrOp),
+        Caret => Some(BitXorOp),
+        Lsh => Some(LeftShiftOp),
+        Rsh => Some(RightShiftOp),
+        _ => None,
+    }
+}
+
+fn unop_token(op: UnOpNode) -> Token {
+    match op {
+        Deref => Star,
+        AddrOf => Ampersand,
+        Negate => Dash,
+        LogNot => Bang,
+        BitNot => Tilde,
+    }
+}
+
+fn binop_token(op: BinOpNode) -> Token {
+    match op {
+        PlusOp => Plus,
+        MinusOp => Dash,
+        TimesOp => Star,
+        DivideOp => ForwardSlash,
+        ModOp => Percent,
+        EqualsOp => EqEq,
+        NotEqualsOp => BangEq,
+        LessOp => Less,
+        LessEqOp => LessEq,
+        GreaterOp => Greater,
+        GreaterEqOp => GreaterEq,
+        AndAlsoOp => AmpAmp,
+        OrElseOp => PipePipe,
+        BitAndOp => Ampersand,
+        BitOrOp => Pipe,
+        BitXorOp => Caret,
+        LeftShiftOp => Lsh,
+        RightShiftOp => Rsh,
+    }
+}
+
 // Convenience function for testing
 pub fn ast_from_str<U>(s: &str, f: |&mut StreamParser<io::BufferedReader<io::MemReader>>| -> U) -> U {
     let mut parser = Parser::new();
@@ -84,15 +167,6 @@ impl Parser {
         let mut tokp = StreamParser::new(lexer, self);
         f(&mut tokp)
     }
-}
-
-macro_rules! add_id_and_span {
-    ( $n:expr, $s:expr ) => ({
-        let id = self.new_id();
-        self.parser.spanmap.insert(id, $s);
-        self.parser.filemap.insert(id, self.name.clone()); // TODO remove clone when interned
-        WithId { val: $n, id: id }
-    });
 }
 
 /**
@@ -191,15 +265,22 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     /// A convenience function to generate an error message when we've
     /// peeked at a token, but it doesn't match any token we were expecting.
     fn peek_error<'a>(&mut self, message: &'a str) -> ! {
-        let token = self.peek().clone();
+        let tok = self.peek().clone();
         let pos = self.peek_span().get_begin();
-        self.error(format!("{} (got token {})", message, token), pos)
+        self.error(format!("{} (got token {})", message, tok), pos)
     }
 
     fn new_id(&mut self) -> NodeId {
         let id = self.parser.next_id;
         self.parser.next_id += 1;
         NodeId(id)
+    }
+
+    fn add_id_and_span<T>(&mut self, val: T, sp: Span) -> WithId<T> {
+        let id = self.new_id();
+        self.parser.spanmap.insert(id, sp);
+        self.parser.filemap.insert(id, self.name.clone()); // TODO remove clone when interned
+        WithId { val: val, id: id }
     }
 
     /////////////////////////////////////////////////////////////////////
@@ -221,7 +302,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             tps: None,
         };
 
-        add_id_and_span!(ident, self.last_span)
+        self.add_id_and_span(ident, self.last_span)
     }
 
     fn expect_number(&mut self) -> u64 {
@@ -232,7 +313,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         }
     }
 
-    pub fn parse_typed_literal(&mut self) -> Lit {
+    pub fn parse_lit(&mut self) -> Lit {
         let node = match self.eat() {
             True                 => BoolLit(true),
             False                => BoolLit(false),
@@ -241,7 +322,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             tok                  => self.error(format!("Unexpected {} where literal expected", tok), self.last_span.get_begin())
         };
 
-        add_id_and_span!(node, self.last_span)
+        self.add_id_and_span(node, self.last_span)
     }
 
     fn parse_pat_common(&mut self, allow_types: bool) -> Pat {
@@ -296,7 +377,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             _ => self.peek_error("Unexpected token while parsing pattern")
         };
 
-        add_id_and_span!(pat, start_span.to(self.last_span))
+        self.add_id_and_span(pat, start_span.to(self.last_span))
     }
 
     pub fn parse_pat(&mut self) -> Pat {
@@ -315,239 +396,6 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             name: name,
             pat: pat,
         }
-    }
-
-    pub fn parse_index(&mut self) -> Expr {
-        /*
-        Parse a possibly-array-indexed expression.
-
-        INDEX ::= '(' EXPR [ , EXPR ...] ')'
-                | COMPOUND_EXPRESSION
-                | Number | String | True | False
-                | INDEX '[' EXPR ']'
-                | INDEX '(' ARGLIST ')'
-                | INDEX '.' IDENT
-                | INDEX 'as' TYPE
-                | IDENT
-        */
-        let start_span = self.peek_span();
-        let mut node = match *self.peek() {
-            // '(' expr ')'
-            LParen => {
-                self.expect(LParen);
-                let mut inner_exprs = parse_list!(self.parse_expr()
-                                                  until RParen);
-                self.expect(RParen);
-                if inner_exprs.len() == 0 {
-                    UnitExpr
-                } else if inner_exprs.len() == 1 {
-                    inner_exprs.pop().take_unwrap().val
-                } else {
-                    TupleExpr(inner_exprs)
-                }
-            },
-            LBrace => {
-                BlockExpr(box self.parse_block_expr())
-            }
-            NumberTok(..) | True | False | StringTok(..) => {
-                LitExpr(self.parse_typed_literal())
-            },
-            IdentTok(_) => {
-                IdentExpr(self.parse_ident())
-            }
-            Star => {
-                self.expect(Star);
-                let op = add_id_and_span!(Deref, self.last_span);
-                UnOpExpr(op, box self.parse_factor())
-            },
-            Ampersand => {
-                self.expect(Ampersand);
-                let op = add_id_and_span!(AddrOf, self.last_span);
-                UnOpExpr(op, box self.parse_factor())
-            }
-            _ => self.peek_error("Got unexpected token"),
-        };
-
-        // lol this is what you get for having block expressions
-        let mut current_index;
-        while {
-            current_index = add_id_and_span!(node, start_span.to(self.last_span));
-            true
-        } {
-            node = match *self.peek() {
-                LBracket => {
-                    self.expect(LBracket);
-                    let indexing_expr = self.parse_expr();
-                    self.expect(RBracket);
-                    IndexExpr(box current_index, box indexing_expr)
-                },
-                // ColonColon is invalid in this position -- it is only valid after an Ident,
-                // and right now we are in expression context.  TODO kemurphy handle this with modules
-                /*ColonColon => {
-                    self.expect(ColonColon);
-                    self.expect(Less);
-                    let type_params = parse_list!(self.parse_type()
-                                                  until Greater);
-                    self.expect(Greater);
-                    self.expect(LParen);
-                    let args = parse_list!(self.parse_expr() until RParen);
-                    self.expect(RParen);
-                    CallExpr(~current_index, args.val, type_params)
-                } */
-                LParen => {
-                    self.expect(LParen);
-                    let args = parse_list!(self.parse_expr() until RParen);
-                    self.expect(RParen);
-                    CallExpr(box current_index, args)
-                },
-                As => {
-                    self.expect(As);
-                    CastExpr(box current_index, self.parse_type())
-                },
-                Period => {
-                    self.expect(Period);
-                    let field = self.parse_name();
-                    DotExpr(box current_index, field)
-                }
-                Arrow => {
-                    self.expect(Arrow);
-                    let field = self.parse_name();
-                    ArrowExpr(box current_index, field)
-                }
-                _ => return current_index
-            };
-        }
-        unreachable!()
-    }
-
-    fn parse_factor(&mut self) -> Expr {
-        /*
-        Parse a factor.
-
-        FACTOR ::= INDEX
-                 | '*' INDEX
-                 | '&' INDEX
-                 | '!' EXPR
-        */
-        let start_span = self.peek_span();
-        let node = match *self.peek() {
-            Star => {
-                self.expect(Star);
-                let index = self.parse_index();
-                UnOpExpr(add_id_and_span!(Deref, start_span), box index)
-            }
-            Ampersand => {
-                self.expect(Ampersand);
-                let index = self.parse_index();
-                UnOpExpr( add_id_and_span!(AddrOf, start_span), box index)
-            }
-            Bang => {
-                self.expect(Bang);
-                let index = self.parse_expr();
-                UnOpExpr( add_id_and_span!(Negate, start_span), box index)
-            }
-            _ => return self.parse_index()
-        };
-
-        add_id_and_span!(node, start_span.to(self.last_span))
-    }
-
-
-    fn parse_binop(&mut self, precedence: uint) -> Expr {
-        // This function is a bit more general than the other parsing
-        // functions. It's responsible for all binary operations that
-        // appear in expressions. Most of the work is done by the
-        // `binop` macro, which takes the token corresponding to the
-        // binary operation, the BinOpNode that represents this binary
-        // operation in the AST, and the precendence (starting from 0,
-        // the lowest precedence, all the way up to num_precedences).
-
-        // How many levels of precedence there are. (Note that this is one
-        // higher than the highest precedence, since we start at 0). If you
-        // ever add new operators that have a different precedence from
-        // any operator already there, remember to update this.
-        let num_precedences = 9;
-
-        // If the precedence we're given is higher than any of the binary
-        // operators, our work here is done.
-        if precedence == num_precedences {
-            return self.parse_factor();
-        }
-
-        let mut current = self.parse_binop(precedence+1);
-
-        macro_rules! binop(
-            ( $( ($token:ident, $ast_op:ident, $precedence:expr) ),* )
-                => ({
-                    match *self.peek() {
-                        $(
-                            // If the token matches, *and* the precedence
-                            // matches, we can process it.
-                            $token if precedence == $precedence => {
-                                self.expect($token);
-                                let rhs = self.parse_binop(precedence+1);
-                                let op_span = self.last_span;
-                                let exp_span = self.parser.span_of(&current.id).to(self.parser.span_of(&rhs.id));
-                                current = 
-                                    add_id_and_span!(BinOpExpr(add_id_and_span!($ast_op, op_span),
-                                                    box current, box rhs),
-                                          exp_span);
-                            },
-                        )+
-                            _ => {
-                                return current;
-                            }
-                    }
-                })
-            );
-
-        loop {
-            binop!((Star, TimesOp, num_precedences-1),
-                   (ForwardSlash, DivideOp, num_precedences-1),
-                   (Percent, ModOp, num_precedences-1),
-
-                   (Plus, PlusOp, 7),
-                   (Dash, MinusOp, 7),
-
-                   (Lsh, LeftShiftOp, 6),
-                   (Rsh, RightShiftOp, 6),
-
-                   (Ampersand, BitAndOp, 5),
-                   (Caret, BitXorOp, 4),
-                   (Pipe, BitOrOp, 3),
-
-                   (EqEq, EqualsOp, 2),
-                   (BangEq, NotEqualsOp, 2),
-                   (LessEq, LessEqOp, 2),
-                   (Less, LessOp, 2),
-                   (GreaterEq, GreaterEqOp, 2),
-                   (Greater, GreaterOp, 2),
-
-                   (AmpAmp, AndAlsoOp, 1),
-                   (PipePipe, OrElseOp, 0)
-                   );
-        }
-                
-    }
-
-    fn parse_possible_assignment(&mut self) -> Expr {
-        /*
-        Parse a (possible) assignment.
-
-        ASSIGN ::= BOOL_ARITH [ '=' ASSIGN ]
-        */
-        let start_span = self.peek_span();
-        let parsed_bool_arith = self.parse_binop(0);
-
-        let node = match *self.peek() {
-            Eq => {
-                self.expect(Eq);
-                AssignExpr(box parsed_bool_arith, box self.parse_possible_assignment())
-            },
-            _ => return parsed_bool_arith
-        };
-
-        add_id_and_span!(node, start_span.to(self.last_span))
     }
 
     pub fn parse_type(&mut self) -> Type {
@@ -576,7 +424,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 if inner_types.len() == 0 {
                     UnitType
                 } else if inner_types.len() == 1 {
-                    inner_types.pop().take_unwrap().val
+                    inner_types.pop().unwrap().val
                 } else {
                     TupleType(inner_types)
                 }
@@ -608,7 +456,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
 
         let mut result;
         while {
-            result = add_id_and_span!(node, start_span.to(self.last_span));
+            result = self.add_id_and_span(node, start_span.to(self.last_span));
             true
         } {
             node = match *self.peek() {
@@ -624,7 +472,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         unreachable!()
     }
 
-    pub fn parse_variable_declaration(&mut self) -> Stmt {
+    pub fn parse_let_stmt(&mut self) -> Stmt {
         /* Parse a 'let' statement. There are a bunch of variations on this:
          * * `let x: int` to declare a typed variable, but not initialize it;
          * * `let x: int = 5` to declare a typed variable and initialize it;
@@ -650,15 +498,15 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             _ => self.peek_error("Expected semicolon or \"=\""),
         };
 
-        add_id_and_span!(LetStmt(pat, expr), start_span.to(self.last_span))
+        self.add_id_and_span(LetStmt(pat, expr), start_span.to(self.last_span))
     }
 
-    fn parse_if_statement(&mut self) -> Expr {
+    fn parse_if_expr(&mut self) -> Expr {
         let start_span = self.peek_span();
         self.expect(If);
 
         let cond = self.parse_expr();
-        let true_block = self.parse_block_expr();
+        let true_block = self.parse_block();
 
         let false_block = match *self.peek() {
             Else => {
@@ -668,10 +516,10 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                         Block {
                             items: vec!(),
                             stmts: vec!(),
-                            expr: Some(self.parse_simple_expr()),
+                            expr: Some(self.parse_expr()),
                         }
                     },
-                    _ => self.parse_block_expr()
+                    _ => self.parse_block()
                 }
             }
             _ => {
@@ -680,31 +528,31 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 Block {
                     items: vec!(),
                     stmts: vec!(),
-                    expr: Some(add_id_and_span!(UnitExpr, fake_span)),
+                    expr: Some(self.add_id_and_span(UnitExpr, fake_span)),
                 }
             }
         };
 
-        add_id_and_span!(IfExpr(box cond, box true_block, box false_block),
+        self.add_id_and_span(IfExpr(box cond, box true_block, box false_block),
                          start_span.to(self.last_span))
     }
 
-    fn parse_return_statement(&mut self) -> Expr {
+    fn parse_return_expr(&mut self) -> Expr {
         let start_span = self.peek_span();
         self.expect(Return);
         let result = ReturnExpr(box self.parse_expr());
-        add_id_and_span!(result, start_span.to(self.last_span))
+        self.add_id_and_span(result, start_span.to(self.last_span))
     }
 
-    fn parse_while_loop(&mut self) -> Expr {
+    fn parse_while_expr(&mut self) -> Expr {
         let start_span = self.peek_span();
         self.expect(While);
         let cond = self.parse_expr();
-        let body = self.parse_block_expr();
-        add_id_and_span!(WhileExpr(box cond, box body), start_span.to(self.last_span))
+        let body = self.parse_block();
+        self.add_id_and_span(WhileExpr(box cond, box body), start_span.to(self.last_span))
     }
 
-    fn parse_for_loop(&mut self) -> Expr {
+    fn parse_for_expr(&mut self) -> Expr {
         let start_span = self.peek_span();
         self.expect(For);
         self.expect(LParen);
@@ -714,11 +562,11 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.expect(Semicolon);
         let iter = self.parse_expr();
         self.expect(RParen);
-        let body = self.parse_block_expr();
-        add_id_and_span!(ForExpr(box init, box cond, box iter, box body), start_span.to(self.last_span))
+        let body = self.parse_block();
+        self.add_id_and_span(ForExpr(box init, box cond, box iter, box body), start_span.to(self.last_span))
     }
 
-    fn parse_match_item(&mut self) -> MatchArm {
+    fn parse_match_arm(&mut self) -> MatchArm {
         let pat = self.parse_pat();
         self.expect(DoubleArrow);
         let body = self.parse_expr();
@@ -734,39 +582,269 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.expect(Match);
         let matched_expr = self.parse_expr();
         self.expect(LBrace);
-        let match_items = parse_list!(self.parse_match_item() until RBrace);
+        let match_items = parse_list!(self.parse_match_arm() until RBrace);
         self.expect(RBrace);
-        add_id_and_span!(MatchExpr(box matched_expr, match_items), start_span.to(self.last_span))
+        self.add_id_and_span(MatchExpr(box matched_expr, match_items), start_span.to(self.last_span))
     }
 
-    fn parse_simple_expr(&mut self) -> Expr {
-        match *self.peek() {
-            If => self.parse_if_statement(),
-            For => self.parse_for_loop(),
-            While => self.parse_while_loop(),
-            Return => self.parse_return_statement(),
-            Match => self.parse_match_expr(),
-            _ => self.parse_possible_assignment()
+    fn parse_unop_expr(&mut self) -> Expr {
+        let start_span = self.peek_span();
+        let op = match *self.peek() {
+            ref tok if unop_from_token(tok).is_some() =>
+                Some(unop_from_token(tok).unwrap()),
+            _ => None,
+        };
+
+        match op {
+            Some(op) => {
+                self.expect(unop_token(op));
+                let op = self.add_id_and_span(op, self.last_span);
+                let e = self.parse_simple_expr();
+                let node = UnOpExpr(op, box e);
+                self.add_id_and_span(node, start_span.to(self.last_span))
+            }
+            _ => self.parse_simple_expr()
         }
     }
 
-    fn parse_block_expr(&mut self) -> Block {
-        /* Parse a "block expression" (compound expression), such as
+    fn parse_unop_expr_maybe_cast(&mut self) -> Expr {
+        fn maybe_parse_cast<'a, T: Buffer>(me: &mut StreamParser<'a, T>, expr: Expr, start_span: Span) -> Expr {
+            match *me.peek() {
+                As => {
+                    me.expect(As);
+                    let t = me.parse_type();
+                    let node = CastExpr(box expr, t);
+                    let castexpr = me.add_id_and_span(node, start_span.to(me.last_span));
+                    maybe_parse_cast(me, castexpr, start_span)
+                }
+                _ => expr,
+            }
+        }
+
+        let start_span = self.peek_span();
+        let e = self.parse_unop_expr();
+        maybe_parse_cast(self, e, start_span)
+    }
+
+    fn parse_binop_expr(&mut self) -> Expr {
+        macro_rules! ops {
+            () => (0);
+            (,) => (0);
+            ($($op:expr),+,) => (ops!($($ops),+));
+            ($($op:expr),+) => ($((1 << ($op as uint)))|+);
+        }
+
+        macro_rules! row {
+            ($a:expr, [$($ops:expr),+,]) => (row!($a, [$($ops),+]));
+            ($a:expr, [$($ops:expr),*]) => (
+                (OpTableRow { assoc: $a, ops: ops!($($ops),*) })
+            )
+        }
+
+        macro_rules! left {
+            ($($ops:expr),+,) => (left!($($ops),+));
+            ($($ops:expr),*) => (row!(LeftAssoc, [$($ops),+]));
+        }
+
+        macro_rules! non {
+            ($($ops:expr),+,) => (non!($($ops),+));
+            ($($ops:expr),*) => (row!(NonAssoc, [$($ops),+]));
+        }
+
+        macro_rules! optable {
+            ($($rows:expr),+,) => (optable!($($rows),+));
+            ($($rows:expr),*) => (OpTable { rows: [$($rows),+] });
+        }
+
+        fn parse_binop_expr_from_optable<'a, T: Buffer>(parser: &mut StreamParser<'a, T>, table: &OpTable) -> Expr {
+            fn maybe_parse_binop<'a, T: Buffer>(ops: uint,
+                                                assoc: Assoc,
+                                                parser: &mut StreamParser<'a, T>,
+                                                parse_simpler_expr: |&mut StreamParser<'a, T>| -> Expr,
+                                                e: Expr,
+                                                start_span: Span)
+                                             -> Expr {
+                let op = match *parser.peek() {
+                    ref tok if binop_from_token(tok).map_or(false, |op| ops & (1 << (op as uint)) != 0) => binop_from_token(tok).unwrap(),
+                    _ => return e,
+                };
+
+                let op_span = parser.peek_span();
+                parser.expect(binop_token(op));
+                let op = parser.add_id_and_span(op, op_span);
+
+                match assoc {
+                    RightAssoc => {
+                        let r_span = parser.peek_span();
+                        let r = parse_simpler_expr(parser);
+                        let r = maybe_parse_binop(ops, assoc, parser, parse_simpler_expr, r, r_span);
+                        let node = BinOpExpr(op, box e, box r);
+                        parser.add_id_and_span(node, start_span)
+                    }
+                    LeftAssoc => {
+                        let r = parse_simpler_expr(parser);
+                        let node = BinOpExpr(op, box e, box r);
+                        let e = parser.add_id_and_span(node, start_span);
+                        maybe_parse_binop(ops, assoc, parser, parse_simpler_expr, e, start_span)
+                    }
+                    NonAssoc => {
+                        let r = parse_simpler_expr(parser);
+                        let node = BinOpExpr(op, box e, box r);
+                        parser.add_id_and_span(node, start_span)
+                    }
+                }
+            }
+
+            fn parse_row<'a, T: Buffer>(r: uint, parser: &mut StreamParser<'a, T>, rows: &[OpTableRow]) -> Expr {
+                if r == 0 {
+                    parser.parse_unop_expr_maybe_cast()
+                } else {
+                    let row = &rows[r - 1];
+                    let start_span = parser.peek_span();
+                    let parse_simpler_expr = |p: &mut StreamParser<'a, T>| parse_row(r - 1, p, rows);
+                    let e = parse_simpler_expr(parser);
+                    maybe_parse_binop(row.ops, row.assoc, parser, parse_simpler_expr, e, start_span)
+                }
+            }
+
+            parse_row(table.rows.len(), parser, table.rows)
+        }
+
+        static optable: OpTable = optable! {
+            left!(TimesOp, DivideOp, ModOp),
+            left!(PlusOp, MinusOp),
+            left!(LeftShiftOp, RightShiftOp),
+            left!(BitAndOp),
+            left!(BitXorOp),
+            left!(BitOrOp),
+            non!(GreaterOp, LessOp, GreaterEqOp, LessEqOp),
+            left!(EqualsOp, NotEqualsOp),
+            left!(AndAlsoOp),
+            left!(OrElseOp),
+        };
+
+        parse_binop_expr_from_optable(self, &optable)
+    }
+
+    fn parse_expr(&mut self) -> Expr {
+        let start_span = self.peek_span();
+        let lv = self.parse_binop_expr();
+
+        // Look for any assignments
+        match *self.peek() {
+            Eq => {
+                self.expect(Eq);
+                let e = self.parse_expr();
+                let node = AssignExpr(box lv, box e);
+                self.add_id_and_span(node, start_span.to(self.last_span))
+            }
+            _ => lv,
+        }
+    }
+
+    fn parse_simple_expr(&mut self) -> Expr {
+        /*
+        Parse an expression.
+
+        EXPR ::= Number | String | True | False
+               |'(' EXPR [ , EXPR ...] ')'
+               | BLOCK
+               | EXPR '[' EXPR ']'
+               | EXPR '(' ARGLIST ')'
+               | EXPR '.' IDENT
+               | EXPR 'as' TYPE
+               | IDENT
+        */
+        use std::iter::Unfold;
+
+        let start_span = self.peek_span();
+        let mut expr = match *self.peek() {
+            If => self.parse_if_expr(),
+            Return => self.parse_return_expr(),
+            Match => self.parse_match_expr(),
+            For => self.parse_for_expr(),
+            While => self.parse_while_expr(),
+            LBrace => self.parse_block_expr(),
+            LParen => self.parse_paren_expr(),
+            NumberTok(..) | StringTok(..) | True | False => {
+                let start_span = self.peek_span();
+                let node = LitExpr(self.parse_lit());
+                self.add_id_and_span(node, start_span.to(self.last_span))
+            }
+            IdentTok(..) => {
+                let start_span = self.peek_span();
+                let node = IdentExpr(self.parse_ident());
+                self.add_id_and_span(node, start_span.to(self.last_span))
+            }
+            _ => self.peek_error("Expected expression")
+        };
+
+        loop {
+            let node = match *self.peek() {
+                Period => {
+                    self.expect(Period);
+                    let field = self.parse_name();
+                    DotExpr(box expr, field)
+                }
+                Arrow => {
+                    self.expect(Arrow);
+                    let field = self.parse_name();
+                    ArrowExpr(box expr, field)
+                }
+                LBracket => {
+                    self.expect(LBracket);
+                    let subscript = self.parse_expr();
+                    self.expect(RBracket);
+                    IndexExpr(box expr, box subscript)
+                }
+                LParen => {
+                    self.expect(LParen);
+                    let args = parse_list!(self.parse_expr() until RParen);
+                    self.expect(RParen);
+                    CallExpr(box expr, args)
+                }
+                _ => return expr
+            };
+
+            expr = self.add_id_and_span(node, start_span.to(self.last_span));
+        }
+    }
+
+    fn parse_paren_expr(&mut self) -> Expr {
+        let start_span = self.peek_span();
+
+        self.expect(LParen);
+        let mut inner_exprs = parse_list!(self.parse_expr()
+                                          until RParen);
+        self.expect(RParen);
+
+        let node = if inner_exprs.len() == 0 {
+            UnitExpr
+        } else if inner_exprs.len() == 1 {
+            GroupExpr(box inner_exprs.pop().unwrap())
+        } else {
+            TupleExpr(inner_exprs)
+        };
+
+        self.add_id_and_span(node, start_span.to(self.last_span))
+    }
+
+    fn parse_block_expr(&mut self) -> Expr {
+        let start_span = self.peek_span();
+        let block = self.parse_block();
+        self.add_id_and_span(BlockExpr(box block), start_span.to(self.last_span))
+    }
+
+    fn parse_block(&mut self) -> Block {
+        /* Parse a "block" (compound expression), such as
            `{ 1+1; f(x); 2 }`.
         */
         self.expect(LBrace);
         let mut statements = vec!();
         loop {
-            // TODO split this out into parse_stmt
             match *self.peek() {
                 Let => {
-                    let variable_decl = self.parse_variable_declaration();
-                    statements.push(variable_decl);
-                }
-                Semicolon => {
-                    // We ignore empty statements when they're not the
-                    // very last one.
-                    self.expect(Semicolon);
+                    statements.push(self.parse_let_stmt());
                 }
                 RBrace => {
                     self.expect(RBrace);
@@ -777,45 +855,27 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                     }
                 }
                 _ => {
-                    let simple_expr = self.parse_simple_expr();
+                    let start_span = self.peek_span();
+                    let expr = self.parse_expr();
                     match *self.peek() {
-                        Semicolon => {
-                            let span = self.parser.span_of(&simple_expr.id);
-                            let simple_expr_span = add_id_and_span!(
-                                SemiStmt(simple_expr),
-                                span);
-                            statements.push(simple_expr_span);
-                            self.expect(Semicolon);
-                        },
                         RBrace => {
                             self.expect(RBrace);
                             return Block {
                                 items: vec!(),
                                 stmts: statements,
-                                expr: Some(simple_expr),
+                                expr: Some(expr),
                             }
                         }
+                        Semicolon => {
+                            self.expect(Semicolon);
+                            statements.push(self.add_id_and_span(SemiStmt(expr), start_span.to(self.last_span)));
+                        },
                         _ => {
-                            let span = self.parser.span_of(&simple_expr.id);
-                            let simple_expr_span = add_id_and_span!(
-                                ExprStmt(simple_expr),
-                                span);
-                            statements.push(simple_expr_span);
+                            statements.push(self.add_id_and_span(ExprStmt(expr), start_span.to(self.last_span)))
                         },
                     }
                 }
             }
-        }
-    }
-
-    pub fn parse_expr(&mut self) -> Expr {
-        match *self.peek() {
-            LBrace => {
-                let start_span = self.peek_span();
-                let block_expr = BlockExpr(box self.parse_block_expr());
-                add_id_and_span!(block_expr, start_span.to(self.last_span))
-            }
-            _ => self.parse_simple_expr()
         }
     }
 
@@ -844,11 +904,17 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let args = parse_list!(self.parse_func_arg() until RParen);
         self.expect(RParen);
         let return_type = match *self.peek() {
-            Arrow => { self.expect(Arrow); self.parse_type() }
-            _ => add_id_and_span!(UnitType, mk_sp(self.last_span.get_end(), 0)),
+            Arrow => {
+                self.expect(Arrow);
+                self.parse_type()
+            }
+            _ => {
+                let dummy_span = mk_sp(self.last_span.get_end(), 0);
+                self.add_id_and_span(UnitType, dummy_span)
+            }
         };
-        let body = self.parse_block_expr();
-        add_id_and_span!(FuncItem(funcname, args, return_type, body, type_params),
+        let body = self.parse_block();
+        self.add_id_and_span(FuncItem(funcname, args, return_type, body, type_params),
                          start_span.to(self.last_span))
     }
 
@@ -891,7 +957,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.expect(LBrace);
         let body = parse_list!(self.parse_struct_field() until RBrace);
         self.expect(RBrace);
-        add_id_and_span!(StructItem(structname, body, type_params), start_span.to(self.last_span))
+        self.add_id_and_span(StructItem(structname, body, type_params), start_span.to(self.last_span))
     }
 
     fn parse_variant(&mut self) -> Variant {
@@ -922,7 +988,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.expect(LBrace);
         let body = parse_list!(self.parse_variant() until RBrace);
         self.expect(RBrace);
-        add_id_and_span!(EnumItem(enumname, body, type_params), start_span.to(self.last_span))
+        self.add_id_and_span(EnumItem(enumname, body, type_params), start_span.to(self.last_span))
     }
 
     pub fn parse_module(&mut self) -> Module {
@@ -951,7 +1017,7 @@ mod tests {
 
     #[test]
     fn test_basic_arith_expr() {
-        let tree = ast_from_str(r#"1+3*5/2-2*3*(5+6)"#, |p| p.parse_simple_expr());
+        let tree = ast_from_str(r#"1+3*5/2-2*3*(5+6)"#, |p| p.parse_expr());
 
         /* TODO handroll the new AST
 
@@ -984,12 +1050,12 @@ mod tests {
                    );
         */
         assert_eq!(format!("{}", tree),
-                   "((1+((3*5)/2))-((2*3)*(5+6)))"
+                   "((1+((3*5)/2))-((2*3)*((5+6))))"
                    .to_owned());
     }
 
     fn compare_canonicalized(raw: &str, parsed: &str) {
-        let tree = ast_from_str(raw, |p| p.parse_variable_declaration());
+        let tree = ast_from_str(raw, |p| p.parse_let_stmt());
         assert_eq!(parsed.to_owned(), format!("{}", tree));
     }
 

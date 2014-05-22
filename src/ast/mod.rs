@@ -184,6 +184,8 @@ pub enum UnOpNode {
     Deref,
     AddrOf,
     Negate,
+    LogNot,
+    BitNot,
 }
 
 impl Show for UnOpNode {
@@ -191,7 +193,9 @@ impl Show for UnOpNode {
         write!(f, "{}", match *self {
             Deref  => "*",
             AddrOf => "&",
-            Negate => "!",
+            Negate => "-",
+            LogNot => "!",
+            BitNot => "~",
         })
     }
 }
@@ -229,6 +233,7 @@ impl Show for MatchArm {
 pub enum ExprNode {
     UnitExpr,
     LitExpr(Lit),
+    GroupExpr(Box<Expr>),
     TupleExpr(Vec<Expr>),
     IdentExpr(Ident),
     BinOpExpr(BinOp, Box<Expr>, Box<Expr>),
@@ -252,6 +257,7 @@ impl Show for ExprNode {
         match *self {
             UnitExpr                            => write!(f, "()"),
             LitExpr(ref l)                      => write!(f, "{}", l),
+            GroupExpr(ref e)                    => write!(f, "({})", e),
             TupleExpr(ref vs)                   => write!(f, "({})", vs),
             IdentExpr(ref id)                   => write!(f, "{}", id),
             BinOpExpr(op, ref l, ref r)         => write!(f, "({}{}{})", l, op, r),
