@@ -6,7 +6,7 @@
 
 use std::io;
 
-use collections::TreeMap;
+use collections::{HashMap, TreeMap};
 use span::Span;
 use ast::Module;
 use ast::defmap::DefMap;
@@ -14,11 +14,47 @@ use resolver::Resolver;
 use parser::Parser;
 use lexer::Lexer;
 use ast::visit::Visitor;
+use util::Name;
 
 pub struct Session {
     pub defmap: DefMap,
     pub resolver: Resolver,
     pub parser: Parser,
+    pub interner: Interner,
+}
+
+pub struct Interner {
+    strings: HashMap<~str, Name>,
+}
+
+impl Interner {
+    pub fn new() -> Interner {
+        Interner { strings: HashMap::new() }
+    }
+
+    pub fn name_to_str<'a>(&'a self, name: &Name) -> &'a str {
+        // A BiMap would be nice here
+        for x in self.strings.iter() {
+            if x.val1() == name {
+                return x.val0().as_slice();
+            }
+        }
+
+        fail!()
+    }
+
+    pub fn intern(&mut self, s: ~str) -> Name {
+        //match self.strings.find_equiv(&s) {
+        //    Some(name) => *name,
+        //    None => {
+        //        let name = Name(self.strings.len());
+        //        self.strings.insert(s, name);
+        //        name
+        //    }
+        //}
+        let name = Name(self.strings.len());
+        *self.strings.find_or_insert(s, name)
+    }
 }
 
 impl Session {
@@ -27,14 +63,15 @@ impl Session {
             defmap: DefMap::new(),
             resolver: Resolver::new(),
             parser: Parser::new(),
+            interner: Interner::new(),
         }
     }
 
     pub fn parse_buffer<T: Buffer>(&mut self, name: &str, buffer: T) -> Module {
         let lexer = Lexer::new(name.to_owned(), buffer);
-        let module = self.parser.parse(lexer);
+        let module = self.parser.parse(lexer, &mut self.interner);
         self.defmap.visit_module(&module);
-        self.resolver.visit_module(&module);
+        self.resolver.resolve_module(&self.interner, &module);
         module
     }
 

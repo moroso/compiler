@@ -1,18 +1,21 @@
+use session::Interner;
+
 use ast::*;
 use ir::*;
 
-pub struct ASTToIntermediate {
+pub struct ASTToIntermediate<'a> {
     var_count: uint,
+    interner: &'a mut Interner,
 }
 
-impl ASTToIntermediate {
-    pub fn new() -> ASTToIntermediate {
-        ASTToIntermediate { var_count: 0 }
+impl<'a> ASTToIntermediate<'a> {
+    pub fn new(interner: &'a mut Interner) -> ASTToIntermediate<'a> {
+        ASTToIntermediate { var_count: 0, interner: interner }
     }
 
     fn gen_temp(&mut self) -> Var {
         let res = Var {
-            name: format!("TEMP{}", self.var_count),
+            name: self.interner.intern(format!("TEMP{}", self.var_count)),
             index: 0,
         };
         self.var_count += 1;
@@ -68,7 +71,7 @@ impl ASTToIntermediate {
                 (insts1, new_res)
             },
             IdentExpr(ref id) => {
-                (vec!(), Var { name: id.val.name.clone(), index: 0 })
+                (vec!(), Var { name: id.val.name, index: 0 })
             },
             AssignExpr(ref e1, ref e2) => {
                 let mut res;
@@ -76,9 +79,9 @@ impl ASTToIntermediate {
                 let (lhs, res_v) = match e1.val {
                     IdentExpr(ref id) => {
                         res = vec!();
-                        (VarLValue(Var { name: id.val.name.clone(),
+                        (VarLValue(Var { name: id.val.name,
                                          index: 0 }),
-                         Var { name: id.val.name.clone(),
+                         Var { name: id.val.name,
                                index: 0 })
                     },
                     UnOpExpr(ref op, ref e) => {

@@ -1,52 +1,63 @@
 
-MC_FILES := src/main.rs \
-            src/lexer.rs \
-            src/parser.rs \
-            src/span.rs \
-            src/typechecker.rs \
-            src/package.rs \
-            src/resolver.rs \
-            src/util.rs \
-            src/values.rs \
-            src/ast/mod.rs \
-            src/ast/visit.rs \
-            src/ast/defmap.rs \
-			src/target/ccross.rs \
-            src/ir/mod.rs \
-            src/ir/ast_to_intermediate.rs \
-            src/ir/liveness.rs \
-            src/ir/constant_fold.rs \
-			src/intermediate_tests.rs \
+MC_FILES := main.rs \
+            lexer.rs \
+            parser.rs \
+            span.rs \
+            typechecker.rs \
+            package.rs \
+            resolver.rs \
+            util.rs \
+            values.rs \
+            ast/mod.rs \
+            ast/visit.rs \
+            ast/defmap.rs \
+			target/ccross.rs \
+            ir/mod.rs \
+            ir/ast_to_intermediate.rs \
+            ir/liveness.rs \
+            ir/constant_fold.rs \
+			intermediate_tests.rs \
 
-mc: $(MC_FILES)
+TEST_FILES := test_enums.mc \
+
+mc: $(addprefix src/,$(MC_FILES))
 	rustc $< -o $@
 
-mc-tests: $(MC_FILES)
+mc-tests: $(addprefix src/,$(MC_FILES))
 	rustc --test $< -o $@ -g
 
-ir-tests: $(MC_FILES)
+ir-tests: $(addprefix src/,$(MC_FILES))
 	rustc $< --cfg ir_tests -o $@
 
 all: mc mc-tests ir-tests
 
-test: mc-tests
+run-tests: mc-tests
 	./mc-tests
 
-test-ir: ir-tests
+run-ir-tests: ir-tests
 	./ir-tests
+
+run-all-tests: run-tests run-ir-tests test
 
 docs: doc/regexp/index.html
 
 doc/%/index.html: %.rs
 	rustdoc $<
 
-%.c: %.mc mc
-	./mc --target c < $< > $@
-	cat $@
+test: test/c test/c-bin
 
-test/%: test/%.c
+test/c: $(addprefix test/,$(patsubst %.mc,c/%.c,$(TEST_FILES)))
+
+test/c-bin: $(addprefix test/,$(patsubst %.mc,c-bin/%,$(TEST_FILES)))
+
+test/c/%.c: test/%.mc mc
+	mkdir -p $(dir $@)
+	./mc --target c < $< > $@ 2>$(addsuffix .log,$@)
+
+test/c-bin/%: test/c/%.c
+	mkdir -p $(dir $@)
 	gcc $< -o $@
 
-.PHONY: all test docs clean
+.PHONY: all docs clean run-tests run-ir-tests run-all-tests
 clean:
-	rm -rf *~ doc mc mc-tests ir-tests
+	rm -rf *~ doc mc mc-tests ir-tests test/c test/c-bin

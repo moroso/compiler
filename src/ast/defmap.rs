@@ -1,5 +1,8 @@
-use collections::{HashMap,TreeMap};
+use collections::TreeMap;
 use util::Name;
+
+use std::fmt;
+use std::fmt::{Formatter, Show};
 
 use ast::visit::*;
 use ast::*;
@@ -26,7 +29,7 @@ pub enum Def {
     FuncArgDef(Type),
 
     /// Struct definition, with a map of fields names to their types and the NodeIds of any type parameters
-    StructDef(HashMap<Name, Type>, Vec<NodeId>),
+    StructDef(TreeMap<Name, Type>, Vec<NodeId>),
 
     /// Enum definition, with the NodeIds of the variants and any type parameters
     EnumDef(Vec<NodeId>, Vec<NodeId>),
@@ -110,9 +113,9 @@ impl Visitor for DefMap {
                 self.visit_block(def);
             },
             StructItem(ref ident, ref fields, ref tps) => {
-                let mut field_map = HashMap::new();
+                let mut field_map = TreeMap::new();
                 for field in fields.iter() {
-                    field_map.insert(field.name.clone(), field.fldtype.clone());
+                    field_map.insert(field.name, field.fldtype.clone());
                 }
 
                 let tp_def_ids = tps.iter().map(|tp| {
@@ -150,7 +153,7 @@ mod tests {
 
     #[test]
     fn compare_canonicalized() {
-        let tree = ast_from_str("fn wot<T>(t: T) { let u = t; }".to_owned(), |p| p.parse_module());
+        let (_, tree) = ast_from_str("fn wot<T>(t: T) { let u = t; }".to_owned(), |p| p.parse_module());
         let mut defmap = DefMap::new();
         defmap.visit_module(&tree);
 

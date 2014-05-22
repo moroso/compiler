@@ -1,6 +1,9 @@
 use ast::*;
 use ast::visit::*;
-use collections::{SmallIntMap, HashMap};
+use collections::{SmallIntMap, TreeMap};
+
+use session::Interner;
+use util::Name;
 
 //#[allow(non_camel_case_types)] leaving the warning so we remember to patch rust later
 pub enum NS {
@@ -12,7 +15,7 @@ pub enum NS {
 }
 
 struct Subscope {
-    namespaces: SmallIntMap<HashMap<~str, NodeId>>,
+    namespaces: SmallIntMap<TreeMap<Name, NodeId>>,
 }
 
 impl Subscope {
@@ -26,7 +29,7 @@ impl Subscope {
         let ns = ns as uint;
 
         if !self.namespaces.contains_key(&ns) {
-            self.namespaces.insert(ns, HashMap::new());
+            self.namespaces.insert(ns, TreeMap::new());
         }
 
         let ns = self.namespaces.find_mut(&ns).take_unwrap();
@@ -44,6 +47,11 @@ impl Subscope {
 
 pub struct Resolver {
     table: SmallIntMap<NodeId>,
+}
+
+struct ModuleResolver<'a> {
+    resolver: &'a mut Resolver,
+    interner: &'a Interner,
     scope: Vec<Subscope>,
 }
 
@@ -51,12 +59,48 @@ impl Resolver {
     pub fn new() -> Resolver {
         Resolver {
             table: SmallIntMap::new(),
+        }
+    }
+
+    /// Get the NodeId of the item that defines the given ident
+    pub fn def_from_ident(&self, ident: &Ident) -> NodeId {
+        *self.table.find(&ident.id.to_uint()).take_unwrap()
+    }
+
+    /// The entry point for the resolver
+    pub fn resolve_module(&mut self, interner: &Interner, module: &Module) {
+        let mut visitor = ModuleResolver::new(self, interner);
+        visitor.visit_module(module)
+    }
+}
+
+impl<'a> ModuleResolver<'a> {
+    fn new(resolver: &'a mut Resolver, interner: &'a Interner) -> ModuleResolver<'a> {
+        ModuleResolver {
+            resolver: resolver,
+            interner: interner,
             scope: vec!(),
         }
     }
 
+    /// Search the current scope stack local-to-global for a matching ident in the requested namespace
+    fn resolve_ident(&mut self, ns: NS, ident: &Ident) {
+        match self.scope.iter().rev()
+                               .filter_map(|subscope| subscope.find(ns, ident))
+                               .next() {
+            Some(did) => self.resolver.table.insert(ident.id.to_uint(), did),
+            None => fail!("Unresolved name {}", self.interner.name_to_str(&ident.val.name)),
+        };
+    }
+
+    /// Adds the given ident to the given namespace in the current scope
+    fn add_to_scope(&mut self, ns: NS, ident: &Ident) {
+        let subscope = self.scope.mut_last().take_unwrap();
+        subscope.insert(ns, ident);
+    }
+
     /// Descends into a new scope, optionally seeding it with a set of items
-    fn descend(&mut self, items: Option<&Vec<Item>>, visit: |&mut Resolver|) {
+    fn descend(&mut self, items: Option<&Vec<Item>>, visit: |&mut ModuleResolver|) {
         let mut subscope = Subscope::new();
 
         match items {
@@ -86,33 +130,13 @@ impl Resolver {
         visit(self);
         self.scope.pop();
     }
-
-    /// Search the current scope stack local-to-global for a matching ident in the requested namespace
-    fn resolve(&mut self, ns: NS, ident: &Ident) {
-        match self.scope.iter().rev()
-                               .filter_map(|subscope| subscope.find(ns, ident))
-                               .next() {
-            Some(did) => self.table.insert(ident.id.to_uint(), did),
-            None => fail!("Unresolved name {}", ident.val.name),
-        };
-    }
-
-    fn add_to_scope(&mut self, ns: NS, ident: &Ident) {
-        let subscope = self.scope.mut_last().take_unwrap();
-        subscope.insert(ns, ident);
-    }
-
-    /// Get the NodeId of the item that defines the given ident
-    pub fn def_from_ident(&self, ident: &Ident) -> NodeId {
-        *self.table.find(&ident.id.to_uint()).take_unwrap()
-    }
 }
 
-impl Visitor for Resolver {
+impl<'a> Visitor for ModuleResolver<'a> {
     fn visit_type(&mut self, t: &Type) {
         match t.val {
             NamedType(ref ident) => {
-                self.resolve(TypeNS, ident);
+                self.resolve_ident(TypeNS, ident);
                 match ident.val.tps {
                     Some(ref tps) => {
                         for tp in tps.iter() {
@@ -133,11 +157,11 @@ impl Visitor for Resolver {
                 self.add_to_scope(ValNS, ident);
             }
             VariantPat(ref ident, ref pats) => {
-                self.resolve(ValNS, ident);
+                self.resolve_ident(ValNS, ident);
                 for pat in pats.iter() { self.visit_pat(pat); }
             }
             StructPat(ref ident, ref fps) => {
-                self.resolve(StructNS, ident);
+                self.resolve_ident(StructNS, ident);
                 for fp in fps.iter() { self.visit_pat(&fp.pat); }
             }
             _ => walk_pat(self, pat)
@@ -147,7 +171,7 @@ impl Visitor for Resolver {
     fn visit_expr(&mut self, expr: &Expr) {
         match expr.val {
             IdentExpr(ref ident) => {
-                self.resolve(ValNS, ident);
+                self.resolve_ident(ValNS, ident);
             }
             MatchExpr(ref e, ref arms) => {
                 self.visit_expr(*e);
@@ -236,24 +260,24 @@ mod tests {
 
     #[test]
     fn basic_resolver_test() {
-        let tree = ast_from_str("fn wot<T>(t: T) -> T { let u = t; }", |p| p.parse_module());
+        let (mut interner, tree) = ast_from_str("fn wot<T>(t: T) -> T { let u = t; }", |p| p.parse_module());
         let mut resolver = Resolver::new();
-        resolver.visit_module(&tree);
+        resolver.resolve_module(&mut interner, &tree);
     }
 
     #[test]
     #[should_fail]
     fn unresolved_name() {
-        let tree = ast_from_str("fn lol<T>(t: T) { let u = wot; }", |p| p.parse_module()); // unresolved name wot
+        let (mut interner, tree) = ast_from_str("fn lol<T>(t: T) { let u = wot; }", |p| p.parse_module()); // unresolved name wot
         let mut resolver = Resolver::new();
-        resolver.visit_module(&tree);
+        resolver.resolve_module(&mut interner, &tree);
     }
 
     #[test]
     #[should_fail]
     fn unresolved_type() {
-        let tree = ast_from_str("fn welp<T>(t: U) { let u = t; }", |p| p.parse_module()); // unresolved name U
+        let (mut interner, tree) = ast_from_str("fn welp<T>(t: U) { let u = t; }", |p| p.parse_module()); // unresolved name U
         let mut resolver = Resolver::new();
-        resolver.visit_module(&tree);
+        resolver.resolve_module(&mut interner, &tree);
     }
 }

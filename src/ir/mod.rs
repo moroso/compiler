@@ -1,13 +1,15 @@
 use std::fmt::{Formatter, Result, Show};
 use ast::{LitNode, BinOpNode};
 
+use util::Name;
+
 pub mod ast_to_intermediate;
 pub mod liveness;
 pub mod constant_fold;
 
 #[deriving(Clone,Eq)]
 pub struct Var {
-    pub name: ~str,
+    pub name: Name,
     pub index: uint, // Used for SSA
 }
 

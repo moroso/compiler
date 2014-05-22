@@ -6,6 +6,7 @@
 use std::io;
 use lexer::Lexer;
 use parser::Parser;
+use session::Interner;
 use ir::liveness::LivenessAnalyzer;
 use ir::ast_to_intermediate::ASTToIntermediate;
 use ir::constant_fold::ConstantFolder;
@@ -15,10 +16,11 @@ pub fn main() {
         Vec::from_slice("{*(a*5+6*7)=4u16*(5u16+1u16)*foo; b=a+1; c=6+7<2 || a}".as_bytes())
         ));
     let mut parser = Parser::new();
+    let mut interner = Interner::new();
     let lexer = Lexer::new("<stdin>".to_owned(), buffer);
 
-    let ast = parser.parse_with(lexer, |p| p.parse_expr());
-    let mut conv = ASTToIntermediate::new();
+    let ast = parser.parse_with(lexer, &mut interner, |p| p.parse_expr());
+    let mut conv = ASTToIntermediate::new(&mut interner);
     let (ops, var) = conv.convert_expr(&ast);
 
     print!("{}\n", ast);

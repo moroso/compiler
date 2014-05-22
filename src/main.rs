@@ -14,7 +14,6 @@ use session::Session;
 use target::{Target, CTarget};
 use typechecker::Typechecker;
 
-use collections::HashMap;
 use getopts::{getopts, reqopt, optopt, optflag};
 use getopts::OptionMissing;
 use std::ascii::StrAsciiExt;

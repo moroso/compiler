@@ -5,25 +5,27 @@ use std::io::stdio;
 use lexer::Lexer;
 use parser::Parser;
 use ast::visit::{Visitor, walk_module};
-use collections::hashmap::{HashSet, HashMap};
+use collections::treemap::{TreeSet, TreeMap};
 use resolver::Resolver;
 use session::Session;
 use package::Package;
 use target::Target;
 use typechecker::{Typechecker, Typemap};
+use util::Name;
 
 struct CCrossCompiler {
-    structnames: HashSet<~str>,
-    enumitemnames: HashMap<~str, (Ident, Vec<Variant>, int)>,
+    builtins: TreeSet<Name>,
+    structnames: TreeSet<Name>,
+    enumitemnames: TreeMap<Name, (Ident, Vec<Variant>, int)>,
     session: Session,
     typemap: Typemap,
 }
 
-fn find_structs(module: &Module) -> HashSet<~str> {
-    let mut ht = HashSet::<~str>::new();
+fn find_structs(module: &Module) -> TreeSet<Name> {
+    let mut ht = TreeSet::new();
     for item in module.items.iter() {
         match item.val {
-            StructItem(ref id, _, _) => { ht.insert(id.val.name.clone()); },
+            StructItem(ref id, _, _) => { ht.insert(id.val.name); },
             _ => {}
         }
     }
@@ -31,17 +33,17 @@ fn find_structs(module: &Module) -> HashSet<~str> {
     ht
 }
 
-fn find_enum_item_names(module: &Module) -> HashMap<~str,
+fn find_enum_item_names(module: &Module) -> TreeMap<Name,
                                                     (Ident,
                                                      Vec<Variant>,
                                                      int)> {
-    let mut ht = HashMap::<~str, (Ident, Vec<Variant>, int)>::new();
+    let mut ht = TreeMap::new();
     for enumitem in module.items.iter() {
         match enumitem.val {
             EnumItem(ref name, ref items, _) => {
                 let mut pos = 0;
                 for item in items.iter() {
-                    ht.insert(item.ident.val.name.clone(),
+                    ht.insert(item.ident.val.name,
                               (name.clone(), items.clone(), pos));
                     pos += 1;
                 }
@@ -54,8 +56,8 @@ fn find_enum_item_names(module: &Module) -> HashMap<~str,
 }
 
 impl CCrossCompiler {
-    fn visit_list<T>(&mut self, list: &Vec<T>,
-                     visit: |&mut CCrossCompiler, &T| -> ~str,
+    fn visit_list<T>(&self, list: &Vec<T>,
+                     visit: |&CCrossCompiler, &T| -> ~str,
                      delimiter: &str) -> ~str {
         let mut res = "".to_owned();
         let mut count = 0;
@@ -69,16 +71,16 @@ impl CCrossCompiler {
         res
     }
 
-    fn visit_binop(&mut self, op: &BinOp) -> ~str {
+    fn visit_binop(&self, op: &BinOp) -> ~str {
         format!("{}", op)
     }
 
-    fn visit_unop(&mut self, op: &UnOp) -> ~str {
+    fn visit_unop(&self, op: &UnOp) -> ~str {
         format!("{}", op)
     }
 
     // A block, as an expression.
-    fn visit_expr_block(&mut self, block: &Block) -> ~str {
+    fn visit_expr_block(&self, block: &Block) -> ~str {
         "({ ".to_owned() +
             self.visit_list(&block.items, |s, t| s.visit_item(t), "; ") +
             self.visit_list(&block.stmts, |s, t| s.visit_stmt(t), "; ") +
@@ -92,24 +94,25 @@ impl CCrossCompiler {
             "})"
     }
 
-    fn visit_name_and_type(&mut self, name: &str, t: &Type) -> ~str {
+    fn visit_name_and_type(&self, name: Name, t: &Type) -> ~str {
         match t.val {
             // We have to special case this, because of the way things of
             // a function pointer type are declared in C.
             FuncType(ref d, ref r) => {
-                self.visit_type(*r) +
-                    format!("(*{})(", name) +
-                    self.visit_list(d, |s, x| s.visit_type(x), ", ") +
-                    ")"
+                let ty = self.visit_type(*r);
+                let list = self.visit_list(d, |s, x| s.visit_type(x), ", ");
+                let name = self.session.interner.name_to_str(&name);
+                format!("{}(*{})({})", ty, name, list)
             },
             _ => {
-                self.visit_type(t) +
-                    format!(" {}", name)
+                let ty = self.visit_type(t);
+                let name = self.session.interner.name_to_str(&name);
+                format!("{} {}", ty, name)
             }
         }
     }
 
-    fn visit_stmt(&mut self, stmt: &Stmt) -> ~str {
+    fn visit_stmt(&self, stmt: &Stmt) -> ~str {
         match stmt.val {
             LetStmt(ref pat, ref e) => {
                 let (i, t) = match pat.val {
@@ -134,7 +137,7 @@ impl CCrossCompiler {
         }
     }
 
-    fn visit_block(&mut self, block: &Block) -> ~str {
+    fn visit_block(&self, block: &Block) -> ~str {
         "{".to_owned() +
             self.visit_list(&block.items, |s, t| s.visit_item(t), "; ") +
             self.visit_list(&block.stmts, |s, t| s.visit_stmt(t), "; ") +
@@ -153,11 +156,11 @@ impl CCrossCompiler {
         } + ";}"
     }
 
-    fn visit_item(&mut self, item: &Item) -> ~str {
+    fn visit_item(&self, item: &Item) -> ~str {
         match item.val {
             FuncItem(ref name, ref args, ref t, ref block, _) => {
-                // Hack for builtin functions.
-                if name.val.name == "print_int".to_owned() { "".to_owned() } else {
+                // Emit nothing for builtin functions.
+                if self.builtins.contains(&name.val.name) { "".to_owned() } else {
                     self.visit_type(t) +
                         " " +
                         self.visit_ident(name) +
@@ -167,18 +170,18 @@ impl CCrossCompiler {
                         self.visit_block(block)
                 }
             }
-            StructItem(ref name, ref fields, _) => {
-                let mut res = format!("typedef struct {} \\{", name).to_owned();
+            StructItem(ref id, ref fields, _) => {
+                let mut res = format!("typedef struct {} \\{", self.visit_ident(id));
                 for field in fields.iter() {
                     res = res + self.visit_name_and_type(field.name,
                                                          &field.fldtype) + ";\n";
                 }
                 res + 
-                    format!("{} {};", "}", name)
+                    format!("{} {};", "}", self.session.interner.name_to_str(&id.val.name))
             }
-            EnumItem(ref name, ref variants, _) => {
+            EnumItem(ref id, ref variants, _) => {
                 let mut res = format!("typedef struct {} \\{\n    int tag;\n    union \\{\n",
-                                      name).to_owned();
+                                      self.visit_ident(id));
                 for variant in variants.iter() {
                     res = res + "        struct {\n";
                     let mut num = 0;
@@ -187,18 +190,18 @@ impl CCrossCompiler {
                             " " + format!("field{};\n", num);
                         num += 1;
                     }
-                    res = res + format!("        \\} {};\n", variant.ident.val.name);
+                    res = res + format!("        \\} {};\n", self.session.interner.name_to_str(&variant.ident.val.name));
                 }
-                res + format!("\n    \\} val;\n\\} {};", name)
+                res + format!("\n    \\} val;\n\\} {};", self.visit_ident(id))
             }
         }
     }
 
-    fn visit_func_arg(&mut self, arg: &FuncArg) -> ~str {
+    fn visit_func_arg(&self, arg: &FuncArg) -> ~str {
         self.visit_name_and_type(arg.ident.val.name, &arg.argtype)
     }
 
-    fn visit_type(&mut self, t: &Type) -> ~str {
+    fn visit_type(&self, t: &Type) -> ~str {
         match t.val {
             PtrType(ref p) => {
                 self.visit_type(*p) +
@@ -248,16 +251,16 @@ impl CCrossCompiler {
         }
     }
 
-    fn visit_ident(&mut self, ident: &Ident) -> ~str {
-        match self.enumitemnames.find_equiv(&ident.val.name) {
+    fn visit_ident(&self, ident: &Ident) -> ~str {
+        match self.enumitemnames.find(&ident.val.name) {
             Some(&(_, _, ref pos)) => {
                 format!("\\{ .tag = {} \\}", pos)
             }
-            None => format!("{}", ident.val.name),
+            None => format!("{}", self.session.interner.name_to_str(&ident.val.name)),
         }
     }
 
-    fn visit_lit(&mut self, lit: &Lit) -> ~str {
+    fn visit_lit(&self, lit: &Lit) -> ~str {
         match lit.val {
             NumLit(ref n, _) => format!("{}", n),
             StringLit(_) => fail!("TODO"),
@@ -265,7 +268,7 @@ impl CCrossCompiler {
         }
     }
 
-    fn visit_expr(&mut self, expr: &Expr) -> ~str {
+    fn visit_expr(&self, expr: &Expr) -> ~str {
         match expr.val {
             UnitExpr => "({})".to_owned(),
             LitExpr(ref l) => self.visit_lit(l),
@@ -313,29 +316,19 @@ impl CCrossCompiler {
             }
             CallExpr(ref f, ref args) => {
                 match f.val {
-                    IdentExpr(ref i) => {
-                        // TODO: Why on earth is this needed? (The borrow
-                        // checker complains otherwise; why?)
-                        let cloned_tab = self.enumitemnames.clone();
-                        match cloned_tab.find_equiv(&i.val.name) {
-                            Some(&(_, ref variants, ref pos)) => {
-                                let mut res = format!("\\{ .tag = {}, ", pos).to_owned();
-                                let this_variant = variants.get(*pos as uint).clone();
-                                let mut i = 0;
-                                for item in this_variant.args.iter() {
-                                    res = res + format!(".val.{}.field{} = {}, ",
-                                                        this_variant.ident.val.name,
-                                                        i,
-                                                        self.visit_expr(
-                                                            args.get(i)
-                                                            )
-                                                            );
-                                    i += 1;
+                    IdentExpr(ref id) => {
+                        let name = self.session.interner.name_to_str(&id.val.name);
+                        match self.enumitemnames.find(&id.val.name) {
+                            Some(&(_, ref variants, pos)) => {
+                                let mut res = format!("\\{ .tag = {}, ", pos);
+                                for (i, _) in args.iter().enumerate() {
+                                    let expr = self.visit_expr(args.get(i));
+                                    res = res + format!(".val.{}.field{} = {}, ", name, i, expr);
                                 }
                                 res + "}"
-                            },
+                            }
                             None => {
-                                let res = format!("{}", i.val.name);
+                                let res = format!("{}", name);
                                 res +
                                     "(" +
                                     self.visit_list(args, |s, x| s.visit_expr(x), ", ") +
@@ -397,30 +390,24 @@ impl CCrossCompiler {
                 let mut res = "({ int _; switch((".to_owned() +
                     self.visit_expr(*e) + ").tag) {\n";
                 for arm in arms.iter() {
-                    // TODO: Why on earth is this needed? (The borrow
-                    // checker complains otherwise; why?)
-                    let cloned_tab = self.enumitemnames.clone();
-
                     let (name, vars) = match arm.pat.val {
-                        VariantPat(ref id, ref args) => (&id.val.name, args),
+                        VariantPat(ref id, ref args) => (id.val.name, args),
                         _ => fail!("Only VariantPats are supported in match arms for now")
                     };
-                    let &(_, ref variants, idx) = cloned_tab.find_equiv( name).unwrap();
-                    let this_variant = variants.get(idx as uint).clone();
+                    let &(_, ref variants, idx) = self.enumitemnames.find(&name).unwrap();
+                    let this_variant = variants.get(idx as uint);
                     res = res + format!("    case {}: \\{", idx);
+
+                    let name = self.session.interner.name_to_str(&name);
 
                     for (i, var) in this_variant.args.iter().enumerate() {
                         let varname = match vars.get(i as uint).val {
-                            IdentPat(ref id, _) => &id.val.name,
+                            IdentPat(ref id, _) => self.session.interner.name_to_str(&id.val.name),
                             _ => fail!("Only IdentPats are supported in the arguments of a VariantPat in a match arm for now"),
                         };
-                        res = res + format!("{} {} = {}.val.{}.field{};",
-                                            self.visit_type(var),
-                                            varname,
-                                            self.visit_expr(*e),
-                                            name,
-                                            i
-                                            );
+                        let ty = self.visit_type(var);
+                        let expr = self.visit_expr(*e);
+                        res = res + format!("{} {} = {}.val.{}.field{};", ty, varname, expr, name, i);
                     }
                     res = res + " _ = " +self.visit_expr(&arm.body) + 
                         "; break;}\n";
@@ -430,7 +417,7 @@ impl CCrossCompiler {
         }
     }
 
-    fn visit_module(&mut self, module: &Module) -> ~str {
+    fn visit_module(&self, module: &Module) -> ~str {
         let mut res = "".to_owned();
         for item in module.items.iter() {
             res = res + self.visit_item(item);
@@ -453,13 +440,17 @@ impl Target for CTarget {
 
         let Package {
             module:  module,
-            session: session,
+            session: mut session,
             typemap: typemap,
         } = p;
 
-        let mut cc = CCrossCompiler {
+        let mut builtins = TreeSet::new();
+        builtins.insert(session.interner.intern("print_int".to_owned()));
+
+        let cc = CCrossCompiler {
             structnames: find_structs(&module),
             enumitemnames: find_enum_item_names(&module),
+            builtins: builtins,
             session: session,
             typemap: typemap,
         };

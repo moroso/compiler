@@ -1,9 +1,17 @@
+use collections::TreeMap;
 use std::fmt::{Show, Formatter};
 
 use std::fmt;
 
-// Change this when we decide to intern strings
-pub type Name = ~str;
+#[deriving(Eq, Ord, Clone, Show, TotalEq, TotalOrd)]
+pub struct Name(pub uint);
+
+impl<T: Show> Show for TreeMap<Name, T> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let vals: Vec<(&Name, &T)> = self.iter().collect();
+        vals.fmt(f)
+    }
+}
 
 #[deriving(Eq, Clone)]
 pub enum Width {

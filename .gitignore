@@ -4,7 +4,5 @@ mc2c
 ir-tests
 mc-tests
 doc/
-test/*.c
-test/test
-test/test_linkedlist
-test/test_enums
+test/c/
+test/c-bin/

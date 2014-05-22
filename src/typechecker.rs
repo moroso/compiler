@@ -1,4 +1,4 @@
-use collections::{SmallIntMap, TreeMap, HashMap, EnumSet};
+use collections::{SmallIntMap, TreeMap, EnumSet};
 use collections::enum_set::CLike;
 use resolver::Resolver;
 use session::Session;
@@ -381,7 +381,7 @@ impl<'a> Typechecker<'a> {
                         }
 
                         self.with_generics(gs, |me| {
-                            for (field, fp) in fields.values().zip(fps.iter()) {
+                            for (field, fp) in fields.iter().map(|x| x.val1()).zip(fps.iter()) {
                                 let field_ty = me.type_to_ty(field);
                                 let fp_ty = me.pat_to_ty(&fp.pat);
                                 me.unify(field_ty, fp_ty);
