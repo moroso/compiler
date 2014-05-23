@@ -75,9 +75,9 @@ pub enum Token {
     Underscore,
 
     // Literals
-    IdentTok(~str),
+    IdentTok(StrBuf),
     NumberTok(u64, IntKind),
-    StringTok(~str),
+    StringTok(StrBuf),
 
     // Special
     Eof,
@@ -126,17 +126,18 @@ impl<A, T: RuleMatcher<A>, U: TokenMaker<A>> LexerRuleT for LexerRule<T, U> {
 }
 
 pub struct Lexer<T> {
-    lines: Option<NumberedLines<T>>,
-    line: Option<~str>,
+    lines: BufferLines<T>,
+    line: Option<StrBuf>,
     pos: SourcePos,
-    name: ~str,
+    name: StrBuf,
     // Ordinary rules.
     rules: Vec<Box<LexerRuleT>>,
     // Rules specifically for when we're within a comment. We need this
     // for handling multi-line comments.
     comment_rules: Vec<Box<LexerRuleT>>,
     comment_nest: uint,
-    eof: bool,
+    // We set this to Some(Eof) and take it when we hit EOF
+    eof: Option<Token>,
 }
 
 // Convenience for tests
@@ -144,11 +145,11 @@ pub fn lexer_from_str(s: &str) -> Lexer<io::BufferedReader<io::MemReader>> {
     use std::str::StrSlice;
     let bytes = Vec::from_slice(s.as_bytes());
     let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
-    Lexer::new("test".to_owned(), buffer)
+    Lexer::new("test", buffer)
 }
 
 impl<T: Buffer> Lexer<T> {
-    pub fn new(name: ~str, buffer: T) -> Lexer<T> {
+    pub fn new<S: StrAllocating>(name: S, buffer: T) -> Lexer<T> {
         macro_rules! matcher { ( $e:expr ) => ( regex!(concat!("^(?:", $e, ")"))) }
         macro_rules! lexer_rules {
             ( $( $c:expr => $m:expr ),*) => (
@@ -229,13 +230,13 @@ impl<T: Buffer> Lexer<T> {
 
         // Rule to match a string literal and strip off the surrounding quotes
         struct StringRule;
-        impl RuleMatcher<~str> for StringRule {
-            fn find(&self, s: &str) -> Option<(uint, ~str)> {
+        impl RuleMatcher<StrBuf> for StringRule {
+            fn find(&self, s: &str) -> Option<(uint, StrBuf)> {
                 let matcher = matcher!(r#""((?:\\"|[^"])*)""#);
                 match matcher.captures(s) {
                     Some(groups) => {
                         let t = groups.at(0);
-                        Some((t.len(), groups.at(1).to_owned()))
+                        Some((t.len(), StrBuf::from_str(groups.at(1))))
                     },
                     _ => None
                 }
@@ -334,18 +335,18 @@ impl<T: Buffer> Lexer<T> {
         };
 
         Lexer {
-            lines: Some(NumberedLines::new(buffer)),
             pos:  SourcePos::new(),
-            line: None,
-            name: name,
+            line: Some(StrBuf::new()),
+            lines: BufferLines::new(buffer),
+            name: name.into_strbuf(),
             rules: rules,
             comment_rules: comment_rules,
             comment_nest: 0,
-            eof: false,
+            eof: Some(Eof),
         }
     }
 
-    pub fn get_name(&self) -> ~str {
+    pub fn get_name(&self) -> StrBuf {
         self.name.clone()
     }
 }
@@ -354,79 +355,67 @@ impl<T: Buffer> Lexer<T> {
 impl<T: Buffer> Iterator<SourceToken> for Lexer<T> {
     fn next(&mut self) -> Option<SourceToken> {
         loop {
-            if self.eof {
-                self.lines = None;
-                if self.comment_nest > 0 {
-                    fail!("Unterminated multiline comment found in input stream");
+            match self.line {
+                Some(ref line) => {
+                    let line = line.as_slice();
+                    while self.pos.col < line.len() {
+                        // We apply each rule. Of the ones that match, we take
+                        // the longest match.
+                        let mut longest = 0u;
+                        let mut best = None;
+                        let rules = if self.comment_nest > 0 {
+                            &self.comment_rules
+                        } else {
+                            &self.rules
+                        };
+
+                        for rule in rules.iter() {
+                            let m = rule.run(line.slice_from(self.pos.col));
+                            match m {
+                                Some((len, tok)) => {
+                                    if len > longest {
+                                        // We have a match that's longer than our
+                                        // previous one. Remember it.
+                                        best = Some((mk_sp(self.pos, len), tok));
+                                        longest = len;
+                                    }
+                                },
+                                _ => {},
+                            }
+                        }
+
+                        // Advance our position within the line.
+                        self.pos.col += longest;
+
+                        match best {
+                            None => fail!("Unexpected input"),
+                            Some((_, WS)) => {} // Skip whitespace.
+                            Some((_, BeginComment)) => { self.comment_nest += 1; }
+                            Some((_, EndComment)) => { self.comment_nest -= 1; }
+                            Some((sp, tok)) => {
+                                return Some(SourceToken {
+                                    tok: tok,
+                                    sp: sp,
+                                })
+                            }
+                        }
+                    }
                 }
+                None => {
+                    if self.comment_nest > 0 {
+                        fail!("Unterminated multiline comment found in input stream");
+                    }
 
-                return self.line.take().map(|_| {
-                    SourceToken {
-                        tok: Eof,
+                    return self.eof.take().map(|eof| SourceToken {
+                        tok: eof,
                         sp: mk_sp(self.pos, 0),
-                    }
-                });
-            }
-
-            for line in self.line.iter() {
-                while self.pos.col < line.len() {
-                    // We apply each rule. Of the ones that match, we take
-                    // the longest match.
-                    let mut longest = 0u;
-                    let mut best = None;
-                    let rules = if self.comment_nest > 0 {
-                        &self.comment_rules
-                    } else {
-                        &self.rules
-                    };
-
-                    for rule in rules.iter() {
-                        let m = rule.run(line.slice_from(self.pos.col));
-                        match m {
-                            Some((len, tok)) => {
-                                if len > longest {
-                                    // We have a match that's longer than our
-                                    // previous one. Remember it.
-                                    best = Some((mk_sp(self.pos, len), tok));
-                                    longest = len;
-                                }
-                            },
-                            _ => {},
-                        }
-                    }
-
-                    // Advance our position within the line.
-                    self.pos.col += longest;
-
-                    match best {
-                        None => fail!("Unexpected input"),
-                        Some((_, WS)) => {} // Skip whitespace.
-                        Some((_, BeginComment)) => { self.comment_nest += 1; }
-                        Some((_, EndComment)) => { self.comment_nest -= 1; }
-                        Some((sp, tok)) => {
-                            return Some(SourceToken {
-                                tok: tok,
-                                sp: sp,
-                            })
-                        }
-                    }
+                    });
                 }
             }
 
             // Fetch a new line, now that we're done with the previous one.
-            match self.lines.as_mut().and_then(|lines| lines.next()) {
-                Some(Ok((row, line))) => {
-                    self.line = Some(line);
-                    self.pos = SourcePos { row: row, col: 0 };
-                }
-                Some(Err(e)) => {
-                    fail!("error in input stream: {}", e);
-                }
-                None => {
-                    self.line = Some("".to_owned());
-                    self.eof = true;
-                }
-            }
+            self.line = self.lines.next();
+            self.pos = SourcePos { row: self.pos.row + 1, col: 0 };
         }
     }
 }
@@ -487,54 +476,38 @@ impl<T: MaybeArg> RuleMatcher<T> for Regex {
 // Utility trait to optionally grab the match as an argument
 // (useful to avoid unnecessary string copies when we will just throw the result away anyway)
 trait MaybeArg {
-    fn maybe_arg<'a>(arg: &'a str) -> Self;
+    fn maybe_arg<T: StrAllocating>(arg: T) -> Self;
 }
 
 impl MaybeArg for () {
-    fn maybe_arg<'a>(_: &'a str) { }
+    fn maybe_arg<T: StrAllocating>(_: T) { }
 }
 
-impl MaybeArg for ~str {
-    fn maybe_arg<'a>(s: &'a str) -> ~str { s.to_owned() }
+impl MaybeArg for StrBuf {
+    fn maybe_arg<T: StrAllocating>(s: T) -> StrBuf { s.into_strbuf() }
 }
 
-struct NumberedLines<T> {
-    lineno: uint,
+struct BufferLines<T> {
     buffer: T,
 }
 
-impl<T: Buffer> NumberedLines<T> {
-    fn new(buffer: T) -> NumberedLines<T> {
-        NumberedLines {
-            lineno: 0,
+impl<T: Buffer> BufferLines<T> {
+    fn new(buffer: T) -> BufferLines<T> {
+        BufferLines {
             buffer: buffer,
         }
     }
 }
 
-impl<T: Buffer> Iterator<io::IoResult<(uint, ~str)>> for NumberedLines<T> {
-    fn next(&mut self) -> Option<io::IoResult<(uint, ~str)>> {
-        match self.buffer.read_line() {
-            Ok(line) => {
-                let lineno = self.lineno;
-                self.lineno += 1;
-                Some(Ok((lineno, line)))
-            }
-            Err(e) => {
-                if e.kind != io::EndOfFile {
-                    Some(Err(e))
-                } else {
-                    None
-                }
-            }
-        }
+impl<T: Buffer> Iterator<StrBuf> for BufferLines<T> {
+    fn next(&mut self) -> Option<StrBuf> {
+        self.buffer.read_line().ok()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::iter::Repeat;
     use std::vec::Vec;
     use ast;
     use util::GenericInt;
@@ -555,15 +528,15 @@ mod tests {
 
         compare(tokens1.as_slice(),
                 vec! {
-                    IdentTok("f".to_owned()),
+                    IdentTok(StrBuf::from_str("f")),
                     LParen,
-                    IdentTok("x".to_owned()),
+                    IdentTok(StrBuf::from_str("x")),
                     Dash,
                     NumberTok(0x3f5B, GenericInt),
                     RParen,
                     Plus,
                     NumberTok(1, GenericInt),
-                    StringTok(r#"Hello\" World"#.to_owned()),
+                    StringTok(StrBuf::from_str(r#"Hello\" World"#)),
                 }.as_slice());
 
         let lexer2 = lexer_from_str("let x: int = 5;");
@@ -571,9 +544,9 @@ mod tests {
         compare(tokens2.as_slice(),
                 vec! {
                     Let,
-                    IdentTok("x".to_owned()),
+                    IdentTok(StrBuf::from_str("x")),
                     Colon,
-                    IdentTok("int".to_owned()),
+                    IdentTok(StrBuf::from_str("int")),
                     Eq,
                     NumberTok(5, GenericInt),
                 }.as_slice());

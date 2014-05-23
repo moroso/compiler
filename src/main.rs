@@ -57,18 +57,15 @@ macro_rules! targets {
 
 #[cfg(not(ir_tests))]
 fn main() {
-    let (arg0, args) : (_, Vec<StrBuf>) = {
-        let mut iter = os::args().move_iter().map(|x| x.into_strbuf());
-        let arg0 = iter.next().unwrap();
-        (arg0, iter.collect())
-    };
+    let args = os::args();
+    let arg0 = args.get(0);
 
     let opts = [
         optopt("", "target", "Set the output target.", "[c|null]"),
         optflag("h", "help", "Show this help message."),
     ];
 
-    let bail = |error: Option<~str>| {
+    let bail = |error: Option<&str>| {
         match error {
             Some(e) => {
                 os::set_exit_status(1);
@@ -78,12 +75,12 @@ fn main() {
         }
 
         let brief = format!("Usage: {} [OPTIONS]", arg0);
-        println!("{}", getopts::usage(brief, opts));
+        println!("{}", getopts::usage(brief.as_slice(), opts));
     };
 
-    let matches = match getopts(args.as_slice(), opts) {
+    let matches = match getopts(args.tail(), opts) {
         Ok(m) => m,
-        Err(e) => return bail(Some(e.to_err_msg().into_owned())),
+        Err(e) => return bail(Some(e.to_err_msg().as_slice())),
     };
     
     if matches.opt_present("help") {
@@ -95,7 +92,7 @@ fn main() {
         "null" => NullTarget,
     };
 
-    let target_arg = matches.opt_str("target").unwrap_or("null".to_strbuf());
+    let target_arg = matches.opt_str("target").unwrap_or(StrBuf::from_str("null"));
     let target = match targets.move_iter()
                         .filter(|&(ref t, _)| t.eq_ignore_ascii_case(target_arg.as_slice()))
                         .map(|(_, ctor)| ctor(vec!()))
@@ -103,7 +100,7 @@ fn main() {
         Some(t) => t,
         None => {
             let msg = format!("Unrecognized target `{}'", target_arg);
-            return bail(Some(msg));
+            return bail(Some(msg.as_slice()));
         }
     };
 

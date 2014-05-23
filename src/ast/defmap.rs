@@ -153,13 +153,13 @@ mod tests {
 
     #[test]
     fn compare_canonicalized() {
-        let (_, tree) = ast_from_str("fn wot<T>(t: T) { let u = t; }".to_owned(), |p| p.parse_module());
+        let (_, tree) = ast_from_str("fn wot<T>(t: T) { let u = t; }", |p| p.parse_module());
         let mut defmap = DefMap::new();
         defmap.visit_module(&tree);
 
-        assert_eq!(format!("{}", defmap.find(&NodeId(0))),
-                   "Some(FuncDef([NodeId(2)], (), [NodeId(1)]))".to_owned());
-        assert_eq!(format!("{}", defmap.find(&NodeId(6))),
-                   "Some(PatDef(None))".to_owned());
+        assert_eq!(format!("{}", defmap.find(&NodeId(0))).as_slice(),
+                   "Some(FuncDef([NodeId(2)], (), [NodeId(1)]))");
+        assert_eq!(format!("{}", defmap.find(&NodeId(6))).as_slice(),
+                   "Some(PatDef(None))");
     }
 }

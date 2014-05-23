@@ -94,9 +94,9 @@ impl Show for PatNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             DiscardPat(ref t)             => write!(f, "_{}",
-                                                    t.as_ref().map(|t| format!(": {}", t)).unwrap_or("".to_owned())),
+                                                    t.as_ref().map(|t| format!(": {}", t)).unwrap_or_default()),
             IdentPat(ref id, ref t)       => write!(f, "{}{}", id,
-                                                    t.as_ref().map(|t| format!(": {}", t)).unwrap_or("".to_owned())),
+                                                    t.as_ref().map(|t| format!(": {}", t)).unwrap_or_default()),
             TuplePat(ref args)            => write!(f, "({})", args),
             VariantPat(ref id, ref args)  => write!(f, "{}({})", id, args),
             StructPat(ref id, ref fields) => write!(f, "{} \\{ {} \\}", id, fields),
@@ -203,7 +203,7 @@ impl Show for UnOpNode {
 #[deriving(Eq, Clone)]
 pub enum LitNode {
     NumLit(u64, IntKind),
-    StringLit(~str),
+    StringLit(StrBuf),
     BoolLit(bool),
 }
 
@@ -296,8 +296,7 @@ impl Show for StmtNode {
         match *self {
             LetStmt(ref pat, ref expr) => {
                 write!(f, "let {}{};", pat,
-                       expr.as_ref().map(|e| format!(" = {}", e))
-                       .unwrap_or("".to_owned()))
+                       expr.as_ref().map(|e| format!(" = {}", e)).unwrap_or_default())
             },
             ExprStmt(ref e) => {
                 write!(f, "{}", e)
@@ -320,18 +319,18 @@ impl Show for Block {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         try!(write!(f, "{}\n", "{"));
         for item in self.items.iter() {
-            for line in format!("{}", item).lines() {
+            for line in format!("{}", item).as_slice().lines() {
                 try!(write!(f, "    {}\n", line));
             }
         }
         for stmt in self.stmts.iter() {
-            for line in format!("{}", stmt).lines() {
+            for line in format!("{}", stmt).as_slice().lines() {
                 try!(write!(f, "    {};\n", line));
             }
         }
         match self.expr {
             Some(ref e) => {
-                for line in format!("{}", e).lines() {
+                for line in format!("{}", e).as_slice().lines() {
                     try!(write!(f, "    {}\n", line));
                 }
             },
@@ -431,7 +430,7 @@ pub struct Module {
 impl Show for Module {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         for item in self.items.iter() {
-            for line in format!("{}", item).lines() {
+            for line in format!("{}", item).as_slice().lines() {
                 try!(write!(f, "{}\n", line));
             }
         }

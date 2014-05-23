@@ -24,7 +24,7 @@ pub struct Session {
 }
 
 pub struct Interner {
-    strings: HashMap<~str, Name>,
+    strings: HashMap<StrBuf, Name>,
 }
 
 impl Interner {
@@ -43,7 +43,7 @@ impl Interner {
         fail!()
     }
 
-    pub fn intern(&mut self, s: ~str) -> Name {
+    pub fn intern(&mut self, s: StrBuf) -> Name {
         //match self.strings.find_equiv(&s) {
         //    Some(name) => *name,
         //    None => {
@@ -67,8 +67,8 @@ impl Session {
         }
     }
 
-    pub fn parse_buffer<T: Buffer>(&mut self, name: &str, buffer: T) -> Module {
-        let lexer = Lexer::new(name.to_owned(), buffer);
+    pub fn parse_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
+        let lexer = Lexer::new(name, buffer);
         let module = self.parser.parse(lexer, &mut self.interner);
         self.defmap.visit_module(&module);
         self.resolver.resolve_module(&self.interner, &module);

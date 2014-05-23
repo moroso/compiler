@@ -17,7 +17,7 @@ pub fn main() {
         ));
     let mut parser = Parser::new();
     let mut interner = Interner::new();
-    let lexer = Lexer::new("<stdin>".to_owned(), buffer);
+    let lexer = Lexer::new("<stdin>", buffer);
 
     let ast = parser.parse_with(lexer, &mut interner, |p| p.parse_expr());
     let mut conv = ASTToIntermediate::new(&mut interner);

@@ -273,16 +273,16 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         }
     }
 
-    fn error<'a>(&self, message: &'a str, pos: SourcePos) -> ! {
-        fail!("\n{}\nat {}", message, pos)
+    fn error<'a, T: Str>(&self, message: T, pos: SourcePos) -> ! {
+        fail!("\n{}\nat {}", message.as_slice(), pos)
     }
 
     /// A convenience function to generate an error message when we've
     /// peeked at a token, but it doesn't match any token we were expecting.
-    fn peek_error<'a>(&mut self, message: &'a str) -> ! {
+    fn peek_error<'a, T: Str>(&mut self, message: T) -> ! {
         let tok = self.peek().clone();
         let pos = self.peek_span().get_begin();
-        self.error(format!("{} (got token {})", message, tok), pos)
+        self.error(format!("{} (got token {})", message.as_slice(), tok), pos)
     }
 
     fn add_id_and_span<T>(&mut self, val: T, sp: Span) -> WithId<T> {
@@ -1058,16 +1058,15 @@ mod tests {
                            )
                    );
         */
-        assert_eq!(format!("{}", tree),
-                   "((1+((3*5)/2))-((2*3)*((5+6))))"
-                   .to_owned());
+        assert_eq!(format!("{}", tree).as_slice(),
+                   "((1+((3*5)/2))-((2*3)*((5+6))))");
     }
 
     // These tests disabled until we have a pretty printer
     /*
     fn compare_canonicalized(raw: &str, parsed: &str) {
         let (_, tree) = ast_from_str(raw, |p| p.parse_let_stmt());
-        assert_eq!(parsed.to_owned(), format!("{}", tree));
+        assert_eq!(format!("{}", tree).as_slice(), parsed);
     }
 
     #[test]
