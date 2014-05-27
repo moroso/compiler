@@ -70,6 +70,12 @@ impl LivenessAnalyzer {
                         opinfo.succ.push(u + 1);
                     }
                 },
+                Nop => {
+                    if u + 1 < len {
+                        let opinfo = self.opinfo.get_mut(u);
+                        opinfo.succ.push(u + 1);
+                    }
+                }
                 _ => {}
             }
         }
@@ -88,7 +94,7 @@ impl LivenessAnalyzer {
             }
             for next_idx in opinfo.succ.iter() {
                 let mut next_opinfo = self.opinfo.get_mut(*next_idx);
-                for livevar in next_opinfo.used.iter() {
+                for livevar in next_opinfo.live.iter() {
                     if !opinfo.def.contains(livevar) {
                         modified = modified || add_to(&mut opinfo.live,
                                                       livevar.clone());
