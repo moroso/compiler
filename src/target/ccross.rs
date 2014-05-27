@@ -57,26 +57,26 @@ fn find_enum_item_names(module: &Module) -> TreeMap<Name,
 
 impl CCrossCompiler {
     fn visit_list<T>(&self, list: &Vec<T>,
-                            visit: |&T| -> StrBuf,
-                            delimiter: &str) -> StrBuf {
-        let list: Vec<StrBuf> = list.iter().map(visit).collect();
+                            visit: |&T| -> String,
+                            delimiter: &str) -> String {
+        let list: Vec<String> = list.iter().map(visit).collect();
         list.connect(format!("{}\n", delimiter).as_slice())
     }
 
-    fn visit_binop(&self, op: &BinOp) -> StrBuf {
+    fn visit_binop(&self, op: &BinOp) -> String {
         format!("{}", op)
     }
 
-    fn visit_unop(&self, op: &UnOp) -> StrBuf {
+    fn visit_unop(&self, op: &UnOp) -> String {
         format!("{}", op)
     }
 
     // A block, as an expression.
-    fn visit_block_expr(&self, block: &Block) -> StrBuf {
+    fn visit_block_expr(&self, block: &Block) -> String {
         self.visit_block(block, |e| e.map(|e| format!("{};", e)).unwrap_or_default())
     }
 
-    fn visit_name_and_type(&self, name: Name, t: &Type) -> StrBuf {
+    fn visit_name_and_type(&self, name: Name, t: &Type) -> String {
         match t.val {
             // We have to special case this, because of the way things of
             // a function pointer type are declared in C.
@@ -94,7 +94,7 @@ impl CCrossCompiler {
         }
     }
 
-    fn visit_stmt(&self, stmt: &Stmt) -> StrBuf {
+    fn visit_stmt(&self, stmt: &Stmt) -> String {
         match stmt.val {
             LetStmt(ref pat, ref e) => {
                 let (i, t) = match pat.val {
@@ -110,7 +110,7 @@ impl CCrossCompiler {
         }
     }
 
-    fn visit_block(&self, block: &Block, tail: |Option<StrBuf>| -> StrBuf) -> StrBuf {
+    fn visit_block(&self, block: &Block, tail: |Option<String>| -> String) -> String {
         let items = self.visit_list(&block.items, |t| self.visit_item(t), "; ");
         let stmts = self.visit_list(&block.stmts, |t| self.visit_stmt(t), "; ");
         let expr = match block.expr {
@@ -126,18 +126,18 @@ impl CCrossCompiler {
         format!("\\{ {} {} {}; \\}", items, stmts, expr)
     }
 
-    fn visit_item(&self, item: &Item) -> StrBuf {
+    fn visit_item(&self, item: &Item) -> String {
         match item.val {
             FuncItem(ref name, ref args, ref t, ref block, _) => {
                 // Emit nothing for builtin functions.
-                if self.builtins.contains(&name.val.name) { StrBuf::new() } else {
+                if self.builtins.contains(&name.val.name) { String::new() } else {
                     let ty = self.visit_type(t);
                     let name = self.visit_ident(name);
                     let args = self.visit_list(args, |x| self.visit_func_arg(x), ", ");
                     let block = self.visit_block(block, |e| {
                         match e {
                             Some(e) => format!("return {}", e),
-                            None => StrBuf::from_str("return"),
+                            None => String::from_str("return"),
                         }
                     });
 
@@ -169,11 +169,11 @@ impl CCrossCompiler {
         }
     }
 
-    fn visit_func_arg(&self, arg: &FuncArg) -> StrBuf {
+    fn visit_func_arg(&self, arg: &FuncArg) -> String {
         self.visit_name_and_type(arg.ident.val.name, &arg.argtype)
     }
 
-    fn visit_type(&self, t: &Type) -> StrBuf {
+    fn visit_type(&self, t: &Type) -> String {
         match t.val {
             PtrType(ref t) | ArrayType(ref t, _) => {
                 format!("{}*", self.visit_type(*t))
@@ -190,7 +190,7 @@ impl CCrossCompiler {
                 };
                 if is_param {
                     // Treat all type parameters as void.
-                    StrBuf::from_str("void")
+                    String::from_str("void")
                 } else if self.structnames.contains(&id.val.name) {
                     format!("struct {}", self.visit_ident(id))
                 } else {
@@ -209,20 +209,20 @@ impl CCrossCompiler {
                                              "; ");
                 format!("struct \\{ {} \\}", fields)
             }
-            BoolType => StrBuf::from_str("int"),
-            UnitType => StrBuf::from_str("void"),
-            IntType(..) => StrBuf::from_str("int"), // TODO intkind handling
+            BoolType => String::from_str("int"),
+            UnitType => String::from_str("void"),
+            IntType(..) => String::from_str("int"), // TODO intkind handling
         }
     }
 
-    fn visit_ident(&self, ident: &Ident) -> StrBuf {
+    fn visit_ident(&self, ident: &Ident) -> String {
         match self.enumitemnames.find(&ident.val.name) {
             Some(&(_, _, ref pos)) => format!("\\{ .tag = {} \\}", pos),
             None => format!("{}", self.session.interner.name_to_str(&ident.val.name)),
         }
     }
 
-    fn visit_lit(&self, lit: &Lit) -> StrBuf {
+    fn visit_lit(&self, lit: &Lit) -> String {
         match lit.val {
             NumLit(ref n, _) => format!("{}", n),
             StringLit(_) => fail!("TODO"),
@@ -230,9 +230,9 @@ impl CCrossCompiler {
         }
     }
 
-    fn visit_expr(&self, expr: &Expr) -> StrBuf {
+    fn visit_expr(&self, expr: &Expr) -> String {
         match expr.val {
-            UnitExpr => StrBuf::from_str("({})"),
+            UnitExpr => String::from_str("({})"),
             LitExpr(ref l) => self.visit_lit(l),
             TupleExpr(..) => fail!("Tuples not yet supported."),
             GroupExpr(ref e) => format!("({})", self.visit_expr(*e)),
@@ -358,7 +358,7 @@ impl CCrossCompiler {
         }
     }
 
-    fn visit_module(&self, module: &Module) -> StrBuf {
+    fn visit_module(&self, module: &Module) -> String {
         self.visit_list(&module.items, |item| {
             self.visit_item(item)
         }, "\n")
@@ -370,7 +370,7 @@ pub struct CTarget {
 }
 
 impl Target for CTarget {
-    fn new(_args: Vec<StrBuf>) -> CTarget {
+    fn new(_args: Vec<String>) -> CTarget {
         CTarget { opts: () }
     }
 
@@ -384,7 +384,7 @@ impl Target for CTarget {
         } = p;
 
         let mut builtins = TreeSet::new();
-        builtins.insert(session.interner.intern(StrBuf::from_str("print_int")));
+        builtins.insert(session.interner.intern(String::from_str("print_int")));
 
         let cc = CCrossCompiler {
             structnames: find_structs(&module),

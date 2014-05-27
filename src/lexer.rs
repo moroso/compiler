@@ -75,9 +75,9 @@ pub enum Token {
     Underscore,
 
     // Literals
-    IdentTok(StrBuf),
+    IdentTok(String),
     NumberTok(u64, IntKind),
-    StringTok(StrBuf),
+    StringTok(String),
 
     // Special
     Eof,
@@ -127,9 +127,9 @@ impl<A, T: RuleMatcher<A>, U: TokenMaker<A>> LexerRuleT for LexerRule<T, U> {
 
 pub struct Lexer<T> {
     lines: BufferLines<T>,
-    line: Option<StrBuf>,
+    line: Option<String>,
     pos: SourcePos,
-    name: StrBuf,
+    name: String,
     // Ordinary rules.
     rules: Vec<Box<LexerRuleT>>,
     // Rules specifically for when we're within a comment. We need this
@@ -230,13 +230,13 @@ impl<T: Buffer> Lexer<T> {
 
         // Rule to match a string literal and strip off the surrounding quotes
         struct StringRule;
-        impl RuleMatcher<StrBuf> for StringRule {
-            fn find(&self, s: &str) -> Option<(uint, StrBuf)> {
+        impl RuleMatcher<String> for StringRule {
+            fn find(&self, s: &str) -> Option<(uint, String)> {
                 let matcher = matcher!(r#""((?:\\"|[^"])*)""#);
                 match matcher.captures(s) {
                     Some(groups) => {
                         let t = groups.at(0);
-                        Some((t.len(), StrBuf::from_str(groups.at(1))))
+                        Some((t.len(), String::from_str(groups.at(1))))
                     },
                     _ => None
                 }
@@ -336,7 +336,7 @@ impl<T: Buffer> Lexer<T> {
 
         Lexer {
             pos:  SourcePos::new(),
-            line: Some(StrBuf::new()),
+            line: Some(String::new()),
             lines: BufferLines::new(buffer),
             name: name.into_strbuf(),
             rules: rules,
@@ -346,7 +346,7 @@ impl<T: Buffer> Lexer<T> {
         }
     }
 
-    pub fn get_name(&self) -> StrBuf {
+    pub fn get_name(&self) -> String {
         self.name.clone()
     }
 }
@@ -483,8 +483,8 @@ impl MaybeArg for () {
     fn maybe_arg<T: StrAllocating>(_: T) { }
 }
 
-impl MaybeArg for StrBuf {
-    fn maybe_arg<T: StrAllocating>(s: T) -> StrBuf { s.into_strbuf() }
+impl MaybeArg for String {
+    fn maybe_arg<T: StrAllocating>(s: T) -> String { s.into_strbuf() }
 }
 
 struct BufferLines<T> {
@@ -499,8 +499,8 @@ impl<T: Buffer> BufferLines<T> {
     }
 }
 
-impl<T: Buffer> Iterator<StrBuf> for BufferLines<T> {
-    fn next(&mut self) -> Option<StrBuf> {
+impl<T: Buffer> Iterator<String> for BufferLines<T> {
+    fn next(&mut self) -> Option<String> {
         self.buffer.read_line().ok()
     }
 }
@@ -528,15 +528,15 @@ mod tests {
 
         compare(tokens1.as_slice(),
                 vec! {
-                    IdentTok(StrBuf::from_str("f")),
+                    IdentTok(String::from_str("f")),
                     LParen,
-                    IdentTok(StrBuf::from_str("x")),
+                    IdentTok(String::from_str("x")),
                     Dash,
                     NumberTok(0x3f5B, GenericInt),
                     RParen,
                     Plus,
                     NumberTok(1, GenericInt),
-                    StringTok(StrBuf::from_str(r#"Hello\" World"#)),
+                    StringTok(String::from_str(r#"Hello\" World"#)),
                 }.as_slice());
 
         let lexer2 = lexer_from_str("let x: int = 5;");
@@ -544,9 +544,9 @@ mod tests {
         compare(tokens2.as_slice(),
                 vec! {
                     Let,
-                    IdentTok(StrBuf::from_str("x")),
+                    IdentTok(String::from_str("x")),
                     Colon,
-                    IdentTok(StrBuf::from_str("int")),
+                    IdentTok(String::from_str("int")),
                     Eq,
                     NumberTok(5, GenericInt),
                 }.as_slice());

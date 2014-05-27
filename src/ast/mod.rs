@@ -203,7 +203,7 @@ impl Show for UnOpNode {
 #[deriving(Eq, Clone)]
 pub enum LitNode {
     NumLit(u64, IntKind),
-    StringLit(StrBuf),
+    StringLit(String),
     BoolLit(bool),
 }
 

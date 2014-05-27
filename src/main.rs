@@ -36,7 +36,7 @@ mod values;
 
 struct NullTarget;
 impl Target for NullTarget {
-    fn new(_: Vec<StrBuf>) -> NullTarget { NullTarget }
+    fn new(_: Vec<String>) -> NullTarget { NullTarget }
     fn compile(&self, _: Package) { }
 }
 
@@ -44,7 +44,7 @@ fn package_from_stdin() -> Package {
     Package::new("<stdin>", stdio::stdin())
 }
 
-fn new_target<T: Target>(args: Vec<StrBuf>) -> T {
+fn new_target<T: Target>(args: Vec<String>) -> T {
     Target::new(args)
 }
 
@@ -92,7 +92,7 @@ fn main() {
         "null" => NullTarget,
     };
 
-    let target_arg = matches.opt_str("target").unwrap_or(StrBuf::from_str("null"));
+    let target_arg = matches.opt_str("target").unwrap_or(String::from_str("null"));
     let target = match targets.move_iter()
                         .filter(|&(ref t, _)| t.eq_ignore_ascii_case(target_arg.as_slice()))
                         .map(|(_, ctor)| ctor(vec!()))

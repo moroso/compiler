@@ -24,7 +24,7 @@ pub struct Session {
 }
 
 pub struct Interner {
-    strings: HashMap<StrBuf, Name>,
+    strings: HashMap<String, Name>,
 }
 
 impl Interner {
@@ -43,7 +43,7 @@ impl Interner {
         fail!()
     }
 
-    pub fn intern(&mut self, s: StrBuf) -> Name {
+    pub fn intern(&mut self, s: String) -> Name {
         //match self.strings.find_equiv(&s) {
         //    Some(name) => *name,
         //    None => {
