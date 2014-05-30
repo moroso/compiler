@@ -142,6 +142,8 @@ impl Visitor for DefMap {
             ModItem(ref ident, ref module) => {
                 let item_ids = module.val.items.iter().map(|item| item.id).collect();
                 self.table.insert(ident.id, ModDef(item_ids));
+
+                self.visit_module(module);
             }
         }
     }

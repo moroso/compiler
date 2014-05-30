@@ -442,6 +442,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 TuplePat(args)
             }
             Underscore => {
+                self.expect(Underscore);
                 DiscardPat(maybe_type(self, allow_types))
             }
             _ => self.peek_error("Unexpected token while parsing pattern")
@@ -1047,14 +1048,15 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.add_id_and_span(EnumItem(enumname, body, type_params), start_span.to(self.last_span))
     }
 
-    fn parse_module_until(&mut self, token: Token) -> Module {
+    fn parse_module_until(&mut self, end: Token) -> Module {
         let start_span = self.peek_span();
         let mut items = vec!();
-        while *self.peek() != token {
+        while *self.peek() != end {
             items.push(self.parse_item());
         }
         let node = ModuleNode { items: items };
-        self.add_id_and_span(node, start_span.to(self.last_span))
+        let end_span = self.peek_span();
+        self.add_id_and_span(node, start_span.to(end_span))
     }
 
     fn parse_mod_item(&mut self) -> Item {
