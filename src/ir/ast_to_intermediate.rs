@@ -70,19 +70,23 @@ impl<'a> ASTToIntermediate<'a> {
                                        Variable(var2))));
                 (insts1, new_res)
             },
-            IdentExpr(ref id) => {
-                (vec!(), Var { name: id.val.name, index: 0 })
+            PathExpr(ref path) => {
+                fail!("Need to do paths properly")
+                //(vec!(), Var { name: id.val.name, index: 0 })
             },
             AssignExpr(ref e1, ref e2) => {
                 let mut res;
                 let (insts2, var2) = self.convert_expr(*e2);
                 let (lhs, res_v) = match e1.val {
-                    IdentExpr(ref id) => {
+                    PathExpr(ref path) => {
+                        fail!("Need to do paths properly")
+                        /*
                         res = vec!();
                         (VarLValue(Var { name: id.val.name,
                                          index: 0 }),
                          Var { name: id.val.name,
                                index: 0 })
+                               */
                     },
                     UnOpExpr(ref op, ref e) => {
                         let (insts, var) = self.convert_expr(*e);

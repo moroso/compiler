@@ -284,15 +284,15 @@ impl<'a> Typechecker<'a> {
             UnitType => UnitTy,
             IntType(ik) => intkind_to_ty(ik),
             PtrType(ref t) => PtrTy(box self.type_to_ty(*t)),
-            NamedType(ref ident) => {
-                let nid = self.session.resolver.def_from_ident(ident);
+            NamedType(ref path) => {
+                let nid = self.session.resolver.def_from_path(path);
                 match *self.session.defmap.find(&nid).take_unwrap() {
                     StructDef(_, ref tps) => {
-                        let tys = self.tps_to_tys(tps, &ident.val.tps, false);
+                        let tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, false);
                         StructTy(nid, tys)
                     }
                     EnumDef(_, ref tps) => {
-                        let tys = self.tps_to_tys(tps, &ident.val.tps, false);
+                        let tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, false);
                         EnumTy(nid, tys)
                     }
                     GenericDef => self.generic_to_ty(nid),
@@ -340,8 +340,8 @@ impl<'a> Typechecker<'a> {
                 let tys = pats.iter().map(|p| self.pat_to_ty(p)).collect();
                 TupleTy(tys)
             }
-            VariantPat(ref ident, ref pats) => {
-                let nid = self.session.resolver.def_from_ident(ident);
+            VariantPat(ref path, ref pats) => {
+                let nid = self.session.resolver.def_from_path(path);
                 match *self.session.defmap.find(&nid).take_unwrap() {
                     VariantDef(ref enum_nid, ref args) => {
                         let tps = match *self.session.defmap.find(enum_nid).take_unwrap() {
@@ -349,7 +349,7 @@ impl<'a> Typechecker<'a> {
                             _ => fail!("Nonsensical enum id for variant"),
                         };
 
-                        let tp_tys = self.tps_to_tys(tps, &ident.val.tps, true);
+                        let tp_tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, true);
 
                         let mut gs = TreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
@@ -369,11 +369,11 @@ impl<'a> Typechecker<'a> {
                     _ => unreachable!(),
                 }
             }
-            StructPat(ref ident, ref fps) => {
-                let nid = self.session.resolver.def_from_ident(ident);
+            StructPat(ref path, ref fps) => {
+                let nid = self.session.resolver.def_from_path(path);
                 match *self.session.defmap.find(&nid).take_unwrap() {
                     StructDef(ref fields, ref tps) => {
-                        let tp_tys = self.tps_to_tys(tps, &ident.val.tps, true);
+                        let tp_tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, true);
 
                         let mut gs = TreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
@@ -421,11 +421,11 @@ impl<'a> Typechecker<'a> {
             LitExpr(ref l) => self.lit_to_ty(l),
             TupleExpr(ref es) => TupleTy(es.iter().map(|e| self.expr_to_ty(e)).collect()),
             GroupExpr(ref e) => self.expr_to_ty(*e),
-            IdentExpr(ref ident) => {
-                let nid = self.session.resolver.def_from_ident(ident);
+            PathExpr(ref path) => {
+                let nid = self.session.resolver.def_from_path(path);
                 match *self.session.defmap.find(&nid).take_unwrap() {
                     FuncDef(ref args, ref t, ref tps) => {
-                        let tp_tys = self.tps_to_tys(tps, &ident.val.tps, true);
+                        let tp_tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, true);
                         let mut gs = TreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                             gs.insert(*tp, tp_ty.clone());
@@ -442,7 +442,7 @@ impl<'a> Typechecker<'a> {
                             _ => fail!("Nonsensical enum id for variant"),
                         };
 
-                        let tp_tys = self.tps_to_tys(tps, &ident.val.tps, true);
+                        let tp_tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, true);
 
                         let ctor = |tp_tys| EnumTy(*enum_nid, tp_tys);
                         if args.len() == 0 {
@@ -811,6 +811,9 @@ impl<'a> Visitor for Typechecker<'a> {
                         ty = me.unify(ty, exit_ty);
                     }
                 });
+            }
+            ModItem(_, ref module) => {
+                self.visit_module(module);
             }
             StructItem(..) | EnumItem(..) => {}
         }

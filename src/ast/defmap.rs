@@ -139,6 +139,10 @@ impl Visitor for DefMap {
 
                 self.table.insert(ident.id, EnumDef(variant_def_ids, tp_def_ids));
             }
+            ModItem(ref ident, ref module) => {
+                let item_ids = module.val.items.iter().map(|item| item.id).collect();
+                self.table.insert(ident.id, ModDef(item_ids));
+            }
         }
     }
 }
@@ -159,7 +163,7 @@ mod tests {
 
         assert_eq!(format!("{}", defmap.find(&NodeId(0))).as_slice(),
                    "Some(FuncDef([NodeId(2)], (), [NodeId(1)]))");
-        assert_eq!(format!("{}", defmap.find(&NodeId(6))).as_slice(),
+        assert_eq!(format!("{}", defmap.find(&NodeId(7))).as_slice(),
                    "Some(PatDef(None))");
     }
 }

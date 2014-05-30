@@ -8,6 +8,9 @@ extern crate collections;
 extern crate getopts;
 extern crate regex;
 
+#[cfg(test)]
+extern crate debug;
+
 use ast::visit::Visitor;
 use package::Package;
 use session::Session;

@@ -26,7 +26,8 @@ impl<T: Show> Show for WithId<T> {
 }
 
 macro_rules! with_id {
-    ( $( $s:ident => $n:ident ),* ) => ( $( pub type $s = WithId<$n>; )* )
+    ( $( $s:ident => $n:ident ),* ) => ( $( pub type $s = WithId<$n>; )* );
+    ( $( $s:ident => $n:ident ),+, ) => ( with_id!($( $s => $n ),+) );
 }
 
 with_id! {
@@ -38,7 +39,9 @@ with_id! {
     Expr     => ExprNode,
     Stmt     => StmtNode,
     Item     => ItemNode,
-    Ident    => IdentNode
+    Ident    => IdentNode,
+    Path     => PathNode,
+    Module   => ModuleNode,
 }
 
 #[deriving(Eq, Clone, Ord, TotalEq, TotalOrd, Show)]
@@ -70,6 +73,20 @@ impl Show for IdentNode {
 }
 
 #[deriving(Eq, Clone)]
+pub struct PathNode {
+    pub elems: Vec<Ident>,
+    pub global: bool,
+}
+
+impl Show for PathNode {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let global = if self.global { "::" } else { "" };
+        let elems: Vec<String> = self.elems.iter().map(|e| format!("{}", e)).collect();
+        write!(f, "{}{}", global, elems.connect("::"))
+    }
+}
+
+#[deriving(Eq, Clone)]
 pub struct FieldPat {
     pub name: Name,
     pub pat:  Pat,
@@ -86,8 +103,8 @@ pub enum PatNode {
     DiscardPat(Option<Type>),
     IdentPat(Ident, Option<Type>),
     TuplePat(Vec<Pat>),
-    VariantPat(Ident, Vec<Pat>),
-    StructPat(Ident, Vec<FieldPat>),
+    VariantPat(Path, Vec<Pat>),
+    StructPat(Path, Vec<FieldPat>),
 }
 
 impl Show for PatNode {
@@ -111,7 +128,7 @@ pub enum TypeNode {
     UnitType,
     IntType(IntKind),
     PtrType(Box<Type>),
-    NamedType(Ident),
+    NamedType(Path),
     FuncType(Vec<Type>, Box<Type>),
     ArrayType(Box<Type>, u64),
     TupleType(Vec<Type>),
@@ -124,7 +141,7 @@ impl Show for TypeNode {
             UnitType                  => write!(f, "()"),
             IntType(k)                => write!(f, "{}", k),
             PtrType(ref t)            => write!(f, "*({})", t),
-            NamedType(ref n)          => write!(f, "{}", n),
+            NamedType(ref p)          => write!(f, "{}", p),
             FuncType(ref d, ref r)    => write!(f, "({} -> {})", d, r),
             ArrayType(ref t, d)       => write!(f, "({})[{}]", t, d),
             TupleType(ref ts)         => write!(f, "({})", ts),
@@ -235,7 +252,7 @@ pub enum ExprNode {
     LitExpr(Lit),
     GroupExpr(Box<Expr>),
     TupleExpr(Vec<Expr>),
-    IdentExpr(Ident),
+    PathExpr(Path),
     BinOpExpr(BinOp, Box<Expr>, Box<Expr>),
     UnOpExpr(UnOp, Box<Expr>),
     IndexExpr(Box<Expr>, Box<Expr>),
@@ -259,7 +276,7 @@ impl Show for ExprNode {
             LitExpr(ref l)                      => write!(f, "{}", l),
             GroupExpr(ref e)                    => write!(f, "({})", e),
             TupleExpr(ref vs)                   => write!(f, "({})", vs),
-            IdentExpr(ref id)                   => write!(f, "{}", id),
+            PathExpr(ref p)                     => write!(f, "{}", p),
             BinOpExpr(op, ref l, ref r)         => write!(f, "({}{}{})", l, op, r),
             UnOpExpr(op, ref e)                 => write!(f, "({}{})", op, e),
             IndexExpr(ref e, ref i)             => write!(f, "{}[{}]", e, i),
@@ -385,6 +402,7 @@ pub enum ItemNode {
     FuncItem(Ident, Vec<FuncArg>, Type, Block, Vec<Ident>),
     StructItem(Ident, Vec<Field>, Vec<Ident>),
     EnumItem(Ident, Vec<Variant>, Vec<Ident>),
+    ModItem(Ident, Module),
 }
 
 impl Show for ItemNode {
@@ -419,15 +437,24 @@ impl Show for ItemNode {
                 }
                 write!(f, "{}", "}")
             }
+            ModItem(ref ident, ref module) => {
+                try!(write!(f, "mod {}", ident));
+                try!(write!(f, "{}\n", " {"));
+                for ref item in module.val.items.iter() {
+                    try!(write!(f, "    {}\n", item));
+                }
+                write!(f, "{}", "}")
+            }
         }
     }
 }
 
-pub struct Module {
+#[deriving(Eq, Clone)]
+pub struct ModuleNode {
     pub items: Vec<Item>
 }
 
-impl Show for Module {
+impl Show for ModuleNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         for item in self.items.iter() {
             for line in format!("{}", item).as_slice().lines() {

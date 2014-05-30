@@ -6,13 +6,6 @@ use std::fmt;
 #[deriving(Eq, Ord, Clone, Show, TotalEq, TotalOrd)]
 pub struct Name(pub uint);
 
-impl<T: Show> Show for TreeMap<Name, T> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let vals: Vec<(&Name, &T)> = self.iter().collect();
-        vals.fmt(f)
-    }
-}
-
 #[deriving(Eq, Clone)]
 pub enum Width {
     AnyWidth,

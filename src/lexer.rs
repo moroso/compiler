@@ -35,6 +35,7 @@ pub enum Token {
     Struct,
     Enum,
     Match,
+    Mod,
 
     // Symbols
     LParen,
@@ -268,6 +269,7 @@ impl<T: Buffer> Lexer<T> {
             Struct       => "struct",
             Enum         => "enum",
             Match        => "match",
+            Mod          => "mod",
 
             // Basic types; TODO: add more.
             IntTypeTok   => IntTypeRule,
@@ -338,7 +340,7 @@ impl<T: Buffer> Lexer<T> {
             pos:  SourcePos::new(),
             line: Some(String::new()),
             lines: BufferLines::new(buffer),
-            name: name.into_strbuf(),
+            name: name.into_string(),
             rules: rules,
             comment_rules: comment_rules,
             comment_nest: 0,
@@ -414,8 +416,10 @@ impl<T: Buffer> Iterator<SourceToken> for Lexer<T> {
             }
 
             // Fetch a new line, now that we're done with the previous one.
-            self.line = self.lines.next();
-            self.pos = SourcePos { row: self.pos.row + 1, col: 0 };
+            self.line = self.lines.next().map(|(row, line)| {
+                self.pos = SourcePos { row: row, col: 0 };
+                line
+            });
         }
     }
 }
@@ -484,24 +488,30 @@ impl MaybeArg for () {
 }
 
 impl MaybeArg for String {
-    fn maybe_arg<T: StrAllocating>(s: T) -> String { s.into_strbuf() }
+    fn maybe_arg<T: StrAllocating>(s: T) -> String { s.into_string() }
 }
 
 struct BufferLines<T> {
+    lineno: uint,
     buffer: T,
 }
 
 impl<T: Buffer> BufferLines<T> {
     fn new(buffer: T) -> BufferLines<T> {
         BufferLines {
+            lineno: 0,
             buffer: buffer,
         }
     }
 }
 
-impl<T: Buffer> Iterator<String> for BufferLines<T> {
-    fn next(&mut self) -> Option<String> {
-        self.buffer.read_line().ok()
+impl<T: Buffer> Iterator<(uint, String)> for BufferLines<T> {
+    fn next(&mut self) -> Option<(uint, String)> {
+        self.buffer.read_line().ok().map(|l| {
+            let n = self.lineno;
+            self.lineno += 1;
+            (n, l)
+        })
     }
 }
 

@@ -13,6 +13,7 @@ pub trait Visitor {
     fn visit_match_arm(&mut self, arm: &MatchArm) { walk_match_arm(self, arm) }
     fn visit_lit(&mut self, lit: &Lit) { walk_lit(self, lit) }
     fn visit_ident(&mut self, ident: &Ident) { walk_ident(self, ident) }
+    fn visit_path(&mut self, path: &Path) { walk_path(self, path) }
     fn visit_module(&mut self, module: &Module) { walk_module(self, module) }
 }
 
@@ -35,6 +36,10 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
             for variant in variants.iter() { visitor.visit_variant(variant); }
             for id in tps.iter() { visitor.visit_ident(id); }
         },
+        ModItem(ref ident, ref module) => {
+            visitor.visit_ident(ident);
+            visitor.visit_module(module);
+        },
     }
 }
 
@@ -43,8 +48,8 @@ pub fn walk_type<T: Visitor>(visitor: &mut T, t: &Type) {
         PtrType(ref p) => {
             visitor.visit_type(*p);
         }
-        NamedType(ref id) => {
-            visitor.visit_ident(id);
+        NamedType(ref p) => {
+            visitor.visit_path(p);
         }
         FuncType(ref d, ref r) => {
             for a in d.iter() { visitor.visit_type(a); }
@@ -74,14 +79,14 @@ pub fn walk_pat<T: Visitor>(visitor: &mut T, pat: &Pat) {
                 visitor.visit_pat(pat);
             }
         }
-        VariantPat(ref id, ref pats) => {
-            visitor.visit_ident(id);
+        VariantPat(ref path, ref pats) => {
+            visitor.visit_path(path);
             for pat in pats.iter() {
                 visitor.visit_pat(pat);
             }
         }
-        StructPat(ref id, ref field_pats) => {
-            visitor.visit_ident(id);
+        StructPat(ref path, ref field_pats) => {
+            visitor.visit_path(path);
             for field_pat in field_pats.iter() {
                 visitor.visit_pat(&field_pat.pat);
             }
@@ -138,8 +143,8 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
         GroupExpr(ref e) => {
             visitor.visit_expr(*e);
         }
-        IdentExpr(ref id) => {
-            visitor.visit_ident(id);
+        PathExpr(ref p) => {
+            visitor.visit_path(p);
         }
         BinOpExpr(_, ref l, ref r) => {
             visitor.visit_expr(*l);
@@ -217,7 +222,13 @@ pub fn walk_ident<T: Visitor>(visitor: &mut T, ident: &Ident) {
     }
 }
 
+pub fn walk_path<T: Visitor>(visitor: &mut T, path: &Path) {
+    for elem in path.val.elems.iter() {
+        visitor.visit_ident(elem);
+    }
+}
+
 pub fn walk_module<T: Visitor>(visitor: &mut T, module: &Module) {
-    for item in module.items.iter() { visitor.visit_item(item); }
+    for item in module.val.items.iter() { visitor.visit_item(item); }
 }
 

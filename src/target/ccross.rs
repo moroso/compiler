@@ -15,44 +15,21 @@ use util::Name;
 
 struct CCrossCompiler {
     builtins: TreeSet<Name>,
-    structnames: TreeSet<Name>,
-    enumitemnames: TreeMap<Name, (Ident, Vec<Variant>, int)>,
+    structnames: TreeSet<NodeId>,
+    enumitemnames: TreeMap<NodeId, (Ident, Vec<Variant>, int)>,
     session: Session,
     typemap: Typemap,
 }
 
-fn find_structs(module: &Module) -> TreeSet<Name> {
-    let mut ht = TreeSet::new();
-    for item in module.items.iter() {
-        match item.val {
-            StructItem(ref id, _, _) => { ht.insert(id.val.name); },
-            _ => {}
-        }
-    }
-
-    ht
+fn find_structs(module: &Module) -> TreeSet<NodeId> {
+    fail!("Handle paths properly")
 }
 
-fn find_enum_item_names(module: &Module) -> TreeMap<Name,
+fn find_enum_item_names(module: &Module) -> TreeMap<NodeId,
                                                     (Ident,
                                                      Vec<Variant>,
                                                      int)> {
-    let mut ht = TreeMap::new();
-    for enumitem in module.items.iter() {
-        match enumitem.val {
-            EnumItem(ref name, ref items, _) => {
-                let mut pos = 0;
-                for item in items.iter() {
-                    ht.insert(item.ident.val.name,
-                              (name.clone(), items.clone(), pos));
-                    pos += 1;
-                }
-            },
-            _ => {}
-        }
-    }
-
-    ht
+    fail!("Handle paths properly")
 }
 
 impl CCrossCompiler {
@@ -166,6 +143,7 @@ impl CCrossCompiler {
                         variants,
                         name.as_slice())
             }
+            ModItem(..) => fail!("ModItem not supported yet"),
         }
     }
 
@@ -178,10 +156,10 @@ impl CCrossCompiler {
             PtrType(ref t) | ArrayType(ref t, _) => {
                 format!("{}*", self.visit_type(*t))
             }
-            NamedType(ref id) => {
+            NamedType(ref path) => {
                 let is_param = {
                     // Is this type a type parameter?
-                    let did = self.session.resolver.def_from_ident(id);
+                    let did = self.session.resolver.def_from_path(path);
                     let d = self.session.defmap.find(&did).take_unwrap();
                     match *d {
                         GenericDef => true,
@@ -191,10 +169,10 @@ impl CCrossCompiler {
                 if is_param {
                     // Treat all type parameters as void.
                     String::from_str("void")
-                } else if self.structnames.contains(&id.val.name) {
-                    format!("struct {}", self.visit_ident(id))
+                } else if self.structnames.contains(&path.id) {
+                    format!("struct {}", self.visit_path(path))
                 } else {
-                    self.visit_ident(id)
+                    self.visit_path(path)
                 }
             }
             FuncType(ref d, ref r) => {
@@ -215,11 +193,18 @@ impl CCrossCompiler {
         }
     }
 
-    fn visit_ident(&self, ident: &Ident) -> String {
-        match self.enumitemnames.find(&ident.val.name) {
+    fn visit_path(&self, path: &Path) -> String {
+        match self.enumitemnames.find(&path.id) {
             Some(&(_, _, ref pos)) => format!("\\{ .tag = {} \\}", pos),
-            None => format!("{}", self.session.interner.name_to_str(&ident.val.name)),
+            None => {
+                let vec: Vec<&str> = path.val.elems.iter().map(|elem| self.session.interner.name_to_str(&elem.val.name)).collect();
+                vec.connect("_")
+            }
         }
+    }
+
+    fn visit_ident(&self, ident: &Ident) -> String {
+        format!("{}", self.session.interner.name_to_str(&ident.val.name))
     }
 
     fn visit_lit(&self, lit: &Lit) -> String {
@@ -236,7 +221,7 @@ impl CCrossCompiler {
             LitExpr(ref l) => self.visit_lit(l),
             TupleExpr(..) => fail!("Tuples not yet supported."),
             GroupExpr(ref e) => format!("({})", self.visit_expr(*e)),
-            IdentExpr(ref i) => self.visit_ident(i),
+            PathExpr(ref p) => self.visit_path(p),
             BinOpExpr(ref op, ref lhs, ref rhs) => {
                 let lhs = self.visit_expr(*lhs);
                 let op = self.visit_binop(op);
@@ -270,9 +255,10 @@ impl CCrossCompiler {
             }
             CallExpr(ref f, ref args) => {
                 match f.val {
-                    IdentExpr(ref id) => {
-                        let name = self.session.interner.name_to_str(&id.val.name);
-                        match self.enumitemnames.find(&id.val.name) {
+                    PathExpr(ref path) => {
+                        let name = self.visit_path(path);
+
+                        match self.enumitemnames.find(&path.id) {
                             Some(&(_, _, pos)) => {
                                 let mut n = 0;
                                 let args = self.visit_list(args, |arg| {
@@ -283,9 +269,8 @@ impl CCrossCompiler {
                                 format!("\\{ .tag = {}, {} \\}", pos, args)
                             }
                             None => {
-                                let id = self.visit_ident(id);
                                 let args = self.visit_list(args, |x| self.visit_expr(x), ", ");
-                                format!("{}({})", id, args)
+                                format!("{}({})", name, args)
                             }
                         }
                     }
@@ -328,15 +313,15 @@ impl CCrossCompiler {
                 // TODO: allow types other than ints.
                 let expr = self.visit_expr(*e);
                 let arms = self.visit_list(arms, |arm| {
-                    let (name, vars) = match arm.pat.val {
-                        VariantPat(ref id, ref args) => (id.val.name, args),
+                    let (path, vars) = match arm.pat.val {
+                        VariantPat(ref path, ref args) => (path, args),
                         _ => fail!("Only VariantPats are supported in match arms for now")
                     };
 
-                    let &(_, ref variants, idx) = self.enumitemnames.find(&name).unwrap();
+                    let &(_, ref variants, idx) = self.enumitemnames.find(&path.id).unwrap();
                     let this_variant = variants.get(idx as uint);
 
-                    let name = self.session.interner.name_to_str(&name);
+                    let name = self.visit_path(path);
 
                     let mut n = 0;
                     let vars = self.visit_list(vars, |var| {
@@ -359,7 +344,7 @@ impl CCrossCompiler {
     }
 
     fn visit_module(&self, module: &Module) -> String {
-        self.visit_list(&module.items, |item| {
+        self.visit_list(&module.val.items, |item| {
             self.visit_item(item)
         }, "\n")
     }
@@ -399,10 +384,12 @@ impl Target for CTarget {
             _ => {}
         }
 
+        /* what?
         match writeln!(stderr, "{}", cc.enumitemnames) {
             Err(e) => fail!("{}", e),
             _ => {}
         }
+        */
 
         println!("{}", "#include <stdio.h>");
         println!("{}", "#include <stdlib.h>");

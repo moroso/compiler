@@ -183,42 +183,6 @@ impl Parser {
     }
 }
 
-/**
-A helper macro to parse a comma-separated lists.
-`parser` is an expression to parse one item of the list, and
-`end_token` is the token that indicates the end of the list (probably
-a closing paren, brace, or similar).
-For example,
-```ignore
-self.expect(LParen);
-parse_list(self.parse_expr() until RParen);
-self.expect(RParen);
-```
-will parse a parenthesized, comma-separated list of expressions.
-**/
-macro_rules! parse_list(
-    ($parser:expr until $end_token:ident) => (
-        {
-            let mut res = vec!();
-            loop {
-                match *self.peek() {
-                    $end_token => break,
-                    _ => { res.push($parser);
-                           match *self.peek() {
-                               $end_token => break,
-                               Comma => { self.expect(Comma); },
-                               _ => self.peek_error(
-                                   format!("Expected {} or comma when parsing list",
-                                           $end_token))
-                           }
-                    }
-                }
-            }
-            res
-        }
-    )
-)
-
 impl<'a, T: Buffer> StreamParser<'a, T> {
     fn new(lexer: Lexer<T>, interner: &'a mut Interner, parser: &'a mut Parser) -> StreamParser<'a, T> {
         let name = interner.intern(lexer.get_name());
@@ -297,6 +261,30 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     // Most functions from this point on are for parsing a specific node
     // in the grammar.
 
+    /// Utility to parse a comma-separated list of things
+    fn parse_list<U>(&mut self, p: |&mut StreamParser<'a, T>| -> U, end: Token, allow_trailing_comma: bool) -> Vec<U> {
+        if *self.peek() == end {
+            return vec!();
+        }
+
+        let mut res = vec!(p(self));
+        while *self.peek() != end {
+            match *self.peek() {
+                Comma => {
+                    self.expect(Comma);
+                    if !allow_trailing_comma || *self.peek() != end {
+                        res.push(p(self))
+                    }
+                }
+                _ => {
+                    self.peek_error(format!("Expected comma or {}", end))
+                }
+            }
+        }
+
+        res
+    }
+
     fn parse_name(&mut self) -> Name {
         match self.eat() {
             IdentTok(name) => self.interner.intern(name),
@@ -312,6 +300,75 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         };
 
         self.add_id_and_span(ident, self.last_span)
+    }
+
+    fn parse_type_params(&mut self) -> Vec<Type> {
+        self.expect(Less);
+        let ps = self.parse_list(|p| p.parse_type(), Greater, false);
+        self.expect(Greater);
+        ps
+    }
+
+    fn parse_item_type_params(&mut self, other_token: Token) -> Vec<Ident> {
+        if *self.peek() == other_token {
+            return vec!();
+        }
+
+        match *self.peek() {
+            Less => {
+                self.expect(Less);
+                let tps = self.parse_list(|p| p.parse_ident(), Greater, false);
+                self.expect(Greater);
+                tps
+            },
+            _ => self.peek_error("Expected type parameters or argument list")
+        }
+    }
+
+    fn parse_path_common(&mut self, with_tps: bool) -> Path {
+        let start_span = self.peek_span();
+
+        let global = match *self.peek() {
+            ColonColon => {
+                self.expect(ColonColon);
+                true
+            }
+            _ => false,
+        };
+
+        let mut path = PathNode {
+            global: global,
+            elems: vec!(self.parse_ident()),
+        };
+
+        while *self.peek() == ColonColon {
+            let start_span = self.peek_span();
+
+            self.expect(ColonColon);
+            match *self.peek() {
+                Less if with_tps => {
+                    let elem = path.elems.mut_last().unwrap();
+                    let tps = self.parse_type_params();
+                    elem.val.tps = Some(tps);
+                }
+                _ => {
+                    path.elems.push(self.parse_ident());
+                }
+            }
+
+            let id = path.elems.last().unwrap().id;
+            self.parser.spanmap.insert(id, start_span.to(self.last_span));
+        }
+
+        self.add_id_and_span(path, start_span.to(self.last_span))
+    }
+
+    fn parse_path(&mut self) -> Path {
+        self.parse_path_common(true)
+    }
+
+    fn parse_path_no_tps(&mut self) -> Path {
+        self.parse_path_common(false)
     }
 
     fn expect_number(&mut self) -> u64 {
@@ -337,11 +394,11 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     fn parse_pat_common(&mut self, allow_types: bool) -> Pat {
         let start_span = self.peek_span();
 
-        let maybe_type = |me: &mut StreamParser<'a, T>, allow_types| {
-            match *me.peek() {
+        let maybe_type = |p: &mut StreamParser<'a, T>, allow_types| {
+            match *p.peek() {
                 Colon if allow_types => {
-                    me.expect(Colon);
-                    let t = me.parse_type();
+                    p.expect(Colon);
+                    let t = p.parse_type();
                     Some(t)
                 }
                 _ => None
@@ -349,34 +406,38 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         };
 
         let pat = match *self.peek() {
-            IdentTok(..) => {
-                let ident = self.parse_ident();
+            ColonColon | IdentTok(..) => {
+                let path = self.parse_path();
                 match *self.peek() {
                     LParen => {
                         self.expect(LParen);
-                        let args = parse_list!(self.parse_pat_common(allow_types)
-                                               until RParen);
+                        let args = self.parse_list(|p| p.parse_pat_common(allow_types), RParen, false);
                         self.expect(RParen);
-                        VariantPat(ident, args)
+                        VariantPat(path, args)
                     }
                     DoubleArrow => {
                         // Empty variant.
-                        VariantPat(ident, vec!())
+                        VariantPat(path, vec!())
                     }
                     LBrace => {
                         self.expect(LBrace);
-                        let field_pats = parse_list!(self.parse_field_pat()
-                                                     until RBrace);
+                        let field_pats = self.parse_list(|p| p.parse_field_pat(), RBrace, true);
                         self.expect(RBrace);
-                        StructPat(ident, field_pats)
+                        StructPat(path, field_pats)
                     }
-                    _ => IdentPat(ident, maybe_type(self, allow_types))
+                    _ => {
+                        if path.val.global || path.val.elems.len() != 1 {
+                            self.error(format!("Expected ident, found path"), self.last_span.get_begin());
+                        }
+                        let mut elems = path.val.elems;
+                        let ident = elems.pop().unwrap();
+                        IdentPat(ident, maybe_type(self, allow_types))
+                    }
                 }
             }
             LParen => {
                 self.expect(LParen);
-                let args = parse_list!(self.parse_pat_common(allow_types)
-                                       until RParen);
+                let args = self.parse_list(|p| p.parse_pat_common(allow_types), RParen, false);
                 self.expect(RParen);
                 TuplePat(args)
             }
@@ -427,8 +488,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             }
             LParen => {
                 self.expect(LParen);
-                let mut inner_types = parse_list!(self.parse_type()
-                                                  until RParen);
+                let mut inner_types = self.parse_list(|p| p.parse_type(), RParen, false);
                 self.expect(RParen);
                 if inner_types.len() == 0 {
                     UnitType
@@ -438,24 +498,21 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                     TupleType(inner_types)
                 }
             }
-            IdentTok(_) => {
-                let mut id = self.parse_ident();
-                id.val.tps = match *self.peek() {
+            ColonColon | IdentTok(..) => {
+                let mut path = self.parse_path_no_tps();
+                match *self.peek() {
                     Less => {
-                        self.expect(Less);
-                        let ps = parse_list!(self.parse_type()
-                                             until Greater);
-                        self.expect(Greater);
-                        Some(ps)
+                        let elem = path.val.elems.mut_last().unwrap();
+                        elem.val.tps = Some(self.parse_type_params());
                     }
-                    _ => None
-                };
-                NamedType(id)
+                    _ => {}
+                }
+                NamedType(path)
             }
             Fn => {
                 self.expect(Fn);
                 self.expect(LParen);
-                let arglist = parse_list!(self.parse_type() until RParen);
+                let arglist = self.parse_list(|p| p.parse_type(), RParen, false);
                 self.expect(RParen);
                 self.expect(Arrow);
                 FuncType(arglist, box self.parse_type())
@@ -591,7 +648,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.expect(Match);
         let matched_expr = self.parse_expr();
         self.expect(LBrace);
-        let match_items = parse_list!(self.parse_match_arm() until RBrace);
+        let match_items = self.parse_list(|p| p.parse_match_arm(), RBrace, true); // TODO don't require comma when there is a closing brace
         self.expect(RBrace);
         self.add_id_and_span(MatchExpr(box matched_expr, match_items), start_span.to(self.last_span))
     }
@@ -617,14 +674,14 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     fn parse_unop_expr_maybe_cast(&mut self) -> Expr {
-        fn maybe_parse_cast<'a, T: Buffer>(me: &mut StreamParser<'a, T>, expr: Expr, start_span: Span) -> Expr {
-            match *me.peek() {
+        fn maybe_parse_cast<'a, T: Buffer>(p: &mut StreamParser<'a, T>, expr: Expr, start_span: Span) -> Expr {
+            match *p.peek() {
                 As => {
-                    me.expect(As);
-                    let t = me.parse_type();
+                    p.expect(As);
+                    let t = p.parse_type();
                     let node = CastExpr(box expr, t);
-                    let castexpr = me.add_id_and_span(node, start_span.to(me.last_span));
-                    maybe_parse_cast(me, castexpr, start_span)
+                    let castexpr = p.add_id_and_span(node, start_span.to(p.last_span));
+                    maybe_parse_cast(p, castexpr, start_span)
                 }
                 _ => expr,
             }
@@ -780,9 +837,9 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 let node = LitExpr(self.parse_lit());
                 self.add_id_and_span(node, start_span.to(self.last_span))
             }
-            IdentTok(..) => {
+            ColonColon | IdentTok(..) => {
                 let start_span = self.peek_span();
-                let node = IdentExpr(self.parse_ident());
+                let node = PathExpr(self.parse_path());
                 self.add_id_and_span(node, start_span.to(self.last_span))
             }
             _ => self.peek_error("Expected expression")
@@ -808,7 +865,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 }
                 LParen => {
                     self.expect(LParen);
-                    let args = parse_list!(self.parse_expr() until RParen);
+                    let args = self.parse_list(|p| p.parse_expr(), RParen, false);
                     self.expect(RParen);
                     CallExpr(box expr, args)
                 }
@@ -823,8 +880,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let start_span = self.peek_span();
 
         self.expect(LParen);
-        let mut inner_exprs = parse_list!(self.parse_expr()
-                                          until RParen);
+        let mut inner_exprs = self.parse_list(|p| p.parse_expr(), RParen, false);
         self.expect(RParen);
 
         let node = if inner_exprs.len() == 0 {
@@ -844,47 +900,58 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.add_id_and_span(BlockExpr(box block), start_span.to(self.last_span))
     }
 
+    fn parse_stmt(&mut self) -> Stmt {
+        match *self.peek() {
+            Let => self.parse_let_stmt(),
+            _ => {
+                let start_span = self.peek_span();
+                let expr = self.parse_expr();
+                match *self.peek() {
+                    Semicolon => {
+                        self.expect(Semicolon);
+                        self.add_id_and_span(SemiStmt(expr), start_span.to(self.last_span))
+                    },
+                    _ => {
+                        self.add_id_and_span(ExprStmt(expr), start_span.to(self.last_span))
+                    },
+                }
+            }
+        }
+    }
+
     fn parse_block(&mut self) -> Block {
         /* Parse a "block" (compound expression), such as
            `{ 1+1; f(x); 2 }`.
         */
         self.expect(LBrace);
         let mut statements = vec!();
+        let mut items = vec!();
         loop {
             match *self.peek() {
-                Let => {
-                    statements.push(self.parse_let_stmt());
-                }
-                RBrace => {
-                    self.expect(RBrace);
-                    return Block {
-                        items: vec!(),
-                        stmts: statements,
-                        expr: None,
-                    }
+                RBrace => break,
+                Fn | Struct | Enum | Mod => items.push(self.parse_item()),
+                _ => statements.push(self.parse_stmt()),
+            }
+        }
+
+        self.expect(RBrace);
+
+        let expr = statements.pop().and_then(|stmt| {
+            match stmt.val {
+                ExprStmt(expr) => {
+                    Some(expr)
                 }
                 _ => {
-                    let start_span = self.peek_span();
-                    let expr = self.parse_expr();
-                    match *self.peek() {
-                        RBrace => {
-                            self.expect(RBrace);
-                            return Block {
-                                items: vec!(),
-                                stmts: statements,
-                                expr: Some(expr),
-                            }
-                        }
-                        Semicolon => {
-                            self.expect(Semicolon);
-                            statements.push(self.add_id_and_span(SemiStmt(expr), start_span.to(self.last_span)));
-                        },
-                        _ => {
-                            statements.push(self.add_id_and_span(ExprStmt(expr), start_span.to(self.last_span)))
-                        },
-                    }
-                }
+                    statements.push(stmt);
+                    None
+                },
             }
+        });
+
+        return Block {
+            items: items,
+            stmts: statements,
+            expr: expr,
         }
     }
 
@@ -908,9 +975,9 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let start_span = self.peek_span();
         self.expect(Fn);
         let funcname = self.parse_ident();
-        let type_params = self.parse_type_params(LParen);
+        let type_params = self.parse_item_type_params(LParen);
         self.expect(LParen);
-        let args = parse_list!(self.parse_func_arg() until RParen);
+        let args = self.parse_list(|p| p.parse_func_arg(), RParen, false);
         self.expect(RParen);
         let return_type = match *self.peek() {
             Arrow => {
@@ -925,26 +992,6 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let body = self.parse_block();
         self.add_id_and_span(FuncItem(funcname, args, return_type, body, type_params),
                          start_span.to(self.last_span))
-    }
-
-    fn parse_type_params(&mut self, other_token: Token) -> Vec<Ident> {
-        /* Parse type parameters to a function or struct declaration.
-           This is the `<T>` in `let f<T>(x: *T)`, for example.
-
-           `other_token` is the token that indicates that there are no
-           type parameters. In the example above, it would be LParen.
-        */
-        match self.peek().clone() {
-            Less => {
-                self.expect(Less);
-                let tps = parse_list!(self.parse_ident()
-                                      until Greater);
-                self.expect(Greater);
-                Some(tps)
-            },
-            ref tok if *tok == other_token => None,
-            _ => self.peek_error("Expected type parameters or argument list")
-        }.unwrap_or(vec!())
     }
 
     fn parse_struct_field(&mut self) -> Field {
@@ -962,9 +1009,9 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let start_span = self.peek_span();
         self.expect(Struct);
         let structname = self.parse_ident();
-        let type_params = self.parse_type_params(LBrace);
+        let type_params = self.parse_item_type_params(LBrace);
         self.expect(LBrace);
-        let body = parse_list!(self.parse_struct_field() until RBrace);
+        let body = self.parse_list(|p| p.parse_struct_field(), RBrace, true);
         self.expect(RBrace);
         self.add_id_and_span(StructItem(structname, body, type_params), start_span.to(self.last_span))
     }
@@ -974,7 +1021,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let types = match *self.peek() {
             LParen => {
                 self.expect(LParen);
-                let typelist = parse_list!(self.parse_type() until RParen);
+                let typelist = self.parse_list(|p| p.parse_type(), RParen, false);
                 self.expect(RParen);
                 typelist
             },
@@ -993,28 +1040,49 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let start_span = self.peek_span();
         self.expect(Enum);
         let enumname = self.parse_ident();
-        let type_params = self.parse_type_params(LBrace);
+        let type_params = self.parse_item_type_params(LBrace);
         self.expect(LBrace);
-        let body = parse_list!(self.parse_variant() until RBrace);
+        let body = self.parse_list(|p| p.parse_variant(), RBrace, true);
         self.expect(RBrace);
         self.add_id_and_span(EnumItem(enumname, body, type_params), start_span.to(self.last_span))
+    }
+
+    fn parse_module_until(&mut self, token: Token) -> Module {
+        let start_span = self.peek_span();
+        let mut items = vec!();
+        while *self.peek() != token {
+            items.push(self.parse_item());
+        }
+        let node = ModuleNode { items: items };
+        self.add_id_and_span(node, start_span.to(self.last_span))
+    }
+
+    fn parse_mod_item(&mut self) -> Item {
+        let start_span = self.peek_span();
+        self.expect(Mod);
+        let name = self.parse_ident();
+        self.expect(LBrace);
+        let module = self.parse_module_until(RBrace);
+        self.expect(RBrace);
+        self.add_id_and_span(ModItem(name, module), start_span.to(self.last_span))
+    }
+
+    fn parse_item(&mut self) -> Item {
+        match *self.peek() {
+            Fn => self.parse_func_item(),
+            Struct => self.parse_struct_item(),
+            Enum => self.parse_enum_item(),
+            Mod => self.parse_mod_item(),
+            _ => self.peek_error("Expected an item definition (fn, struct, enum, mod)"),
+        }
     }
 
     pub fn parse_module(&mut self) -> Module {
         /* This is the highest level node of the AST. This function
          * is the one that will parse an entire file. */
-        let mut items = vec!();
-        loop {
-            match *self.peek() {
-                Fn => items.push(self.parse_func_item()),
-                Struct => items.push(self.parse_struct_item()),
-                Enum => items.push(self.parse_enum_item()),
-                Eof => return Module{
-                    items: items
-                },
-                _ => self.peek_error("Expected a function declaration"),
-            }
-        }
+        let module = self.parse_module_until(Eof);
+        self.expect(Eof);
+        module
     }
 }
 

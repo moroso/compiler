@@ -7,11 +7,15 @@ use util::Name;
 
 //#[allow(non_camel_case_types)] leaving the warning so we remember to patch rust later
 pub enum NS {
-    TypeNS = 0u,
+    TypeAndModNS = 0u,
     ValNS,
     StructNS,
-    ModNS,
     NS_COUNT // argh rust why can't you provide num_variants::<NS>()
+}
+
+enum ModuleScope {
+    OffBranch(Subscope),
+    OnBranch(uint),
 }
 
 struct Subscope {
@@ -37,6 +41,29 @@ impl Subscope {
         ns.insert(ident.val.name.clone(), ident.id)
     }
 
+    fn insert_items(&mut self, items: &Vec<Item>) {
+        for item in items.iter() {
+            match item.val {
+                FuncItem(ref ident, _, _, _, _) => {
+                    self.insert(ValNS, ident);
+                }
+                StructItem(ref ident, _, _) => {
+                    self.insert(TypeAndModNS, ident);
+                    self.insert(StructNS, ident);
+                }
+                EnumItem(ref ident, ref variants, _) => {
+                    self.insert(TypeAndModNS, ident);
+                    for variant in variants.iter() {
+                        self.insert(ValNS, &variant.ident);
+                    }
+                }
+                ModItem(ref ident, _) => {
+                    self.insert(TypeAndModNS, ident);
+                }
+            }
+        }
+    }
+
     fn find(&self, ns: NS, ident: &Ident) -> Option<NodeId> {
         let ns = ns as uint;
         self.namespaces.find(&ns)
@@ -46,51 +73,101 @@ impl Subscope {
 }
 
 pub struct Resolver {
-    table: SmallIntMap<NodeId>,
+    table: TreeMap<NodeId, NodeId>,
+}
+
+struct ModuleCollector {
+    tree: TreeMap<NodeId, ModuleScope>,
 }
 
 struct ModuleResolver<'a> {
     resolver: &'a mut Resolver,
     interner: &'a Interner,
     scope: Vec<Subscope>,
+    tree: TreeMap<NodeId, ModuleScope>,
+    root: ModuleScope,
 }
 
 impl Resolver {
     pub fn new() -> Resolver {
         Resolver {
-            table: SmallIntMap::new(),
+            table: TreeMap::new(),
         }
     }
 
-    /// Get the NodeId of the item that defines the given ident
-    pub fn def_from_ident(&self, ident: &Ident) -> NodeId {
-        *self.table.find(&ident.id.to_uint()).take_unwrap()
+    /// Get the NodeId of the item that defines the given path
+    pub fn def_from_path(&self, path: &Path) -> NodeId {
+        *self.table.find(&path.id).take_unwrap()
     }
 
     /// The entry point for the resolver
     pub fn resolve_module(&mut self, interner: &Interner, module: &Module) {
-        let mut visitor = ModuleResolver::new(self, interner);
-        visitor.visit_module(module)
+        ModuleResolver::process(self, interner, module);
+    }
+}
+
+impl ModuleCollector {
+    fn collect(module: &Module) -> (Subscope, TreeMap<NodeId, ModuleScope>) {
+        let mut collector = ModuleCollector { tree: TreeMap::new() };
+        collector.visit_module(module);
+        let mut root = Subscope::new();
+        root.insert_items(&module.val.items);
+        (root, collector.tree)
     }
 }
 
 impl<'a> ModuleResolver<'a> {
-    fn new(resolver: &'a mut Resolver, interner: &'a Interner) -> ModuleResolver<'a> {
-        ModuleResolver {
+    fn process(resolver: &'a mut Resolver, interner: &'a Interner, module: &Module) {
+        let (root, tree) = ModuleCollector::collect(module);
+
+        let mut modres = ModuleResolver {
             resolver: resolver,
             interner: interner,
-            scope: vec!(),
-        }
+            scope: vec!(root),
+            tree: tree,
+            root: OnBranch(0),
+        };
+
+        modres.visit_module(module);
     }
 
     /// Search the current scope stack local-to-global for a matching ident in the requested namespace
-    fn resolve_ident(&mut self, ns: NS, ident: &Ident) {
-        match self.scope.iter().rev()
-                               .filter_map(|subscope| subscope.find(ns, ident))
-                               .next() {
-            Some(did) => self.resolver.table.insert(ident.id.to_uint(), did),
-            None => fail!("Unresolved name {}", self.interner.name_to_str(&ident.val.name)),
+    fn resolve_path(&mut self, ns: NS, path: &Path) {
+        use std::slice;
+
+        fn make_scope<'a>(scope: &'a [Subscope], modscope: &'a ModuleScope) -> &'a [Subscope] {
+            match *modscope {
+                OnBranch(idx) => slice::ref_slice(scope.get(idx).unwrap()),
+                OffBranch(ref scope) => slice::ref_slice(scope),
+            }
+        }
+
+        fn resolve_ident(resolver: &mut Resolver, interner: &Interner, scope: &[Subscope], ns: NS, ident: &Ident) -> NodeId {
+            match scope.iter().rev()
+                              .filter_map(|subscope| subscope.find(ns, ident))
+                              .next() {
+                Some(node_id) => {
+                    resolver.table.insert(ident.id, node_id);
+                    node_id
+                }
+                None => fail!("Unresolved name {}", interner.name_to_str(&ident.val.name)),
+            }
+        }
+
+        let mut search_scope = if path.val.global {
+            make_scope(self.scope.as_slice(), &self.root)
+        } else {
+            self.scope.as_slice()
         };
+
+        for elem in path.val.elems.init().iter() {
+            let node_id = resolve_ident(self.resolver, self.interner, search_scope, TypeAndModNS, elem);
+            search_scope = make_scope(search_scope, self.tree.find(&node_id).unwrap());
+        }
+
+        let terminal = path.val.elems.last().unwrap();
+        let node_id = resolve_ident(self.resolver, self.interner, search_scope, ns, terminal);
+        self.resolver.table.insert(path.id, node_id);
     }
 
     /// Adds the given ident to the given namespace in the current scope
@@ -100,44 +177,36 @@ impl<'a> ModuleResolver<'a> {
     }
 
     /// Descends into a new scope, optionally seeding it with a set of items
-    fn descend(&mut self, items: Option<&Vec<Item>>, visit: |&mut ModuleResolver|) {
+    fn descend(&mut self, items: Option<&Vec<Item>>, visit: |&mut ModuleResolver|) -> Subscope {
         let mut subscope = Subscope::new();
 
-        match items {
-            Some(items) => {
-                for item in items.iter() {
-                    match item.val {
-                        FuncItem(ref ident, _, _, _, _) => {
-                            subscope.insert(ValNS, ident);
-                        }
-                        StructItem(ref ident, _, _) => {
-                            subscope.insert(TypeNS, ident);
-                            subscope.insert(StructNS, ident);
-                        }
-                        EnumItem(ref ident, ref variants, _) => {
-                            subscope.insert(TypeNS, ident);
-                            for variant in variants.iter() {
-                                subscope.insert(ValNS, &variant.ident);
-                            }
-                        }
-                    }
-                }
-            }
-            None => {}
-        }
+        items.map(|items| subscope.insert_items(items));
 
         self.scope.push(subscope);
         visit(self);
-        self.scope.pop();
+        self.scope.pop().unwrap()
+    }
+}
+
+impl Visitor for ModuleCollector {
+    fn visit_item(&mut self, item: &Item) {
+        match item.val {
+            ModItem(ref ident, ref module) => {
+                let mut subscope = Subscope::new();
+                subscope.insert_items(&module.val.items);
+                self.tree.insert(ident.id, OffBranch(subscope));
+            }
+            _ => {}
+        }
     }
 }
 
 impl<'a> Visitor for ModuleResolver<'a> {
     fn visit_type(&mut self, t: &Type) {
         match t.val {
-            NamedType(ref ident) => {
-                self.resolve_ident(TypeNS, ident);
-                match ident.val.tps {
+            NamedType(ref path) => {
+                self.resolve_path(TypeAndModNS, path);
+                match path.val.elems.last().unwrap().val.tps {
                     Some(ref tps) => {
                         for tp in tps.iter() {
                             self.visit_type(tp);
@@ -156,12 +225,12 @@ impl<'a> Visitor for ModuleResolver<'a> {
                 for t in t.iter() { self.visit_type(t); }
                 self.add_to_scope(ValNS, ident);
             }
-            VariantPat(ref ident, ref pats) => {
-                self.resolve_ident(ValNS, ident);
+            VariantPat(ref path, ref pats) => {
+                self.resolve_path(ValNS, path);
                 for pat in pats.iter() { self.visit_pat(pat); }
             }
-            StructPat(ref ident, ref fps) => {
-                self.resolve_ident(StructNS, ident);
+            StructPat(ref path, ref fps) => {
+                self.resolve_path(StructNS, path);
                 for fp in fps.iter() { self.visit_pat(&fp.pat); }
             }
             _ => walk_pat(self, pat)
@@ -170,8 +239,8 @@ impl<'a> Visitor for ModuleResolver<'a> {
 
     fn visit_expr(&mut self, expr: &Expr) {
         match expr.val {
-            IdentExpr(ref ident) => {
-                self.resolve_ident(ValNS, ident);
+            PathExpr(ref path) => {
+                self.resolve_path(ValNS, path);
             }
             MatchExpr(ref e, ref arms) => {
                 self.visit_expr(*e);
@@ -208,7 +277,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
             FuncItem(_, ref args, ref t, ref block, ref tps) => {
                 self.descend(None, |me| {
                     for tp in tps.iter() {
-                        me.add_to_scope(TypeNS, tp);
+                        me.add_to_scope(TypeAndModNS, tp);
                     }
                     me.visit_type(t);
                     for arg in args.iter() {
@@ -221,7 +290,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
             StructItem(_, ref fields, ref tps) => {
                 self.descend(None, |me| {
                     for tp in tps.iter() {
-                        me.add_to_scope(TypeNS, tp);
+                        me.add_to_scope(TypeAndModNS, tp);
                     }
                     for field in fields.iter() {
                         me.visit_type(&field.fldtype);
@@ -229,10 +298,10 @@ impl<'a> Visitor for ModuleResolver<'a> {
                 });
             }
             EnumItem(ref id, ref variants, ref tps) => {
-                self.add_to_scope(TypeNS, id);
+                self.add_to_scope(TypeAndModNS, id);
                 self.descend(None, |me| {
                     for tp in tps.iter() {
-                        me.add_to_scope(TypeNS, tp);
+                        me.add_to_scope(TypeAndModNS, tp);
                     }
                     for variant in variants.iter() {
                         for arg in variant.args.iter() {
@@ -241,12 +310,56 @@ impl<'a> Visitor for ModuleResolver<'a> {
                     }
                 });
             }
-        }
-    }
+            ModItem(ref ident, ref module) => {
+                use std::mem;
 
-    fn visit_module(&mut self, module: &Module) {
-        // Seed the new scope with this module's items
-        self.descend(Some(&module.items), |me| walk_module(me, module));
+                // Find the subscope we're about to descend into and swap it out of the tree
+                let mut scope = match self.tree.swap(ident.id, OnBranch(0)) {
+                    Some(OffBranch(scope)) => vec!(scope),
+                    _ => fail!()
+                };
+
+                // Swap the new scope with our current scope (since scope doesn't leak across modules)
+                mem::swap(&mut self.scope, &mut scope);
+                
+                // Update our root scope pointer
+                let old_root_idx = match self.root {
+                    OnBranch(idx) => {
+                        let mut root = Subscope::new();
+                        // Swap in a dummy subscope so we can get the old root subscope out
+                        mem::swap(&mut root, scope.get_mut(idx));
+                        self.root = OffBranch(root);
+                        Some(idx)
+                    }
+                    _ => None,
+                };
+
+                self.visit_module(module);
+
+                // Pop all the context we saved above
+                match old_root_idx {
+                    Some(idx) => {
+                        let mut root = OnBranch(idx);
+                        mem::swap(&mut root, &mut self.root);
+                            
+                        match root {
+                            OffBranch(mut root) => {
+                                // Swap the old root subscope back into the old scope
+                                mem::swap(&mut root, scope.get_mut(idx));
+                            }
+                            _ => unreachable!(),
+                        };
+                    }
+                    None => {}
+                }
+
+                // Swap the old scope back into place
+                mem::swap(&mut self.scope, &mut scope);
+
+                // Put the child module's scope back in the tree
+                self.tree.swap(ident.id, OffBranch(scope.pop().unwrap()));
+            }
+        }
     }
 }
 
