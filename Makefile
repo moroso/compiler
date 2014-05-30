@@ -1,4 +1,3 @@
-
 MC_FILES := \
 	main.rs \
 	lexer.rs \
@@ -17,6 +16,7 @@ MC_FILES := \
 	ir/ast_to_intermediate.rs \
 	ir/liveness.rs \
 	ir/constant_fold.rs \
+	ir/ssa.rs \
 	intermediate_tests.rs \
 
 TEST_FILES := \

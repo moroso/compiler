@@ -71,13 +71,41 @@ impl LivenessAnalyzer {
                         opinfo.succ.push(u + 1);
                     }
                 },
-                Nop => {
+                Nop |
+                Label(..) => {
                     if u + 1 < len {
                         let opinfo = self.opinfo.get_mut(u);
                         opinfo.succ.push(u + 1);
                     }
-                }
-                _ => {}
+                },
+                Goto(ref l, _) => {
+                    let opinfo = self.opinfo.get_mut(u);
+                    for u2 in range(0, len) {
+                        match *self.ops.get(u2) {
+                            Label(l2, _) if *l == l2 => {
+                                opinfo.succ.push(u2);
+                                break;
+                            },
+                            _ => {},
+                        }
+                    }
+                },
+                // TODO: get rid of redundant code.
+                CondGoto(_, ref l, _) => {
+                    let opinfo = self.opinfo.get_mut(u);
+                    for u2 in range(0, len) {
+                        match *self.ops.get(u2) {
+                            Label(l2, _) if *l == l2 => {
+                                opinfo.succ.push(u2);
+                                break;
+                            },
+                            _ => {},
+                        }
+                    }
+                    if u + 1 < len {
+                        opinfo.succ.push(u + 1);
+                    }
+                },
             }
         }
     }
@@ -94,7 +122,7 @@ impl LivenessAnalyzer {
                                               usedvar.clone());
             }
             for next_idx in opinfo.succ.iter() {
-                let mut next_opinfo = self.opinfo.get_mut(*next_idx);
+                let next_opinfo = self.opinfo.get_mut(*next_idx);
                 for livevar in next_opinfo.live.iter() {
                     if !opinfo.def.contains(livevar) {
                         modified = modified || add_to(&mut opinfo.live,

@@ -1,21 +1,26 @@
 use std::fmt::{Formatter, Result, Show};
 use ast::{LitNode, BinOpNode};
+use collections::TreeSet;
 
 use util::Name;
 
 pub mod ast_to_intermediate;
 pub mod liveness;
 pub mod constant_fold;
+pub mod ssa;
 
-#[deriving(Clone, TotalEq, PartialEq)]
+#[deriving(Clone, TotalEq, PartialEq, TotalOrd, PartialOrd)]
 pub struct Var {
     pub name: Name,
-    pub index: uint, // Used for SSA
+    pub generation: Option<uint>, // Used for SSA
 }
 
 impl Show for Var {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "{}<{}>", self.name, self.index)
+        match self.generation {
+            Some(g) => write!(f, "{}<{}>", self.name, g),
+            None => write!(f, "{}", self.name),
+        }
     }
 }
 
@@ -74,8 +79,9 @@ impl Show for RValue {
 #[deriving(Clone)]
 pub enum Op {
     Assign(LValue, RValue), // t1 := t2 op t3
-    Label(uint),
-    Goto(uint),
+    Label(uint, TreeSet<Var>),
+    Goto(uint, TreeSet<Var>),
+    CondGoto(RValueElem, uint, TreeSet<Var>),
     Nop,
 }
 
@@ -84,8 +90,10 @@ impl Show for Op {
         match *self {
             Assign(ref lv, ref rv) =>
                 write!(f, "{: >12} := {}\n", format!("{}", lv), rv),
-            Label(ref l) => write!(f, "{}:\n", l),
-            Goto(ref l) => write!(f, "goto {}\n", l),
+            Label(ref l, ref vars) => write!(f, "{}({}):\n", l, vars),
+            Goto(ref l, ref vars) => write!(f, "goto {}({})\n", l, vars),
+            CondGoto(ref e, ref l, ref vars) => write!(f, "if {} goto {}({})\n",
+                                                       e, l, vars),
             Nop => write!(f, "{: >16}\n", "nop"),
         }
     }
