@@ -242,6 +242,12 @@ impl<'a> Visitor for ModuleResolver<'a> {
             PathExpr(ref path) => {
                 self.resolve_path(ValNS, path);
             }
+            StructExpr(ref path, ref flds) => {
+                self.resolve_path(StructNS, path);
+                for fld in flds.iter() {
+                    self.visit_expr(fld.ref1());
+                }
+            }
             MatchExpr(ref e, ref arms) => {
                 self.visit_expr(*e);
                 for arm in arms.iter() {

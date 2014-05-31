@@ -572,7 +572,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let start_span = self.peek_span();
         self.expect(If);
 
-        let cond = self.parse_expr();
+        let cond = self.parse_expr_no_structs();
         let true_block = self.parse_block();
 
         let false_block = match *self.peek() {
@@ -583,7 +583,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                         Block {
                             items: vec!(),
                             stmts: vec!(),
-                            expr: Some(self.parse_expr()),
+                            expr: Some(self.parse_if_expr()),
                         }
                     },
                     _ => self.parse_block()
@@ -614,7 +614,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     fn parse_while_expr(&mut self) -> Expr {
         let start_span = self.peek_span();
         self.expect(While);
-        let cond = self.parse_expr();
+        let cond = self.parse_expr_no_structs();
         let body = self.parse_block();
         self.add_id_and_span(WhileExpr(box cond, box body), start_span.to(self.last_span))
     }
@@ -647,14 +647,14 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     fn parse_match_expr(&mut self) -> Expr {
         let start_span = self.peek_span();
         self.expect(Match);
-        let matched_expr = self.parse_expr();
+        let matched_expr = self.parse_expr_no_structs();
         self.expect(LBrace);
         let match_items = self.parse_list(|p| p.parse_match_arm(), RBrace, true); // TODO don't require comma when there is a closing brace
         self.expect(RBrace);
         self.add_id_and_span(MatchExpr(box matched_expr, match_items), start_span.to(self.last_span))
     }
 
-    fn parse_unop_expr(&mut self) -> Expr {
+    fn parse_unop_expr(&mut self, allow_structs: bool) -> Expr {
         let start_span = self.peek_span();
         let op = match *self.peek() {
             ref tok if unop_from_token(tok).is_some() =>
@@ -666,15 +666,15 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             Some(op) => {
                 self.expect(unop_token(op));
                 let op = self.add_id_and_span(op, self.last_span);
-                let e = self.parse_simple_expr();
+                let e = self.parse_simple_expr(allow_structs);
                 let node = UnOpExpr(op, box e);
                 self.add_id_and_span(node, start_span.to(self.last_span))
             }
-            _ => self.parse_simple_expr()
+            _ => self.parse_simple_expr(allow_structs)
         }
     }
 
-    fn parse_unop_expr_maybe_cast(&mut self) -> Expr {
+    fn parse_unop_expr_maybe_cast(&mut self, allow_structs: bool) -> Expr {
         fn maybe_parse_cast<'a, T: Buffer>(p: &mut StreamParser<'a, T>, expr: Expr, start_span: Span) -> Expr {
             match *p.peek() {
                 As => {
@@ -689,11 +689,11 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         }
 
         let start_span = self.peek_span();
-        let e = self.parse_unop_expr();
+        let e = self.parse_unop_expr(allow_structs);
         maybe_parse_cast(self, e, start_span)
     }
 
-    fn parse_binop_expr(&mut self) -> Expr {
+    fn parse_binop_expr(&mut self, allow_structs: bool) -> Expr {
         macro_rules! ops {
             () => (0);
             (,) => (0);
@@ -723,7 +723,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             ($($rows:expr),*) => (OpTable { rows: [$($rows),+] });
         }
 
-        fn parse_binop_expr_from_optable<'a, T: Buffer>(parser: &mut StreamParser<'a, T>, table: &OpTable) -> Expr {
+        fn parse_binop_expr_from_optable<'a, T: Buffer>(parser: &mut StreamParser<'a, T>, table: &OpTable, allow_structs: bool) -> Expr {
             fn maybe_parse_binop<'a, T: Buffer>(ops: uint,
                                                 assoc: Assoc,
                                                 parser: &mut StreamParser<'a, T>,
@@ -762,19 +762,19 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 }
             }
 
-            fn parse_row<'a, T: Buffer>(r: uint, parser: &mut StreamParser<'a, T>, rows: &[OpTableRow]) -> Expr {
+            fn parse_row<'a, T: Buffer>(r: uint, parser: &mut StreamParser<'a, T>, rows: &[OpTableRow], allow_structs: bool) -> Expr {
                 if r == 0 {
-                    parser.parse_unop_expr_maybe_cast()
+                    parser.parse_unop_expr_maybe_cast(allow_structs)
                 } else {
                     let row = &rows[r - 1];
                     let start_span = parser.peek_span();
-                    let parse_simpler_expr = |p: &mut StreamParser<'a, T>| parse_row(r - 1, p, rows);
+                    let parse_simpler_expr = |p: &mut StreamParser<'a, T>| parse_row(r - 1, p, rows, allow_structs);
                     let e = parse_simpler_expr(parser);
                     maybe_parse_binop(row.ops, row.assoc, parser, parse_simpler_expr, e, start_span)
                 }
             }
 
-            parse_row(table.rows.len(), parser, table.rows)
+            parse_row(table.rows.len(), parser, table.rows, allow_structs)
         }
 
         static optable: OpTable = optable! {
@@ -790,18 +790,26 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             left!(OrElseOp),
         };
 
-        parse_binop_expr_from_optable(self, &optable)
+        parse_binop_expr_from_optable(self, &optable, allow_structs)
     }
 
     pub fn parse_expr(&mut self) -> Expr {
+        self.parse_expr_common(true)
+    }
+
+    fn parse_expr_no_structs(&mut self) -> Expr {
+        self.parse_expr_common(false)
+    }
+
+    fn parse_expr_common(&mut self, allow_structs: bool) -> Expr {
         let start_span = self.peek_span();
-        let lv = self.parse_binop_expr();
+        let lv = self.parse_binop_expr(allow_structs);
 
         // Look for any assignments
         match *self.peek() {
             Eq => {
                 self.expect(Eq);
-                let e = self.parse_expr();
+                let e = self.parse_expr_common(allow_structs);
                 let node = AssignExpr(box lv, box e);
                 self.add_id_and_span(node, start_span.to(self.last_span))
             }
@@ -809,21 +817,28 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         }
     }
 
-    fn parse_simple_expr(&mut self) -> Expr {
-        /*
-        Parse an expression.
+    fn parse_path_or_struct_expr(&mut self) -> Expr {
+        let start_span = self.peek_span();
+        let path = self.parse_path();
+        let node = match *self.peek() {
+            LBrace => {
+                self.expect(LBrace);
+                let fields = self.parse_list(|p| {
+                    let name = p.parse_name();
+                    p.expect(Colon);
+                    let expr = p.parse_expr();
+                    (name, expr)
+                }, RBrace, true);
+                self.expect(RBrace);
+                StructExpr(path, fields)
+            }
+            _ => PathExpr(path),
+        };
 
-        EXPR ::= Number | String | True | False
-               |'(' EXPR [ , EXPR ...] ')'
-               | BLOCK
-               | EXPR '[' EXPR ']'
-               | EXPR '(' ARGLIST ')'
-               | EXPR '.' IDENT
-               | EXPR 'as' TYPE
-               | IDENT
-        */
-        use std::iter::Unfold;
+        self.add_id_and_span(node, start_span.to(self.last_span))
+    }
 
+    fn parse_simple_expr(&mut self, allow_structs: bool) -> Expr {
         let start_span = self.peek_span();
         let mut expr = match *self.peek() {
             If => self.parse_if_expr(),
@@ -833,14 +848,17 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             While => self.parse_while_expr(),
             LBrace => self.parse_block_expr(),
             LParen => self.parse_paren_expr(),
+            ColonColon | IdentTok(..) => {
+                if allow_structs {
+                    self.parse_path_or_struct_expr()
+                } else {
+                    let path = self.parse_path();
+                    self.add_id_and_span(PathExpr(path), start_span.to(self.last_span))
+                }
+            }
             NumberTok(..) | StringTok(..) | True | False => {
                 let start_span = self.peek_span();
                 let node = LitExpr(self.parse_lit());
-                self.add_id_and_span(node, start_span.to(self.last_span))
-            }
-            ColonColon | IdentTok(..) => {
-                let start_span = self.peek_span();
-                let node = PathExpr(self.parse_path());
                 self.add_id_and_span(node, start_span.to(self.last_span))
             }
             _ => self.peek_error("Expected expression")

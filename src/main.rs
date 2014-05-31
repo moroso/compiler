@@ -116,3 +116,48 @@ fn main() {
     mod intermediate_tests;
     intermediate_tests::main();
 }
+
+#[cfg(test)]
+mod tests {
+    use package::Package;
+    use super::NullTarget;
+    use target::Target;
+
+    fn package_from_str(s: &str) -> Package {
+        use std::str::StrSlice;
+        use std::io;
+        let bytes = Vec::from_slice(s.as_bytes());
+        let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
+        Package::new("<input>", buffer)
+    }
+
+    #[test]
+    fn exercise() {
+        let src = r"
+mod prelude {
+    enum Option<T> {
+        Some(T),
+        None,
+    }
+}
+
+struct Foo<T> {
+    foo: T,
+}
+
+fn main() {
+    let wot = Foo { foo: 42 };
+    let more_wot = prelude::Some(wot);
+    let foo: u32 = match more_wot {
+        ::prelude::Some(wot) => {
+            match wot {
+                Foo{ foo: foo } => foo,
+            }
+        }
+    };
+}
+";
+        let package = package_from_str(src);
+        NullTarget.compile(package);
+    }
+}

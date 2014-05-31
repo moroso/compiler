@@ -466,8 +466,32 @@ impl<'a> Typechecker<'a> {
                             None => self.get_bound_ty(nid),
                         }
                     }
-                    _ => fail!("Expected value name"),
+                    _ => fail!("{} does not name a value", path),
                 }
+            }
+            StructExpr(ref path, ref flds) => {
+                let nid = self.session.resolver.def_from_path(path);
+                let (fields, tps) = match *self.session.defmap.find(&nid).take_unwrap() {
+                    StructDef(ref fields, ref tps) => (fields, tps),
+                    _ => fail!("{} does not name a struct", path),
+                };
+
+                let tp_tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, true);
+
+                let mut gs = TreeMap::new();
+                for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
+                    gs.insert(*tp, tp_ty.clone());
+                }
+
+                self.with_generics(gs, |me| {
+                    for (field, fld) in fields.iter().map(|x| x.val1()).zip(flds.iter()) {
+                        let field_ty = me.type_to_ty(field);
+                        let fld_ty = me.expr_to_ty(fld.ref1());
+                        me.unify(field_ty, fld_ty);
+                    }
+                });
+
+                StructTy(nid, tp_tys)
             }
             BinOpExpr(ref op, ref l, ref r) => {
                 let l_ty = self.expr_to_ty(*l);
@@ -568,10 +592,61 @@ impl<'a> Typechecker<'a> {
                 self.exits.push(ty);
                 BottomTy
             }
-            CastExpr(..) => unimplemented!(),
+            CastExpr(ref e, ref t) => {
+                let e_ty = self.expr_to_ty(*e);
+                let t_ty = self.type_to_ty(t);
+
+                match self.unify(BottomTy, e_ty) {
+                    GenericIntTy | UintTy(..) | IntTy(..) => {}
+                    _ => fail!("Cannot cast expression of non-integral type"),
+                }
+
+                match self.unify(BottomTy, t_ty) {
+                    ty@GenericIntTy | ty@UintTy(..) | ty@IntTy(..) => ty,
+                    _ => fail!("Cannot cast to non-integral type"),
+                }
+            }
             AssignExpr(..) => unimplemented!(), // need self.expr_is_lvalue(...)
-            DotExpr(..) => unimplemented!(),
-            ArrowExpr(..) => unimplemented!(),
+            DotExpr(ref e, ref fld) => {
+                let e_ty = self.expr_to_ty(*e);
+                let (nid, tp_tys) = match self.unify(BottomTy, e_ty) {
+                    StructTy(nid, tp_tys) => (nid, tp_tys),
+                    ty => fail!("Expression is not a structure, got {}", ty),
+                };
+
+                match *self.session.defmap.find(&nid).take_unwrap() {
+                    StructDef(ref fields, ref tps) => {
+                        let mut gs = TreeMap::new();
+                        for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
+                            gs.insert(*tp, tp_ty.clone());
+                        }
+
+                        let field = fields.find(fld).unwrap();
+                        self.with_generics(gs, |me| me.type_to_ty(field))
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            ArrowExpr(ref e, ref fld) => {
+                let e_ty = self.expr_to_ty(*e);
+                let (nid, tp_tys) = match self.unify(BottomTy, e_ty) {
+                    PtrTy(box StructTy(nid, tp_tys)) => (nid, tp_tys),
+                    _ => fail!("Expression is not a pointer to a structure"),
+                };
+
+                match *self.session.defmap.find(&nid).take_unwrap() {
+                    StructDef(ref fields, ref tps) => {
+                        let mut gs = TreeMap::new();
+                        for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
+                            gs.insert(*tp, tp_ty.clone());
+                        }
+
+                        let field = fields.find(fld).unwrap();
+                        self.with_generics(gs, |me| me.type_to_ty(field))
+                    }
+                    _ => unreachable!(),
+                }
+            }
             WhileExpr(ref e, ref b) => {
                 let e_ty = self.expr_to_ty(*e);
                 self.unify(BoolTy, e_ty);
@@ -650,29 +725,7 @@ impl<'a> Typechecker<'a> {
     fn unify(&mut self, t1: Ty, t2: Ty) -> Ty {
         // TODO pointers and ints together
         match (t1, t2) {
-            (BottomTy, t) | (t, BottomTy) => t,
-            (GenericIntTy, IntTy(w)) | (IntTy(w), GenericIntTy) => IntTy(w),
-            (GenericIntTy, UintTy(w)) | (UintTy(w), GenericIntTy) => UintTy(w),
-            (ref t@IntTy(ref w1), IntTy(ref w2)) | (ref t@UintTy(ref w1), UintTy(ref w2)) => {
-                let ctor = match *t {
-                    IntTy(..) => IntTy,
-                    UintTy(..) => UintTy,
-                    _ => unreachable!(),
-                };
-
-                let w = match (*w1, *w2) {
-                    (AnyWidth, w) | (w, AnyWidth) => w,
-                    (w1, w2) => {
-                        if w1 == w2 {
-                            w1
-                        } else {
-                            self.mismatch(&ctor(w1), &ctor(w2))
-                        }
-                    }
-                };
-
-                ctor(w)
-            },
+            // Bound types take priority over BottomTy
             (BoundTy(b1), BoundTy(b2)) => {
                 let bounds =
                     if b1 == b2 {
@@ -696,6 +749,29 @@ impl<'a> Typechecker<'a> {
                 let t = self.check_ty_bounds(t, bounds);
                 self.update_bounds(b, Concrete(t.clone()));
                 t
+            },
+            (BottomTy, t) | (t, BottomTy) => t,
+            (GenericIntTy, IntTy(w)) | (IntTy(w), GenericIntTy) => IntTy(w),
+            (GenericIntTy, UintTy(w)) | (UintTy(w), GenericIntTy) => UintTy(w),
+            (ref t@IntTy(ref w1), IntTy(ref w2)) | (ref t@UintTy(ref w1), UintTy(ref w2)) => {
+                let ctor = match *t {
+                    IntTy(..) => IntTy,
+                    UintTy(..) => UintTy,
+                    _ => unreachable!(),
+                };
+
+                let w = match (*w1, *w2) {
+                    (AnyWidth, w) | (w, AnyWidth) => w,
+                    (w1, w2) => {
+                        if w1 == w2 {
+                            w1
+                        } else {
+                            self.mismatch(&ctor(w1), &ctor(w2))
+                        }
+                    }
+                };
+
+                ctor(w)
             },
             (PtrTy(p1), PtrTy(p2)) =>
                 PtrTy(box self.unify(*p1, *p2)),
