@@ -16,20 +16,48 @@ use util::Name;
 struct CCrossCompiler {
     builtins: TreeSet<Name>,
     structnames: TreeSet<NodeId>,
-    enumitemnames: TreeMap<NodeId, (Ident, Vec<Variant>, int)>,
+    enumitemnames: TreeMap<Name, (Ident, Vec<Variant>, uint)>,
     session: Session,
     typemap: Typemap,
 }
 
+// TODO: this and find_enum_item_names are hacks, and don't actually support
+// the module system (they will break in the presence of anything nontrivial
+// with paths).
 fn find_structs(module: &Module) -> TreeSet<NodeId> {
-    fail!("Handle paths properly")
+    let mut struct_set = TreeSet::new();
+
+    for item in module.val.items.iter() {
+        match item.val {
+            StructItem(ref id, _, _) => { struct_set.insert(id.id); },
+            _ => {},
+        }
+    }
+
+    struct_set
 }
 
-fn find_enum_item_names(module: &Module) -> TreeMap<NodeId,
+fn find_enum_item_names(module: &Module) -> TreeMap<Name,
                                                     (Ident,
                                                      Vec<Variant>,
-                                                     int)> {
-    fail!("Handle paths properly")
+                                                     uint)> {
+    let mut enum_map = TreeMap::new();
+
+    for item in module.val.items.iter() {
+        match item.val {
+            EnumItem(ref id, ref items, ref tps) => {
+                let mut pos = 0;
+                for item in items.iter() {
+                    enum_map.insert(item.ident.val.name,
+                                    (id.clone(), items.clone(), pos));
+                    pos += 1;
+                }
+            },
+            _ => {},
+        }
+    }
+
+    enum_map
 }
 
 impl CCrossCompiler {
@@ -193,13 +221,20 @@ impl CCrossCompiler {
         }
     }
 
+    fn visit_path_in_enum_access(&self, path: &Path) -> String {
+        let (_, ref variants, ref pos) = *self.enumitemnames.find(&path.val.elems.get(0).val.name).unwrap();
+        let variant = variants.get(*pos);
+        let name = self.session.interner.name_to_str(&variant.ident.val.name);
+        name.to_string()
+    }
+
     fn visit_path(&self, path: &Path) -> String {
-        match self.enumitemnames.find(&path.id) {
-            Some(&(_, _, ref pos)) => format!("\\{ .tag = {} \\}", pos),
+        match self.enumitemnames.find(&path.val.elems.get(0).val.name) {
+            Some(&(_, ref variants, ref pos)) => format!("\\{ .tag = {} \\}", pos),
             None => {
                 let vec: Vec<&str> = path.val.elems.iter().map(|elem| self.session.interner.name_to_str(&elem.val.name)).collect();
                 vec.connect("_")
-            }
+            },
         }
     }
 
@@ -261,13 +296,14 @@ impl CCrossCompiler {
                     PathExpr(ref path) => {
                         let name = self.visit_path(path);
 
-                        match self.enumitemnames.find(&path.id) {
+                        match self.enumitemnames.find(&path.val.elems.get(0).val.name) {
                             Some(&(_, _, pos)) => {
                                 let mut n = 0;
                                 let args = self.visit_list(args, |arg| {
                                     n += 1;
                                     let expr = self.visit_expr(arg);
-                                    format!(".val.{}.field{} = {}", name, n - 1, expr)
+                                    let actual_name = self.visit_path_in_enum_access(path);
+                                    format!(".val.{}.field{} = {}", actual_name, n - 1, expr)
                                 }, ", ");
                                 format!("\\{ .tag = {}, {} \\}", pos, args)
                             }
@@ -293,7 +329,7 @@ impl CCrossCompiler {
                 let cond = self.visit_expr(*e);
                 let thenpart = self.visit_block_expr(*b1);
                 let elsepart = self.visit_block_expr(*b2);
-                format!("(({})?{}:{})", cond, thenpart, elsepart)
+                format!("(({})?({}):({}))", cond, thenpart, elsepart)
             }
             BlockExpr(ref b) => self.visit_block_expr(*b),
             ReturnExpr(ref e) => {
@@ -321,10 +357,10 @@ impl CCrossCompiler {
                         _ => fail!("Only VariantPats are supported in match arms for now")
                     };
 
-                    let &(_, ref variants, idx) = self.enumitemnames.find(&path.id).unwrap();
+                    let &(_, ref variants, idx) = self.enumitemnames.find(&path.val.elems.get(0).val.name).unwrap();
                     let this_variant = variants.get(idx as uint);
 
-                    let name = self.visit_path(path);
+                    let name = self.visit_path_in_enum_access(path);
 
                     let mut n = 0;
                     let vars = self.visit_list(vars, |var| {

@@ -15,10 +15,10 @@ fn bar(n: u32) -> u32 {
 }
 
 fn fib(x: u32) -> u32 {
-    if x==0 { return 1; 0 }
+    let y: u32 = if x==0 { return 1; 0 }
     else if x==1 { bar(6) }
     else { fib(x-1) + fib(x-2) };
-    fib2(x)
+    fib2(y)
 }
 
 fn fib2(x: u32) -> u32 {

@@ -606,7 +606,11 @@ impl<'a> Typechecker<'a> {
                     _ => fail!("Cannot cast to non-integral type"),
                 }
             }
-            AssignExpr(..) => unimplemented!(), // need self.expr_is_lvalue(...)
+            AssignExpr(ref lv, ref rv) => {
+                // TODO: need self.expr_is_lvalue(...)
+                // For now we'll just assume lv is an lvalue.
+                self.expr_to_ty(*rv)
+            }
             DotExpr(ref e, ref fld) => {
                 let e_ty = self.expr_to_ty(*e);
                 let (nid, tp_tys) = match self.unify(BottomTy, e_ty) {
@@ -656,13 +660,14 @@ impl<'a> Typechecker<'a> {
             }
             ForExpr(ref init, ref cond, ref step, ref b) => {
                 let i_ty = self.expr_to_ty(*init);
-                self.unify(UnitTy, i_ty);
+                // No unify here: we allow the init expression to have any type.
+                //self.unify(UnitTy, i_ty);
 
                 let c_ty = self.expr_to_ty(*cond);
                 self.unify(BoolTy, c_ty);
 
                 let s_ty = self.expr_to_ty(*step);
-                self.unify(UnitTy, s_ty);
+                // No unify here: we allow the iter expression to have any type.
 
                 let b_ty = self.block_to_ty(*b);
                 self.unify(UnitTy, b_ty)

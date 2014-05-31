@@ -52,9 +52,10 @@ test/c-bin: $(addprefix test/,$(patsubst %.mc,c-bin/%,$(TEST_FILES)))
 
 test/c/%.c: test/%.mc mc
 	mkdir -p $(dir $@)
-	./mc --target c < $< > $@ 2>$(addsuffix .log,$@)
+	./mc --target c < $< > $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); false)
 
 test/c-bin/%: test/c/%.c
+	cat $<
 	mkdir -p $(dir $@)
 	gcc $< -o $@
 
