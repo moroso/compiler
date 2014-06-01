@@ -472,7 +472,7 @@ impl Target for CTarget {
         println!("{}", "#include <stdio.h>");
         println!("{}", "#include <stdlib.h>");
         println!("{}", "int print_int(int x) { printf(\"%d\\n\", x); return x; }");
-        println!("{}", "int print_char(int x) { printf(\"%c\\n\", x); return x; }");
+        println!("{}", "int print_char(int x) { printf(\"%c\", x); return x; }");
         println!("{}", cc.visit_module(&module));
     }
 }
