@@ -264,14 +264,14 @@ impl CCrossCompiler {
     }
 
     fn visit_path_in_enum_access(&self, path: &Path) -> String {
-        let (_, ref variants, ref pos) = *self.enumitemnames.find(&path.val.elems.get(0).val.name).unwrap();
+        let (_, ref variants, ref pos) = *self.enumitemnames.find(&path.val.elems.last().unwrap().val.name).unwrap();
         let variant = variants.get(*pos);
         let name = self.session.interner.name_to_str(&variant.ident.val.name);
         name.to_string()
     }
 
     fn visit_path(&self, path: &Path) -> String {
-        match self.enumitemnames.find(&path.val.elems.get(0).val.name) {
+        match self.enumitemnames.find(&path.val.elems.last().unwrap().val.name) {
             Some(&(_, ref variants, ref pos)) => format!("\\{ .tag = {} \\}", pos),
             None => {
                 let vec: Vec<&str> = path.val.elems.iter().map(|elem| self.session.interner.name_to_str(&elem.val.name)).collect();
@@ -339,7 +339,7 @@ impl CCrossCompiler {
                     PathExpr(ref path) => {
                         let name = self.visit_path(path);
 
-                        match self.enumitemnames.find(&path.val.elems.get(0).val.name) {
+                        match self.enumitemnames.find(&path.val.elems.last().unwrap().val.name) {
                             Some(&(_, _, pos)) => {
                                 let mut n = 0;
                                 let args = self.visit_list(args, |arg| {
@@ -400,7 +400,7 @@ impl CCrossCompiler {
                         _ => fail!("Only VariantPats are supported in match arms for now")
                     };
 
-                    let &(_, ref variants, idx) = self.enumitemnames.find(&path.val.elems.get(0).val.name).unwrap();
+                    let &(_, ref variants, idx) = self.enumitemnames.find(&path.val.elems.last().unwrap().val.name).unwrap();
                     let this_variant = variants.get(idx as uint);
 
                     let name = self.visit_path_in_enum_access(path);

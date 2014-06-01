@@ -59,6 +59,9 @@ test/c-bin/%: test/c/%.c
 	mkdir -p $(dir $@)
 	gcc $< -o $@
 
+all-c-tests: test/c-bin/test_casts test/c-bin/test_param_types test/c-bin/test_recursive_types test/c-bin/test
+	for a in $^; do $$a; done
+
 .PHONY: all docs clean run-tests run-ir-tests run-all-tests
 clean:
 	rm -rf *~ doc mc mc-tests ir-tests test/c test/c-bin
