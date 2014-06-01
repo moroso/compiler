@@ -564,8 +564,16 @@ impl<'a> Typechecker<'a> {
 
                 self.unify(UintTy(AnyWidth), i_ty);
 
-                match self.unify(ArrayTy(box BottomTy, None), a_ty) {
-                    ArrayTy(ty, _) => *ty,
+                match a_ty {
+                    ArrayTy(..) => match self.unify(ArrayTy(box BottomTy, None),
+                                                    a_ty) {
+                        ArrayTy(ty, _) => *ty,
+                        _ => unreachable!(),
+                    },
+                    PtrTy(..) => match self.unify(PtrTy(box BottomTy), a_ty) {
+                        PtrTy(ty) => *ty,
+                        _ => unreachable!(),
+                    },
                     _ => unreachable!(),
                 }
             }
