@@ -445,6 +445,7 @@ impl Target for CTarget {
 
         let mut builtins = TreeSet::new();
         builtins.insert(session.interner.intern(String::from_str("print_int")));
+        builtins.insert(session.interner.intern(String::from_str("malloc")));
         builtins.insert(session.interner.intern(String::from_str("print_char")));
 
         let cc = CCrossCompiler {
