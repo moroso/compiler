@@ -445,6 +445,7 @@ impl Target for CTarget {
 
         let mut builtins = TreeSet::new();
         builtins.insert(session.interner.intern(String::from_str("print_int")));
+        builtins.insert(session.interner.intern(String::from_str("print_char")));
 
         let cc = CCrossCompiler {
             structnames: find_structs(&module),
@@ -470,6 +471,7 @@ impl Target for CTarget {
         println!("{}", "#include <stdio.h>");
         println!("{}", "#include <stdlib.h>");
         println!("{}", "int print_int(int x) { printf(\"%d\\n\", x); return x; }");
+        println!("{}", "int print_char(int x) { printf(\"%c\\n\", x); return x; }");
         println!("{}", cc.visit_module(&module));
     }
 }
