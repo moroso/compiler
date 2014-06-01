@@ -185,9 +185,9 @@ impl CCrossCompiler {
                 format!("{}*", self.visit_type(*t))
             }
             NamedType(ref path) => {
+                let did = self.session.resolver.def_from_path(path);
                 let is_param = {
                     // Is this type a type parameter?
-                    let did = self.session.resolver.def_from_path(path);
                     let d = self.session.defmap.find(&did).take_unwrap();
                     match *d {
                         GenericDef => true,
@@ -197,7 +197,7 @@ impl CCrossCompiler {
                 if is_param {
                     // Treat all type parameters as void.
                     String::from_str("void")
-                } else if self.structnames.contains(&path.id) {
+                } else if self.structnames.contains(&did) {
                     format!("struct {}", self.visit_path(path))
                 } else {
                     self.visit_path(path)
