@@ -158,7 +158,7 @@ impl fmt::Show for TyBounds {
         match *self {
             Concrete(ref t) => write!(f, "{}", t),
             Constrained(ref ks) => write!(f, "<kinds {}>", ks),
-            Unconstrained => write!(f, "<generic>"),
+            Unconstrained => write!(f, "<unconstrained>"),
         }
     }
 }

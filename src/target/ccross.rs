@@ -256,7 +256,7 @@ impl CCrossCompiler {
             BoundTy(ref bound_id) => {
                 match *self.typemap.bounds.get(&bound_id.to_uint()) {
                     Concrete(ref ty) => self.visit_ty(ty),
-                    _ => fail!("Type is not fully constrained"),
+                    ref bounds => fail!("Type is not fully constrained: {}", bounds),
                 }
             }
             _ => fail!("Not supported yet: {}", t),
