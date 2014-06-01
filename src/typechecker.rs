@@ -597,12 +597,12 @@ impl<'a> Typechecker<'a> {
                 let t_ty = self.type_to_ty(t);
 
                 match self.unify(BottomTy, e_ty) {
-                    GenericIntTy | UintTy(..) | IntTy(..) => {}
+                    GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) => {}
                     _ => fail!("Cannot cast expression of non-integral type"),
                 }
 
                 match self.unify(BottomTy, t_ty) {
-                    ty@GenericIntTy | ty@UintTy(..) | ty@IntTy(..) => ty,
+                    ty@GenericIntTy | ty@UintTy(..) | ty@IntTy(..) | ty@PtrTy(..) => ty,
                     _ => fail!("Cannot cast to non-integral type"),
                 }
             }
