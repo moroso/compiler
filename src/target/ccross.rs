@@ -1,6 +1,7 @@
 use ast::*;
 use ast::defmap::*;
 use values::*;
+use typechecker::*;
 use std::io::stdio;
 use lexer::Lexer;
 use parser::Parser;
@@ -10,13 +11,13 @@ use resolver::Resolver;
 use session::Session;
 use package::Package;
 use target::Target;
-use typechecker::{Typechecker, Typemap};
 use util::Name;
 
 struct CCrossCompiler {
     builtins: TreeSet<Name>,
     structnames: TreeSet<NodeId>,
     enumitemnames: TreeMap<Name, (Ident, Vec<Variant>, uint)>,
+    enumnames: TreeMap<NodeId, Name>,
     session: Session,
     typemap: Typemap,
 }
@@ -59,6 +60,22 @@ fn find_enum_item_names(module: &Module) -> TreeMap<Name,
 
     enum_map
 }
+
+fn find_enum_names(module: &Module) -> TreeMap<NodeId, Name> {
+    let mut enum_map = TreeMap::new();
+
+    for item in module.val.items.iter() {
+        match item.val {
+            EnumItem(ref id, _, _) => {
+                enum_map.insert(item.id, id.val.name);
+            },
+            _ => {}
+        }
+    }
+
+    enum_map
+}
+
 
 impl CCrossCompiler {
     fn visit_list<T>(&self, list: &Vec<T>,
@@ -106,7 +123,13 @@ impl CCrossCompiler {
                     IdentPat(ref i, ref t) => (i, t),
                     _ => fail!("Only IdentPats are supported right now"),
                 };
-                let ty = t.as_ref().map(|t| self.visit_type(t)).expect("Must specify types now.");
+                let ty = match *t {
+                    Some(ref ty) => self.visit_type(ty),
+                    None => match *e {
+                        Some(ref expr) => self.visit_ty(self.typemap.types.get(&expr.id.to_uint())),
+                        None => fail!("Must specify a type."),
+                    }
+                };
                 let name = self.visit_ident(i);
                 let maybe_expr = e.as_ref().map(|e| format!(" = {}", self.visit_expr(e))).unwrap_or_default();
                 format!("{} {} {};", ty, name, maybe_expr)
@@ -218,6 +241,19 @@ impl CCrossCompiler {
             BoolType => String::from_str("int"),
             UnitType => String::from_str("void"),
             IntType(..) => String::from_str("int"), // TODO intkind handling
+        }
+    }
+
+    fn visit_ty(&self, t: &Ty) -> String {
+        match *t {
+            BoolTy => String::from_str("int"),
+            UnitTy => String::from_str("void"),
+            IntTy(..) | GenericIntTy => String::from_str("int"),
+            UintTy(..) => String::from_str("unsigned int"),
+            PtrTy(ref t) | ArrayTy(ref t, _) => {
+                format!("{}*", self.visit_ty(*t))
+            }
+            _ => fail!("Not supported yet: {}", t),
         }
     }
 
@@ -413,6 +449,7 @@ impl Target for CTarget {
         let cc = CCrossCompiler {
             structnames: find_structs(&module),
             enumitemnames: find_enum_item_names(&module),
+            enumnames: find_enum_names(&module),
             builtins: builtins,
             session: session,
             typemap: typemap,

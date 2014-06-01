@@ -22,7 +22,7 @@ impl BoundsId {
 }
 
 #[deriving(TotalEq, PartialEq, Show, Clone)]
-enum Ty {
+pub enum Ty {
     BoolTy,
     GenericIntTy,
     IntTy(Width),
