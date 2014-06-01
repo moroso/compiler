@@ -97,7 +97,7 @@ impl Resolver {
 
     /// Get the NodeId of the item that defines the given path
     pub fn def_from_path(&self, path: &Path) -> NodeId {
-        *self.table.find(&path.id).take_unwrap()
+        *self.table.find(&path.id).unwrap()
     }
 
     /// The entry point for the resolver
@@ -151,6 +151,12 @@ impl<'a> ModuleResolver<'a> {
                     node_id
                 }
                 None => fail!("Unresolved name {}", interner.name_to_str(&ident.val.name)),
+            }
+        }
+
+        for elem in path.val.elems.iter() {
+            for tp in elem.val.tps.iter().flat_map(|tps| tps.iter()) {
+                self.visit_type(tp);
             }
         }
 
