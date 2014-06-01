@@ -147,7 +147,7 @@ impl fmt::Show for Kind {
 }
 
 #[deriving(TotalEq, PartialEq, Clone)]
-enum TyBounds {
+pub enum TyBounds {
     Concrete(Ty),
     Constrained(EnumSet<Kind>),
     Unconstrained,

@@ -252,6 +252,12 @@ impl CCrossCompiler {
             UintTy(..) => String::from_str("unsigned int"),
             PtrTy(ref t) | ArrayTy(ref t, _) => {
                 format!("{}*", self.visit_ty(*t))
+            },
+            BoundTy(ref bound_id) => {
+                match *self.typemap.bounds.get(&bound_id.to_uint()) {
+                    Concrete(ref ty) => self.visit_ty(ty),
+                    _ => fail!("Type is not fully constrained"),
+                }
             }
             _ => fail!("Not supported yet: {}", t),
         }
@@ -328,6 +334,7 @@ impl CCrossCompiler {
                 format!("({}) = ({})", lhs, rhs)
             }
             CallExpr(ref f, ref args) => {
+                let res_type = self.visit_ty(self.typemap.types.get(&expr.id.to_uint()));
                 match f.val {
                     PathExpr(ref path) => {
                         let name = self.visit_path(path);
@@ -345,7 +352,7 @@ impl CCrossCompiler {
                             }
                             None => {
                                 let args = self.visit_list(args, |x| self.visit_expr(x), ", ");
-                                format!("{}({})", name, args)
+                                format!("(({}){}({}))", res_type, name, args)
                             }
                         }
                     }
