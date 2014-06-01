@@ -615,9 +615,17 @@ impl<'a> Typechecker<'a> {
                 }
             }
             AssignExpr(ref lv, ref rv) => {
-                // TODO: need self.expr_is_lvalue(...)
-                // For now we'll just assume lv is an lvalue.
-                self.expr_to_ty(*rv)
+                let l_ty = match lv.val {
+                    PathExpr(..) | UnOpExpr(WithId { val: Deref, .. }, _) | IndexExpr(..) | DotExpr(..) | ArrowExpr(..) => {
+                        self.expr_to_ty(*lv)
+                    }
+                    _ => fail!("LHS of assignment is not an lvalue"),
+                };
+
+                let r_ty = self.expr_to_ty(*rv);
+
+                self.unify(l_ty, r_ty);
+                UnitTy
             }
             DotExpr(ref e, ref fld) => {
                 let e_ty = self.expr_to_ty(*e);
@@ -668,14 +676,13 @@ impl<'a> Typechecker<'a> {
             }
             ForExpr(ref init, ref cond, ref step, ref b) => {
                 let i_ty = self.expr_to_ty(*init);
-                // No unify here: we allow the init expression to have any type.
-                //self.unify(UnitTy, i_ty);
+                self.unify(UnitTy, i_ty);
 
                 let c_ty = self.expr_to_ty(*cond);
                 self.unify(BoolTy, c_ty);
 
                 let s_ty = self.expr_to_ty(*step);
-                // No unify here: we allow the iter expression to have any type.
+                self.unify(UnitTy, s_ty);
 
                 let b_ty = self.block_to_ty(*b);
                 self.unify(UnitTy, b_ty)
