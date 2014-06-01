@@ -1,0 +1,95 @@
+// Modeled after Linux's list.h
+// Needs the C preprocessor. container_of is pretty necessary for
+// the whole scheme. The other macros are just convenient.
+
+// Generic defines
+#define static /*lol */
+
+#ifndef null
+#define null 0
+#endif
+
+#define offset_of(st, m) ((&(0 as *st)->m) as u32)
+#define container_of(ptr, ty, member) \
+    (((ptr as u32) - offset_of(ty, member)) as *ty)
+
+// Now our actual code
+
+#define list_entry container_of
+
+#define list_head list_node
+#define list_insert_head list_insert_after
+#define list_insert_tail list_insert_before
+
+// These functions should only be used if the results are known to be
+// well defined.
+#define list_head_entry_(head, typ, link) \
+    container_of(head->next, typ, link)
+#define list_tail_entry_(head, typ, link) \
+    container_of(head->prev, typ, link)
+
+#define list_next_entry_(node, typ, link) \
+    container_of(node->link.next, typ, link)
+#define list_prev_entry_(node, typ, link) \
+    container_of(node->link.prev, typ, link)
+
+// Versions that return NULL when needed
+#define list_head_entry(head, typ, link) \
+    (list_is_empty(head) ? null : list_head_entry_(head, typ, link))
+#define list_tail_entry(head, typ, link) \
+    (list_is_empty(head) ? null : list_tail_entry_(head, typ, link))
+
+#define list_next_entry(head, node, typ, link) \
+    ((node)->link.next == (head) ? null : list_next_entry_(node, typ, link))
+#define list_prev_entry(head, node, typ, link) \
+    ((node)->link.prev == (head) ? null : list_prev_entry_(node, typ, link))
+
+
+
+// If we had typeof we could drop the typ argument.
+#define list_foreach_entry(cur, head, typ, link) \
+    for (cur = list_head_entry_(head, typ, link); \
+         &cur->link != (head); \
+         cur = list_next_entry_(cur, typ, link))
+
+// TODO: need static init macros once available
+
+struct list_node {
+    next: *list_node,
+    prev: *list_node
+}
+
+static fn list_init_head(head: *list_head) {
+    head->next = head->prev = head;
+}
+static fn list_init_node(head: *list_head) {
+    head->next = head->prev = null;
+}
+
+static fn __list_insert_between(n: *list_node, n1: *list_node, n2: *list_node) {
+    n->prev = n1;
+    n->next = n2;
+    n1->next = n;
+    n2->prev = n;
+}
+
+static fn list_insert_after(n: *list_node, n1: *list_node) {
+    __list_insert_between(n, n1, n1->next);
+}
+static fn list_insert_before(n: *list_node, n1: *list_node) {
+    __list_insert_between(n, n1->prev, n1);
+}
+
+static fn list_del(n: *list_node) {
+    n->next->prev = n->prev;
+    n->prev->next = n->next;
+    // To help catch bugs.
+    n->next = n->prev = null;
+}
+
+static fn list_is_empty(n: *list_head) -> bool {
+    n->next == n
+}
+static fn list_is_singleton(n: *list_head) -> bool {
+    n->next == n->prev && n != n->next
+}
