@@ -264,9 +264,12 @@ impl<'a> Typechecker<'a> {
         BoundTy(bid)
     }
 
-    fn get_bound_ty(&self, nid: NodeId) -> Ty {
+    fn get_bound_ty(&mut self, nid: NodeId) -> Ty {
         let bid = *self.defs.find(&nid).take_unwrap();
-        BoundTy(bid)
+        match self.get_bounds(bid) {
+            Concrete(ty) => ty,
+            _ => BoundTy(bid),
+        }
     }
 
     fn generic_to_ty(&mut self, nid: NodeId) -> Ty {
@@ -546,13 +549,11 @@ impl<'a> Typechecker<'a> {
                 let expr_ty = match op.val {
                     Negate => self.check_ty_bounds(ty, constrained!(SubKind)),
                     BitNot => self.check_ty_bounds(ty, constrained!(BitXorKind)),
-                    LogNot => self.unify(BoolTy, ty),
+                    LogNot => self.check_ty_bounds(ty, Concrete(BoolTy)),
                     AddrOf => PtrTy(box ty),
-                    Deref => {
-                        match self.unify(PtrTy(box BottomTy), ty) {
-                            PtrTy(ty) => *ty,
-                            _ => unreachable!(),
-                        }
+                    Deref => match ty {
+                        PtrTy(p_ty) => *p_ty,
+                        _ => unreachable!(),
                     }
                 };
 
@@ -562,18 +563,10 @@ impl<'a> Typechecker<'a> {
                 let a_ty = self.expr_to_ty(*a);
                 let i_ty = self.expr_to_ty(*i);
 
-                self.unify(UintTy(AnyWidth), i_ty);
+                self.check_ty_bounds(i_ty, Concrete(UintTy(AnyWidth)));
 
                 match a_ty {
-                    ArrayTy(..) => match self.unify(ArrayTy(box BottomTy, None),
-                                                    a_ty) {
-                        ArrayTy(ty, _) => *ty,
-                        _ => unreachable!(),
-                    },
-                    PtrTy(..) => match self.unify(PtrTy(box BottomTy), a_ty) {
-                        PtrTy(ty) => *ty,
-                        _ => unreachable!(),
-                    },
+                    ArrayTy(ty, _) | PtrTy(ty) => *ty,
                     _ => unreachable!(),
                 }
             }
@@ -587,7 +580,7 @@ impl<'a> Typechecker<'a> {
             CallExpr(ref e, ref args) => {
                 let arg_tys = args.iter().map(|arg| self.expr_to_ty(arg)).collect();
                 let e_ty = self.expr_to_ty(*e);
-                match self.unify(e_ty, FuncTy(arg_tys, box BottomTy)) {
+                match self.unify(FuncTy(arg_tys, box BottomTy), e_ty) {
                     FuncTy(_, ret_ty) => *ret_ty,
                     _ => unreachable!(),
                 }
@@ -604,13 +597,13 @@ impl<'a> Typechecker<'a> {
                 let e_ty = self.expr_to_ty(*e);
                 let t_ty = self.type_to_ty(t);
 
-                match self.unify(BottomTy, e_ty) {
+                match e_ty {
                     GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) => {}
                     _ => fail!("Cannot cast expression of non-integral type"),
                 }
 
-                match self.unify(BottomTy, t_ty) {
-                    ty@GenericIntTy | ty@UintTy(..) | ty@IntTy(..) | ty@PtrTy(..) => ty,
+                match t_ty {
+                    GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) => t_ty,
                     _ => fail!("Cannot cast to non-integral type"),
                 }
             }
@@ -745,7 +738,7 @@ impl<'a> Typechecker<'a> {
     fn unify(&mut self, t1: Ty, t2: Ty) -> Ty {
         // TODO pointers and ints together
         match (t1, t2) {
-            // Bound types take priority over BottomTy
+            (BottomTy, t) | (t, BottomTy) => t,
             (BoundTy(b1), BoundTy(b2)) => {
                 let bounds =
                     if b1 == b2 {
@@ -770,7 +763,6 @@ impl<'a> Typechecker<'a> {
                 self.update_bounds(b, Concrete(t.clone()));
                 t
             },
-            (BottomTy, t) | (t, BottomTy) => t,
             (GenericIntTy, IntTy(w)) | (IntTy(w), GenericIntTy) => IntTy(w),
             (GenericIntTy, UintTy(w)) | (UintTy(w), GenericIntTy) => UintTy(w),
             (ref t@IntTy(ref w1), IntTy(ref w2)) | (ref t@UintTy(ref w1), UintTy(ref w2)) => {
