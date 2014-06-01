@@ -11,7 +11,7 @@ use ast::*;
 use ast::defmap::*;
 use ast::visit::*;
 
-#[deriving(Eq, Show, Clone)]
+#[deriving(TotalEq, PartialEq, Show, Clone)]
 struct BoundsId(uint);
 
 impl BoundsId {
@@ -21,7 +21,7 @@ impl BoundsId {
     }
 }
 
-#[deriving(Eq, Show, Clone)]
+#[deriving(TotalEq, PartialEq, Show, Clone)]
 enum Ty {
     BoolTy,
     GenericIntTy,
@@ -87,7 +87,7 @@ impl Ty {
     }
 }
 
-#[deriving(Eq, Clone)]
+#[deriving(TotalEq, PartialEq, Clone)]
 enum Kind {
     EqKind,
     CmpKind,
@@ -146,7 +146,7 @@ impl fmt::Show for Kind {
     }
 }
 
-#[deriving(Eq, Clone)]
+#[deriving(TotalEq, PartialEq, Clone)]
 enum TyBounds {
     Concrete(Ty),
     Constrained(EnumSet<Kind>),

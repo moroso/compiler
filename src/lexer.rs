@@ -14,7 +14,7 @@ use std::{io, option, iter};
 use std::slice::CloneableVector;
 
 
-#[deriving(Eq, Clone, Show)]
+#[deriving(TotalEq, PartialEq, Clone, Show)]
 pub enum Token {
     // Whitespace
     WS,
@@ -91,7 +91,7 @@ pub enum Token {
 
 /// A token together with a Span, to keep track of where in the source file
 /// it was.
-#[deriving(Show, Eq)]
+#[deriving(Show, Eq, PartialEq)]
 pub struct SourceToken {
     pub tok: Token,
     pub sp: Span,

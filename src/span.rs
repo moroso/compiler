@@ -1,12 +1,13 @@
 use std::fmt;
+use std::cmp::{Eq, Ord};
 
-#[deriving(Clone, Eq, TotalEq, TotalOrd)]
+#[deriving(Clone, PartialEq, TotalEq, TotalOrd)]
 pub struct SourcePos {
     pub row: uint,
     pub col: uint,
 }
 
-impl Ord for SourcePos {
+impl PartialOrd for SourcePos {
     #[inline]
     fn lt(&self, other: &SourcePos) -> bool {
         self.row < other.row || (self.row == other.row && self.col < other.col)
@@ -40,7 +41,7 @@ impl SourcePos {
     }
 }
 
-#[deriving(Clone, Eq, Ord, TotalEq, TotalOrd)]
+#[deriving(Clone, TotalEq, PartialEq, PartialOrd, TotalOrd)]
 pub struct Span {
     // Private, so that we must use mk_span (which enforces invariants)
     // to make a Span.

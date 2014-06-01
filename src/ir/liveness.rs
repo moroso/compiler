@@ -1,5 +1,6 @@
 // Liveness analysis
 
+use std::cmp::TotalEq;
 use ir::*;
 use ast::*;
 use values::*;
@@ -9,7 +10,7 @@ pub struct LivenessAnalyzer {
     pub opinfo: Vec<OpInfo>,
 }
 
-fn add_to<T: Eq>(ref mut v: &mut Vec<T>, x: T) -> bool {
+fn add_to<T: TotalEq>(ref mut v: &mut Vec<T>, x: T) -> bool {
     for e in v.iter() {
         if *e == x { return false; }
     }

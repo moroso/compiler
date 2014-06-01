@@ -3,10 +3,10 @@ use std::fmt::{Show, Formatter};
 
 use std::fmt;
 
-#[deriving(Eq, Ord, Clone, Show, TotalEq, TotalOrd)]
+#[deriving(TotalEq, TotalOrd, PartialOrd, PartialEq, Clone, Show)]
 pub struct Name(pub uint);
 
-#[deriving(Eq, Clone)]
+#[deriving(TotalEq, TotalOrd, PartialOrd, PartialEq, Clone)]
 pub enum Width {
     AnyWidth,
     Width32,
@@ -25,7 +25,7 @@ impl Show for Width {
     }
 }
 
-#[deriving(Eq, Clone)]
+#[deriving(TotalEq, Clone, PartialEq)]
 pub enum IntKind {
     GenericInt,
     SignedInt(Width),

@@ -7,7 +7,7 @@ pub mod ast_to_intermediate;
 pub mod liveness;
 pub mod constant_fold;
 
-#[deriving(Clone,Eq)]
+#[deriving(Clone, TotalEq, PartialEq)]
 pub struct Var {
     pub name: Name,
     pub index: uint, // Used for SSA
@@ -34,7 +34,7 @@ impl Show for LValue {
     }
 }
 
-#[deriving(Eq, Clone)]
+#[deriving(TotalEq, PartialEq, Clone)]
 pub enum RValueElem {
     Variable(Var),
     Constant(LitNode),
@@ -50,7 +50,7 @@ impl Show for RValueElem {
 }
 
 
-#[deriving(Eq, Clone)]
+#[deriving(TotalEq, PartialEq, Clone)]
 pub enum RValue {
     BinOpRValue(BinOpNode, RValueElem, RValueElem),
     DirectRValue(RValueElem),
@@ -91,7 +91,7 @@ impl Show for Op {
     }
 }
 
-#[deriving(Show, Eq, Clone)]
+#[deriving(Show, TotalEq, PartialEq, Clone)]
 pub struct OpInfo {
     live: Vec<Var>, // Which variables are live at this instruction?
     used: Vec<Var>, // Which variables are used?
