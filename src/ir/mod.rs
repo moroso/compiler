@@ -12,7 +12,9 @@ pub mod ssa;
 #[deriving(Clone, TotalEq, PartialEq, TotalOrd, PartialOrd)]
 pub struct Var {
     pub name: Name,
-    pub generation: Option<uint>, // Used for SSA
+    // If set, stores the generation of the variable. This will be None
+    // if we're not yet in SSA form, and must be non-None for SSA.
+    pub generation: Option<uint>,
 }
 
 impl Show for Var {
@@ -26,8 +28,10 @@ impl Show for Var {
 
 #[deriving(Clone)]
 pub enum LValue {
+    // Store directly into a variable.
     VarLValue(Var),
-    PtrLValue(Var), // Location pointed to by Var.
+    // Store into the location pointed to by Var.
+    PtrLValue(Var),
 }
 
 impl Show for LValue {
@@ -40,6 +44,7 @@ impl Show for LValue {
 }
 
 #[deriving(TotalEq, PartialEq, Clone)]
+// An "element" of an RValue: either a variable or a constant.
 pub enum RValueElem {
     Variable(Var),
     Constant(LitNode),
@@ -54,10 +59,11 @@ impl Show for RValueElem {
     }
 }
 
-
 #[deriving(TotalEq, PartialEq, Clone)]
 pub enum RValue {
+    // A binary operation applied to two RValueElems
     BinOpRValue(BinOpNode, RValueElem, RValueElem),
+    // An RValueElem (variable or constant) itself.
     DirectRValue(RValueElem),
 }
 
@@ -78,9 +84,13 @@ impl Show for RValue {
 
 #[deriving(Clone)]
 pub enum Op {
-    Assign(LValue, RValue), // t1 := t2 op t3
+    // A basic assignment.
+    Assign(LValue, RValue),
+    // A label. The set of variables is ones that are active at that point.
     Label(uint, TreeSet<Var>),
+    // A goto. The set must specify generations for all variables in the label.
     Goto(uint, TreeSet<Var>),
+    // Conditional goto.
     CondGoto(RValueElem, uint, TreeSet<Var>),
     Nop,
 }
