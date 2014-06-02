@@ -39,8 +39,15 @@ fn main() -> u32 {
         z = z - 1;
     };
     let i: u32;
-    for(i=0; i<7; i=i+1) {
+    for(i=0; i<7; i+=1) {
         print_int(fib(i));
     };
+    let x: u32;
+    let y: u32;
+    print_int(i);
+    x = y = i += 7;
+    print_int(i);
+    print_int(x);
+    print_int(y);
     deref(&z)
 }

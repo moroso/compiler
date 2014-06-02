@@ -74,6 +74,15 @@ pub enum Token {
     QuestionMark,
     Period,
     Underscore,
+    PlusEq,
+    MinusEq,
+    TimesEq,
+    SlashEq,
+    PipeEq,
+    CaretEq,
+    AmpEq,
+    LshEq,
+    RshEq,
 
     // Literals
     IdentTok(String),
@@ -312,6 +321,15 @@ impl<T: Buffer> Lexer<T> {
             QuestionMark => "?",
             Period       => ".",
             Underscore   => "_",
+            PlusEq       => "+=",
+            MinusEq      => "-=",
+            TimesEq      => "*=",
+            SlashEq      => "/=",
+            PipeEq       => "|=",
+            CaretEq      => "^=",
+            AmpEq        => "&=",
+            LshEq        => "<<=",
+            RshEq        => ">>=",
 
             // Literals
             IdentTok     => matcher!(r"[a-zA-Z_]\w*"),

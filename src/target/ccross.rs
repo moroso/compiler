@@ -333,6 +333,11 @@ impl CCrossCompiler {
                 let rhs = self.visit_expr(*rhs);
                 format!("({}) = ({})", lhs, rhs)
             }
+            AssignOpExpr(ref op, ref lhs, ref rhs) => {
+                let lhs = self.visit_expr(*lhs);
+                let rhs = self.visit_expr(*rhs);
+                format!("({}) {}= ({})", lhs, op, rhs)
+            }
             CallExpr(ref f, ref args) => {
                 let res_type = self.visit_ty(self.typemap.types.get(&expr.id.to_uint()));
                 match f.val {

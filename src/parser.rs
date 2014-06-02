@@ -805,16 +805,32 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let start_span = self.peek_span();
         let lv = self.parse_binop_expr(allow_structs);
 
-        // Look for any assignments
-        match *self.peek() {
-            Eq => {
-                self.expect(Eq);
-                let e = self.parse_expr_common(allow_structs);
-                let node = AssignExpr(box lv, box e);
-                self.add_id_and_span(node, start_span.to(self.last_span))
+        macro_rules! assignments(
+            ( $( $tok:ident => $op:ident ),* ) => (
+            match *self.peek() {
+                Eq => {
+                    self.expect(Eq);
+                    let e = self.parse_expr_common(allow_structs);
+                    let node = AssignExpr(box lv, box e);
+                    self.add_id_and_span(node, start_span.to(self.last_span))
+                },
+                $(
+                    $tok => {
+                        self.expect($tok);
+                        let op_span = self.last_span;
+                        let e = self.parse_expr_common(allow_structs);
+                        let node = AssignOpExpr(
+                            self.add_id_and_span($op, op_span),
+                            box lv, box e);
+                        self.add_id_and_span(node, start_span.to(self.last_span))
+                    },
+                    )*
+                    _ => lv,
             }
-            _ => lv,
-        }
+            )
+                                 )
+
+        assignments!(PlusEq => PlusOp)
     }
 
     fn parse_path_or_struct_expr(&mut self) -> Expr {

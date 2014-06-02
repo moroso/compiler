@@ -617,8 +617,26 @@ impl<'a> Typechecker<'a> {
 
                 let r_ty = self.expr_to_ty(*rv);
 
-                self.unify(l_ty, r_ty);
-                UnitTy
+                self.unify(l_ty, r_ty)
+            }
+            AssignOpExpr(ref op, ref lv, ref rv) => {
+                // For the purposes of typechecking, we can pretend that
+                // e1 += e2 is e1 = e1 + e2.
+
+                // Using expr.id is a bit of a hack, but:
+                // - IDs on these nodes are never used;
+                // - Even if they later are, using the same ID as the original
+                //   expression is unlikely to break anything.
+                self.expr_to_ty(
+                    &WithId {
+                        val: AssignExpr(lv.clone(),
+                                        box WithId {
+                                            val: BinOpExpr(*op,
+                                                           lv.clone(),
+                                                           rv.clone()),
+                                            id: expr.id }),
+                        id: expr.id}
+                    )
             }
             DotExpr(ref e, ref fld) => {
                 let e_ty = self.expr_to_ty(*e);
@@ -668,14 +686,12 @@ impl<'a> Typechecker<'a> {
                 self.unify(UnitTy, b_ty)
             }
             ForExpr(ref init, ref cond, ref step, ref b) => {
-                let i_ty = self.expr_to_ty(*init);
-                self.unify(UnitTy, i_ty);
+                let _ = self.expr_to_ty(*init);
 
                 let c_ty = self.expr_to_ty(*cond);
                 self.unify(BoolTy, c_ty);
 
-                let s_ty = self.expr_to_ty(*step);
-                self.unify(UnitTy, s_ty);
+                let _ = self.expr_to_ty(*step);
 
                 let b_ty = self.block_to_ty(*b);
                 self.unify(UnitTy, b_ty)
