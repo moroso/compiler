@@ -8,6 +8,7 @@ pub mod ast_to_intermediate;
 pub mod liveness;
 pub mod constant_fold;
 pub mod ssa;
+pub mod util;
 
 #[deriving(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Var {

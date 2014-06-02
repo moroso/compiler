@@ -17,6 +17,7 @@ MC_FILES := \
 	ir/liveness.rs \
 	ir/constant_fold.rs \
 	ir/ssa.rs \
+	ir/util.rs \
 	intermediate_tests.rs \
 
 TEST_FILES := \

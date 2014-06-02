@@ -170,10 +170,13 @@ impl<'a> ASTToIntermediate<'a> {
                 let (b2_insts, b2_var) = self.convert_block(*b2);
                 let b1_label = self.gen_label();
                 let end_var = self.gen_temp();
-                insts.push(CondGoto(Variable(if_var), b1_label, TreeSet::new()));
+                insts.push(CondGoto(Variable(if_var),
+                                    b1_label,
+                                    TreeSet::new()));
                 insts.push_all_move(b2_insts);
                 insts.push(Assign(VarLValue(end_var),
                                   DirectRValue(Variable(b2_var))));
+                insts.push(Goto(b1_label, TreeSet::new()));
                 insts.push(Label(b1_label, TreeSet::new()));
                 insts.push_all_move(b1_insts);
                 insts.push(Assign(VarLValue(end_var),
@@ -184,7 +187,9 @@ impl<'a> ASTToIntermediate<'a> {
                 let begin_label = self.gen_label();
                 let middle_label = self.gen_label();
                 let end_label = self.gen_label();
-                let mut res = vec!(Label(begin_label, TreeSet::new()));
+                let mut res = vec!(
+                    Goto(begin_label, TreeSet::new()),
+                    Label(begin_label, TreeSet::new()));
                 let (cond_insts, cond_var) = self.convert_expr(*e);
                 res.push_all_move(cond_insts);
                 res.push(CondGoto(Variable(cond_var),

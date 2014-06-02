@@ -1,36 +1,12 @@
 // Constant folding.
 
 use ir::*;
+use ir::util::subst;
 use ast::*;
 use values::*;
 
 pub struct ConstantFolder {
     pub ops: Box<Vec<Op>>,
-}
-
-fn substituted_rvalue(rv: &RValue,
-                      wrapped_var: RValueElem,
-                      lit: &LitNode) -> RValue {
-    match *rv {
-        BinOpRValue(ref op, ref r1, ref r2) =>
-            BinOpRValue(
-                *op,
-                if wrapped_var == *r1 { Constant(lit.clone()) }
-                else { r1.clone() },
-                if wrapped_var == *r2 { Constant(lit.clone()) }
-                else { r2.clone() },
-                ),
-        UnOpRValue(ref op, ref r1) =>
-            UnOpRValue(
-                *op,
-                if wrapped_var == *r1 { Constant(lit.clone()) }
-                else { r1.clone() }
-                ),
-        DirectRValue(ref r) =>
-            DirectRValue(if wrapped_var == *r
-                         { Constant(lit.clone()) }
-                         else { (*r).clone() }),
-    }
 }
 
 fn fold(op: &BinOpNode, e1: &RValueElem, e2: &RValueElem) ->
@@ -64,43 +40,6 @@ impl ConstantFolder {
     pub fn new(ops: Box<Vec<Op>>) -> ConstantFolder {
         ConstantFolder {
             ops: ops,
-        }
-    }
-
-    // TODO(mrwright): this function was written really hastily and should
-    // probably be rewritten
-    pub fn subst(&mut self, var: &Var, lit: &LitNode) {
-        let wrapped_var = Variable(var.clone());
-        for op in self.ops.mut_iter() {
-            let temp = match *op {
-                Assign(ref x, ref rv) =>
-                    match *x {
-                        VarLValue(ref v) if v == var =>
-                            Nop,
-                        _ =>
-                    Assign(x.clone(),
-                           substituted_rvalue(rv, wrapped_var.clone(), lit)),
-                    },
-                CondGoto(ref rve, ref u, ref vars) => {
-                    if wrapped_var == *rve {
-                        // TODO: give a warning that conditional is always
-                        // true or always false.
-                        if *lit == BoolLit(true) {
-                            Goto(u.clone(), vars.clone())
-                        } else {
-                            Nop
-                        }
-                    } else {
-                        CondGoto(
-                            { (*rve).clone() },
-                            u.clone(),
-                            vars.clone()
-                                )
-                    }
-                },
-                ref x => x.clone()
-            };
-            *op = temp;
         }
     }
 
@@ -144,8 +83,8 @@ impl ConstantFolder {
             }
         }
 
-        for &(ref a, ref b) in changes.iter() {
-            self.subst(a, b);
+        for (a, b) in changes.move_iter() {
+            subst(self.ops, &a, &Constant(b));
         }
         changed
     }
