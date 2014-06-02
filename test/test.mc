@@ -49,5 +49,7 @@ fn main() -> u32 {
     print_int(i);
     print_int(x);
     print_int(y);
+    y %= 3;
+    print_int(y);
     deref(&z)
 }

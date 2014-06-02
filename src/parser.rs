@@ -830,7 +830,16 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             )
                                  )
 
-        assignments!(PlusEq => PlusOp)
+        assignments!(PlusEq => PlusOp,
+                     MinusEq => MinusOp,
+                     TimesEq => TimesOp,
+                     SlashEq => DivideOp,
+                     PipeEq => BitOrOp,
+                     CaretEq => BitXorOp,
+                     AmpEq => BitAndOp,
+                     LshEq => LeftShiftOp,
+                     RshEq => RightShiftOp,
+                     PercentEq => ModOp)
     }
 
     fn parse_path_or_struct_expr(&mut self) -> Expr {

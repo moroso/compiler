@@ -83,6 +83,7 @@ pub enum Token {
     AmpEq,
     LshEq,
     RshEq,
+    PercentEq,
 
     // Literals
     IdentTok(String),
@@ -330,6 +331,7 @@ impl<T: Buffer> Lexer<T> {
             AmpEq        => "&=",
             LshEq        => "<<=",
             RshEq        => ">>=",
+            PercentEq    => "%=",
 
             // Literals
             IdentTok     => matcher!(r"[a-zA-Z_]\w*"),
