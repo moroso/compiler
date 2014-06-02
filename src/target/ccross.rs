@@ -151,7 +151,7 @@ impl CCrossCompiler {
             }
             None => tail(None),
         };
-        format!("\\{ {} {} {}; \\}", items, stmts, expr)
+        format!("\\{ {} {} {} \\}", items, stmts, expr)
     }
 
     fn visit_item(&self, item: &Item) -> String {
@@ -164,8 +164,8 @@ impl CCrossCompiler {
                     let args = self.visit_list(args, |x| self.visit_func_arg(x), ", ");
                     let block = self.visit_block(block, |e| {
                         match e {
-                            Some(e) => format!("return {}", e),
-                            None => String::from_str("return"),
+                            Some(e) => format!("return {};", e),
+                            None => String::from_str("return;"),
                         }
                     });
 
