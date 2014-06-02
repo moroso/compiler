@@ -46,7 +46,7 @@ fn find_enum_item_names(module: &Module) -> TreeMap<Name,
 
     for item in module.val.items.iter() {
         match item.val {
-            EnumItem(ref id, ref items, ref tps) => {
+            EnumItem(ref id, ref items, _) => {
                 let mut pos = 0;
                 for item in items.iter() {
                     enum_map.insert(item.ident.val.name,
@@ -272,7 +272,7 @@ impl CCrossCompiler {
 
     fn visit_path(&self, path: &Path) -> String {
         match self.enumitemnames.find(&path.val.elems.last().unwrap().val.name) {
-            Some(&(_, ref variants, ref pos)) => format!("\\{ .tag = {} \\}", pos),
+            Some(&(_, _, ref pos)) => format!("\\{ .tag = {} \\}", pos),
             None => {
                 let vec: Vec<&str> = path.val.elems.iter().map(|elem| self.session.interner.name_to_str(&elem.val.name)).collect();
                 vec.connect("_")
