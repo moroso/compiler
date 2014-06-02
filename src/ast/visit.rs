@@ -169,11 +169,7 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
         ArrowExpr(ref e, _) => {
             visitor.visit_expr(*e);
         }
-        AssignExpr(ref lv, ref rv) => {
-            visitor.visit_expr(*lv);
-            visitor.visit_expr(*rv);
-        }
-        AssignOpExpr(_, ref lv, ref rv) => {
+        AssignExpr(_, ref lv, ref rv) => {
             visitor.visit_expr(*lv);
             visitor.visit_expr(*rv);
         }

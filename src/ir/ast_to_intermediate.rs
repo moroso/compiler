@@ -85,7 +85,7 @@ impl<'a> ASTToIntermediate<'a> {
                 (vec!(), Var { name: path.val.elems.last().unwrap().val.name,
                                generation: None })
             },
-            AssignExpr(ref e1, ref e2) => {
+            AssignExpr(ref op, ref e1, ref e2) => {
                 let mut res;
                 let (insts2, var2) = self.convert_expr(*e2);
                 let (lhs, res_v) = match e1.val {

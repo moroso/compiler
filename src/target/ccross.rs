@@ -328,14 +328,10 @@ impl CCrossCompiler {
                 let field = self.session.interner.name_to_str(field);
                 format!("({})->{}", exp, field)
             }
-            AssignExpr(ref lhs, ref rhs) => {
+            AssignExpr(ref op, ref lhs, ref rhs) => {
                 let lhs = self.visit_expr(*lhs);
                 let rhs = self.visit_expr(*rhs);
-                format!("({}) = ({})", lhs, rhs)
-            }
-            AssignOpExpr(ref op, ref lhs, ref rhs) => {
-                let lhs = self.visit_expr(*lhs);
-                let rhs = self.visit_expr(*rhs);
+                let op = op.map_or(String::new(), |op| format!("{}", op));
                 format!("({}) {}= ({})", lhs, op, rhs)
             }
             CallExpr(ref f, ref args) => {

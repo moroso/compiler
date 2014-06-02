@@ -427,7 +427,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                     }
                     _ => {
                         if path.val.global || path.val.elems.len() != 1 {
-                            self.error(format!("Expected ident, found path"), self.last_span.get_begin());
+                            self.error(String::from_str("Expected ident, found path"), self.last_span.get_begin());
                         }
                         let mut elems = path.val.elems;
                         let ident = elems.pop().unwrap();
@@ -805,41 +805,25 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let start_span = self.peek_span();
         let lv = self.parse_binop_expr(allow_structs);
 
-        macro_rules! assignments(
-            ( $( $tok:ident => $op:ident ),* ) => (
-            match *self.peek() {
-                Eq => {
-                    self.expect(Eq);
-                    let e = self.parse_expr_common(allow_structs);
-                    let node = AssignExpr(box lv, box e);
-                    self.add_id_and_span(node, start_span.to(self.last_span))
-                },
-                $(
-                    $tok => {
-                        self.expect($tok);
-                        let op_span = self.last_span;
-                        let e = self.parse_expr_common(allow_structs);
-                        let node = AssignOpExpr(
-                            self.add_id_and_span($op, op_span),
-                            box lv, box e);
-                        self.add_id_and_span(node, start_span.to(self.last_span))
-                    },
-                    )*
-                    _ => lv,
-            }
-            )
-                                 )
+        let op = match *self.peek() {
+            PlusEq    => Some(PlusOp),
+            MinusEq   => Some(MinusOp),
+            TimesEq   => Some(TimesOp),
+            SlashEq   => Some(DivideOp),
+            PipeEq    => Some(BitOrOp),
+            CaretEq   => Some(BitXorOp),
+            AmpEq     => Some(BitAndOp),
+            LshEq     => Some(LeftShiftOp),
+            RshEq     => Some(RightShiftOp),
+            PercentEq => Some(ModOp),
+            Eq        => None,
+            _         => return lv,
+        }.map(|op| self.add_id_and_span(op, self.last_span));
 
-        assignments!(PlusEq => PlusOp,
-                     MinusEq => MinusOp,
-                     TimesEq => TimesOp,
-                     SlashEq => DivideOp,
-                     PipeEq => BitOrOp,
-                     CaretEq => BitXorOp,
-                     AmpEq => BitAndOp,
-                     LshEq => LeftShiftOp,
-                     RshEq => RightShiftOp,
-                     PercentEq => ModOp)
+        self.eat();
+        let e = self.parse_expr_common(allow_structs);
+        let node = AssignExpr(op, box lv, box e);
+        self.add_id_and_span(node, start_span.to(self.last_span))
     }
 
     fn parse_path_or_struct_expr(&mut self) -> Expr {

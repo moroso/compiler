@@ -199,6 +199,24 @@ macro_rules! constrained {
     )
 }
 
+fn op_to_bounds(op: &BinOp) -> TyBounds {
+    match op.val {
+        EqualsOp | NotEqualsOp                      => constrained!(EqKind),
+        AndAlsoOp | OrElseOp                        => Concrete(BoolTy),
+        LessOp | LessEqOp | GreaterOp | GreaterEqOp => constrained!(CmpKind),
+        PlusOp                                      => constrained!(AddKind),
+        MinusOp                                     => constrained!(SubKind),
+        TimesOp                                     => constrained!(MulKind),
+        DivideOp                                    => constrained!(DivKind),
+        ModOp                                       => constrained!(RemKind),
+        BitAndOp                                    => constrained!(BitAndKind),
+        BitOrOp                                     => constrained!(BitOrKind),
+        BitXorOp                                    => constrained!(BitXorKind),
+        LeftShiftOp                                 => constrained!(ShlKind),
+        RightShiftOp                                => constrained!(ShrKind),
+    }
+}
+
 impl<'a> Typechecker<'a> {
     pub fn new(session: &'a Session) -> Typechecker<'a> {
         Typechecker {
@@ -497,7 +515,7 @@ impl<'a> Typechecker<'a> {
                 StructTy(nid, tp_tys)
             }
             BinOpExpr(ref op, ref l, ref r) => {
-                let l_ty = self.expr_to_ty(*l);
+                let mut l_ty = self.expr_to_ty(*l);
                 let r_ty = self.expr_to_ty(*r);
 
                 enum TyOrKind {
@@ -505,44 +523,25 @@ impl<'a> Typechecker<'a> {
                     Kind(Kind),
                 }
 
-                let (expr_ty, ck) = match op.val {
-                    EqualsOp | NotEqualsOp =>
-                        (Some(BoolTy), Kind(EqKind)),
-                    AndAlsoOp | OrElseOp =>
-                        (Some(BoolTy), Ty(BoolTy)),
-                    LessOp | LessEqOp | GreaterOp | GreaterEqOp =>
-                        (Some(BoolTy), Kind(CmpKind)),
-                    PlusOp =>
-                        (None, Kind(AddKind)),
-                    MinusOp =>
-                        (None, Kind(SubKind)),
-                    TimesOp =>
-                        (None, Kind(MulKind)),
-                    DivideOp =>
-                        (None, Kind(DivKind)),
-                    ModOp =>
-                        (None, Kind(RemKind)),
-                    BitAndOp =>
-                        (None, Kind(BitAndKind)),
-                    BitOrOp =>
-                        (None, Kind(BitOrKind)),
-                    BitXorOp =>
-                        (None, Kind(BitXorKind)),
-                    LeftShiftOp =>
-                        (None, Kind(ShlKind)),
-                    RightShiftOp =>
-                        (None, Kind(ShrKind)),
+                let bounds = op_to_bounds(op);
+                let expr_ty = match op.val {
+                    EqualsOp | NotEqualsOp                      => Some(BoolTy),
+                    AndAlsoOp | OrElseOp                        => Some(BoolTy),
+                    LessOp | LessEqOp | GreaterOp | GreaterEqOp => Some(BoolTy),
+                    PlusOp                                      => None,
+                    MinusOp                                     => None,
+                    TimesOp                                     => None,
+                    DivideOp                                    => None,
+                    ModOp                                       => None,
+                    BitAndOp                                    => None,
+                    BitOrOp                                     => None,
+                    BitXorOp                                    => None,
+                    LeftShiftOp                                 => None,
+                    RightShiftOp                                => None,
                 };
 
-                let bounds = match ck {
-                    Kind(k) => constrained!(k),
-                    Ty(ty) => Concrete(ty),
-                };
-
-                let l_ty = self.check_ty_bounds(l_ty, bounds);
-                let ty = self.unify(l_ty, r_ty);
-
-                expr_ty.unwrap_or(ty)
+                l_ty = self.check_ty_bounds(l_ty, bounds);
+                expr_ty.unwrap_or(self.unify(l_ty, r_ty))
             }
             UnOpExpr(ref op, ref e) => {
                 let ty = self.expr_to_ty(*e);
@@ -607,8 +606,8 @@ impl<'a> Typechecker<'a> {
                     _ => fail!("Cannot cast to non-integral type"),
                 }
             }
-            AssignExpr(ref lv, ref rv) => {
-                let l_ty = match lv.val {
+            AssignExpr(ref op, ref lv, ref rv) => {
+                let mut l_ty = match lv.val {
                     PathExpr(..) | UnOpExpr(WithId { val: Deref, .. }, _) | IndexExpr(..) | DotExpr(..) | ArrowExpr(..) => {
                         self.expr_to_ty(*lv)
                     }
@@ -617,26 +616,15 @@ impl<'a> Typechecker<'a> {
 
                 let r_ty = self.expr_to_ty(*rv);
 
-                self.unify(l_ty, r_ty)
-            }
-            AssignOpExpr(ref op, ref lv, ref rv) => {
-                // For the purposes of typechecking, we can pretend that
-                // e1 += e2 is e1 = e1 + e2.
+                match *op {
+                    Some(ref op) => {
+                        let bounds = op_to_bounds(op);
+                        l_ty = self.check_ty_bounds(l_ty, bounds);
+                    }
+                    None => {}
+                }
 
-                // Using expr.id is a bit of a hack, but:
-                // - IDs on these nodes are never used;
-                // - Even if they later are, using the same ID as the original
-                //   expression is unlikely to break anything.
-                self.expr_to_ty(
-                    &WithId {
-                        val: AssignExpr(lv.clone(),
-                                        box WithId {
-                                            val: BinOpExpr(*op,
-                                                           lv.clone(),
-                                                           rv.clone()),
-                                            id: expr.id }),
-                        id: expr.id}
-                    )
+                self.unify(l_ty, r_ty)
             }
             DotExpr(ref e, ref fld) => {
                 let e_ty = self.expr_to_ty(*e);
