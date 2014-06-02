@@ -60,10 +60,12 @@ struct list_node {
 }
 
 static fn list_init_head(head: *list_head) {
-    head->next = head->prev = head;
+    head->next = head;
+    head->prev = head;
 }
 static fn list_init_node(head: *list_head) {
-    head->next = head->prev = null;
+    head->next = null as *list_node;
+    head->prev = null as *list_node;
 }
 
 static fn __list_insert_between(n: *list_node, n1: *list_node, n2: *list_node) {
@@ -84,7 +86,8 @@ static fn list_del(n: *list_node) {
     n->next->prev = n->prev;
     n->prev->next = n->next;
     // To help catch bugs.
-    n->next = n->prev = null;
+    n->next = null as *list_node;
+    n->prev = null as *list_node;
 }
 
 static fn list_is_empty(n: *list_head) -> bool {
