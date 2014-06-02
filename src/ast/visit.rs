@@ -218,7 +218,7 @@ pub fn walk_match_arm<T: Visitor>(visitor: &mut T, arm: &MatchArm) {
 
 pub fn walk_lit<T: Visitor>(_: &T, lit: &Lit) {
     match lit.val {
-        NumLit(..) | StringLit(..) | BoolLit(..) => {}
+        NumLit(..) | StringLit(..) | BoolLit(..) | NullLit => {}
     }
 }
 

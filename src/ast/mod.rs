@@ -222,6 +222,7 @@ pub enum LitNode {
     NumLit(u64, IntKind),
     StringLit(String),
     BoolLit(bool),
+    NullLit,
 }
 
 impl Show for LitNode {
@@ -230,6 +231,7 @@ impl Show for LitNode {
             NumLit(i, nt)     => write!(f, "{}{}", i, nt),
             StringLit(ref s)  => write!(f, "\"{}\"", s),
             BoolLit(b)        => write!(f, "BoolLit:{}", b),
+            NullLit           => write!(f, "null"),
         }
     }
 }

@@ -422,6 +422,7 @@ impl<'a> Typechecker<'a> {
             NumLit(_, ik) => intkind_to_ty(ik),
             StringLit(..) => StrTy,
             BoolLit(..) => BoolTy,
+            NullLit => PtrTy(box BottomTy),
         })
     }
 

@@ -383,6 +383,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let node = match self.eat() {
             True                 => BoolLit(true),
             False                => BoolLit(false),
+            Null                 => NullLit,
             StringTok(s)         => StringLit(s),
             NumberTok(num, kind) => NumLit(num, kind),
             tok                  => self.error(format!("Unexpected {} where literal expected", tok), self.last_span.get_begin())

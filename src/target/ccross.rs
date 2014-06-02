@@ -289,6 +289,7 @@ impl CCrossCompiler {
             NumLit(ref n, _) => format!("{}", n),
             StringLit(_) => fail!("TODO"),
             BoolLit(ref b) => format!("{}", if *b { 1 } else { 0 }),
+            NullLit => String::from_str("null"),
         }
     }
 
