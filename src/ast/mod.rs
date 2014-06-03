@@ -7,7 +7,7 @@ use std::fmt::{Formatter, Show};
 pub mod visit;
 pub mod defmap;
 
-#[deriving(Clone, TotalEq)]
+#[deriving(Clone, Eq)]
 pub struct WithId<T> {
     pub id: NodeId,
     pub val: T,
@@ -44,7 +44,7 @@ with_id! {
     Module   => ModuleNode,
 }
 
-#[deriving(TotalEq, PartialEq, Clone, TotalOrd, PartialOrd, Show)]
+#[deriving(Eq, PartialEq, Clone, Ord, PartialOrd, Show)]
 pub struct NodeId(pub uint);
 
 impl NodeId {
@@ -54,7 +54,7 @@ impl NodeId {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub struct IdentNode {
     pub tps: Option<Vec<Type>>,
     pub name: Name,
@@ -72,7 +72,7 @@ impl Show for IdentNode {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub struct PathNode {
     pub elems: Vec<Ident>,
     pub global: bool,
@@ -86,7 +86,7 @@ impl Show for PathNode {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub struct FieldPat {
     pub name: Name,
     pub pat:  Pat,
@@ -98,7 +98,7 @@ impl Show for FieldPat {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub enum PatNode {
     DiscardPat(Option<Type>),
     IdentPat(Ident, Option<Type>),
@@ -122,7 +122,7 @@ impl Show for PatNode {
 }
 
 /// Types
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub enum TypeNode {
     BoolType,
     UnitType,
@@ -149,7 +149,7 @@ impl Show for TypeNode {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub enum BinOpNode {
     PlusOp,
     MinusOp,
@@ -196,7 +196,7 @@ impl Show for BinOpNode {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub enum UnOpNode {
     Deref,
     AddrOf,
@@ -217,7 +217,7 @@ impl Show for UnOpNode {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub enum LitNode {
     NumLit(u64, IntKind),
     StringLit(String),
@@ -236,7 +236,7 @@ impl Show for LitNode {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub struct MatchArm {
     pub pat: Pat,
     pub body: Expr,
@@ -248,7 +248,7 @@ impl Show for MatchArm {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub enum ExprNode {
     UnitExpr,
     LitExpr(Lit),
@@ -305,7 +305,7 @@ impl Show for ExprNode {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub enum StmtNode {
     LetStmt(Pat, Option<Expr>),
     ExprStmt(Expr), // no trailing semicolon, must have unit type
@@ -329,7 +329,7 @@ impl Show for StmtNode {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub struct Block {
     pub items: Vec<Item>,
     pub stmts: Vec<Stmt>,
@@ -361,7 +361,7 @@ impl Show for Block {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub struct FuncArg {
     pub ident:   Ident,
     pub argtype: Type,
@@ -373,7 +373,7 @@ impl Show for FuncArg {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub struct Variant {
     pub ident: Ident,
     pub args: Vec<Type>,
@@ -389,7 +389,7 @@ impl Show for Variant {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub struct Field {
     pub name:    Name,
     pub fldtype: Type,
@@ -401,7 +401,7 @@ impl Show for Field {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub enum ItemNode {
     FuncItem(Ident, Vec<FuncArg>, Type, Block, Vec<Ident>),
     StructItem(Ident, Vec<Field>, Vec<Ident>),
@@ -453,7 +453,7 @@ impl Show for ItemNode {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub struct ModuleNode {
     pub items: Vec<Item>
 }

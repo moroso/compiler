@@ -14,7 +14,7 @@ use std::{io, option, iter};
 use std::slice::CloneableVector;
 
 
-#[deriving(TotalEq, PartialEq, Clone, Show)]
+#[deriving(Eq, PartialEq, Clone, Show)]
 pub enum Token {
     // Whitespace
     WS,

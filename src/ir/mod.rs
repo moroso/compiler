@@ -9,7 +9,7 @@ pub mod liveness;
 pub mod constant_fold;
 pub mod ssa;
 
-#[deriving(Clone, TotalEq, PartialEq, TotalOrd, PartialOrd)]
+#[deriving(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Var {
     pub name: Name,
     // If set, stores the generation of the variable. This will be None
@@ -43,7 +43,7 @@ impl Show for LValue {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 // An "element" of an RValue: either a variable or a constant.
 pub enum RValueElem {
     Variable(Var),
@@ -59,7 +59,7 @@ impl Show for RValueElem {
     }
 }
 
-#[deriving(TotalEq, PartialEq, Clone)]
+#[deriving(Eq, PartialEq, Clone)]
 pub enum RValue {
     // A binary operation applied to two RValueElems
     BinOpRValue(BinOpNode, RValueElem, RValueElem),
@@ -109,7 +109,7 @@ impl Show for Op {
     }
 }
 
-#[deriving(Show, TotalEq, PartialEq, Clone)]
+#[deriving(Show, Eq, PartialEq, Clone)]
 pub struct OpInfo {
     live: Vec<Var>, // Which variables are live at this instruction?
     used: Vec<Var>, // Which variables are used?
