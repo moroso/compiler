@@ -1,5 +1,5 @@
 use std::fmt::{Formatter, Result, Show};
-use ast::{LitNode, BinOpNode};
+use ast::{LitNode, BinOpNode, UnOpNode};
 use collections::TreeSet;
 
 use util::Name;
@@ -63,6 +63,8 @@ impl Show for RValueElem {
 pub enum RValue {
     // A binary operation applied to two RValueElems
     BinOpRValue(BinOpNode, RValueElem, RValueElem),
+    // A unary operation applied to an RValueElem
+    UnOpRValue(UnOpNode, RValueElem),
     // An RValueElem (variable or constant) itself.
     DirectRValue(RValueElem),
 }
@@ -76,6 +78,11 @@ impl Show for RValue {
                        format!("{}", v1),
                        op,
                        format!("{}", v2)),
+            UnOpRValue(ref op, ref v1) =>
+                write!(f,
+                       "{} {: >12}",
+                       op,
+                       format!("{}", v1)),
             DirectRValue(ref d) => write!(f, "{: >12}",
                                          format!("{}", d)),
         }

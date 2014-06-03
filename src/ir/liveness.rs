@@ -59,6 +59,13 @@ impl LivenessAnalyzer {
                                 _ => {},
                             };
                         },
+                        UnOpRValue(_, ref v1) => {
+                            match *v1 {
+                                Variable(ref w1) =>
+                                    opinfo.used.push(w1.clone()),
+                                _ => {},
+                            };
+                        },
                         DirectRValue(ref v) =>
                             match *v {
                                 Variable(ref v2) =>

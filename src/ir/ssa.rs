@@ -34,6 +34,9 @@ pub fn ssa_rvalue(generations: &mut TreeMap<Name, uint>, rv: &mut RValue) {
         BinOpRValue(_, ref mut lhs, ref mut rhs) => {
             ssa_rvalelem(generations, lhs);
             ssa_rvalelem(generations, rhs);
+        },
+        UnOpRValue(_, ref mut rhs) => {
+            ssa_rvalelem(generations, rhs);
         }
     }
 }

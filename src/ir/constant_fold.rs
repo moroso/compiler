@@ -20,6 +20,12 @@ fn substituted_rvalue(rv: &RValue,
                 if wrapped_var == *r2 { Constant(lit.clone()) }
                 else { r2.clone() },
                 ),
+        UnOpRValue(ref op, ref r1) =>
+            UnOpRValue(
+                *op,
+                if wrapped_var == *r1 { Constant(lit.clone()) }
+                else { r1.clone() }
+                ),
         DirectRValue(ref r) =>
             DirectRValue(if wrapped_var == *r
                          { Constant(lit.clone()) }
@@ -127,6 +133,9 @@ impl ConstantFolder {
                                         },
                                         _ => {}
                                     }
+                                },
+                                UnOpRValue(..) => {
+                                    // TODO: implement this.
                                 }
                             },
                         _ => {}

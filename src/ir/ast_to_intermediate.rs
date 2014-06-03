@@ -86,33 +86,82 @@ impl<'a> ASTToIntermediate<'a> {
                                generation: None })
             },
             AssignExpr(ref op, ref e1, ref e2) => {
-                let mut res;
-                let (insts2, var2) = self.convert_expr(*e2);
-                let (lhs, res_v) = match e1.val {
+                let (mut res, var2) = self.convert_expr(*e2);
+
+                // The RHS might be wrapped in a GroupExpr.
+                // Unwrap it.
+                let mut e1val = e1.val.clone();
+                loop {
+                    match e1val {
+                        GroupExpr(e) => e1val = e.val.clone(),
+                        _ => { break; }
+                    }
+                }
+
+                // The tuple elements are as follows:
+                // binop_var is the variable to use on the left-hand side
+                //     of a binary operation, if we decide to.
+                //     So, in a+=b, "binop_var" will be a variable containing
+                //     the value of a.
+                // binop_insts are the instructions necessary to put the
+                //     right value into binop_var.
+                // dest is the LValue where everything is ultimately stored.
+                let (binop_var, binop_insts, dest) = match e1val {
                     PathExpr(ref path) => {
-                        //fail!("Need to do paths properly")
-                        res = vec!();
-                        (VarLValue(Var { name: path.val.elems.last().unwrap().val.name,
-                                         generation: None }),
-                         Var { name: path.val.elems.last().unwrap().val.name,
-                               generation: None })
+                        let lhs_var = Var {
+                            name: path.val.elems.last().unwrap().val.name,
+                            generation: None
+                        };
+                        (lhs_var.clone(),
+                         vec!(),
+                         VarLValue(lhs_var.clone()))
                     },
-                    UnOpExpr(ref op, ref e) => {
+                    UnOpExpr(ref lhs_op, ref e) => {
                         let (insts, var) = self.convert_expr(*e);
-                        res = insts;
-                        match op.val {
+                        res.push_all_move(insts);
+                        let res_var = self.gen_temp();
+                        match lhs_op.val {
                             Deref => {
-                                (PtrLValue(var.clone()),
-                                 var2.clone())
+                                (res_var.clone(),
+                                 vec!(Assign(VarLValue(res_var.clone()),
+                                             UnOpRValue(Deref,
+                                                        Variable(var.clone())
+                                                        )
+                                             )
+                                      ),
+                                 PtrLValue(var.clone()))
                             },
                             _ => fail!(),
                         }
                     },
-                    _ => fail!(),
+                    _ => fail!("Got {}", e1.val),
                 };
-                res.push_all_move(insts2);
-                res.push(Assign(lhs, DirectRValue(Variable(var2))));
-                (res, res_v)
+                let final_var =
+                    match *op {
+                        Some(ref inner_op) => {
+                            // We actually have a binop!
+                            // Start by including the instructions to get
+                            // the value we're adding to.
+                            // So, in 'a+=b', this pushes the instructions
+                            // necessary to give us the value of 'a'.
+                            res.push_all_move(binop_insts);
+                            let binop_result_var = self.gen_temp();
+                            res.push(Assign(
+                                VarLValue(binop_result_var),
+                                BinOpRValue(inner_op.val.clone(),
+                                            Variable(binop_var),
+                                            Variable(var2))));
+                            binop_result_var
+                        },
+                        // No binop. We can just assign the result of
+                        // the rhs directly.
+                        None => var2
+                    };
+                // This generates a redundant store in some cases, but
+                // the optimizer will eliminate them.
+                res.push(Assign(dest, DirectRValue(Variable(final_var))));
+
+                (res, final_var)
             }
             BlockExpr(ref b) => self.convert_block(*b),
             IfExpr(ref e, ref b1, ref b2) => {

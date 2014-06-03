@@ -15,7 +15,8 @@ use ir::ssa::ToSSA;
 pub fn main() {
     let buffer = io::BufferedReader::new(io::MemReader::new(
         //Vec::from_slice("{*(a*5+6*7)=4u16*(5u16+1u16)*foo; b=a+1; c=6+7<2 || a}".as_bytes())
-        Vec::from_slice("{ while(1<2) { x = x + 1; x = 5; z = x + x; x = z; } }".as_bytes())
+        //Vec::from_slice("{ while(1<2) { x = x + 1; x = 5; z = x + x; x = z; } }".as_bytes())
+        Vec::from_slice("{ a += 1; *(b+3) += 1; }".as_bytes())
         ));
     let mut parser = Parser::new();
     let mut interner = Interner::new();
