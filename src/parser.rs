@@ -866,7 +866,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                     self.add_id_and_span(PathExpr(path), start_span.to(self.last_span))
                 }
             }
-            NumberTok(..) | StringTok(..) | True | False => {
+            NumberTok(..) | StringTok(..) | True | False | Null => {
                 let start_span = self.peek_span();
                 let node = LitExpr(self.parse_lit());
                 self.add_id_and_span(node, start_span.to(self.last_span))
