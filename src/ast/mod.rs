@@ -54,9 +54,11 @@ impl NodeId {
     }
 }
 
+// This is a fully-type-applied reference to an identifier.
+// e.g. "foo::<int,int*>"
 #[deriving(Eq, PartialEq, Clone)]
 pub struct IdentNode {
-    pub tps: Option<Vec<Type>>,
+    pub tps: Option<Vec<Type>>, // type arguments. Option<Vec> to avoid alloc.
     pub name: Name,
 }
 
