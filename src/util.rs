@@ -3,6 +3,8 @@ use std::fmt::{Show, Formatter};
 
 use std::fmt;
 
+// This represents an interned string/name/identifier. The mapping from strings
+// to Names and Names to strings is in the Interner (session.rs).
 #[deriving(Eq, Ord, PartialOrd, PartialEq, Clone, Show)]
 pub struct Name(pub uint);
 
