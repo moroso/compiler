@@ -51,5 +51,9 @@ fn main() -> u32 {
     print_int(y);
     y %= 3;
     print_int(y);
+    for(i=0; i<10; i+=1) {
+        if(i==4) { break; }
+        print_int(i);
+    }
     deref(&z)
 }

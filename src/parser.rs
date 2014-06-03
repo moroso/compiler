@@ -848,11 +848,17 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.add_id_and_span(node, start_span.to(self.last_span))
     }
 
+    fn parse_break_expr(&mut self) -> Expr {
+        self.expect(Break);
+        self.add_id_and_span(BreakExpr, self.last_span)
+    }
+
     fn parse_simple_expr(&mut self, allow_structs: bool) -> Expr {
         let start_span = self.peek_span();
         let mut expr = match *self.peek() {
             If => self.parse_if_expr(),
             Return => self.parse_return_expr(),
+            Break => self.parse_break_expr(),
             Match => self.parse_match_expr(),
             For => self.parse_for_expr(),
             While => self.parse_while_expr(),

@@ -269,6 +269,7 @@ pub enum ExprNode {
     IfExpr(Box<Expr>, Box<Block>, Box<Block>),
     BlockExpr(Box<Block>),
     ReturnExpr(Box<Expr>),
+    BreakExpr,
     WhileExpr(Box<Expr>, Box<Block>),
     ForExpr(Box<Expr>, Box<Expr>, Box<Expr>, Box<Block>),
     MatchExpr(Box<Expr>, Vec<MatchArm>),
@@ -294,6 +295,7 @@ impl Show for ExprNode {
             IfExpr(ref c, ref bt, ref bf)       => write!(f, "if {} \\{\n    {}\\} else \\{\n    {}\\}", c, bt, bf),
             BlockExpr(ref b)                    => write!(f, "{}", b),
             ReturnExpr(ref e)                   => write!(f, "return {}", e),
+            BreakExpr                           => write!(f, "break"),
             WhileExpr(ref e, ref b)             => write!(f, "while {} {}", e, b),
             ForExpr(ref e1, ref e2, ref e3, ref b) => write!(f, "for ({};{};{}) {}", e1, e2, e3, b),
             MatchExpr(ref e, ref items) => {
