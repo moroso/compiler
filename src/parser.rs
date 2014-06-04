@@ -192,6 +192,24 @@ impl Parser {
     }
 }
 
+impl OpTable {
+    fn parse_expr<'a, T: Buffer>(&self, parser: &mut StreamParser<'a, T>) -> Expr {
+        fn parse_row<'a, T: Buffer>(r: uint, rows: &[OpTableRow], parser: &mut StreamParser<'a, T>) -> Expr {
+            if r == 0 {
+                parser.parse_unop_expr_maybe_cast()
+            } else {
+                let row = &rows[r - 1];
+                let start_span = parser.peek_span();
+                let parse_simpler_expr = |p: &mut StreamParser<'a, T>| parse_row(r - 1, rows, p);
+                let e = parse_simpler_expr(parser);
+                parser.maybe_parse_binop(row.ops, row.assoc, parse_simpler_expr, e, start_span)
+            }
+        }
+
+        parse_row(self.rows.len(), self.rows, parser)
+    }
+}
+
 impl<'a, T: Buffer> StreamParser<'a, T> {
     fn new(lexer: Lexer<T>, interner: &'a mut Interner, parser: &'a mut Parser) -> StreamParser<'a, T> {
         let name = interner.intern(lexer.get_name());
@@ -727,6 +745,48 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         }
     }
 
+    fn maybe_parse_binop(&mut self,
+                         ops: uint,
+                         assoc: Assoc,
+                         parse_simpler_expr: |&mut StreamParser<'a, T>| -> Expr,
+                         e: Expr,
+                         start_span: Span)
+                      -> Expr {
+        if self.expr_is_complete(&e) {
+            return e;
+        }
+
+        let op = match *self.peek() {
+            ref tok if binop_from_token(tok).map_or(false, |op| ops & (1 << (op as uint)) != 0) => binop_from_token(tok).unwrap(),
+            _ => return e,
+        };
+
+        let op_span = self.peek_span();
+        self.expect(binop_token(op));
+        let op = self.add_id_and_span(op, op_span);
+
+        match assoc {
+            RightAssoc => {
+                let r_span = self.peek_span();
+                let r = parse_simpler_expr(self);
+                let r = self.maybe_parse_binop(ops, assoc, parse_simpler_expr, r, r_span);
+                let node = BinOpExpr(op, box e, box r);
+                self.add_id_and_span(node, start_span)
+            }
+            LeftAssoc => {
+                let r = parse_simpler_expr(self);
+                let node = BinOpExpr(op, box e, box r);
+                let e = self.add_id_and_span(node, start_span);
+                self.maybe_parse_binop(ops, assoc, parse_simpler_expr, e, start_span)
+            }
+            NonAssoc => {
+                let r = parse_simpler_expr(self);
+                let node = BinOpExpr(op, box e, box r);
+                self.add_id_and_span(node, start_span)
+            }
+        }
+    }
+
     fn parse_binop_expr(&mut self) -> Expr {
         macro_rules! ops {
             () => (0);
@@ -757,64 +817,6 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             ($($rows:expr),*) => (OpTable { rows: [$($rows),+] });
         }
 
-        fn parse_binop_expr_from_optable<'a, T: Buffer>(parser: &mut StreamParser<'a, T>, table: &OpTable) -> Expr {
-            fn maybe_parse_binop<'a, T: Buffer>(ops: uint,
-                                                assoc: Assoc,
-                                                parser: &mut StreamParser<'a, T>,
-                                                parse_simpler_expr: |&mut StreamParser<'a, T>| -> Expr,
-                                                e: Expr,
-                                                start_span: Span)
-                                             -> Expr {
-                if parser.expr_is_complete(&e) {
-                    return e;
-                }
-
-                let op = match *parser.peek() {
-                    ref tok if binop_from_token(tok).map_or(false, |op| ops & (1 << (op as uint)) != 0) => binop_from_token(tok).unwrap(),
-                    _ => return e,
-                };
-
-                let op_span = parser.peek_span();
-                parser.expect(binop_token(op));
-                let op = parser.add_id_and_span(op, op_span);
-
-                match assoc {
-                    RightAssoc => {
-                        let r_span = parser.peek_span();
-                        let r = parse_simpler_expr(parser);
-                        let r = maybe_parse_binop(ops, assoc, parser, parse_simpler_expr, r, r_span);
-                        let node = BinOpExpr(op, box e, box r);
-                        parser.add_id_and_span(node, start_span)
-                    }
-                    LeftAssoc => {
-                        let r = parse_simpler_expr(parser);
-                        let node = BinOpExpr(op, box e, box r);
-                        let e = parser.add_id_and_span(node, start_span);
-                        maybe_parse_binop(ops, assoc, parser, parse_simpler_expr, e, start_span)
-                    }
-                    NonAssoc => {
-                        let r = parse_simpler_expr(parser);
-                        let node = BinOpExpr(op, box e, box r);
-                        parser.add_id_and_span(node, start_span)
-                    }
-                }
-            }
-
-            fn parse_row<'a, T: Buffer>(r: uint, parser: &mut StreamParser<'a, T>, rows: &[OpTableRow]) -> Expr {
-                if r == 0 {
-                    parser.parse_unop_expr_maybe_cast()
-                } else {
-                    let row = &rows[r - 1];
-                    let start_span = parser.peek_span();
-                    let parse_simpler_expr = |p: &mut StreamParser<'a, T>| parse_row(r - 1, p, rows);
-                    let e = parse_simpler_expr(parser);
-                    maybe_parse_binop(row.ops, row.assoc, parser, parse_simpler_expr, e, start_span)
-                }
-            }
-
-            parse_row(table.rows.len(), parser, table.rows)
-        }
-
         static optable: OpTable = optable! {
             left!(TimesOp, DivideOp, ModOp),
             left!(PlusOp, MinusOp),
@@ -828,7 +830,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             left!(OrElseOp),
         };
 
-        parse_binop_expr_from_optable(self, &optable)
+        optable.parse_expr(self)
     }
 
     fn parse_expr_no_structs(&mut self) -> Expr {
