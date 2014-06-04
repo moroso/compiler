@@ -52,6 +52,15 @@ pub struct StreamParser<'a, T> {
     parser: &'a mut Parser,
     /// Reference to the session's interner
     interner: &'a mut Interner,
+    /// Any parsing restriction in the current context
+    restriction: Restriction,
+}
+
+#[deriving(PartialEq, Eq)]
+enum Restriction {
+    ExprStmtRestriction,
+    NoAmbiguousLBraceRestriction,
+    NoRestriction,
 }
 
 enum Assoc {
@@ -194,6 +203,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             parser: parser,
             interner: interner,
             last_span: mk_sp(SourcePos::new(), 0),
+            restriction: NoRestriction,
         }
     }
 
@@ -256,11 +266,6 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         WithId { val: val, id: id }
     }
 
-    /////////////////////////////////////////////////////////////////////
-    // The actual parser functions begin here!
-    // Most functions from this point on are for parsing a specific node
-    // in the grammar.
-
     /// Utility to parse a comma-separated list of things
     fn parse_list<U>(&mut self, p: |&mut StreamParser<'a, T>| -> U, end: Token, allow_trailing_comma: bool) -> Vec<U> {
         if *self.peek() == end {
@@ -284,6 +289,19 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
 
         res
     }
+
+    fn with_restriction<U>(&mut self, r: Restriction, p: |&mut StreamParser<'a, T>| -> U) -> U {
+        let old = self.restriction;
+        self.restriction = r;
+        let ret = p(self);
+        self.restriction = old;
+        ret
+    }
+
+    /////////////////////////////////////////////////////////////////////
+    // The actual parser functions begin here!
+    // Most functions from this point on are for parsing a specific node
+    // in the grammar.
 
     fn parse_name(&mut self) -> Name {
         match self.eat() {
@@ -559,7 +577,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             },
             Eq => {
                 self.expect(Eq);
-                let var_value = self.parse_expr();
+                let var_value = self.with_restriction(NoRestriction, |p| p.parse_expr());
                 self.expect(Semicolon);
                 Some(var_value)
             },
@@ -655,7 +673,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.add_id_and_span(MatchExpr(box matched_expr, match_items), start_span.to(self.last_span))
     }
 
-    fn parse_unop_expr(&mut self, allow_structs: bool) -> Expr {
+    fn parse_unop_expr(&mut self) -> Expr {
         let start_span = self.peek_span();
         let op = match *self.peek() {
             ref tok if unop_from_token(tok).is_some() =>
@@ -667,15 +685,15 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             Some(op) => {
                 self.expect(unop_token(op));
                 let op = self.add_id_and_span(op, self.last_span);
-                let e = self.parse_simple_expr(allow_structs);
+                let e = self.parse_simple_expr();
                 let node = UnOpExpr(op, box e);
                 self.add_id_and_span(node, start_span.to(self.last_span))
             }
-            _ => self.parse_simple_expr(allow_structs)
+            _ => self.parse_simple_expr()
         }
     }
 
-    fn parse_unop_expr_maybe_cast(&mut self, allow_structs: bool) -> Expr {
+    fn parse_unop_expr_maybe_cast(&mut self) -> Expr {
         fn maybe_parse_cast<'a, T: Buffer>(p: &mut StreamParser<'a, T>, expr: Expr, start_span: Span) -> Expr {
             match *p.peek() {
                 As => {
@@ -690,11 +708,26 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         }
 
         let start_span = self.peek_span();
-        let e = self.parse_unop_expr(allow_structs);
+        let e = self.parse_unop_expr();
         maybe_parse_cast(self, e, start_span)
     }
 
-    fn parse_binop_expr(&mut self, allow_structs: bool) -> Expr {
+    fn expr_is_complete(&mut self, e: &Expr) -> bool {
+        // An expression is 'complete' if the expression:
+        //   a) does not require a semicolon, and
+        //   b) is a statement.
+        match e.val {
+              IfExpr(..)
+            | ForExpr(..)
+            | WhileExpr(..)
+            | MatchExpr(..)
+            | BlockExpr(..)
+              => self.restriction == ExprStmtRestriction,
+            _ => false,
+        }
+    }
+
+    fn parse_binop_expr(&mut self) -> Expr {
         macro_rules! ops {
             () => (0);
             (,) => (0);
@@ -724,7 +757,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             ($($rows:expr),*) => (OpTable { rows: [$($rows),+] });
         }
 
-        fn parse_binop_expr_from_optable<'a, T: Buffer>(parser: &mut StreamParser<'a, T>, table: &OpTable, allow_structs: bool) -> Expr {
+        fn parse_binop_expr_from_optable<'a, T: Buffer>(parser: &mut StreamParser<'a, T>, table: &OpTable) -> Expr {
             fn maybe_parse_binop<'a, T: Buffer>(ops: uint,
                                                 assoc: Assoc,
                                                 parser: &mut StreamParser<'a, T>,
@@ -732,6 +765,10 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                                                 e: Expr,
                                                 start_span: Span)
                                              -> Expr {
+                if parser.expr_is_complete(&e) {
+                    return e;
+                }
+
                 let op = match *parser.peek() {
                     ref tok if binop_from_token(tok).map_or(false, |op| ops & (1 << (op as uint)) != 0) => binop_from_token(tok).unwrap(),
                     _ => return e,
@@ -763,19 +800,19 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 }
             }
 
-            fn parse_row<'a, T: Buffer>(r: uint, parser: &mut StreamParser<'a, T>, rows: &[OpTableRow], allow_structs: bool) -> Expr {
+            fn parse_row<'a, T: Buffer>(r: uint, parser: &mut StreamParser<'a, T>, rows: &[OpTableRow]) -> Expr {
                 if r == 0 {
-                    parser.parse_unop_expr_maybe_cast(allow_structs)
+                    parser.parse_unop_expr_maybe_cast()
                 } else {
                     let row = &rows[r - 1];
                     let start_span = parser.peek_span();
-                    let parse_simpler_expr = |p: &mut StreamParser<'a, T>| parse_row(r - 1, p, rows, allow_structs);
+                    let parse_simpler_expr = |p: &mut StreamParser<'a, T>| parse_row(r - 1, p, rows);
                     let e = parse_simpler_expr(parser);
                     maybe_parse_binop(row.ops, row.assoc, parser, parse_simpler_expr, e, start_span)
                 }
             }
 
-            parse_row(table.rows.len(), parser, table.rows, allow_structs)
+            parse_row(table.rows.len(), parser, table.rows)
         }
 
         static optable: OpTable = optable! {
@@ -791,20 +828,16 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             left!(OrElseOp),
         };
 
-        parse_binop_expr_from_optable(self, &optable, allow_structs)
-    }
-
-    pub fn parse_expr(&mut self) -> Expr {
-        self.parse_expr_common(true)
+        parse_binop_expr_from_optable(self, &optable)
     }
 
     fn parse_expr_no_structs(&mut self) -> Expr {
-        self.parse_expr_common(false)
+        self.with_restriction(NoAmbiguousLBraceRestriction, |p| p.parse_expr())
     }
 
-    fn parse_expr_common(&mut self, allow_structs: bool) -> Expr {
+    fn parse_expr(&mut self) -> Expr {
         let start_span = self.peek_span();
-        let lv = self.parse_binop_expr(allow_structs);
+        let lv = self.parse_binop_expr();
 
         let op = match *self.peek() {
             PlusEq    => Some(PlusOp),
@@ -822,7 +855,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         }.map(|op| self.add_id_and_span(op, self.last_span));
 
         self.eat();
-        let e = self.parse_expr_common(allow_structs);
+        let e = self.parse_expr();
         let node = AssignExpr(op, box lv, box e);
         self.add_id_and_span(node, start_span.to(self.last_span))
     }
@@ -831,7 +864,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let start_span = self.peek_span();
         let path = self.parse_path();
         let node = match *self.peek() {
-            LBrace => {
+            LBrace if self.restriction != NoAmbiguousLBraceRestriction => {
                 self.expect(LBrace);
                 let fields = self.parse_list(|p| {
                     let name = p.parse_name();
@@ -853,34 +886,33 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.add_id_and_span(BreakExpr, self.last_span)
     }
 
-    fn parse_simple_expr(&mut self, allow_structs: bool) -> Expr {
+    fn parse_simple_expr(&mut self) -> Expr {
         let start_span = self.peek_span();
-        let mut expr = match *self.peek() {
-            If => self.parse_if_expr(),
-            Return => self.parse_return_expr(),
-            Break => self.parse_break_expr(),
-            Match => self.parse_match_expr(),
-            For => self.parse_for_expr(),
-            While => self.parse_while_expr(),
-            LBrace => self.parse_block_expr(),
-            LParen => self.parse_paren_expr(),
-            ColonColon | IdentTok(..) => {
-                if allow_structs {
-                    self.parse_path_or_struct_expr()
-                } else {
-                    let path = self.parse_path();
-                    self.add_id_and_span(PathExpr(path), start_span.to(self.last_span))
-                }
-            }
-            NumberTok(..) | StringTok(..) | True | False | Null => {
-                let start_span = self.peek_span();
-                let node = LitExpr(self.parse_lit());
-                self.add_id_and_span(node, start_span.to(self.last_span))
-            }
-            _ => self.peek_error("Expected expression")
+        let peek_next_expr_parser = |p: &mut StreamParser<'a, T>| match *p.peek() {
+                If     => Some(|p: &mut StreamParser<'a, T>| p.parse_if_expr()),
+                Return => Some(|p: &mut StreamParser<'a, T>| p.parse_return_expr()),
+                Break  => Some(|p: &mut StreamParser<'a, T>| p.parse_break_expr()),
+                Match  => Some(|p: &mut StreamParser<'a, T>| p.parse_match_expr()),
+                For    => Some(|p: &mut StreamParser<'a, T>| p.parse_for_expr()),
+                While  => Some(|p: &mut StreamParser<'a, T>| p.parse_while_expr()),
+                LBrace => Some(|p: &mut StreamParser<'a, T>| p.parse_block_expr()),
+                LParen => Some(|p: &mut StreamParser<'a, T>| p.parse_paren_expr()),
+                ColonColon | IdentTok(..) => Some(|p: &mut StreamParser<'a, T>| p.parse_path_or_struct_expr()),
+                NumberTok(..) | StringTok(..) | True | False | Null => Some(|p: &mut StreamParser<'a, T>| {
+                    let start_span = p.peek_span();
+                    let node = LitExpr(p.parse_lit());
+                    p.add_id_and_span(node, start_span.to(p.last_span))
+                }),
+                _ => None,
+            };
+
+        let mut expr = match peek_next_expr_parser(self) {
+            Some(expr_parser) => expr_parser(self),
+            None    => self.peek_error("Expected expression")
         };
 
-        loop {
+        // While the next token cannot start an expression and expr is not complete
+        while !(peek_next_expr_parser(self).is_some() && self.expr_is_complete(&expr)) {
             let node = match *self.peek() {
                 Period => {
                     self.expect(Period);
@@ -904,18 +936,20 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                     self.expect(RParen);
                     CallExpr(box expr, args)
                 }
-                _ => return expr
+                _ => break,
             };
 
             expr = self.add_id_and_span(node, start_span.to(self.last_span));
         }
+
+        expr
     }
 
     fn parse_paren_expr(&mut self) -> Expr {
         let start_span = self.peek_span();
 
         self.expect(LParen);
-        let mut inner_exprs = self.parse_list(|p| p.parse_expr(), RParen, false);
+        let mut inner_exprs = self.with_restriction(NoRestriction, |p| p.parse_list(|p| p.parse_expr(), RParen, false));
         self.expect(RParen);
 
         let node = if inner_exprs.len() == 0 {
@@ -940,7 +974,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             Let => self.parse_let_stmt(),
             _ => {
                 let start_span = self.peek_span();
-                let expr = self.parse_expr();
+                let expr = self.with_restriction(ExprStmtRestriction, |p| p.parse_expr());
                 match *self.peek() {
                     Semicolon => {
                         self.expect(Semicolon);
