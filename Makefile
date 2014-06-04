@@ -44,7 +44,7 @@ run-tests: mc-tests
 run-ir-tests: ir-tests
 	./ir-tests
 
-run-all-tests: run-tests run-ir-tests test
+check: run-tests run-ir-tests test
 
 docs: doc/regexp/index.html
 
@@ -65,6 +65,6 @@ test/c-bin/%: test/c/%.c
 	mkdir -p $(dir $@)
 	gcc $< -o $@ || (cat $<; false)
 
-.PHONY: all docs clean run-tests run-ir-tests run-all-tests
+.PHONY: all docs clean run-tests run-ir-tests check
 clean:
 	rm -rf *~ doc mc mc-tests ir-tests test/c test/c-bin
