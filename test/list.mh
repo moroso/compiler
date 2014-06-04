@@ -2,6 +2,8 @@
 // Needs the C preprocessor. container_of is pretty necessary for
 // the whole scheme. The other macros are just convenient.
 
+
+
 // Generic defines
 #define static /*lol */
 
@@ -60,8 +62,8 @@ static fn list_init_head(head: *list_head) {
     head->prev = head;
 }
 static fn list_init_node(head: *list_head) {
-    head->next = null as *list_node;
-    head->prev = null as *list_node;
+    head->next = null;
+    head->prev = null;
 }
 
 static fn __list_insert_between(n: *list_node, n1: *list_node, n2: *list_node) {
