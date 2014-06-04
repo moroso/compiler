@@ -43,24 +43,19 @@ impl Ty {
     fn kinds(&self) -> EnumSet<Kind> {
         let mut set = EnumSet::empty();
         match *self {
-            StrTy | UnitTy |
-            TupleTy(..) | ArrayTy(..) | FuncTy(..) |
-            StructTy(..) | EnumTy(..) | BoundTy(..) => {
-                set.add(EqKind);
+            StrTy | FuncTy(..) | ArrayTy(..) => {
+                set.add(EqKind); // effectively pointer equality
             }
             BoolTy => {
                 set.add(EqKind);
+                set.add(AndKind);
+                set.add(OrKind);
             }
             PtrTy(..) => {
                 set.add(EqKind);
                 set.add(CmpKind);
                 set.add(AddKind);
                 set.add(SubKind);
-                set.add(BitAndKind);
-                set.add(BitOrKind);
-                set.add(BitXorKind);
-                set.add(ShrKind);
-                set.add(ShlKind);
             }
             GenericIntTy | IntTy(..) | UintTy(..) => {
                 set.add(EqKind);
@@ -91,6 +86,8 @@ impl Ty {
 enum Kind {
     EqKind,
     CmpKind,
+    AndKind,
+    OrKind,
     AddKind,
     SubKind,
     MulKind,
@@ -112,16 +109,18 @@ impl CLike for Kind {
         match u {
             0 => EqKind,
             1 => CmpKind,
-            2 => AddKind,
-            3 => SubKind,
-            4 => MulKind,
-            5 => DivKind,
-            6 => RemKind,
-            7 => BitAndKind,
-            8 => BitOrKind,
-            9 => BitXorKind,
-            10 => ShrKind,
-            11 => ShlKind,
+            2 => AndKind,
+            3 => OrKind,
+            4 => AddKind,
+            5 => SubKind,
+            6 => MulKind,
+            7 => DivKind,
+            8 => RemKind,
+            9 => BitAndKind,
+            10 => BitOrKind,
+            11 => BitXorKind,
+            12 => ShrKind,
+            13 => ShlKind,
             _ => fail!(),
         }
     }
@@ -130,18 +129,20 @@ impl CLike for Kind {
 impl fmt::Show for Kind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            EqKind => write!(f, "Eq"),
-            CmpKind => write!(f, "Cmp"),
-            AddKind => write!(f, "Add"),
-            SubKind => write!(f, "Sub"),
-            MulKind => write!(f, "Mul"),
-            DivKind => write!(f, "Div"),
-            RemKind => write!(f, "Rem"),
+            EqKind     => write!(f, "Eq"),
+            CmpKind    => write!(f, "Cmp"),
+            AndKind    => write!(f, "And"),
+            OrKind     => write!(f, "Or"),
+            AddKind    => write!(f, "Add"),
+            SubKind    => write!(f, "Sub"),
+            MulKind    => write!(f, "Mul"),
+            DivKind    => write!(f, "Div"),
+            RemKind    => write!(f, "Rem"),
             BitAndKind => write!(f, "BitAnd"),
-            BitOrKind => write!(f, "BitOr"),
+            BitOrKind  => write!(f, "BitOr"),
             BitXorKind => write!(f, "BitXor"),
-            ShrKind => write!(f, "Shr"),
-            ShlKind => write!(f, "Shl"),
+            ShrKind    => write!(f, "Shr"),
+            ShlKind    => write!(f, "Shl"),
         }
     }
 }
@@ -189,31 +190,33 @@ macro_rules! save_ty {
     ($n:expr, $t:expr) => ({ let ty = $t; self.typemap.types.insert($n.id.to_uint(), ty.clone()); ty })
 }
 
-macro_rules! constrained {
-    ($k:expr) => (
+macro_rules! enumset {
+    ($($k:expr),+,) => (enumset!($($k),+));
+    ($($k:expr),*) => (
         {
             let mut ks = EnumSet::empty();
-            ks.add($k);
-            Constrained(ks)
+            $(ks.add($k);)*
+            ks
         }
-    )
+    );
 }
 
-fn op_to_bounds(op: &BinOp) -> TyBounds {
+fn op_to_kind_set(op: &BinOp) -> EnumSet<Kind> {
     match op.val {
-        EqualsOp | NotEqualsOp                      => constrained!(EqKind),
-        AndAlsoOp | OrElseOp                        => Concrete(BoolTy),
-        LessOp | LessEqOp | GreaterOp | GreaterEqOp => constrained!(CmpKind),
-        PlusOp                                      => constrained!(AddKind),
-        MinusOp                                     => constrained!(SubKind),
-        TimesOp                                     => constrained!(MulKind),
-        DivideOp                                    => constrained!(DivKind),
-        ModOp                                       => constrained!(RemKind),
-        BitAndOp                                    => constrained!(BitAndKind),
-        BitOrOp                                     => constrained!(BitOrKind),
-        BitXorOp                                    => constrained!(BitXorKind),
-        LeftShiftOp                                 => constrained!(ShlKind),
-        RightShiftOp                                => constrained!(ShrKind),
+        EqualsOp | NotEqualsOp => enumset!(EqKind),
+        LessOp | GreaterOp     => enumset!(CmpKind),
+        LessEqOp | GreaterEqOp => enumset!(CmpKind, EqKind),
+        AndAlsoOp | OrElseOp   => enumset!(AndKind),
+        PlusOp                 => enumset!(AddKind),
+        MinusOp                => enumset!(SubKind),
+        TimesOp                => enumset!(MulKind),
+        DivideOp               => enumset!(DivKind),
+        ModOp                  => enumset!(RemKind),
+        BitAndOp               => enumset!(BitAndKind),
+        BitOrOp                => enumset!(BitOrKind),
+        BitXorOp               => enumset!(BitXorKind),
+        LeftShiftOp            => enumset!(ShlKind),
+        RightShiftOp           => enumset!(ShrKind),
     }
 }
 
@@ -516,39 +519,16 @@ impl<'a> Typechecker<'a> {
                 StructTy(nid, tp_tys)
             }
             BinOpExpr(ref op, ref l, ref r) => {
-                let mut l_ty = self.expr_to_ty(*l);
+                let l_ty = self.expr_to_ty(*l);
                 let r_ty = self.expr_to_ty(*r);
 
-                enum TyOrKind {
-                    Ty(Ty),
-                    Kind(Kind),
-                }
-
-                let bounds = op_to_bounds(op);
-                let expr_ty = match op.val {
-                    EqualsOp | NotEqualsOp                      => Some(BoolTy),
-                    AndAlsoOp | OrElseOp                        => Some(BoolTy),
-                    LessOp | LessEqOp | GreaterOp | GreaterEqOp => Some(BoolTy),
-                    PlusOp                                      => None,
-                    MinusOp                                     => None,
-                    TimesOp                                     => None,
-                    DivideOp                                    => None,
-                    ModOp                                       => None,
-                    BitAndOp                                    => None,
-                    BitOrOp                                     => None,
-                    BitXorOp                                    => None,
-                    LeftShiftOp                                 => None,
-                    RightShiftOp                                => None,
-                };
-
-                l_ty = self.check_ty_bounds(l_ty, bounds);
-                expr_ty.unwrap_or(self.unify(l_ty, r_ty))
+                self.unify_with_binop(op, l_ty, r_ty)
             }
             UnOpExpr(ref op, ref e) => {
                 let ty = self.expr_to_ty(*e);
                 let expr_ty = match op.val {
-                    Negate => self.check_ty_bounds(ty, constrained!(SubKind)),
-                    BitNot => self.check_ty_bounds(ty, constrained!(BitXorKind)),
+                    Negate => self.check_ty_bounds(ty, Constrained(enumset!(SubKind))),
+                    BitNot => self.check_ty_bounds(ty, Constrained(enumset!(BitXorKind))),
                     LogNot => self.check_ty_bounds(ty, Concrete(BoolTy)),
                     AddrOf => PtrTy(box ty),
                     Deref => match ty {
@@ -609,7 +589,7 @@ impl<'a> Typechecker<'a> {
                 }
             }
             AssignExpr(ref op, ref lv, ref rv) => {
-                let mut l_ty = match lv.val {
+                let l_ty = match lv.val {
                     PathExpr(..) | UnOpExpr(WithId { val: Deref, .. }, _) | IndexExpr(..) | DotExpr(..) | ArrowExpr(..) => {
                         self.expr_to_ty(*lv)
                     }
@@ -619,14 +599,9 @@ impl<'a> Typechecker<'a> {
                 let r_ty = self.expr_to_ty(*rv);
 
                 match *op {
-                    Some(ref op) => {
-                        let bounds = op_to_bounds(op);
-                        l_ty = self.check_ty_bounds(l_ty, bounds);
-                    }
-                    None => {}
+                    Some(ref op) => self.unify_with_binop(op, l_ty, r_ty),
+                    None => self.unify(l_ty, r_ty),
                 }
-
-                self.unify(l_ty, r_ty)
             }
             DotExpr(ref e, ref fld) => {
                 let e_ty = self.expr_to_ty(*e);
@@ -736,6 +711,34 @@ impl<'a> Typechecker<'a> {
                     }
                     _ => if t1.kinds().contains(ks) { t1 }
                          else { fail!("Expected type with bounds {} but found type {}", bounds, t1) }
+                }
+            }
+        }
+    }
+
+    fn unify_with_binop(&mut self, op: &BinOp, l_ty: Ty, r_ty: Ty) -> Ty {
+        fn is_integral_ty(t: &Ty) -> bool {
+            match *t {
+                UintTy(..) | IntTy(..) | GenericIntTy => true,
+                _ => false,
+            }
+        };
+
+        match (op.val, l_ty, r_ty) {
+            // Once again we appease the borrow checker...
+            (PlusOp, ref t, ref mut p@PtrTy(..)) | (PlusOp, ref mut p@PtrTy(..), ref t) if is_integral_ty(t) =>
+                ::std::mem::replace(p, UnitTy),
+            (MinusOp, PtrTy(..), PtrTy(..)) =>
+                UintTy(Width32), //TODO PtrWidth
+            (_, l_ty, r_ty) => {
+                let kinds = op_to_kind_set(op);
+                let bounds = Constrained(kinds);
+                let ty = self.check_ty_bounds(l_ty, bounds);
+
+                if kinds.intersects(enumset!(EqKind, CmpKind, AndKind, OrKind)) {
+                    BoolTy
+                } else {
+                    self.unify(ty, r_ty)
                 }
             }
         }

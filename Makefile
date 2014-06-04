@@ -24,6 +24,7 @@ TEST_FILES := \
 	test_casts.mc \
 	test_indexing.mc \
 	test_param_types.mc \
+	test_pointer_arith.mc \
 	test_recursive_types.mc \
 
 mc: $(addprefix src/,$(MC_FILES))
