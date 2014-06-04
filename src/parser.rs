@@ -837,7 +837,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.with_restriction(NoAmbiguousLBraceRestriction, |p| p.parse_expr())
     }
 
-    fn parse_expr(&mut self) -> Expr {
+    pub fn parse_expr(&mut self) -> Expr {
         let start_span = self.peek_span();
         let lv = self.parse_binop_expr();
 
