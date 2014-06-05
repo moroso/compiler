@@ -108,6 +108,10 @@ impl CCrossCompiler {
                 let name = self.session.interner.name_to_str(&name);
                 format!("{}(*{})({})", ty, name, list)
             },
+            ArrayType(ref t, ref size) => {
+                let name = self.session.interner.name_to_str(&name);
+                format!("{} {}[{}]", self.visit_type(*t), name, *size)
+            },
             _ => {
                 let ty = self.visit_type(t);
                 let name = self.session.interner.name_to_str(&name);
@@ -123,16 +127,16 @@ impl CCrossCompiler {
                     IdentPat(ref i, ref t) => (i, t),
                     _ => fail!("Only IdentPats are supported right now"),
                 };
+                let name = self.visit_ident(i);
                 let ty = match *t {
-                    Some(ref ty) => self.visit_type(ty),
+                    Some(ref ty) => self.visit_name_and_type(i.val.name, ty),
                     None => match *e {
-                        Some(ref expr) => self.visit_ty(self.typemap.types.get(&expr.id.to_uint())),
+                        Some(ref expr) => format!("{} {}", self.visit_ty(self.typemap.types.get(&expr.id.to_uint())), name),
                         None => fail!("Must specify a type."),
                     }
                 };
-                let name = self.visit_ident(i);
                 let maybe_expr = e.as_ref().map(|e| format!(" = {}", self.visit_expr(e))).unwrap_or_default();
-                format!("{} {} {};", ty, name, maybe_expr)
+                format!("{} {};", ty, maybe_expr)
             },
             ExprStmt(ref e) | SemiStmt(ref e) => { format!("{};", self.visit_expr(e)) },
         }
