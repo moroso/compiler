@@ -1,5 +1,6 @@
 // Constant folding.
 
+use collections::TreeSet;
 use ir::*;
 use ir::util::subst;
 use ast::*;
@@ -43,8 +44,7 @@ impl ConstantFolder {
         }
     }
 
-    pub fn constant_fold_once(&mut self) -> bool {
-        let mut changed = false;
+    pub fn constant_fold_once(&mut self, vars_to_avoid: &TreeSet<Var>) -> bool {
         let mut changes = vec!();
 
         for op in self.ops.iter() {
@@ -56,7 +56,6 @@ impl ConstantFolder {
                                 DirectRValue(ref r) => {
                                     match *r {
                                         Constant(ref c) => {
-                                            changed = true;
                                             changes.push((v.clone(),
                                                           c.clone()));
                                         },
@@ -66,7 +65,6 @@ impl ConstantFolder {
                                 BinOpRValue(ref op, ref v1, ref v2) => {
                                     match fold(op, v1, v2) {
                                         Some(ref c) => {
-                                            changed = true;
                                             changes.push((v.clone(),
                                                           c.clone()));
                                         },
@@ -83,13 +81,42 @@ impl ConstantFolder {
             }
         }
 
+        let mut changed = false;
         for (a, b) in changes.move_iter() {
-            subst(self.ops, &a, &Constant(b));
+            if !vars_to_avoid.contains(&a) {
+                subst(self.ops, &a, &Constant(b));
+                changed = true;
+            }
         }
         changed
     }
 
     pub fn constant_fold(&mut self) {
-        while self.constant_fold_once() {}
+        // There are certain variables we are prohibited from substituting.
+        // Those include any that appear in labels/gotos, as well as any
+        // that is dereferenced as part of the left hand side of an assignment.
+        let mut vars_to_avoid = TreeSet::<Var>::new();
+        for op in self.ops.iter() {
+            match *op {
+                Label(_, ref vars) |
+                Goto(_, ref vars) |
+                CondGoto(_, _, ref vars) => {
+                    for var in vars.iter() {
+                        vars_to_avoid.insert(var.clone());
+                    }
+                },
+                Assign(ref lhs, _) => {
+                    match *lhs {
+                        PtrLValue(ref var) => {
+                            vars_to_avoid.insert(var.clone());
+                        },
+                        _ => {},
+                    }
+                },
+                _ => {},
+            }
+        }
+        print!("avoid: {}\n", vars_to_avoid);
+        while self.constant_fold_once(&vars_to_avoid) {}
     }
 }
