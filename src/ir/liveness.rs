@@ -1,5 +1,6 @@
 // Liveness analysis
 
+use collections::TreeSet;
 use std::cmp::Eq;
 use ir::*;
 use ast::*;
@@ -25,10 +26,10 @@ impl LivenessAnalyzer {
             ops: ops,
             opinfo: Vec::from_fn(len,
                                  |_| OpInfo {
-                                     live: vec!(),
-                                     used: vec!(),
-                                     def: vec!(),
-                                     succ: vec!(),
+                                     live: TreeSet::new(),
+                                     used: TreeSet::new(),
+                                     def: TreeSet::new(),
+                                     succ: TreeSet::new(),
                                  }
                                  )
         }
@@ -43,46 +44,46 @@ impl LivenessAnalyzer {
                     let opinfo = self.opinfo.get_mut(u);
                     match *lv {
                         VarLValue(ref v) =>
-                            opinfo.def.push(v.clone()),
+                            { opinfo.def.insert(v.clone()); },
                         _ => {},
                     };
                     match *rv {
                         BinOpRValue(_, ref v1, ref v2) => {
                             match *v1 {
                                 Variable(ref w1) =>
-                                    opinfo.used.push(w1.clone()),
+                                    { opinfo.used.insert(w1.clone()); },
                                 _ => {},
                             };
                             match *v2 {
                                 Variable(ref w2) =>
-                                    opinfo.used.push(w2.clone()),
+                                    { opinfo.used.insert(w2.clone()); },
                                 _ => {},
                             };
                         },
                         UnOpRValue(_, ref v1) => {
                             match *v1 {
                                 Variable(ref w1) =>
-                                    opinfo.used.push(w1.clone()),
+                                    { opinfo.used.insert(w1.clone()); },
                                 _ => {},
                             };
                         },
                         DirectRValue(ref v) =>
                             match *v {
                                 Variable(ref v2) =>
-                                    opinfo.used.push(v2.clone()),
+                                    { opinfo.used.insert(v2.clone()); },
                                 _ => {},
                             },
                     };
                     // TODO: this needs to handle jumps.
                     if u + 1 < len {
-                        opinfo.succ.push(u + 1);
+                        opinfo.succ.insert(u + 1);
                     }
                 },
                 Nop |
                 Label(..) => {
                     if u + 1 < len {
                         let opinfo = self.opinfo.get_mut(u);
-                        opinfo.succ.push(u + 1);
+                        opinfo.succ.insert(u + 1);
                     }
                 },
                 Goto(ref l, _) => {
@@ -90,7 +91,7 @@ impl LivenessAnalyzer {
                     for u2 in range(0, len) {
                         match *self.ops.get(u2) {
                             Label(l2, _) if *l == l2 => {
-                                opinfo.succ.push(u2);
+                                opinfo.succ.insert(u2);
                                 break;
                             },
                             _ => {},
@@ -103,14 +104,14 @@ impl LivenessAnalyzer {
                     for u2 in range(0, len) {
                         match *self.ops.get(u2) {
                             Label(l2, _) if *l == l2 => {
-                                opinfo.succ.push(u2);
+                                opinfo.succ.insert(u2);
                                 break;
                             },
                             _ => {},
                         }
                     }
                     if u + 1 < len {
-                        opinfo.succ.push(u + 1);
+                        opinfo.succ.insert(u + 1);
                     }
                 },
             }
@@ -125,15 +126,14 @@ impl LivenessAnalyzer {
             let mut opinfo = self.opinfo.get_mut(u).clone();
 
             for usedvar in opinfo.used.iter() {
-                modified = modified || add_to(&mut opinfo.live,
-                                              usedvar.clone());
+                modified = modified || opinfo.live.insert(usedvar.clone());
             }
             for next_idx in opinfo.succ.iter() {
                 let next_opinfo = self.opinfo.get_mut(*next_idx);
                 for livevar in next_opinfo.live.iter() {
                     if !opinfo.def.contains(livevar) {
-                        modified = modified || add_to(&mut opinfo.live,
-                                                      livevar.clone());
+                        modified = modified
+                            || opinfo.live.insert(livevar.clone());
                     }
                 }
             }

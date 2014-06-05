@@ -84,10 +84,10 @@ pub fn subst(ops: &mut Vec<Op>,
                     }
                 } else {
                     CondGoto(
-                        { (*rve).clone() },
+                        (*rve).clone(),
                         u.clone(),
                         new_vars
-                            )
+                    )
                 }
             },
             ref x => x.clone()

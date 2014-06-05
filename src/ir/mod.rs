@@ -117,10 +117,10 @@ impl Show for Op {
     }
 }
 
-#[deriving(Show, Eq, PartialEq, Clone)]
+#[deriving(Show, Clone)]
 pub struct OpInfo {
-    live: Vec<Var>, // Which variables are live at this instruction?
-    used: Vec<Var>, // Which variables are used?
-    def: Vec<Var>, // Which variables are defined here?
-    succ: Vec<uint>, // Instructions which can follow this one.
+    live: TreeSet<Var>, // Which variables are live at this instruction?
+    used: TreeSet<Var>, // Which variables are used?
+    def: TreeSet<Var>, // Which variables are defined here?
+    succ: TreeSet<uint>, // Instructions which can follow this one.
 }
