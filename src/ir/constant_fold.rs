@@ -6,9 +6,7 @@ use ir::util::subst;
 use ast::*;
 use values::*;
 
-pub struct ConstantFolder {
-    pub ops: Box<Vec<Op>>,
-}
+pub struct ConstantFolder;
 
 fn fold(op: &BinOpNode, e1: &RValueElem, e2: &RValueElem) ->
     Option<LitNode>
@@ -37,66 +35,62 @@ fn fold(op: &BinOpNode, e1: &RValueElem, e2: &RValueElem) ->
     }
 }
 
-impl ConstantFolder {
-    pub fn new(ops: Box<Vec<Op>>) -> ConstantFolder {
-        ConstantFolder {
-            ops: ops,
-        }
-    }
+fn constant_fold_once(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>) -> bool {
+    let mut changes = vec!();
 
-    pub fn constant_fold_once(&mut self, vars_to_avoid: &TreeSet<Var>) -> bool {
-        let mut changes = vec!();
-
-        for op in self.ops.iter() {
-            match *op {
-                Assign(ref lv, ref rv) =>
-                    match *lv {
-                        VarLValue(ref v) =>
-                            match *rv {
-                                DirectRValue(ref r) => {
-                                    match *r {
-                                        Constant(ref c) => {
-                                            changes.push((v.clone(),
-                                                          c.clone()));
-                                        },
-                                        _ => {},
-                                    }
-                                },
-                                BinOpRValue(ref op, ref v1, ref v2) => {
-                                    match fold(op, v1, v2) {
-                                        Some(ref c) => {
-                                            changes.push((v.clone(),
-                                                          c.clone()));
-                                        },
-                                        _ => {}
-                                    }
-                                },
-                                UnOpRValue(..) => {
-                                    // TODO: implement this.
+    for op in ops.iter() {
+        match *op {
+            Assign(ref lv, ref rv) =>
+                match *lv {
+                    VarLValue(ref v) =>
+                        match *rv {
+                            DirectRValue(ref r) => {
+                                match *r {
+                                    Constant(ref c) => {
+                                        changes.push((v.clone(),
+                                                      c.clone()));
+                                    },
+                                    _ => {},
                                 }
                             },
-                        _ => {}
-                    },
-                _ => {},
-            }
+                            BinOpRValue(ref op, ref v1, ref v2) => {
+                                match fold(op, v1, v2) {
+                                    Some(ref c) => {
+                                        changes.push((v.clone(),
+                                                      c.clone()));
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            UnOpRValue(..) => {
+                                // TODO: implement this.
+                            }
+                        },
+                    _ => {}
+                },
+            _ => {},
         }
-
-        let mut changed = false;
-        for (a, b) in changes.move_iter() {
-            if !vars_to_avoid.contains(&a) {
-                subst(self.ops, &a, &Constant(b));
-                changed = true;
-            }
-        }
-        changed
     }
 
-    pub fn constant_fold(&mut self) {
+    let mut changed = false;
+    for (a, b) in changes.move_iter() {
+        if !vars_to_avoid.contains(&a) {
+            subst(ops, &a, &Constant(b));
+            changed = true;
+        }
+    }
+    changed
+}
+
+
+impl ConstantFolder {
+
+    pub fn fold(ops: &mut Vec<Op>) {
         // There are certain variables we are prohibited from substituting.
         // Those include any that appear in labels/gotos, as well as any
         // that is dereferenced as part of the left hand side of an assignment.
         let mut vars_to_avoid = TreeSet::<Var>::new();
-        for op in self.ops.iter() {
+        for op in ops.iter() {
             match *op {
                 Label(_, ref vars) |
                 Goto(_, ref vars) |
@@ -117,6 +111,6 @@ impl ConstantFolder {
             }
         }
         print!("avoid: {}\n", vars_to_avoid);
-        while self.constant_fold_once(&vars_to_avoid) {}
+        while constant_fold_once(ops, &vars_to_avoid) {}
     }
 }

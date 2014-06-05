@@ -25,23 +25,19 @@ pub fn main() {
 
     let ast = parser.parse_with(lexer, &mut interner, |p| p.parse_expr());
     let mut conv = ASTToIntermediate::new(&mut interner);
-    let (ops, var) = conv.convert_expr(&ast);
+    let (mut ops, var) = conv.convert_expr(&ast);
 
     print!("{}\n", ast);
     print!("{}\n", (&ops, var));
 
-    let mut ssa = ToSSA::new(box ops);
-    ssa.to_ssa();
-    print!("{}\n", ssa.ops);
+    ToSSA::to_ssa(&mut ops);
+    print!("{}\n", ops);
 
-    let mut folder = ConstantFolder::new(ssa.ops);
-    folder.constant_fold();
-    print!("{}\n", folder.ops);
+    ConstantFolder::fold(&mut ops);
+    print!("{}\n", ops);
 
-    let mut liveness = LivenessAnalyzer::new(folder.ops);
-    liveness.seed();
-    liveness.propagate();
-    for z in liveness.opinfo.iter().zip(liveness.ops.iter()) {
+    let opinfo = LivenessAnalyzer::analyze(&ops);
+    for z in opinfo.iter().zip(ops.iter()) {
         print!("{}", z);
     }
 }
