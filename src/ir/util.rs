@@ -1,7 +1,7 @@
 use ast::*;
 use ir::*;
 use values::*;
-use collections::TreeSet;
+use std::collections::TreeSet;
 
 fn substituted_rvalue(rv: &RValue,
                       wrapped_var: RValueElem,

@@ -1,4 +1,4 @@
-use collections::TreeMap;
+use std::collections::TreeMap;
 use util::Name;
 
 use std::fmt;
@@ -155,7 +155,7 @@ mod tests {
     use ast::NodeId;
     use ast::visit::Visitor;
     use parser::ast_from_str;
-    use collections::TreeMap;
+    use std::collections::TreeMap;
 
     #[test]
     fn compare_canonicalized() {

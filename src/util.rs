@@ -1,4 +1,4 @@
-use collections::TreeMap;
+use std::collections::TreeMap;
 use std::fmt::{Show, Formatter};
 
 use std::fmt;

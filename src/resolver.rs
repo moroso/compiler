@@ -1,6 +1,6 @@
 use ast::*;
 use ast::visit::*;
-use collections::{SmallIntMap, TreeMap};
+use std::collections::{SmallIntMap, TreeMap};
 
 use session::Interner;
 use util::Name;
@@ -381,7 +381,7 @@ mod tests {
     use ast::NodeId;
     use ast::visit::Visitor;
     use parser::ast_from_str;
-    use collections::TreeMap;
+    use std::collections::TreeMap;
 
     #[test]
     fn basic_resolver_test() {

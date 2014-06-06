@@ -17,7 +17,7 @@
  * nodes we build.
  */
 
-use collections::{HashMap, TreeMap};
+use std::collections::{HashMap, TreeMap};
 use session::Interner;
 use span::{SourcePos, Span, mk_sp};
 use util::Name;

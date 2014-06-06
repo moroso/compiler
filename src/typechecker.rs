@@ -1,5 +1,5 @@
-use collections::{SmallIntMap, TreeMap, EnumSet};
-use collections::enum_set::CLike;
+use std::collections::{SmallIntMap, TreeMap, EnumSet};
+use std::collections::enum_set::CLike;
 use resolver::Resolver;
 use session::Session;
 use util::{IntKind, GenericInt, SignedInt, UnsignedInt};
@@ -923,7 +923,7 @@ mod tests {
     use ast::NodeId;
     use ast::visit::Visitor;
     use parser::ast_from_str;
-    use collections::TreeMap;
+    use std::collections::TreeMap;
     use super::Typechecker;
 
     #[test]

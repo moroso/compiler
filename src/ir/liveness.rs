@@ -1,6 +1,6 @@
 // Liveness analysis
 
-use collections::TreeSet;
+use std::collections::TreeSet;
 use std::cmp::Eq;
 use ir::*;
 use ast::*;

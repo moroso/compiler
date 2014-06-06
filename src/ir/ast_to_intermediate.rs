@@ -2,7 +2,7 @@ use session::Interner;
 
 use ast::*;
 use ir::*;
-use collections::TreeSet;
+use std::collections::TreeSet;
 
 pub struct ASTToIntermediate<'a> {
     var_count: uint,

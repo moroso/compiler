@@ -2,7 +2,7 @@ use ir::*;
 use ir::util::subst;
 use ir::liveness::LivenessAnalyzer;
 use util::Name;
-use collections::{TreeMap, SmallIntMap, TreeSet};
+use std::collections::{TreeMap, SmallIntMap, TreeSet};
 
 pub struct ToSSA;
 

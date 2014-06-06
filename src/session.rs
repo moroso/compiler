@@ -6,7 +6,7 @@
 
 use std::io;
 
-use collections::{HashMap, TreeMap};
+use std::collections::{HashMap, TreeMap};
 use span::Span;
 use ast::Module;
 use ast::defmap::DefMap;

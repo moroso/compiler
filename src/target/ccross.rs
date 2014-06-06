@@ -6,7 +6,7 @@ use std::io::stdio;
 use lexer::Lexer;
 use parser::Parser;
 use ast::visit::{Visitor, walk_module};
-use collections::treemap::{TreeSet, TreeMap};
+use std::collections::treemap::{TreeSet, TreeMap};
 use resolver::Resolver;
 use session::Session;
 use package::Package;

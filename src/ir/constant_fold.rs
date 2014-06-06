@@ -1,6 +1,6 @@
 // Constant folding.
 
-use collections::TreeSet;
+use std::collections::TreeSet;
 use ir::*;
 use ir::util::subst;
 use ast::*;

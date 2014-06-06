@@ -1,6 +1,6 @@
 use std::fmt::{Formatter, Result, Show};
 use ast::{LitNode, BinOpNode, UnOpNode};
-use collections::TreeSet;
+use std::collections::TreeSet;
 
 use util::Name;
 
