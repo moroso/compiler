@@ -474,11 +474,12 @@ impl Target for CTarget {
             typemap: typemap,
         };
 
+/*
         match writeln!(stderr, "{}", module) {
             Err(e) => fail!("{}", e),
             _ => {}
         }
-
+*/
         /* what?
         match writeln!(stderr, "{}", cc.enumitemnames) {
             Err(e) => fail!("{}", e),
