@@ -256,6 +256,108 @@ impl<T: Buffer> Lexer<T> {
             }
         }
 
+        // The following regex is adapted from Swift's rules
+        let ident_matcher = matcher! {
+            "[_A-Za-z\
+              \\x{000A8}\
+              \\x{000AA}\
+              \\x{000AD}\
+              \\x{000AF}\
+              \\x{000B2}-\\x{000B5}\
+              \\x{000B7}-\\x{000BA}\
+              \\x{000BC}-\\x{000BE}\
+              \\x{000C0}-\\x{000D6}\
+              \\x{000D8}-\\x{000F6}\
+              \\x{000F8}-\\x{000FF}\
+              \\x{00100}-\\x{002FF}\
+              \\x{00370}-\\x{0167F}\
+              \\x{01681}-\\x{0180D}\
+              \\x{0180F}-\\x{01DBF}\
+              \\x{01E00}-\\x{01FFF}\
+              \\x{0200B}-\\x{0200D}\
+              \\x{0202A}-\\x{0202E}\
+              \\x{0203F}-\\x{02040}\
+              \\x{02054}\
+              \\x{02060}-\\x{0206F}\
+              \\x{02070}-\\x{020CF}\
+              \\x{02100}-\\x{0218F}\
+              \\x{02460}-\\x{024FF}\
+              \\x{02776}-\\x{02793}\
+              \\x{02C00}-\\x{02DFF}\
+              \\x{02E80}-\\x{02FFF}\
+              \\x{03004}-\\x{03007}\
+              \\x{03021}-\\x{0302F}\
+              \\x{03031}-\\x{0303F}\
+              \\x{03040}-\\x{0D7FF}\
+              \\x{0F900}-\\x{0FD3D}\
+              \\x{0FD40}-\\x{0FDCF}\
+              \\x{0FDF0}-\\x{0FE1F}\
+              \\x{0FE30}-\\x{0FE44}\
+              \\x{0FE47}-\\x{0FFFD}\
+              \\x{10000}-\\x{1FFFD}\
+              \\x{20000}-\\x{2FFFD}\
+              \\x{30000}-\\x{3FFFD}\
+              \\x{40000}-\\x{4FFFD}\
+              \\x{50000}-\\x{5FFFD}\
+              \\x{60000}-\\x{6FFFD}\
+              \\x{70000}-\\x{7FFFD}\
+              \\x{80000}-\\x{8FFFD}\
+              \\x{90000}-\\x{9FFFD}\
+              \\x{A0000}-\\x{AFFFD}\
+              \\x{B0000}-\\x{BFFFD}\
+              \\x{C0000}-\\x{CFFFD}\
+              \\x{D0000}-\\x{DFFFD}\
+              \\x{E0000}-\\x{EFFFD}\
+            ]\
+            [_A-Za-z0-9\
+              \\x{000A8}\
+              \\x{000AA}\
+              \\x{000AD}\
+              \\x{000AF}\
+              \\x{000B2}-\\x{000B5}\
+              \\x{000B7}-\\x{000BA}\
+              \\x{000BC}-\\x{000BE}\
+              \\x{000C0}-\\x{000D6}\
+              \\x{000D8}-\\x{000F6}\
+              \\x{000F8}-\\x{000FF}\
+              \\x{00100}-\\x{0167F}\
+              \\x{01681}-\\x{0180D}\
+              \\x{0180F}-\\x{01FFF}\
+              \\x{0200B}-\\x{0200D}\
+              \\x{0202A}-\\x{0202E}\
+              \\x{0203F}-\\x{02040}\
+              \\x{02054}\
+              \\x{02060}-\\x{0206F}\
+              \\x{02070}-\\x{0218F}\
+              \\x{02460}-\\x{024FF}\
+              \\x{02776}-\\x{02793}\
+              \\x{02C00}-\\x{02DFF}\
+              \\x{02E80}-\\x{02FFF}\
+              \\x{03004}-\\x{03007}\
+              \\x{03021}-\\x{0302F}\
+              \\x{03031}-\\x{0303F}\
+              \\x{03040}-\\x{0D7FF}\
+              \\x{0F900}-\\x{0FD3D}\
+              \\x{0FD40}-\\x{0FDCF}\
+              \\x{0FDF0}-\\x{0FE44}\
+              \\x{0FE47}-\\x{0FFFD}\
+              \\x{10000}-\\x{1FFFD}\
+              \\x{20000}-\\x{2FFFD}\
+              \\x{30000}-\\x{3FFFD}\
+              \\x{40000}-\\x{4FFFD}\
+              \\x{50000}-\\x{5FFFD}\
+              \\x{60000}-\\x{6FFFD}\
+              \\x{70000}-\\x{7FFFD}\
+              \\x{80000}-\\x{8FFFD}\
+              \\x{90000}-\\x{9FFFD}\
+              \\x{A0000}-\\x{AFFFD}\
+              \\x{B0000}-\\x{BFFFD}\
+              \\x{C0000}-\\x{CFFFD}\
+              \\x{D0000}-\\x{DFFFD}\
+              \\x{E0000}-\\x{EFFFD}\
+            ]*"
+        };
+
         // Note: rules are in decreasing order of priority if there's a
         // conflict. In particular, reserved words must go before IdentTok.
         let rules = lexer_rules! {
@@ -338,7 +440,7 @@ impl<T: Buffer> Lexer<T> {
             PercentEq    => "%=",
 
             // Literals
-            IdentTok     => matcher!(r"[a-zA-Z_]\w*"),
+            IdentTok     => ident_matcher,
             NumberTok    => NumberRule,
             StringTok    => StringRule
         };
