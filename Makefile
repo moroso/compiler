@@ -1,3 +1,5 @@
+RUST_FLAGS ?=
+
 MC_FILES := \
 	main.rs \
 	lexer.rs \
@@ -30,13 +32,13 @@ TEST_FILES := \
 	test_array.mc
 
 mc: $(addprefix src/,$(MC_FILES))
-	rustc $< -o $@ -g
+	rustc $(RUST_FLAGS) $< -o $@ -g
 
 mc-tests: $(addprefix src/,$(MC_FILES))
-	rustc --test $< -o $@ -g
+	rustc $(RUST_FLAGS) --test $< -o $@ -g
 
 ir-tests: $(addprefix src/,$(MC_FILES))
-	rustc $< --cfg ir_tests -o $@
+	rustc $(RUST_FLAGS) $< --cfg ir_tests -o $@
 
 all: mc mc-tests ir-tests
 
