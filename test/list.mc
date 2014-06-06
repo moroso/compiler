@@ -40,6 +40,8 @@ fn main() -> i32 {
 
     print_list(&head);
 
+    let p: *nobe = list_head_entry(&head, nobe, link);
+    let p1: *nobe = list_next_entry(&head, p, nobe, link);
 
     0
 }

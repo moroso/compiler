@@ -22,25 +22,27 @@
 // These functions should only be used if the results are known to be
 // well defined.
 #define list_head_entry_(head, typ, link) \
-    container_of(head->next, typ, link)
+    container_of((head)->next, typ, link)
 #define list_tail_entry_(head, typ, link) \
-    container_of(head->prev, typ, link)
+    container_of((head)->prev, typ, link)
 
 #define list_next_entry_(node, typ, link) \
-    container_of(node->link.next, typ, link)
+    container_of((node)->link.next, typ, link)
 #define list_prev_entry_(node, typ, link) \
-    container_of(node->link.prev, typ, link)
+    container_of((node)->link.prev, typ, link)
 
 // Versions that return NULL when needed
 #define list_head_entry(head, typ, link) \
-    (list_is_empty(head) ? null : list_head_entry_(head, typ, link))
+    (if list_is_empty(head) {null} else { list_head_entry_(head, typ, link) })
 #define list_tail_entry(head, typ, link) \
-    (list_is_empty(head) ? null : list_tail_entry_(head, typ, link))
+    (if list_is_empty(head) {null} else { list_tail_entry_(head, typ, link) })
 
 #define list_next_entry(head, node, typ, link) \
-    ((node)->link.next == (head) ? null : list_next_entry_(node, typ, link))
+    (if (node)->link.next == (head) { null } else \
+     { list_next_entry_(node, typ, link) })
 #define list_prev_entry(head, node, typ, link) \
-    ((node)->link.prev == (head) ? null : list_prev_entry_(node, typ, link))
+    (if (node)->link.prev == (head) { null } else \
+     { list_prev_entry_(node, typ, link) })
 
 
 
