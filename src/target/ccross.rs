@@ -263,6 +263,7 @@ impl CCrossCompiler {
                     ref bounds => fail!("Type is not fully constrained: {}", bounds),
                 }
             }
+            StructTy(..) => String::from_str("void"), // haha this is so wrong
             _ => fail!("Not supported yet: {}", t),
         }
     }
