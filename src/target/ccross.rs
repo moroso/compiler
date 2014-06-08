@@ -479,6 +479,8 @@ impl Target for CTarget {
         builtins.insert(session.interner.intern(String::from_str("malloc")));
         builtins.insert(session.interner.intern(String::from_str("calloc")));
         builtins.insert(session.interner.intern(String::from_str("print_char")));
+        builtins.insert(session.interner.intern(String::from_str("abort")));
+        builtins.insert(session.interner.intern(String::from_str("assert")));
 
         let cc = CCrossCompiler {
             structnames: find_structs(&module),
@@ -506,6 +508,7 @@ impl Target for CTarget {
 
         println!("{}", "#include <stdio.h>");
         println!("{}", "#include <stdlib.h>");
+        println!("{}", "#include <assert.h>");
         println!("{}", "int print_int(int x) { printf(\"%d\\n\", x); return x; }");
         println!("{}", "int print_char(int x) { printf(\"%c\", x); return x; }");
         println!("{}", cc.visit_module(&module));
