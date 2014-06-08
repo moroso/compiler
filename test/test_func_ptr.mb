@@ -1,0 +1,13 @@
+fn print_int(x: u32) {}
+
+fn print_f_of_int(x: u32, f: fn(u32) -> u32) {
+    print_int(f(x));
+}
+
+fn addone(x: u32) -> u32 { x+1 }
+
+fn main() -> u32 {
+    print_f_of_int(1, addone);
+
+    0
+}
