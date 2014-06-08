@@ -413,6 +413,7 @@ pub enum ItemNode {
     StructItem(Ident, Vec<Field>, Vec<Ident>),
     EnumItem(Ident, Vec<Variant>, Vec<Ident>),
     ModItem(Ident, Module),
+    StaticItem(Ident, Option<Type>, Option<Expr>),
 }
 
 impl Show for ItemNode {
@@ -455,6 +456,14 @@ impl Show for ItemNode {
                 }
                 write!(f, "{}", "}")
             }
+            StaticItem(ref name, ref ty, ref expr) => {
+                write!(f, "let {}{}{};", name,
+                       ty.as_ref().map(|t| format!(" : {}", t))
+                       .unwrap_or_default(),
+                       expr.as_ref().map(|e| format!(" = {}", e))
+                       .unwrap_or_default())
+            }
+
         }
     }
 }

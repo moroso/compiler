@@ -145,6 +145,17 @@ impl Visitor for DefMap {
 
                 self.visit_module(module);
             }
+            StaticItem(ref ident, ref ty, ref expr) => {
+                self.table.insert(ident.id,
+                                  PatDef(ty.as_ref().map(|t| t.clone())));
+
+                for t in ty.iter() {
+                    self.visit_type(t);
+                }
+                for e in expr.iter() {
+                    self.visit_expr(e);
+                }
+            }
         }
     }
 }

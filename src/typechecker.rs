@@ -913,6 +913,20 @@ impl<'a> Visitor for Typechecker<'a> {
             ModItem(_, ref module) => {
                 self.visit_module(module);
             }
+            StaticItem(ref ident, ref typ, ref e) => {
+                let ty = match *typ {
+                    Some(ref t) => self.type_to_ty(t),
+                    None => self.add_bound_ty(ident.id),
+                };
+                
+                match *e {
+                    Some(ref e) => {
+                        let e_ty = self.expr_to_ty(e);
+                        self.unify(ty, e_ty);
+                    }
+                    None => {}
+                }
+            }
             StructItem(..) | EnumItem(..) => {}
         }
     }

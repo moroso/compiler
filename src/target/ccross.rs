@@ -198,6 +198,28 @@ impl CCrossCompiler {
                         variants,
                         name.as_slice())
             }
+            StaticItem(ref id, ref ty, ref expr) => {
+                let name = self.visit_ident(id);
+                let name_and_type = match *ty {
+                    Some(ref t) => self.visit_name_and_type(id.val.name, t),
+                    None => format!("{} {}",
+                                    self.visit_ty(
+                                        self.typemap.types.get(
+                                            // Note: this will fail if the type
+                                            // and expr are both not specified.
+                                            // This is a bug, but probably not
+                                            // worth fixing.
+                                            &expr.clone().unwrap().id.to_uint()
+                                        )
+                                    ), name)
+                };
+                match *expr {
+                    Some(ref e) => format!("{} = {};",
+                                           name_and_type,
+                                           self.visit_expr(e)),
+                    None => format!("{};", name_and_type)
+                }
+            }
             ModItem(..) => fail!("ModItem not supported yet"),
         }
     }

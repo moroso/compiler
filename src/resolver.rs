@@ -60,6 +60,9 @@ impl Subscope {
                 ModItem(ref ident, _) => {
                     self.insert(TypeAndModNS, ident);
                 }
+                StaticItem(ref ident, _, _) => {
+                    self.insert(ValNS, ident);
+                }
             }
         }
     }
@@ -298,6 +301,15 @@ impl<'a> Visitor for ModuleResolver<'a> {
                     }
                     me.visit_block(block);
                 });
+            }
+            StaticItem(ref ident, ref ty, ref expr) => {
+                self.visit_ident(ident);
+                for t in ty.iter() {
+                    self.visit_type(t);
+                }
+                for e in expr.iter() {
+                    self.visit_expr(e);
+                }
             }
             StructItem(_, ref fields, ref tps) => {
                 self.descend(None, |me| {
