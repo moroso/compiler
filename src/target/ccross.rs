@@ -11,6 +11,7 @@ use resolver::Resolver;
 use session::Session;
 use package::Package;
 use target::Target;
+use util;
 use util::Name;
 
 struct CCrossCompiler {
@@ -253,6 +254,7 @@ impl CCrossCompiler {
             }
             BoolType => String::from_str("int"),
             UnitType => String::from_str("void"),
+            IntType(util::UnsignedInt(..)) => String::from_str("unsigned int"),
             IntType(..) => String::from_str("int"), // TODO intkind handling
         }
     }
