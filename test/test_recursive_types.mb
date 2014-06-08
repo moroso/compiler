@@ -6,6 +6,6 @@ struct teststruct {
 }
 
 
-fn main() {
-    0;
+fn main() -> u32 {
+    0
 }

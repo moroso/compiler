@@ -6,4 +6,4 @@ fn sub_ptr(p1: *(), p2: *()) -> u32 {
   p2 - p1
 }
 
-fn main() {}
+fn main() -> u32 { 0 }
