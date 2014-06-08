@@ -198,6 +198,15 @@ impl CCrossCompiler {
                         variants,
                         name.as_slice())
             }
+            StaticItem(ref id, ref ty, ref expr) => {
+                let name_and_type = self.visit_name_and_type(id.val.name, ty);
+                match *expr {
+                    Some(ref e) => format!("{} = {};",
+                                           name_and_type,
+                                           self.visit_expr(e)),
+                    None => format!("{};", name_and_type)
+                }
+            }
             ModItem(..) => fail!("ModItem not supported yet"),
         }
     }

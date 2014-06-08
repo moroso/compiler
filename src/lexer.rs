@@ -39,6 +39,7 @@ pub enum Token {
     Null,
     Break,
     Continue,
+    Static,
 
     // Symbols
     LParen,
@@ -286,6 +287,7 @@ impl<T: Buffer> Lexer<T> {
             Null         => "null",
             Break        => "break",
             Continue     => "continue",
+            Static       => "static",
 
             // Basic types; TODO: add more.
             IntTypeTok   => IntTypeRule,

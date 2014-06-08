@@ -29,7 +29,8 @@ TEST_FILES := \
 	test_param_types.mc \
 	test_pointer_arith.mc \
 	test_recursive_types.mc \
-	test_array.mc
+	test_array.mc \
+	test_globals.mc
 
 mc: $(addprefix src/,$(MC_FILES))
 	rustc $(RUST_FLAGS) $< -o $@ -g

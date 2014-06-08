@@ -1145,12 +1145,31 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.add_id_and_span(ModItem(name, module), start_span.to(self.last_span))
     }
 
+    fn parse_static_item(&mut self) -> Item {
+        let start_span = self.peek_span();
+        self.expect(Static);
+        let name = self.parse_ident();
+        self.expect(Colon);
+        let ty = self.parse_type();
+        let expr = match *self.peek() {
+            Eq => {
+                self.expect(Eq);
+                Some(self.parse_expr())
+            },
+            _ => None
+        };
+        self.expect(Semicolon);
+        self.add_id_and_span(StaticItem(name, ty, expr),
+                             start_span.to(self.last_span))
+    }
+
     fn parse_item(&mut self) -> Item {
         match *self.peek() {
             Fn => self.parse_func_item(),
             Struct => self.parse_struct_item(),
             Enum => self.parse_enum_item(),
             Mod => self.parse_mod_item(),
+            Static => self.parse_static_item(),
             _ => self.peek_error("Expected an item definition (fn, struct, enum, mod)"),
         }
     }
