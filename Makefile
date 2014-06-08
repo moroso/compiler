@@ -55,14 +55,15 @@ test/c: $(addprefix test/,$(patsubst %.mb,c/%.c,$(TEST_FILES)))
 test/c-bin: $(addprefix test/,$(patsubst %.mb,c-bin/%,$(TEST_FILES)))
 
 test/c/%.c: test/%.mb mc
-	mkdir -p $(dir $@)
-	./mc --target c < $< > $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
+	@mkdir -p $(dir $@)
+	@./mc --target c < $< > $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
 
 test/c-bin/%: test/c/%.c test/%.txt
-	mkdir -p $(dir $@)
-	gcc $< -o $@ || (cat $<; false)
-	./$@ > $(patsubst test/c-bin/%,test/c-results/%,$@).txt
-	diff $(patsubst test/c-bin/%,test/c-results/%,$@).txt $(patsubst test/c-bin/%,test/%.txt,$@)
+	@echo Running $(patsubst test/c/%.c,%,$<)...
+	@mkdir -p $(dir $@)
+	@gcc $< -o $@ || (cat $<; false)
+	@./$@ > $(patsubst test/c-bin/%,test/c-results/%,$@).txt
+	@diff $(patsubst test/c-bin/%,test/c-results/%,$@).txt $(patsubst test/c-bin/%,test/%.txt,$@)
 
 .PHONY: all docs clean run-tests run-ir-tests check
 clean:
