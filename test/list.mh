@@ -5,7 +5,7 @@
 
 
 // Generic defines
-#define static /*lol */
+#define __static__ /*lol */
 
 #define offset_of(st, m) ((&(0 as *st)->m) as u32)
 #define container_of(ptr, ty, member) \
@@ -59,30 +59,30 @@ struct list_node {
     prev: *list_node
 }
 
-static fn list_init_head(head: *list_head) {
+__static__ fn list_init_head(head: *list_head) {
     head->next = head;
     head->prev = head;
 }
-static fn list_init_node(head: *list_head) {
+__static__ fn list_init_node(head: *list_head) {
     head->next = null;
     head->prev = null;
 }
 
-static fn __list_insert_between(n: *list_node, n1: *list_node, n2: *list_node) {
+__static__ fn __list_insert_between(n: *list_node, n1: *list_node, n2: *list_node) {
     n->prev = n1;
     n->next = n2;
     n1->next = n;
     n2->prev = n;
 }
 
-static fn list_insert_after(n: *list_node, n1: *list_node) {
+__static__ fn list_insert_after(n: *list_node, n1: *list_node) {
     __list_insert_between(n, n1, n1->next);
 }
-static fn list_insert_before(n: *list_node, n1: *list_node) {
+__static__ fn list_insert_before(n: *list_node, n1: *list_node) {
     __list_insert_between(n, n1->prev, n1);
 }
 
-static fn list_del(n: *list_node) {
+__static__ fn list_del(n: *list_node) {
     n->next->prev = n->prev;
     n->prev->next = n->next;
     // To help catch bugs.
@@ -90,9 +90,9 @@ static fn list_del(n: *list_node) {
     n->prev = null as *list_node;
 }
 
-static fn list_is_empty(n: *list_head) -> bool {
+__static__ fn list_is_empty(n: *list_head) -> bool {
     n->next == n
 }
-static fn list_is_singleton(n: *list_head) -> bool {
+__static__ fn list_is_singleton(n: *list_head) -> bool {
     n->next == n->prev && n != n->next
 }
