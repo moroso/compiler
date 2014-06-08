@@ -468,8 +468,6 @@ impl Target for CTarget {
     }
 
     fn compile(&self, p: Package) {
-        let mut stderr = stdio::stderr();
-
         let Package {
             module:  module,
             session: mut session,
@@ -492,6 +490,8 @@ impl Target for CTarget {
         };
 
 /*
+        let mut stderr = stdio::stderr();
+
         match writeln!(stderr, "{}", module) {
             Err(e) => fail!("{}", e),
             _ => {}

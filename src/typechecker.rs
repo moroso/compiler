@@ -913,7 +913,7 @@ impl<'a> Visitor for Typechecker<'a> {
             ModItem(_, ref module) => {
                 self.visit_module(module);
             }
-            StaticItem(ref ident, ref t, ref e) => {
+            StaticItem(_, ref t, ref e) => {
                 let ty = self.type_to_ty(t);
                 
                 match *e {
