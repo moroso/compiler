@@ -311,11 +311,11 @@ impl<'a> Typechecker<'a> {
             NamedType(ref path) => {
                 let nid = self.session.resolver.def_from_path(path);
                 match *self.session.defmap.find(&nid).take_unwrap() {
-                    StructDef(_, ref tps) => {
+                    StructDef(_, _, ref tps) => {
                         let tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, false);
                         StructTy(nid, tys)
                     }
-                    EnumDef(_, ref tps) => {
+                    EnumDef(_, _, ref tps) => {
                         let tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, false);
                         EnumTy(nid, tys)
                     }
@@ -367,9 +367,9 @@ impl<'a> Typechecker<'a> {
             VariantPat(ref path, ref pats) => {
                 let nid = self.session.resolver.def_from_path(path);
                 match *self.session.defmap.find(&nid).take_unwrap() {
-                    VariantDef(ref enum_nid, ref args) => {
+                    VariantDef(_, ref enum_nid, ref args) => {
                         let tps = match *self.session.defmap.find(enum_nid).take_unwrap() {
-                            EnumDef(_, ref tps) => tps,
+                            EnumDef(_, _, ref tps) => tps,
                             _ => fail!("Nonsensical enum id for variant"),
                         };
 
@@ -396,7 +396,7 @@ impl<'a> Typechecker<'a> {
             StructPat(ref path, ref fps) => {
                 let nid = self.session.resolver.def_from_path(path);
                 match *self.session.defmap.find(&nid).take_unwrap() {
-                    StructDef(ref fields, ref tps) => {
+                    StructDef(_, ref fields, ref tps) => {
                         let tp_tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, true);
 
                         let mut gs = TreeMap::new();
@@ -461,9 +461,9 @@ impl<'a> Typechecker<'a> {
                     FuncArgDef(ref t) => {
                         self.type_to_ty(t)
                     }
-                    VariantDef(ref enum_nid, ref args) => {
+                    VariantDef(_, ref enum_nid, ref args) => {
                         let tps = match *self.session.defmap.find(enum_nid).take_unwrap() {
-                            EnumDef(_, ref tps) => tps,
+                            EnumDef(_, _, ref tps) => tps,
                             _ => fail!("Nonsensical enum id for variant"),
                         };
 
@@ -497,7 +497,7 @@ impl<'a> Typechecker<'a> {
             StructExpr(ref path, ref flds) => {
                 let nid = self.session.resolver.def_from_path(path);
                 let (fields, tps) = match *self.session.defmap.find(&nid).take_unwrap() {
-                    StructDef(ref fields, ref tps) => (fields, tps),
+                    StructDef(_, ref fields, ref tps) => (fields, tps),
                     _ => fail!("{} does not name a struct", path),
                 };
 
@@ -612,7 +612,7 @@ impl<'a> Typechecker<'a> {
                 };
 
                 match *self.session.defmap.find(&nid).take_unwrap() {
-                    StructDef(ref fields, ref tps) => {
+                    StructDef(_, ref fields, ref tps) => {
                         let mut gs = TreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                             gs.insert(*tp, tp_ty.clone());
@@ -632,7 +632,7 @@ impl<'a> Typechecker<'a> {
                 };
 
                 match *self.session.defmap.find(&nid).take_unwrap() {
-                    StructDef(ref fields, ref tps) => {
+                    StructDef(_, ref fields, ref tps) => {
                         let mut gs = TreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                             gs.insert(*tp, tp_ty.clone());
@@ -691,7 +691,7 @@ impl<'a> Typechecker<'a> {
             (Unconstrained, bs) | (bs, Unconstrained) => bs,
             (Concrete(t1), Concrete(t2)) => Concrete(self.unify(t1, t2)),
             (Constrained(ks), Concrete(ty)) | (Concrete(ty), Constrained(ks)) =>
-                Concrete(self.check_ty_bounds(ty, Constrained(ks))),
+                Concrete(self.check_ty_bounds(ty, Constrained(ks))),  // do something about Concrete(BoundTy)
             (Constrained(ks1), Constrained(ks2)) => {
                 Constrained(ks1.union(ks2))
             }

@@ -272,7 +272,15 @@ impl CCrossCompiler {
                     ref bounds => fail!("Type is not fully constrained: {}", bounds),
                 }
             }
-            StructTy(..) => String::from_str("void"), // haha this is so wrong
+            StructTy(did, _) => {
+                match *self.session.defmap.find(&did).take_unwrap() {
+                    StructDef(ref qn, _, _) => {
+                        let qn: Vec<&str> = qn.iter().map(|n| self.session.interner.name_to_str(n)).collect();
+                        qn.connect("_")
+                    }
+                    _ => unreachable!()
+                }
+            }
             _ => fail!("Not supported yet: {}", t),
         }
     }

@@ -70,7 +70,7 @@ impl Session {
     pub fn parse_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
         let lexer = Lexer::new(name, buffer);
         let module = self.parser.parse(lexer, &mut self.interner);
-        self.defmap.visit_module(&module);
+        self.defmap.read_module(&module);
         self.resolver.resolve_module(&self.interner, &module);
         module
     }
