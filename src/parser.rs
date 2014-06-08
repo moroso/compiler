@@ -888,12 +888,18 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.add_id_and_span(BreakExpr, self.last_span)
     }
 
+    fn parse_continue_expr(&mut self) -> Expr {
+        self.expect(Continue);
+        self.add_id_and_span(ContinueExpr, self.last_span)
+    }
+
     fn parse_simple_expr(&mut self) -> Expr {
         let start_span = self.peek_span();
         let peek_next_expr_parser = |p: &mut StreamParser<'a, T>| match *p.peek() {
                 If     => Some(|p: &mut StreamParser<'a, T>| p.parse_if_expr()),
                 Return => Some(|p: &mut StreamParser<'a, T>| p.parse_return_expr()),
                 Break  => Some(|p: &mut StreamParser<'a, T>| p.parse_break_expr()),
+                Continue => Some(|p: &mut StreamParser<'a, T>| p.parse_continue_expr()),
                 Match  => Some(|p: &mut StreamParser<'a, T>| p.parse_match_expr()),
                 For    => Some(|p: &mut StreamParser<'a, T>| p.parse_for_expr()),
                 While  => Some(|p: &mut StreamParser<'a, T>| p.parse_while_expr()),

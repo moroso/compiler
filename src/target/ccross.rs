@@ -387,6 +387,7 @@ impl CCrossCompiler {
                 format!("return/*expr*/ {};", expr)
             }
             BreakExpr => format!("break;"),
+            ContinueExpr => format!("continue;"),
             WhileExpr(ref e, ref b) => {
                 let cond = self.visit_expr(*e);
                 let body = self.visit_block_expr(*b);

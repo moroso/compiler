@@ -574,6 +574,7 @@ impl<'a> Typechecker<'a> {
                 BottomTy
             }
             BreakExpr => BottomTy,
+            ContinueExpr => BottomTy,
             CastExpr(ref e, ref t) => {
                 let e_ty = self.expr_to_ty(*e);
                 let t_ty = self.type_to_ty(t);

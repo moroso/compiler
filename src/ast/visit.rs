@@ -193,6 +193,7 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
             visitor.visit_expr(*e);
         }
         BreakExpr => {}
+        ContinueExpr => {}
         WhileExpr(ref e, ref b) => {
             visitor.visit_expr(*e);
             visitor.visit_block(*b);
