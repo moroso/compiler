@@ -50,7 +50,8 @@
          &cur->link != (head); \
          cur = list_next_entry_(cur, typ, link))
 
-// TODO: need static init macros once available
+#define LIST_HEAD_INIT(name) list_head { next: &name, prev: &name }
+#define LIST_NODE(name) list_head { next: null, prev: null }
 
 struct list_node {
     next: *list_node,
