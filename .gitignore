@@ -6,3 +6,4 @@ mc-tests
 doc/
 test/c/
 test/c-bin/
+test/c-results/

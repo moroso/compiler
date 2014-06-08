@@ -48,11 +48,13 @@ docs: doc/regexp/index.html
 doc/%/index.html: %.rs
 	rustdoc $<
 
-test: test/c test/c-bin
+test: test/c test/c-bin test/c-results
 
 test/c: $(addprefix test/,$(patsubst %.mb,c/%.c,$(TEST_FILES)))
 
 test/c-bin: $(addprefix test/,$(patsubst %.mb,c-bin/%,$(TEST_FILES)))
+
+test/c-results: $(addprefix test/,$(patsubst %.mb,c-results/%.txt,$(TEST_FILES)))
 
 test/c/%.c: test/%.mb mc
 	@mkdir -p $(dir $@)
@@ -62,8 +64,11 @@ test/c-bin/%: test/c/%.c test/%.txt
 	@echo Running $(patsubst test/c/%.c,%,$<)...
 	@mkdir -p $(dir $@)
 	@gcc $< -o $@ || (cat $<; false)
-	@./$@ > $(patsubst test/c-bin/%,test/c-results/%,$@).txt
-	@diff $(patsubst test/c-bin/%,test/c-results/%,$@).txt $(patsubst test/c-bin/%,test/%.txt,$@)
+
+test/c-results/%.txt: test/c-bin/%
+	@mkdir -p $(dir $@)
+	@./$< > $@
+	@diff $@ $(patsubst test/c-results/%.txt,test/%.txt,$@)
 
 .PHONY: all docs clean run-tests run-ir-tests check
 clean:
