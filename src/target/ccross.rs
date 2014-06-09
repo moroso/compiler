@@ -509,6 +509,8 @@ impl Target for CTarget {
         builtins.insert(session.interner.intern(String::from_str("print_char")));
         builtins.insert(session.interner.intern(String::from_str("abort")));
         builtins.insert(session.interner.intern(String::from_str("assert")));
+        // Top lol.
+        builtins.insert(session.interner.intern(String::from_str("machine_phys_frames")));
 
         let cc = CCrossCompiler {
             structnames: find_structs(&module),
@@ -537,6 +539,7 @@ impl Target for CTarget {
         println!("{}", "#include <stdio.h>");
         println!("{}", "#include <stdlib.h>");
         println!("{}", "#include <assert.h>");
+        println!("{}", "extern unsigned machine_phys_frames(); // lol.");
         println!("{}", "int print_int(int x) { printf(\"%d\\n\", x); return x; }");
         println!("{}", "int print_char(int x) { printf(\"%c\", x); return x; }");
         println!("{}", cc.visit_module(&module));
