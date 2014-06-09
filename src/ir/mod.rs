@@ -9,6 +9,7 @@ pub mod liveness;
 pub mod constant_fold;
 pub mod ssa;
 pub mod util;
+pub mod intermediate_to_c;
 
 #[deriving(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Var {
@@ -95,6 +96,7 @@ pub enum Op {
     // A basic assignment.
     Assign(LValue, RValue),
     // A label. The set of variables is ones that are active at that point.
+    // TODO: make this a map from name -> gen.
     Label(uint, TreeSet<Var>),
     // A goto. The set must specify generations for all variables in the label.
     Goto(uint, TreeSet<Var>),

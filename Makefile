@@ -20,6 +20,7 @@ MC_FILES := \
 	ir/constant_fold.rs \
 	ir/ssa.rs \
 	ir/util.rs \
+	ir/intermediate_to_c.rs \
 	intermediate_tests.rs \
 
 TEST_FILES := $(patsubst test/%,%,$(wildcard test/test_*.mb))

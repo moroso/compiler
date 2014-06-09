@@ -36,7 +36,24 @@ impl<'a> ASTToIntermediate<'a> {
         match stmt.val {
             ExprStmt(ref e) => self.convert_expr(e),
             SemiStmt(ref e) => self.convert_expr(e),
-            _ => fail!(), // TODO: let statements.
+            LetStmt(ref pat, ref e_opt) => {
+                let v = match pat.val {
+                    IdentPat(ref ident, _) => {
+                        Var { name: ident.val.name,
+                              generation: None }
+                    },
+                    _ => fail!("Only ident patterns are supported right now.")
+                };
+                match *e_opt {
+                    Some(ref e) => {
+                        let (mut ops, other_v) = self.convert_expr(e);
+                        ops.push(Assign(VarLValue(v),
+                                        DirectRValue(Variable(other_v))));
+                        (ops, v)
+                    },
+                    None => (vec!(), v)
+                }
+            }
         }
     }
 
@@ -55,6 +72,13 @@ impl<'a> ASTToIntermediate<'a> {
             None => {
                 (ops, self.gen_temp())
             }
+        }
+    }
+
+    pub fn convert_item(&mut self, item: &Item) -> (Vec<Op>, Var) {
+        match item.val {
+            FuncItem(_, _, _, ref block, _) => self.convert_block(block),
+            _ => fail!("{}", item)//(vec!(), self.gen_temp())
         }
     }
 

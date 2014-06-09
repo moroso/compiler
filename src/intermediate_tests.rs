@@ -11,8 +11,52 @@ use ir::liveness::LivenessAnalyzer;
 use ir::ast_to_intermediate::ASTToIntermediate;
 use ir::constant_fold::ConstantFolder;
 use ir::ssa::ToSSA;
+use package::Package;
+use ir::intermediate_to_c::IRToC;
+
+use std::io::stdio;
+
+fn package_from_stdin() -> Package {
+    Package::new("<stdin>", stdio::stdin())
+}
+
+pub fn package_to_ir(p: Package) {
+    let Package {
+        module:  module,
+        session: mut session,
+        typemap: typemap,
+    } = p;
+
+    let mut result =
+    {
+        let mut converter = ASTToIntermediate::new(&mut session.interner);
+
+        let mut result = vec!();
+
+        for item in module.val.items.iter() {
+            print!("{}\n", item);
+            let (insts, var) = converter.convert_item(item);
+            print!("{}\n\n", insts);
+            result.push(insts);
+        }
+        result
+    };
+
+    for insts in result.mut_iter() {
+        ToSSA::to_ssa(insts);
+        ConstantFolder::fold(insts);
+        print!("{}\n", IRToC::convert_function(&session.interner,
+                                               insts));
+    }
+}
 
 pub fn main() {
+    let package = package_from_stdin();
+
+    package_to_ir(package);
+
+    return;
+
     let buffer = io::BufferedReader::new(io::MemReader::new(
         //Vec::from_slice("{*(a*5+6*7)=4u16*(5u16+1u16)*foo; b=a+1; c=6+7<2 || a}".as_bytes())
         //Vec::from_slice("{ while(1<2) { x = x + 1; x = 5; z = x + x; x = z; } }".as_bytes())
