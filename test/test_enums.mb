@@ -7,7 +7,7 @@ enum TestEnum {
     Quux(u32, *u32),
 }
 
-fn main() {
+fn main() -> u32 {
     let x: TestEnum = Foo;
     let y: TestEnum = Bar(5);
     let i: u32 = 123;
@@ -37,4 +37,5 @@ fn main() {
         Quux(fieldx, fieldy) => *fieldy,
     });
 
+    0
 }

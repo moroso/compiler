@@ -283,6 +283,15 @@ impl CCrossCompiler {
                     _ => unreachable!()
                 }
             }
+            EnumTy(did, _) => {
+                match *self.session.defmap.find(&did).take_unwrap() {
+                    EnumDef(ref qn, _, _) => {
+                        let qn: Vec<&str> = qn.iter().map(|n| self.session.interner.name_to_str(n)).collect();
+                        qn.connect("_")
+                    }
+                    _ => unreachable!()
+                }
+            }
             _ => fail!("Not supported yet: {}", t),
         }
     }
@@ -421,6 +430,10 @@ impl CCrossCompiler {
             }
             MatchExpr(ref e, ref arms) => {
                 // TODO: allow types other than ints.
+                let overall_type = self.typemap.types.get(&expr.id.to_uint());
+                let is_void = *overall_type == UnitTy;
+                let overall_type_name = self.visit_ty(overall_type);
+
                 let expr = self.visit_expr(*e);
                 let arms = self.visit_list(arms, |arm| {
                     let (path, vars) = match arm.pat.val {
@@ -441,14 +454,27 @@ impl CCrossCompiler {
                             IdentPat(ref id, _) => self.session.interner.name_to_str(&id.val.name),
                             _ => fail!("Only IdentPats are supported in the arguments of a VariantPat in a match arm for now"),
                         };
-                        format!("{} {} = {}.val.{}.field{};", ty, varname, expr.as_slice(), name, n - 1)
+                        format!("{} {} = {}.val.{}.field{};",
+                                ty, varname, expr.as_slice(), name, n - 1)
                     }, "; ");
 
                     let body = self.visit_expr(&arm.body);
-                    format!("case {}: \\{\n {} _ = ({}); break;\\}\n", idx, vars, body)
+                    if is_void {
+                        format!("case {}: \\{\n {}; ({}); break;\\}\n",
+                                idx, vars, body)
+                    } else {
+                        format!("case {}: \\{\n {} _ = ({}); break;\\}\n",
+                                idx, vars, body)
+                    }
                 }, "\n");
 
-                format!("(\\{ int _; switch(({}).tag) \\{\n{} \n\\} _; \\})", expr, arms)
+                if is_void {
+                    format!("(\\{ switch(({}).tag) \\{\n{} \n\\} ; \\})",
+                            expr, arms)
+                } else {
+                    format!("(\\{ {} _; switch(({}).tag) \\{\n{} \n\\} _; \\})",
+                            overall_type_name, expr, arms)
+                }
             }
         }
     }
