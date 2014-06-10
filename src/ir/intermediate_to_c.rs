@@ -8,11 +8,11 @@ use ir::liveness::LivenessAnalyzer;
 pub struct IRToC;
 
 fn print_var(interner: &Interner, v: &Var) -> String {
-    format!("{}_{}",
+    format!("{}{}",
             interner.name_to_str(&v.name),
             match v.generation {
-                Some(ref g) => format!("{}", g),
-                None => format!(""),
+                Some(ref g) if *g > 0 => format!("_{}", g),
+                _ => format!(""),
             }
             )
 }
@@ -80,12 +80,16 @@ impl IRToC {
         let mut vars = TreeSet::new();
         let mut labels: SmallIntMap<TreeMap<Name, uint>> = SmallIntMap::new();
         let opinfo = LivenessAnalyzer::analyze(ops);
-        for op in opinfo.iter() {
+        // Find all variables we need to declare. This is all variables
+        // that are defined anywhere, except in the very first instruction
+        // (which must be a function definition instruction).
+        for op in opinfo.iter().skip(1) {
             for var in op.def.iter() {
                 vars.insert(var);
             }
         }
 
+        // Find out which variables are used at each label.
         for op in ops.iter() {
             match *op {
                 Label(ref idx, ref vars) => {
@@ -100,10 +104,11 @@ impl IRToC {
             }
         }
 
+        // Do the actual conversion.
         for op in ops.iter() {
             s = s.append(match *op {
                 Assign(ref lv, ref rv) => {
-                    format!("  {} = {};\n",
+                    format!("  {} = (int)({});\n",
                             print_lvalue(interner, lv),
                             print_rvalue(interner, rv))
                 },
