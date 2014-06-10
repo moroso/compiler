@@ -77,7 +77,20 @@ impl<'a> ASTToIntermediate<'a> {
 
     pub fn convert_item(&mut self, item: &Item) -> (Vec<Op>, Var) {
         match item.val {
-            FuncItem(_, _, _, ref block, _) => self.convert_block(block),
+            FuncItem(ref id, ref args, _, ref block, _) => {
+                let mut ops = vec!(Func(id.val.name,
+                                        args.iter()
+                                        .map(
+                                            |arg| Var {
+                                                name: arg.ident.val.name,
+                                                generation: None
+                                            })
+                                        .collect()));
+                let (new_ops, v) = self.convert_block(block);
+                ops.push_all_move(new_ops);
+                ops.push(Return(Variable(v)));
+                (ops, v)
+            },
             _ => fail!("{}", item)//(vec!(), self.gen_temp())
         }
     }
@@ -231,6 +244,23 @@ impl<'a> ASTToIntermediate<'a> {
             //    
             //}
             GroupExpr(ref e) => self.convert_expr(*e),
+            CallExpr(ref f, ref args) => {
+                let mut ops = vec!();
+                let mut vars = vec!();
+                for arg in args.iter() {
+                    let (new_ops, new_var) = self.convert_expr(arg);
+                    ops.push_all_move(new_ops);
+                    vars.push(new_var);
+                }
+                let (new_ops, new_var) = self.convert_expr(*f);
+                let result_var = self.gen_temp();
+                ops.push(Assign(
+                    VarLValue(result_var.clone()),
+                    CallRValue(Variable(new_var),
+                               vars.move_iter().map(
+                                   |v| Variable(v)).collect())));
+                (ops, result_var)
+            }
             _ => (vec!(), self.gen_temp()),
         }
     }

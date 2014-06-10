@@ -38,6 +38,12 @@ fn ssa_rvalue(generations: &mut TreeMap<Name, uint>, rv: &mut RValue) {
         },
         UnOpRValue(_, ref mut rhs) => {
             ssa_rvalelem(generations, rhs);
+        },
+        CallRValue(ref mut rv_elem, ref mut args) => {
+            ssa_rvalelem(generations, rv_elem);
+            for arg in args.mut_iter() {
+                ssa_rvalelem(generations, arg);
+            }
         }
     }
 }
@@ -299,6 +305,17 @@ impl ToSSA {
                 },
                 Goto(_, ref mut vars) => {
                     ssa_vars(gens, vars, |x, y| gen_of(x, y));
+                },
+                Return(ref mut rv) => {
+                    ssa_rvalelem(gens, rv);
+                },
+                Func(_, ref mut vars) => {
+                    for var in vars.mut_iter() {
+                        *var = Var {
+                            name: var.name.clone(),
+                            generation: next_gen(gens, var.name),
+                        }
+                    }
                 }
                 _ => {}
             }

@@ -69,6 +69,8 @@ pub enum RValue {
     UnOpRValue(UnOpNode, RValueElem),
     // An RValueElem (variable or constant) itself.
     DirectRValue(RValueElem),
+    // Function call
+    CallRValue(RValueElem, Vec<RValueElem>),
 }
 
 impl Show for RValue {
@@ -87,6 +89,14 @@ impl Show for RValue {
                        format!("{}", v1)),
             DirectRValue(ref d) => write!(f, "{: >12}",
                                          format!("{}", d)),
+            CallRValue(ref rve, ref args) => {
+                try!(write!(f, "call {}(", rve));
+                for arg in args.iter() {
+                    try!(write!(f, "{},", arg));
+                }
+                try!(write!(f, ")"));
+                Ok(())
+            }
         }
     }
 }
@@ -102,6 +112,11 @@ pub enum Op {
     Goto(uint, TreeSet<Var>),
     // Conditional goto.
     CondGoto(RValueElem, uint, TreeSet<Var>),
+    // Return statement.
+    Return(RValueElem),
+    // Function definition. A special op, that can only appear once, at
+    // the beginning of a function.
+    Func(Name, Vec<Var>),
     Nop,
 }
 
@@ -114,6 +129,8 @@ impl Show for Op {
             Goto(ref l, ref vars) => write!(f, "goto {}({})\n", l, vars),
             CondGoto(ref e, ref l, ref vars) => write!(f, "if {} goto {}({})\n",
                                                        e, l, vars),
+            Return(ref v) => write!(f, "return {}\n", v),
+            Func(ref name, ref vars) => write!(f, "fn {}({})\n", name, vars),
             Nop => write!(f, "{: >16}\n", "nop"),
         }
     }

@@ -64,7 +64,10 @@ fn constant_fold_once(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>) -> bool {
                             },
                             UnOpRValue(..) => {
                                 // TODO: implement this.
-                            }
+                            },
+                            CallRValue(..) => {
+                                // TODO: implement this, maybe.
+                            },
                         },
                     _ => {}
                 },

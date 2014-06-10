@@ -3,6 +3,7 @@ use ir::*;
 use util::Name;
 use session::Interner;
 use std::collections::{TreeMap, SmallIntMap, TreeSet};
+use ir::liveness::LivenessAnalyzer;
 
 pub struct IRToC;
 
@@ -45,7 +46,15 @@ fn print_rvalue(interner: &Interner, rv: &RValue) -> String {
                     print_rvalelem(interner, v)
                     )
         },
-        DirectRValue(ref v) => print_rvalelem(interner, v)
+        DirectRValue(ref v) => print_rvalelem(interner, v),
+        CallRValue(ref v, ref args) => {
+            let mut s = format!("((int (*)()){})(", print_rvalelem(interner, v));
+            let list: Vec<String> = args.iter()
+                .map(|arg| print_rvalelem(interner, arg)).collect();
+            s = s.append(list.connect(", ").as_slice());
+            s = s.append(")");
+            s
+        }
     }
 }
 
@@ -70,32 +79,25 @@ impl IRToC {
         let mut s = "".to_string();
         let mut vars = TreeSet::new();
         let mut labels: SmallIntMap<TreeMap<Name, uint>> = SmallIntMap::new();
+        let opinfo = LivenessAnalyzer::analyze(ops);
+        for op in opinfo.iter() {
+            for var in op.def.iter() {
+                vars.insert(var);
+            }
+        }
+
         for op in ops.iter() {
             match *op {
-                Assign(ref lv, _) => {
-                    match *lv {
-                        VarLValue(ref v) => {
-                            vars.insert(v);
-                        },
-                        _ => {},
-                    }
-                },
                 Label(ref idx, ref vars) => {
                     let mut varmap: TreeMap<Name, uint> = TreeMap::new();
                     for var in vars.iter() {
                         varmap.insert(var.name.clone(),
                                       var.generation.unwrap());
                     }
-                    labels.insert(*idx,
-                                  varmap);
+                    labels.insert(*idx, varmap);
                 }
-                _ => {},
+                _ => {}
             }
-        }
-
-        for var in vars.iter() {
-            s = s.append(format!("  int {};\n",
-                                 print_var(interner, *var)).as_slice());
         }
 
         for op in ops.iter() {
@@ -121,10 +123,30 @@ impl IRToC {
                     format!("  if ({}) goto LABEL{};\n",
                             print_rvalelem(interner, rve),
                             l)
+                },
+                Return(ref rve) => {
+                    format!("  return {};\n", print_rvalelem(interner, rve))
+                },
+                Func(ref name, ref args) => {
+                    let mapped_args: Vec<String> = args.iter()
+                        .map(|arg| format!("int {}", print_var(interner, arg)))
+                        .collect();
+                    let mut s = format!("");
+                    for var in vars.iter() {
+                        s = s.append(format!("  int {};\n",
+                                             print_var(interner, *var))
+                                     .as_slice());
+                    }
+
+
+                    format!("int {}({}) \\{\n{}",
+                            interner.name_to_str(name),
+                            mapped_args.connect(", "),
+                            s)
                 }
                 _ => format!(""),
             }.as_slice());
         }
-        s.append("  0;\n")
+        s.append("}\n")
     }
 }

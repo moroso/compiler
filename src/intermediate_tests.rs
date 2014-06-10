@@ -45,6 +45,10 @@ pub fn package_to_ir(p: Package) {
     for insts in result.mut_iter() {
         ToSSA::to_ssa(insts);
         ConstantFolder::fold(insts);
+        print!("{}\n", insts);
+        for a in LivenessAnalyzer::analyze(insts).iter() {
+            print!("{}\n", a);
+        }
         print!("{}\n", IRToC::convert_function(&session.interner,
                                                insts));
     }

@@ -2,6 +2,7 @@ use ast::*;
 use ir::*;
 use values::*;
 use std::collections::TreeSet;
+use std::iter::Map;
 
 fn substituted_rvalue(rv: &RValue,
                       wrapped_var: RValueElem,
@@ -26,6 +27,22 @@ fn substituted_rvalue(rv: &RValue,
             DirectRValue(if wrapped_var == *r
                          { new.clone() }
                          else { (*r).clone() }),
+        CallRValue(ref r, ref args) => {
+            CallRValue(
+                if wrapped_var == *r {
+                    new.clone()
+                } else {
+                    (*r).clone()
+                },
+                args.iter().map(|arg|
+                         if wrapped_var == *arg {
+                             new.clone()
+                         } else {
+                             (*arg).clone()
+                         }
+                ).collect()
+            )
+        }
     }
 }
 
@@ -90,6 +107,34 @@ pub fn subst(ops: &mut Vec<Op>,
                     )
                 }
             },
+            Return(ref rve) => {
+                match *rve {
+                    Variable(ref v) => {
+                        if v == orig_var {
+                            Return(new_rvelem.clone())
+                        } else {
+                            Return(Variable(v.clone()))
+                        }
+                    },
+                    Constant(ref c) => Return(Constant(c.clone())),
+                }
+            },
+            Func(ref x, ref vars) => {
+                let new_vars = vars.iter().map(
+                    |var|
+                    if var == orig_var {
+                        match *new_rvelem {
+                            Variable(ref rv_var) if var.name == rv_var.name => {
+                                rv_var.clone()
+                            },
+                            _ => fail!("Invalid substitution"),
+                        }
+                    } else {
+                        var.clone()
+                    }).collect();
+
+                Func(x.clone(), new_vars)
+            }
             ref x => x.clone()
         };
         *op = temp;

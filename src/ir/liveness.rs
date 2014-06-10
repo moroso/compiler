@@ -46,20 +46,42 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                             { opinfo.used.insert(v2.clone()); },
                             _ => {},
                         },
+                    CallRValue(ref v, ref args) => {
+                        match *v {
+                            Variable(ref v2) =>
+                            { opinfo.used.insert(v2.clone()); },
+                            _ => {},
+                        };
+                        for arg in args.iter() {
+                            match *arg {
+                                Variable(ref v2) =>
+                                { opinfo.used.insert(v2.clone()); },
+                                _ => {},
+                            }
+                        }
+                    }
                 };
                 // TODO: this needs to handle jumps.
                 if u + 1 < len {
                     opinfo.succ.insert(u + 1);
                 }
             },
-            Nop |
-            Label(..) => {
+            Nop => {
                 if u + 1 < len {
                     let opinfo = opinfo.get_mut(u);
                     opinfo.succ.insert(u + 1);
                 }
+            }
+            Label(_, ref vars) => {
+                let opinfo = opinfo.get_mut(u);
+                if u + 1 < len {
+                    opinfo.succ.insert(u + 1);
+                }
+                for var in vars.iter() {
+                    opinfo.def.insert(var.clone());
+                }
             },
-            Goto(ref l, _) => {
+            Goto(ref l, ref vars) => {
                 let opinfo = opinfo.get_mut(u);
                 for u2 in range(0, len) {
                     match *ops.get(u2) {
@@ -70,9 +92,12 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                         _ => {},
                     }
                 }
+                for var in vars.iter() {
+                    opinfo.used.insert(var.clone());
+                }
             },
             // TODO: get rid of redundant code.
-            CondGoto(_, ref l, _) => {
+            CondGoto(_, ref l, ref vars) => {
                 let opinfo = opinfo.get_mut(u);
                 for u2 in range(0, len) {
                     match *ops.get(u2) {
@@ -82,11 +107,28 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                         },
                         _ => {},
                     }
+                }
+                for var in vars.iter() {
+                    opinfo.used.insert(var.clone());
                 }
                 if u + 1 < len {
                     opinfo.succ.insert(u + 1);
                 }
             },
+            Return(ref v) => {
+                let opinfo = opinfo.get_mut(u);
+                match *v {
+                    Variable(ref w1) => { opinfo.used.insert(w1.clone()); },
+                    _ => {},
+                }
+            },
+            Func(ref name, ref vars) => {
+                let opinfo = opinfo.get_mut(u);
+                for v in vars.iter() {
+                    opinfo.def.insert(v.clone());
+                }
+                opinfo.succ.insert(u + 1);
+            }
         }
     }
 }
