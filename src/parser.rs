@@ -1059,7 +1059,13 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let return_type = match *self.peek() {
             Arrow => {
                 self.expect(Arrow);
-                self.parse_type()
+                match *self.peek() {
+                    Bang => {
+                        self.expect(Bang);
+                        self.add_id_and_span(DivergingType, self.last_span)
+                    }
+                    _ => self.parse_type(),
+                }
             }
             _ => {
                 let dummy_span = mk_sp(self.last_span.get_end(), 0);
@@ -1068,7 +1074,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         };
         let body = self.parse_block();
         self.add_id_and_span(FuncItem(funcname, args, return_type, body, type_params),
-                         start_span.to(self.last_span))
+                             start_span.to(self.last_span))
     }
 
     fn parse_struct_field(&mut self) -> Field {

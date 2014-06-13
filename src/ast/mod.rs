@@ -128,6 +128,7 @@ impl Show for PatNode {
 pub enum TypeNode {
     BoolType,
     UnitType,
+    DivergingType,
     IntType(IntKind),
     PtrType(Box<Type>),
     NamedType(Path),
@@ -141,6 +142,7 @@ impl Show for TypeNode {
         match *self {
             BoolType                  => write!(f, "bool"),
             UnitType                  => write!(f, "()"),
+            DivergingType             => write!(f, "!"),
             IntType(k)                => write!(f, "{}", k),
             PtrType(ref t)            => write!(f, "*({})", t),
             NamedType(ref p)          => write!(f, "{}", p),

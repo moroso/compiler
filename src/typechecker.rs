@@ -306,6 +306,7 @@ impl<'a> Typechecker<'a> {
         save_ty!(t, match t.val {
             BoolType => BoolTy,
             UnitType => UnitTy,
+            DivergingType => BottomTy,
             IntType(ik) => intkind_to_ty(ik),
             PtrType(ref t) => PtrTy(box self.type_to_ty(*t)),
             NamedType(ref path) => {
@@ -904,9 +905,14 @@ impl<'a> Visitor for Typechecker<'a> {
                     me.exits.push(ty);
 
                     let mut ty = me.type_to_ty(t);
+                    let diverges = ty == BottomTy;
                     for i in range(0, me.exits.len()).rev() {
                         let exit_ty = me.exits.swap_remove(i).take_unwrap();
                         ty = me.unify(ty, exit_ty);
+                    }
+
+                    if diverges && ty != BottomTy {
+                        fail!("diverging function may return");
                     }
                 });
             }
@@ -915,7 +921,7 @@ impl<'a> Visitor for Typechecker<'a> {
             }
             StaticItem(_, ref t, ref e) => {
                 let ty = self.type_to_ty(t);
-                
+
                 match *e {
                     Some(ref e) => {
                         let e_ty = self.expr_to_ty(e);

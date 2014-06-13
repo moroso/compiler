@@ -66,7 +66,7 @@ pub fn walk_type<T: Visitor>(visitor: &mut T, t: &Type) {
         TupleType(ref ts) => {
             for t in ts.iter() { visitor.visit_type(t); }
         }
-        BoolType | UnitType | IntType(..) => {}
+        BoolType | UnitType | DivergingType | IntType(..) => {}
     }
 }
 

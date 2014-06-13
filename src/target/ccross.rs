@@ -254,6 +254,7 @@ impl CCrossCompiler {
             }
             BoolType => String::from_str("int"),
             UnitType => String::from_str("void"),
+            DivergingType => String::from_str("void"), // this probably is okay
             IntType(util::UnsignedInt(..)) => String::from_str("unsigned int"),
             IntType(..) => String::from_str("int"), // TODO intkind handling
         }
