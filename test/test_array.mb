@@ -1,5 +1,3 @@
-fn print_int(x: u32) {}
-
 fn main() -> u32 {
     let x: u32[5];
 

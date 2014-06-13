@@ -86,7 +86,12 @@ impl<'a> ASTToIntermediate<'a> {
                                                 generation: None
                                             })
                                         .collect()));
-                let (new_ops, v) = self.convert_block(block);
+
+                let (new_ops, v) = match *block {
+                    Some(ref block) => self.convert_block(block),
+                    None => (vec!(), self.gen_temp()),
+                };
+
                 ops.push_all_move(new_ops);
                 ops.push(Return(Variable(v)));
                 (ops, v)

@@ -299,7 +299,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
                         me.visit_type(&arg.argtype);
                         me.add_to_scope(ValNS, &arg.ident);
                     }
-                    me.visit_block(block);
+                    for block in block.iter() { me.visit_block(block); }
                 });
             }
             StaticItem(ref ident, ref ty, ref expr) => {

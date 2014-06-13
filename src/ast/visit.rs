@@ -23,7 +23,7 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
             visitor.visit_ident(id);
             for arg in args.iter() { visitor.visit_func_arg(arg); }
             visitor.visit_type(t);
-            visitor.visit_block(def);
+            for def in def.iter() { visitor.visit_block(def); }
             for id in tps.iter() { visitor.visit_ident(id); }
         },
         StructItem(ref id, ref fields, ref tps) => {

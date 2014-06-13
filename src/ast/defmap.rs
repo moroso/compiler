@@ -131,7 +131,7 @@ impl<'a> Visitor for DefMapVisitor<'a> {
                 self.defmap.table.insert(ident.id, FuncDef(arg_def_ids, t.clone(), tp_def_ids));
 
                 self.qualifier.push(ident.val.name);
-                self.visit_block(def);
+                for def in def.iter() { self.visit_block(def); }
                 self.qualifier.pop();
             },
             StructItem(ref ident, ref fields, ref tps) => {

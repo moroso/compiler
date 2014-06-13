@@ -411,7 +411,7 @@ impl Show for Field {
 
 #[deriving(Eq, PartialEq, Clone)]
 pub enum ItemNode {
-    FuncItem(Ident, Vec<FuncArg>, Type, Block, Vec<Ident>),
+    FuncItem(Ident, Vec<FuncArg>, Type, Option<Block>, Vec<Ident>),
     StructItem(Ident, Vec<Field>, Vec<Ident>),
     EnumItem(Ident, Vec<Variant>, Vec<Ident>),
     ModItem(Ident, Module),

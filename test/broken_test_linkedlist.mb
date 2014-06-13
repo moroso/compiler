@@ -1,6 +1,3 @@
-fn print_int(i: i32) {}
-fn malloc<T>(i: u32) -> *T { 0 as *T }
-
 struct ll {
     data: i32,
     next: *ll,

@@ -892,29 +892,31 @@ impl<'a> Visitor for Typechecker<'a> {
     fn visit_item(&mut self, item: &Item) {
         match item.val {
             FuncItem(_, _, ref t, ref b, ref tps) => {
-                let tp_ids = tps.iter().map(|tp| tp.id).collect();
-                let tp_tys = self.tps_to_tys(&tp_ids, &None, true);
-                let mut gs = TreeMap::new();
-                for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
-                    gs.insert(tp.id, tp_ty.clone());
+                for b in b.iter() {
+                    let tp_ids = tps.iter().map(|tp| tp.id).collect();
+                    let tp_tys = self.tps_to_tys(&tp_ids, &None, true);
+                    let mut gs = TreeMap::new();
+                    for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
+                        gs.insert(tp.id, tp_ty.clone());
+                    }
+
+                    self.with_generics(gs, |me| {
+                        me.exits.clear();
+                        let ty = me.block_to_ty(b);
+                        me.exits.push(ty);
+
+                        let mut ty = me.type_to_ty(t);
+                        let diverges = ty == BottomTy;
+                        for i in range(0, me.exits.len()).rev() {
+                            let exit_ty = me.exits.swap_remove(i).take_unwrap();
+                            ty = me.unify(ty, exit_ty);
+                        }
+
+                        if diverges && ty != BottomTy {
+                            fail!("diverging function may return");
+                        }
+                    });
                 }
-
-                self.with_generics(gs, |me| {
-                    me.exits.clear();
-                    let ty = me.block_to_ty(b);
-                    me.exits.push(ty);
-
-                    let mut ty = me.type_to_ty(t);
-                    let diverges = ty == BottomTy;
-                    for i in range(0, me.exits.len()).rev() {
-                        let exit_ty = me.exits.swap_remove(i).take_unwrap();
-                        ty = me.unify(ty, exit_ty);
-                    }
-
-                    if diverges && ty != BottomTy {
-                        fail!("diverging function may return");
-                    }
-                });
             }
             ModItem(_, ref module) => {
                 self.visit_module(module);

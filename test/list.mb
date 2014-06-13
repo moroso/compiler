@@ -2,8 +2,6 @@
 
 ///////////////// Testing
 
-fn print_int(x: u32) {}
-fn print_char(x: u32) {}
 fn print_newline() { print_char(10); }
 
 struct nobe {

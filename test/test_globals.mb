@@ -1,5 +1,3 @@
-fn print_int(x: u32) {}
-
 static a: u32 = 5;
 static b: u32 = 6;
 

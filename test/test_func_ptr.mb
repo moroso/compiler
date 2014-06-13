@@ -1,5 +1,3 @@
-fn print_int(x: u32) {}
-
 fn print_f_of_int(x: u32, f: fn(u32) -> u32) {
     print_int(f(x));
 }

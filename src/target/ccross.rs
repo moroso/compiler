@@ -15,7 +15,6 @@ use util;
 use util::Name;
 
 struct CCrossCompiler {
-    builtins: TreeSet<Name>,
     structnames: TreeSet<NodeId>,
     enumitemnames: TreeMap<Name, (Ident, Vec<Variant>, uint)>,
     enumnames: TreeMap<NodeId, Name>,
@@ -162,19 +161,22 @@ impl CCrossCompiler {
     fn visit_item(&self, item: &Item) -> String {
         match item.val {
             FuncItem(ref name, ref args, ref t, ref block, _) => {
-                // Emit nothing for builtin functions.
-                if self.builtins.contains(&name.val.name) { String::new() } else {
-                    let ty = self.visit_type(t);
-                    let name = self.visit_ident(name);
-                    let args = self.visit_list(args, |x| self.visit_func_arg(x), ", ");
-                    let block = self.visit_block(block, |e| {
-                        match e {
-                            Some(e) => format!("return {};", e),
-                            None => String::from_str("return;"),
-                        }
-                    });
+                match *block {
+                    Some(ref block) => {
+                        let ty = self.visit_type(t);
+                        let name = self.visit_ident(name);
+                        let args = self.visit_list(args, |x| self.visit_func_arg(x), ", ");
 
-                    format!("{} {}({}) {}", ty, name, args, block)
+                        let block = self.visit_block(block, |e| {
+                            match e {
+                                Some(e) => format!("return {};", e),
+                                None => String::from_str("return;"),
+                            }
+                        });
+
+                        format!("{} {}({}) {}", ty, name, args, block)
+                    }
+                    None => String::new(),
                 }
             }
             StructItem(ref id, ref fields, _) => {
@@ -499,25 +501,14 @@ impl Target for CTarget {
     fn compile(&self, p: Package) {
         let Package {
             module:  module,
-            session: mut session,
+            session: session,
             typemap: typemap,
         } = p;
-
-        let mut builtins = TreeSet::new();
-        builtins.insert(session.interner.intern(String::from_str("print_int")));
-        builtins.insert(session.interner.intern(String::from_str("malloc")));
-        builtins.insert(session.interner.intern(String::from_str("calloc")));
-        builtins.insert(session.interner.intern(String::from_str("print_char")));
-        builtins.insert(session.interner.intern(String::from_str("abort")));
-        builtins.insert(session.interner.intern(String::from_str("assert")));
-        // Top lol.
-        builtins.insert(session.interner.intern(String::from_str("machine_phys_frames")));
 
         let cc = CCrossCompiler {
             structnames: find_structs(&module),
             enumitemnames: find_enum_item_names(&module),
             enumnames: find_enum_names(&module),
-            builtins: builtins,
             session: session,
             typemap: typemap,
         };
@@ -540,7 +531,7 @@ impl Target for CTarget {
         println!("{}", "#include <stdio.h>");
         println!("{}", "#include <stdlib.h>");
         println!("{}", "#include <assert.h>");
-        println!("{}", "extern unsigned machine_phys_frames(); // lol.");
+        //println!("{}", "extern unsigned machine_phys_frames(); // lol.");
         println!("{}", "int print_int(int x) { printf(\"%d\\n\", x); return x; }");
         println!("{}", "int print_char(int x) { printf(\"%c\", x); return x; }");
         println!("{}", cc.visit_module(&module));

@@ -29,6 +29,9 @@ use ast::*;
 use values::*;
 use lexer::*;
 
+type FuncProto = (Ident, Vec<FuncArg>, Type, Vec<Ident>);
+type StaticDecl = (Ident, Type);
+
 /// Context associated with a full parsing session
 pub struct Parser {
     /// Each AST node is given a unique identifier. This keeps track of the
@@ -1048,8 +1051,27 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         }
     }
 
-    fn parse_func_item(&mut self) -> Item {
+    fn parse_extern_item(&mut self) -> Item {
         let start_span = self.peek_span();
+        self.expect(Extern);
+        match *self.peek() {
+            Fn => {
+                let (funcname, args, return_type, type_params) = self.parse_func_prototype();
+                self.expect(Semicolon);
+                self.add_id_and_span(FuncItem(funcname, args, return_type, None, type_params),
+                                     start_span.to(self.last_span))
+            }
+            Static => {
+                let (name, ty) = self.parse_static_decl();
+                self.expect(Semicolon);
+                self.add_id_and_span(StaticItem(name, ty, None),
+                                     start_span.to(self.last_span))
+            }
+            _ => self.peek_error("Expected 'fn' or 'static'"),
+        }
+    }
+
+    fn parse_func_prototype(&mut self) -> FuncProto {
         self.expect(Fn);
         let funcname = self.parse_ident();
         let type_params = self.parse_item_type_params(LParen);
@@ -1072,7 +1094,14 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 self.add_id_and_span(UnitType, dummy_span)
             }
         };
-        let body = self.parse_block();
+
+        (funcname, args, return_type, type_params)
+    }
+
+    fn parse_func_item(&mut self) -> Item {
+        let start_span = self.peek_span();
+        let (funcname, args, return_type, type_params) = self.parse_func_prototype();
+        let body = Some(self.parse_block());
         self.add_id_and_span(FuncItem(funcname, args, return_type, body, type_params),
                              start_span.to(self.last_span))
     }
@@ -1151,18 +1180,23 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.add_id_and_span(ModItem(name, module), start_span.to(self.last_span))
     }
 
-    fn parse_static_item(&mut self) -> Item {
-        let start_span = self.peek_span();
+    fn parse_static_decl(&mut self) -> StaticDecl {
         self.expect(Static);
         let name = self.parse_ident();
         self.expect(Colon);
         let ty = self.parse_type();
+        (name, ty)
+    }
+
+    fn parse_static_item(&mut self) -> Item {
+        let start_span = self.peek_span();
+        let (name, ty) = self.parse_static_decl();
         let expr = match *self.peek() {
             Eq => {
                 self.expect(Eq);
                 Some(self.parse_expr())
             },
-            _ => None
+            _ => self.peek_error("Non-extern static items require an initial value.")
         };
         self.expect(Semicolon);
         self.add_id_and_span(StaticItem(name, ty, expr),
@@ -1176,6 +1210,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             Enum => self.parse_enum_item(),
             Mod => self.parse_mod_item(),
             Static => self.parse_static_item(),
+            Extern => self.parse_extern_item(),
             _ => self.peek_error("Expected an item definition (fn, struct, enum, mod)"),
         }
     }

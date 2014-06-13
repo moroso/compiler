@@ -1,6 +1,3 @@
-fn print_int(n: u32) {}
-
-
 fn main() -> u32 {
     let n = 32u32 as u8;
     let n2: *u8 = 8 as *u8;

@@ -1,0 +1,7 @@
+extern fn print_int(x: u32);
+extern fn print_char(x: u32);
+extern fn machine_phys_frames();
+extern fn malloc<T>(i: u32) -> *T;
+extern fn calloc<T>(i: u32) -> *T;
+extern fn assert(pred: bool);
+extern fn abort() -> !;
