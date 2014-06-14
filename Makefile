@@ -40,7 +40,7 @@ run-tests: mc-tests
 	./mc-tests
 
 run-ir-tests: ir-tests
-	./ir-tests
+#	./ir-tests
 
 check: run-tests run-ir-tests test
 
