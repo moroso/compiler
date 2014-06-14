@@ -1,7 +1,7 @@
 #![feature(globs,phase,macro_rules)]
 #![allow(dead_code,unused_imports)]
 
-#[phase(syntax)]
+#[phase(plugin)]
 extern crate regex_macros;
 
 extern crate collections;

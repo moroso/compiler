@@ -155,7 +155,7 @@ impl CCrossCompiler {
             }
             None => tail(None),
         };
-        format!("\\{ {} {} {} \\}", items, stmts, expr)
+        format!("{{ {} {} {} }}", items, stmts, expr)
     }
 
     fn visit_item(&self, item: &Item) -> String {
@@ -184,7 +184,7 @@ impl CCrossCompiler {
                 let fields = self.visit_list(fields,
                                              |field| format!("{};", self.visit_name_and_type(field.name, &field.fldtype)),
                                              "\n    ");
-                format!("typedef struct {} \\{\n    {}\n\\} {};", name.as_slice(), fields, name.as_slice())
+                format!("typedef struct {} {{\n    {}\n}} {};", name.as_slice(), fields, name.as_slice())
             }
             EnumItem(ref id, ref variants, _) => {
                 let name = self.visit_ident(id);
@@ -194,9 +194,9 @@ impl CCrossCompiler {
                                                  |t| { n += 1; format!("{} field{};", self.visit_type(t), n - 1) },
                                                  "\n        ");
                     let name = self.session.interner.name_to_str(&variant.ident.val.name);
-                    format!("struct \\{ {} \\} {};", fields, name)
+                    format!("struct {{ {} }} {};", fields, name)
                 }, "\n");
-                format!("typedef struct {} \\{\n    int tag;\n    union \\{\n        {}\n    \\} val;\n\\} {};",
+                format!("typedef struct {} {{\n    int tag;\n    union {{\n        {}\n    }} val;\n}} {};",
                         name.as_slice(),
                         variants,
                         name.as_slice())
@@ -252,7 +252,7 @@ impl CCrossCompiler {
                 let fields = self.visit_list(ts,
                                              |t| { n += 1; format!("{} field{};", self.visit_type(t), n - 1) },
                                              "; ");
-                format!("struct \\{ {} \\}", fields)
+                format!("struct {{ {} }}", fields)
             }
             BoolType => String::from_str("int"),
             UnitType => String::from_str("void"),
@@ -308,7 +308,7 @@ impl CCrossCompiler {
 
     fn visit_path(&self, path: &Path) -> String {
         match self.enumitemnames.find(&path.val.elems.last().unwrap().val.name) {
-            Some(&(_, _, ref pos)) => format!("\\{ .tag = {} \\}", pos),
+            Some(&(_, _, ref pos)) => format!("{{ .tag = {} }}", pos),
             None => {
                 let vec: Vec<&str> = path.val.elems.iter().map(|elem| self.session.interner.name_to_str(&elem.val.name)).collect();
                 vec.connect("_")
@@ -386,7 +386,7 @@ impl CCrossCompiler {
                                     let actual_name = self.visit_path_in_enum_access(path);
                                     format!(".val.{}.field{} = {}", actual_name, n - 1, expr)
                                 }, ", ");
-                                format!("\\{ .tag = {}, {} \\}", pos, args)
+                                format!("{{ .tag = {}, {} }}", pos, args)
                             }
                             None => {
                                 let args = self.visit_list(args, |x| self.visit_expr(x), ", ");
@@ -422,14 +422,14 @@ impl CCrossCompiler {
             WhileExpr(ref e, ref b) => {
                 let cond = self.visit_expr(*e);
                 let body = self.visit_block_expr(*b);
-                format!("while({}) \\{\n{};\\}\n", cond, body)
+                format!("while({}) {{\n{};}}\n", cond, body)
             }
             ForExpr(ref e1, ref e2, ref e3, ref b) => {
                 let e1 = self.visit_expr(*e1);
                 let e2 = self.visit_expr(*e2);
                 let e3 = self.visit_expr(*e3);
                 let body = self.visit_block_expr(*b);
-                format!("for({};{};{}) \\{\n{};\\}\n", e1, e2, e3, body)
+                format!("for({};{};{}) {{\n{};}}\n", e1, e2, e3, body)
             }
             MatchExpr(ref e, ref arms) => {
                 // TODO: allow types other than ints.
@@ -463,19 +463,19 @@ impl CCrossCompiler {
 
                     let body = self.visit_expr(&arm.body);
                     if is_void {
-                        format!("case {}: \\{\n {}; ({}); break;\\}\n",
+                        format!("case {}: {{\n {}; ({}); break;}}\n",
                                 idx, vars, body)
                     } else {
-                        format!("case {}: \\{\n {} _ = ({}); break;\\}\n",
+                        format!("case {}: {{\n {} _ = ({}); break;}}\n",
                                 idx, vars, body)
                     }
                 }, "\n");
 
                 if is_void {
-                    format!("(\\{ switch(({}).tag) \\{\n{} \n\\} ; \\})",
+                    format!("({{ switch(({}).tag) {{\n{} \n}} ; }})",
                             expr, arms)
                 } else {
-                    format!("(\\{ {} _; switch(({}).tag) \\{\n{} \n\\} _; \\})",
+                    format!("({{ {} _; switch(({}).tag) {{\n{} \n}} _; }})",
                             overall_type_name, expr, arms)
                 }
             }

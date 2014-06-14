@@ -144,7 +144,7 @@ impl IRToC {
                     }
 
 
-                    format!("int {}({}) \\{\n{}",
+                    format!("int {}({}) {{\n{}",
                             interner.name_to_str(name),
                             mapped_args.connect(", "),
                             s)

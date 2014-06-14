@@ -118,7 +118,7 @@ impl Show for PatNode {
                                                     t.as_ref().map(|t| format!(": {}", t)).unwrap_or_default()),
             TuplePat(ref args)            => write!(f, "({})", args),
             VariantPat(ref id, ref args)  => write!(f, "{}({})", id, args),
-            StructPat(ref id, ref fields) => write!(f, "{} \\{ {} \\}", id, fields),
+            StructPat(ref id, ref fields) => write!(f, "{} {{ {} }}", id, fields),
         }
     }
 }
@@ -286,7 +286,7 @@ impl Show for ExprNode {
             GroupExpr(ref e)                    => write!(f, "({})", e),
             TupleExpr(ref vs)                   => write!(f, "({})", vs),
             PathExpr(ref p)                     => write!(f, "{}", p),
-            StructExpr(ref p, ref flds)         => write!(f, "{} \\{ {} \\}", p, flds),
+            StructExpr(ref p, ref flds)         => write!(f, "{} {{ {} }}", p, flds),
             BinOpExpr(op, ref l, ref r)         => write!(f, "({}{}{})", l, op, r),
             UnOpExpr(op, ref e)                 => write!(f, "({}{})", op, e),
             IndexExpr(ref e, ref i)             => write!(f, "{}[{}]", e, i),
@@ -295,7 +295,7 @@ impl Show for ExprNode {
             AssignExpr(ref op, ref lv, ref rv)  => write!(f, "({}{}={})", lv, op.map_or(String::new(), |op| format!("{}", op)), rv),
             CallExpr(ref e, ref args)           => write!(f, "{}({})", e, args),
             CastExpr(ref e, ref t)              => write!(f, "({} as {})", e, t),
-            IfExpr(ref c, ref bt, ref bf)       => write!(f, "if {} \\{\n    {}\\} else \\{\n    {}\\}", c, bt, bf),
+            IfExpr(ref c, ref bt, ref bf)       => write!(f, "if {} {{\n    {}}} else {{\n    {}}}", c, bt, bf),
             BlockExpr(ref b)                    => write!(f, "{}", b),
             ReturnExpr(ref e)                   => write!(f, "return {}", e),
             BreakExpr                           => write!(f, "break"),
@@ -303,7 +303,7 @@ impl Show for ExprNode {
             WhileExpr(ref e, ref b)             => write!(f, "while {} {}", e, b),
             ForExpr(ref e1, ref e2, ref e3, ref b) => write!(f, "for ({};{};{}) {}", e1, e2, e3, b),
             MatchExpr(ref e, ref items) => {
-                try!(write!(f, "match {} \\{\n", e));
+                try!(write!(f, "match {} {{\n", e));
                 for item in items.iter() {
                     try!(write!(f, "    {},\n", item));
                 }
