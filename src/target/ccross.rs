@@ -13,6 +13,7 @@ use package::Package;
 use target::Target;
 use util;
 use util::Name;
+use size_of;
 
 struct CCrossCompiler {
     structnames: TreeSet<NodeId>,

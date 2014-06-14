@@ -302,7 +302,7 @@ impl<'a> Typechecker<'a> {
         }
     }
 
-    fn type_to_ty(&mut self, t: &Type) -> Ty {
+    pub fn type_to_ty(&mut self, t: &Type) -> Ty {
         save_ty!(t, match t.val {
             BoolType => BoolTy,
             UnitType => UnitTy,
@@ -406,8 +406,9 @@ impl<'a> Typechecker<'a> {
                         }
 
                         self.with_generics(gs, |me| {
-                            for (field, fp) in fields.iter().map(|x| x.val1()).zip(fps.iter()) {
-                                let field_ty = me.type_to_ty(field);
+                            for (field, fp) in fields.iter().map(
+                                    |x| x.clone().val1()).zip(fps.iter()) {
+                                let field_ty = me.type_to_ty(&field);
                                 let fp_ty = me.pat_to_ty(&fp.pat);
                                 me.unify(field_ty, fp_ty);
                             }
@@ -510,8 +511,9 @@ impl<'a> Typechecker<'a> {
                 }
 
                 self.with_generics(gs, |me| {
-                    for (field, fld) in fields.iter().map(|x| x.val1()).zip(flds.iter()) {
-                        let field_ty = me.type_to_ty(field);
+                    for (field, fld) in fields.iter().map(
+                            |x| x.clone().val1()).zip(flds.iter()) {
+                        let field_ty = me.type_to_ty(&field);
                         let fld_ty = me.expr_to_ty(fld.ref1());
                         me.unify(field_ty, fld_ty);
                     }
@@ -619,7 +621,8 @@ impl<'a> Typechecker<'a> {
                             gs.insert(*tp, tp_ty.clone());
                         }
 
-                        let field = fields.find(fld).unwrap();
+                        let (_, ref field) = *fields.iter().find(
+                            |&&(ref a, _)| a == fld).unwrap();
                         self.with_generics(gs, |me| me.type_to_ty(field))
                     }
                     _ => unreachable!(),
@@ -639,7 +642,8 @@ impl<'a> Typechecker<'a> {
                             gs.insert(*tp, tp_ty.clone());
                         }
 
-                        let field = fields.find(fld).unwrap();
+                        let (_, ref field) = *fields.iter().find(
+                            |&&(ref a, _)| a == fld).unwrap();
                         self.with_generics(gs, |me| me.type_to_ty(field))
                     }
                     _ => unreachable!(),

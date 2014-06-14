@@ -22,6 +22,7 @@ MC_FILES := \
 	ir/util.rs \
 	ir/intermediate_to_c.rs \
 	intermediate_tests.rs \
+	size_of.rs
 
 TEST_FILES := $(patsubst test/%,%,$(wildcard test/test_*.mb))
 

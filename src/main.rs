@@ -36,6 +36,7 @@ mod package;
 mod ir;
 mod target;
 mod values;
+mod size_of;
 
 struct NullTarget;
 impl Target for NullTarget {

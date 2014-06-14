@@ -22,19 +22,23 @@ pub enum Def {
     /// Type parameter definition
     GenericDef,
 
-    /// Function definition, with the NodeIds of the args, the return type, and the NodeIds of any type parameters
+    /// Function definition, with the NodeIds of the args, the return
+    /// type, and the NodeIds of any type parameters
     FuncDef(Vec<NodeId>, Type, Vec<NodeId>),
 
     /// Function argument definition (maybe this should be replaced with PatDef?)
     FuncArgDef(Type),
 
-    /// Struct definition, with its qualified name, a map of fields names to their types and the NodeIds of any type parameters
-    StructDef(Vec<Name>, TreeMap<Name, Type>, Vec<NodeId>),
+    /// Struct definition, with its qualified name, a vector of fields names
+    /// and their types, and the NodeIds of any type parameters
+    StructDef(Vec<Name>, Vec<(Name, Type)>, Vec<NodeId>),
 
-    /// Enum definition, with its qualified name, the NodeIds of the variants and any type parameters
+    /// Enum definition, with its qualified name, the NodeIds of the
+    /// variants and any type parameters
     EnumDef(Vec<Name>, Vec<NodeId>, Vec<NodeId>),
 
-    /// Enum variant definition, with its qualified name, the NodeId of the owning enum and the types of the arguments
+    /// Enum variant definition, with its qualified name, the NodeId
+    /// of the owning enum and the types of the arguments
     VariantDef(Vec<Name>, NodeId, Vec<Type>),
 
     /// Variable definition bound by a pattern (let statements, match arms)
@@ -135,9 +139,9 @@ impl<'a> Visitor for DefMapVisitor<'a> {
                 self.qualifier.pop();
             },
             StructItem(ref ident, ref fields, ref tps) => {
-                let mut field_map = TreeMap::new();
+                let mut field_map = vec!();
                 for field in fields.iter() {
-                    field_map.insert(field.name, field.fldtype.clone());
+                    field_map.push((field.name, field.fldtype.clone()));
                 }
 
                 let tp_def_ids = tps.iter().map(|tp| {
