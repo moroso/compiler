@@ -1,0 +1,12 @@
+struct foo {
+    x: u32,
+    y: u32,
+}
+
+fn main() -> u32 {
+    let a = foo { x: 5, y: 7 };
+    print_int(a.x);
+    print_int(a.y);
+
+    0
+}

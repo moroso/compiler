@@ -337,8 +337,19 @@ impl CCrossCompiler {
             TupleExpr(..) => fail!("Tuples not yet supported."),
             GroupExpr(ref e) => format!("({})", self.visit_expr(*e)),
             PathExpr(ref p) => self.visit_path(p),
-            StructExpr(ref _p, ref _tps) => {
-                fail!("StructExpr not implemented yet") // TODO
+            StructExpr(ref p, ref args) => {
+                let structname = self.visit_path(p);
+                let args =
+                    self.visit_list(
+                        args,
+                        |&(ref name, ref e)|
+                        format!(".{} = {}",
+                                self.session.interner.name_to_str(
+                                    name),
+                                self.visit_expr(e)),
+                        ", ");
+                format!("({{ struct {} _ = {{ {} }}; _; }})",
+                        structname, args)
             }
             BinOpExpr(ref op, ref lhs, ref rhs) => {
                 let lhs = self.visit_expr(*lhs);
