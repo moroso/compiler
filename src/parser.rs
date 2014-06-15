@@ -347,7 +347,8 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             tps: None,
         };
 
-        self.add_id_and_span(ident, self.last_span)
+        let span = self.last_span;
+        self.add_id_and_span(ident, span)
     }
 
     fn parse_type_params(&mut self) -> Vec<Type> {
@@ -440,7 +441,8 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             tok                  => self.error(format!("Unexpected {} where literal expected", tok), self.last_span.get_begin())
         };
 
-        self.add_id_and_span(node, self.last_span)
+        let span = self.last_span;
+        self.add_id_and_span(node, span)
     }
 
     fn parse_pat_common(&mut self, allow_types: bool) -> Pat {
@@ -725,7 +727,8 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         match op {
             Some(op) => {
                 self.expect(unop_token(op));
-                let op = self.add_id_and_span(op, self.last_span);
+                let span = self.last_span;
+                let op = self.add_id_and_span(op, span);
                 let e = self.parse_simple_expr();
                 let node = UnOpExpr(op, box e);
                 let end_span = self.cur_span();
@@ -787,7 +790,8 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         };
 
         self.expect(binop_token(op));
-        let op = self.add_id_and_span(op, self.last_span);
+        let span = self.last_span;
+        let op = self.add_id_and_span(op, span);
 
         match assoc {
             RightAssoc => {
@@ -913,12 +917,14 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
 
     fn parse_break_expr(&mut self) -> Expr {
         self.expect(Break);
-        self.add_id_and_span(BreakExpr, self.last_span)
+        let span = self.last_span;
+        self.add_id_and_span(BreakExpr, span)
     }
 
     fn parse_continue_expr(&mut self) -> Expr {
         self.expect(Continue);
-        self.add_id_and_span(ContinueExpr, self.last_span)
+        let span = self.last_span;
+        self.add_id_and_span(ContinueExpr, span)
     }
 
     fn parse_simple_expr(&mut self) -> Expr {
@@ -1109,7 +1115,8 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 match *self.peek() {
                     Bang => {
                         self.expect(Bang);
-                        self.add_id_and_span(DivergingType, self.last_span)
+                        let span = self.last_span;
+                        self.add_id_and_span(DivergingType, span)
                     }
                     _ => self.parse_type(),
                 }

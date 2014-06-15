@@ -75,7 +75,7 @@ impl Session {
         let s = include_str!("prelude.mb");
         let bytes = Vec::from_slice(s.as_bytes());
         let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
-        let lexer = Lexer::new("<prelude>", buffer);
+        let lexer = new_mb_lexer("<prelude>", buffer);
         let mut temp = self.parser.parse(lexer, &mut self.interner);
         swap(&mut module.val.items, &mut temp.val.items);
         module.val.items.push_all_move(temp.val.items);
