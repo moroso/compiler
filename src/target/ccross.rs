@@ -338,7 +338,7 @@ impl CCrossCompiler {
             TupleExpr(..) => fail!("Tuples not yet supported."),
             GroupExpr(ref e) => format!("({})", self.visit_expr(*e)),
             PathExpr(ref p) => self.visit_path(p),
-            StructExpr(ref p, ref args) => {
+            StructExpr(_, ref args) => {
                 let args =
                     self.visit_list(
                         args,

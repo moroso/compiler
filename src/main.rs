@@ -85,7 +85,7 @@ fn main() {
 
     let matches = match getopts(args.tail(), opts) {
         Ok(m) => m,
-        Err(e) => return bail(Some(e.to_err_msg().as_slice())),
+        Err(e) => return bail(Some(format!("{}", e).as_slice())),
     };
 
     if matches.opt_present("help") {

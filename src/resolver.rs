@@ -10,7 +10,6 @@ pub enum NS {
     TypeAndModNS = 0u,
     ValNS,
     StructNS,
-    NS_COUNT // argh rust why can't you provide num_variants::<NS>()
 }
 
 enum ModuleScope {
