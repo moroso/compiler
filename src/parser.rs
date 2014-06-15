@@ -204,7 +204,7 @@ impl OpTable {
                 parser.parse_unop_expr_maybe_cast()
             } else {
                 let row = &rows[r - 1];
-                let start_span = parser.peek_span();
+                let start_span = parser.cur_span();
                 let parse_simpler_expr = |p: &mut StreamParser<'a, T>| parse_row(r - 1, rows, p);
                 let e = parse_simpler_expr(parser);
                 parser.maybe_parse_binop(row.ops, row.assoc, parse_simpler_expr, e, start_span)
@@ -229,6 +229,12 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             last_span: mk_sp(SourcePos::new(), 0),
             restriction: NoRestriction,
         }
+    }
+
+    /// Get the current cursor position as a zero-width span
+    fn cur_span(&self) -> Span {
+        let last_end = self.last_span.get_end();
+        mk_sp(last_end, 0)
     }
 
     /// Peek at the Span of the next token.
@@ -368,7 +374,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     fn parse_path_common(&mut self, with_tps: bool) -> Path {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
 
         let global = match *self.peek() {
             ColonColon => {
@@ -384,7 +390,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         };
 
         while *self.peek() == ColonColon {
-            let start_span = self.peek_span();
+            let start_span = self.cur_span();
 
             self.expect(ColonColon);
             match *self.peek() {
@@ -399,10 +405,13 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             }
 
             let id = path.elems.last().unwrap().id;
-            self.parser.spanmap.insert(id, start_span.to(self.last_span));
+
+            let end_span = self.cur_span();
+            self.parser.spanmap.insert(id, start_span.to(end_span));
         }
 
-        self.add_id_and_span(path, start_span.to(self.last_span))
+        let end_span = self.cur_span();
+        self.add_id_and_span(path, start_span.to(end_span))
     }
 
     fn parse_path(&mut self) -> Path {
@@ -435,7 +444,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     fn parse_pat_common(&mut self, allow_types: bool) -> Pat {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
 
         let maybe_type = |p: &mut StreamParser<'a, T>, allow_types| {
             match *p.peek() {
@@ -491,7 +500,8 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             _ => self.peek_error("Unexpected token while parsing pattern")
         };
 
-        self.add_id_and_span(pat, start_span.to(self.last_span))
+        let end_span = self.cur_span();
+        self.add_id_and_span(pat, start_span.to(end_span))
     }
 
     pub fn parse_pat(&mut self) -> Pat {
@@ -516,7 +526,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         /*
         Parse a type.
         */
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         let mut node = match *self.peek() {
             IntTypeTok(ik) => {
                 self.eat();
@@ -566,7 +576,8 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
 
         let mut result;
         while {
-            result = self.add_id_and_span(node, start_span.to(self.last_span));
+            let end_span = self.cur_span();
+            result = self.add_id_and_span(node, start_span.to(end_span));
             true
         } {
             node = match *self.peek() {
@@ -589,7 +600,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
          * * `let x = 5` to declare and initialize x, and infer the type;
          * * `let (x, y, z) = t` to deconstruct the tuple t into components.
          */
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         self.expect(Let);
 
         let pat = self.parse_pat();
@@ -608,11 +619,12 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             _ => self.peek_error("Expected semicolon or \"=\""),
         };
 
-        self.add_id_and_span(LetStmt(pat, expr), start_span.to(self.last_span))
+        let end_span = self.cur_span();
+        self.add_id_and_span(LetStmt(pat, expr), start_span.to(end_span))
     }
 
     fn parse_if_expr(&mut self) -> Expr {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         self.expect(If);
 
         let cond = self.parse_expr_no_structs();
@@ -633,7 +645,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 }
             }
             _ => {
-                let fake_span = mk_sp(self.last_span.get_end(), 0);
+                let fake_span = self.cur_span();
 
                 Block {
                     items: vec!(),
@@ -643,27 +655,30 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             }
         };
 
+        let end_span = self.cur_span();
         self.add_id_and_span(IfExpr(box cond, box true_block, box false_block),
-                         start_span.to(self.last_span))
+                             start_span.to(end_span))
     }
 
     fn parse_return_expr(&mut self) -> Expr {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         self.expect(Return);
         let result = ReturnExpr(box self.parse_expr());
-        self.add_id_and_span(result, start_span.to(self.last_span))
+        let end_span = self.cur_span();
+        self.add_id_and_span(result, start_span.to(end_span))
     }
 
     fn parse_while_expr(&mut self) -> Expr {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         self.expect(While);
         let cond = self.parse_expr_no_structs();
         let body = self.parse_block();
-        self.add_id_and_span(WhileExpr(box cond, box body), start_span.to(self.last_span))
+        let end_span = self.cur_span();
+        self.add_id_and_span(WhileExpr(box cond, box body), start_span.to(end_span))
     }
 
     fn parse_for_expr(&mut self) -> Expr {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         self.expect(For);
         self.expect(LParen);
         let init = self.parse_expr();
@@ -673,7 +688,8 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let iter = self.parse_expr();
         self.expect(RParen);
         let body = self.parse_block();
-        self.add_id_and_span(ForExpr(box init, box cond, box iter, box body), start_span.to(self.last_span))
+        let end_span = self.cur_span();
+        self.add_id_and_span(ForExpr(box init, box cond, box iter, box body), start_span.to(end_span))
     }
 
     fn parse_match_arm(&mut self) -> MatchArm {
@@ -688,17 +704,18 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     fn parse_match_expr(&mut self) -> Expr {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         self.expect(Match);
         let matched_expr = self.parse_expr_no_structs();
         self.expect(LBrace);
         let match_items = self.parse_list(|p| p.parse_match_arm(), RBrace, true); // TODO don't require comma when there is a closing brace
         self.expect(RBrace);
-        self.add_id_and_span(MatchExpr(box matched_expr, match_items), start_span.to(self.last_span))
+        let end_span = self.cur_span();
+        self.add_id_and_span(MatchExpr(box matched_expr, match_items), start_span.to(end_span))
     }
 
     fn parse_unop_expr(&mut self) -> Expr {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         let op = match *self.peek() {
             ref tok if unop_from_token(tok).is_some() =>
                 Some(unop_from_token(tok).unwrap()),
@@ -711,7 +728,8 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 let op = self.add_id_and_span(op, self.last_span);
                 let e = self.parse_simple_expr();
                 let node = UnOpExpr(op, box e);
-                self.add_id_and_span(node, start_span.to(self.last_span))
+                let end_span = self.cur_span();
+                self.add_id_and_span(node, start_span.to(end_span))
             }
             _ => self.parse_simple_expr()
         }
@@ -724,14 +742,15 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                     p.expect(As);
                     let t = p.parse_type();
                     let node = CastExpr(box expr, t);
-                    let castexpr = p.add_id_and_span(node, start_span.to(p.last_span));
+                    let end_span = p.cur_span();
+                    let castexpr = p.add_id_and_span(node, start_span.to(end_span));
                     maybe_parse_cast(p, castexpr, start_span)
                 }
                 _ => expr,
             }
         }
 
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         let e = self.parse_unop_expr();
         maybe_parse_cast(self, e, start_span)
     }
@@ -767,17 +786,17 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             _ => return e,
         };
 
-        let op_span = self.peek_span();
         self.expect(binop_token(op));
-        let op = self.add_id_and_span(op, op_span);
+        let op = self.add_id_and_span(op, self.last_span);
 
         match assoc {
             RightAssoc => {
-                let r_span = self.peek_span();
+                let r_span = self.cur_span();
                 let r = parse_simpler_expr(self);
                 let r = self.maybe_parse_binop(ops, assoc, parse_simpler_expr, r, r_span);
                 let node = BinOpExpr(op, box e, box r);
-                self.add_id_and_span(node, start_span)
+                let end_span = self.cur_span();
+                self.add_id_and_span(node, start_span.to(end_span))
             }
             LeftAssoc => {
                 let r = parse_simpler_expr(self);
@@ -788,7 +807,8 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             NonAssoc => {
                 let r = parse_simpler_expr(self);
                 let node = BinOpExpr(op, box e, box r);
-                self.add_id_and_span(node, start_span)
+                let end_span = self.cur_span();
+                self.add_id_and_span(node, start_span.to(end_span))
             }
         }
     }
@@ -844,7 +864,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     pub fn parse_expr(&mut self) -> Expr {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         let lv = self.parse_binop_expr();
 
         let op = match *self.peek() {
@@ -860,16 +880,17 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             PercentEq => Some(ModOp),
             Eq        => None,
             _         => return lv,
-        }.map(|op| self.add_id_and_span(op, self.last_span));
+        }.map(|op| self.add_id_and_span(op, self.peek_span()));
 
         self.eat();
         let e = self.parse_expr();
         let node = AssignExpr(op, box lv, box e);
-        self.add_id_and_span(node, start_span.to(self.last_span))
+        let end_span = self.cur_span();
+        self.add_id_and_span(node, start_span.to(end_span))
     }
 
     fn parse_path_or_struct_expr(&mut self) -> Expr {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         let path = self.parse_path();
         let node = match *self.peek() {
             LBrace if self.restriction != NoAmbiguousLBraceRestriction => {
@@ -886,7 +907,8 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             _ => PathExpr(path),
         };
 
-        self.add_id_and_span(node, start_span.to(self.last_span))
+        let end_span = self.cur_span();
+        self.add_id_and_span(node, start_span.to(end_span))
     }
 
     fn parse_break_expr(&mut self) -> Expr {
@@ -900,7 +922,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     fn parse_simple_expr(&mut self) -> Expr {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         let peek_next_expr_parser = |p: &mut StreamParser<'a, T>| match *p.peek() {
                 If     => Some(|p: &mut StreamParser<'a, T>| p.parse_if_expr()),
                 Return => Some(|p: &mut StreamParser<'a, T>| p.parse_return_expr()),
@@ -913,9 +935,10 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 LParen => Some(|p: &mut StreamParser<'a, T>| p.parse_paren_expr()),
                 ColonColon | IdentTok(..) => Some(|p: &mut StreamParser<'a, T>| p.parse_path_or_struct_expr()),
                 NumberTok(..) | StringTok(..) | True | False | Null => Some(|p: &mut StreamParser<'a, T>| {
-                    let start_span = p.peek_span();
+                    let start_span = p.cur_span();
                     let node = LitExpr(p.parse_lit());
-                    p.add_id_and_span(node, start_span.to(p.last_span))
+                    let end_span = p.cur_span();
+                    p.add_id_and_span(node, start_span.to(end_span))
                 }),
                 _ => None,
             };
@@ -953,14 +976,15 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 _ => break,
             };
 
-            expr = self.add_id_and_span(node, start_span.to(self.last_span));
+            let end_span = self.cur_span();
+            expr = self.add_id_and_span(node, start_span.to(end_span));
         }
 
         expr
     }
 
     fn parse_paren_expr(&mut self) -> Expr {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
 
         self.expect(LParen);
         let mut inner_exprs = self.with_restriction(NoRestriction, |p| p.parse_list(|p| p.parse_expr(), RParen, false));
@@ -974,28 +998,32 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             TupleExpr(inner_exprs)
         };
 
-        self.add_id_and_span(node, start_span.to(self.last_span))
+        let end_span = self.cur_span();
+        self.add_id_and_span(node, start_span.to(end_span))
     }
 
     fn parse_block_expr(&mut self) -> Expr {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         let block = self.parse_block();
-        self.add_id_and_span(BlockExpr(box block), start_span.to(self.last_span))
+        let end_span = self.cur_span();
+        self.add_id_and_span(BlockExpr(box block), start_span.to(end_span))
     }
 
     fn parse_stmt(&mut self) -> Stmt {
         match *self.peek() {
             Let => self.parse_let_stmt(),
             _ => {
-                let start_span = self.peek_span();
+                let start_span = self.cur_span();
                 let expr = self.with_restriction(ExprStmtRestriction, |p| p.parse_expr());
                 match *self.peek() {
                     Semicolon => {
                         self.expect(Semicolon);
-                        self.add_id_and_span(SemiStmt(expr), start_span.to(self.last_span))
+                        let end_span = self.cur_span();
+                        self.add_id_and_span(SemiStmt(expr), start_span.to(end_span))
                     },
                     _ => {
-                        self.add_id_and_span(ExprStmt(expr), start_span.to(self.last_span))
+                        let end_span = self.cur_span();
+                        self.add_id_and_span(ExprStmt(expr), start_span.to(end_span))
                     },
                 }
             }
@@ -1055,20 +1083,22 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     fn parse_extern_item(&mut self) -> Item {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         self.expect(Extern);
         match *self.peek() {
             Fn => {
                 let (funcname, args, return_type, type_params) = self.parse_func_prototype();
                 self.expect(Semicolon);
+                let end_span = self.cur_span();
                 self.add_id_and_span(FuncItem(funcname, args, return_type, None, type_params),
-                                     start_span.to(self.last_span))
+                                     start_span.to(end_span))
             }
             Static => {
                 let (name, ty) = self.parse_static_decl();
                 self.expect(Semicolon);
+                let end_span = self.cur_span();
                 self.add_id_and_span(StaticItem(name, ty, None),
-                                     start_span.to(self.last_span))
+                                     start_span.to(end_span))
             }
             _ => self.peek_error("Expected 'fn' or 'static'"),
         }
@@ -1093,7 +1123,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 }
             }
             _ => {
-                let dummy_span = mk_sp(self.last_span.get_end(), 0);
+                let dummy_span = self.cur_span();
                 self.add_id_and_span(UnitType, dummy_span)
             }
         };
@@ -1102,11 +1132,12 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     fn parse_func_item(&mut self) -> Item {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         let (funcname, args, return_type, type_params) = self.parse_func_prototype();
         let body = Some(self.parse_block());
+        let end_span = self.cur_span();
         self.add_id_and_span(FuncItem(funcname, args, return_type, body, type_params),
-                             start_span.to(self.last_span))
+                             start_span.to(end_span))
     }
 
     fn parse_struct_field(&mut self) -> Field {
@@ -1121,14 +1152,15 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     fn parse_struct_item(&mut self) -> Item {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         self.expect(Struct);
         let structname = self.parse_ident();
         let type_params = self.parse_item_type_params(LBrace);
         self.expect(LBrace);
         let body = self.parse_list(|p| p.parse_struct_field(), RBrace, true);
         self.expect(RBrace);
-        self.add_id_and_span(StructItem(structname, body, type_params), start_span.to(self.last_span))
+        let end_span = self.cur_span();
+        self.add_id_and_span(StructItem(structname, body, type_params), start_span.to(end_span))
     }
 
     fn parse_variant(&mut self) -> Variant {
@@ -1152,35 +1184,37 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     fn parse_enum_item(&mut self) -> Item {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         self.expect(Enum);
         let enumname = self.parse_ident();
         let type_params = self.parse_item_type_params(LBrace);
         self.expect(LBrace);
         let body = self.parse_list(|p| p.parse_variant(), RBrace, true);
         self.expect(RBrace);
-        self.add_id_and_span(EnumItem(enumname, body, type_params), start_span.to(self.last_span))
+        let end_span = self.cur_span();
+        self.add_id_and_span(EnumItem(enumname, body, type_params), start_span.to(end_span))
     }
 
     fn parse_module_until(&mut self, end: Token) -> Module {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         let mut items = vec!();
         while *self.peek() != end {
             items.push(self.parse_item());
         }
         let node = ModuleNode { items: items };
-        let end_span = self.peek_span();
+        let end_span = self.cur_span();
         self.add_id_and_span(node, start_span.to(end_span))
     }
 
     fn parse_mod_item(&mut self) -> Item {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         self.expect(Mod);
         let name = self.parse_ident();
         self.expect(LBrace);
         let module = self.parse_module_until(RBrace);
         self.expect(RBrace);
-        self.add_id_and_span(ModItem(name, module), start_span.to(self.last_span))
+        let end_span = self.cur_span();
+        self.add_id_and_span(ModItem(name, module), start_span.to(end_span))
     }
 
     fn parse_static_decl(&mut self) -> StaticDecl {
@@ -1192,7 +1226,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     fn parse_static_item(&mut self) -> Item {
-        let start_span = self.peek_span();
+        let start_span = self.cur_span();
         let (name, ty) = self.parse_static_decl();
         let expr = match *self.peek() {
             Eq => {
@@ -1202,8 +1236,10 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             _ => self.peek_error("Non-extern static items require an initial value.")
         };
         self.expect(Semicolon);
+
+        let end_span = self.cur_span();
         self.add_id_and_span(StaticItem(name, ty, expr),
-                             start_span.to(self.last_span))
+                             start_span.to(end_span))
     }
 
     fn parse_item(&mut self) -> Item {
