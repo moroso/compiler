@@ -71,6 +71,8 @@ pub enum RValue {
     DirectRValue(RValueElem),
     // Function call
     CallRValue(RValueElem, Vec<RValueElem>),
+    // Allocate space on the stack. Used for structures and enums.
+    AllocaRValue(u64),
 }
 
 impl Show for RValue {
@@ -96,6 +98,9 @@ impl Show for RValue {
                 }
                 try!(write!(f, ")"));
                 Ok(())
+            },
+            AllocaRValue(ref size) => {
+                write!(f, "alloca {}", size)
             }
         }
     }

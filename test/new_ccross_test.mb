@@ -1,7 +1,13 @@
 fn test2(a: u32) -> u32 { a }
 
+struct st {
+    x: u32,
+    t: bool,
+    z: u32,
+}
+
 fn main(a: u32) -> u32 {
-    let b: u32 = 1;
+/*    let b: u32 = 1;
     while(b<10) {
         a*=b;
         b+=1;
@@ -9,5 +15,13 @@ fn main(a: u32) -> u32 {
 
     let c = test2(a+5);
 
-    a + c
+    a + c*/
+    let y: st;
+    y.x = 7;
+    y.z = y.x;
+
+    let c = y.x + 5;
+    let d = y.z;
+
+    0
 }

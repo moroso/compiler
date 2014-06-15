@@ -44,7 +44,8 @@ fn ssa_rvalue(generations: &mut TreeMap<Name, uint>, rv: &mut RValue) {
             for arg in args.mut_iter() {
                 ssa_rvalelem(generations, arg);
             }
-        }
+        },
+        AllocaRValue(..) => {}
     }
 }
 
@@ -292,8 +293,10 @@ impl ToSSA {
                 Assign(ref mut lv, ref mut rv) => {
                     ssa_rvalue(gens, rv);
                     match *lv {
-                        VarLValue(ref mut var) | PtrLValue(ref mut var) =>
+                        VarLValue(ref mut var) =>
                             var.generation = next_gen(gens, var.name),
+                        PtrLValue(ref mut var) =>
+                            var.generation = gen_of(gens, var.name),
                     }
                 },
                 Label(_, ref mut vars) => {

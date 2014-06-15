@@ -42,7 +42,8 @@ fn substituted_rvalue(rv: &RValue,
                          }
                 ).collect()
             )
-        }
+        },
+        AllocaRValue(ref size) => AllocaRValue(size.clone()),
     }
 }
 

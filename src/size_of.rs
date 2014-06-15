@@ -1,12 +1,13 @@
 use ast::{Module, NodeId};
-use ast::defmap::DefMap;
 use typechecker::*;
 use util::*;
 use session::*;
 use typechecker::Typechecker;
 use ast::defmap::*;
+use ast::Type;
 
 use std::iter::AdditiveIterator;
+use std::vec::unzip;
 
 /// The size of the tag for enums.
 static enum_tag_size: u64 = 4;
@@ -17,25 +18,53 @@ pub fn alignment(size: u64) -> u64 {
     else { size }
 }
 
+fn struct_field_sizes(session: &Session,
+                      fields: &Vec<(Name, Type)>) -> Vec<(Name, u64)> {
+    // TODO: don't keep making new typecheckers.
+    let mut typeck = Typechecker::new(session);
+
+    fields.iter()
+        .map(|&(n, ref t)| (n, size_of_ty(session, &typeck.type_to_ty(t))))
+        .collect()
+}
+
 // TODO: a function that returns the vector of sizes of the components
 // of a struct/tuple/enumitem.
+pub fn offset_of_struct_field(session: &Session,
+                              node: &NodeId,
+                              field: &Name) -> u64 {
+    let def = session.defmap.find(node).unwrap();
+    match *def {
+        StructDef(_, ref fields, _) => {
+            let names_and_sizes = struct_field_sizes(session, fields);
+            let (names, sizes) = unzip(names_and_sizes.move_iter());
 
-pub fn size_of_def(defmap: &DefMap, node: &NodeId) -> u64 {
-    let def = defmap.find(node).unwrap();
+            for i in range(0, sizes.len())
+            {
+                if names.get(i) == field {
+                    return offset_of(&sizes, i);
+                }
+            }
+            fail!("Cannot find field {}\n", field);
+        }
+        _ => fail!("Looking up struct field offset in a non-struct.")
+    }
+}
 
-    let session = Session::new();
-    let mut typeck = Typechecker::new(&session);
+pub fn size_of_def(session: &Session, node: &NodeId) -> u64 {
+    let mut typeck = Typechecker::new(session);
+
+    let def = session.defmap.find(node).unwrap();
 
     match *def {
         StructDef(_, ref fields, _) => {
-            let sizes = fields.iter()
-                .map(|&(_, ref t)| size_of_ty(defmap, &typeck.type_to_ty(t)))
-                .collect();
+            let sizes = struct_field_sizes(session, fields).iter()
+                .map(|&(_, y)| y).collect();
             packed_size(&sizes)
         },
         EnumDef(_, ref variants, _) => {
             let max_variant_size = variants.iter()
-                .map(|v| size_of_def(defmap, v)).max().unwrap();
+                .map(|v| size_of_def(session, v)).max().unwrap();
             if max_variant_size == 0 {
                 enum_tag_size
             } else {
@@ -44,7 +73,7 @@ pub fn size_of_def(defmap: &DefMap, node: &NodeId) -> u64 {
         },
         VariantDef(_, _, ref types) => {
             let sizes = types.iter()
-                .map(|t| size_of_ty(defmap, &typeck.type_to_ty(t)))
+                .map(|t| size_of_ty(session, &typeck.type_to_ty(t)))
                 .collect();
             packed_size(&sizes)
         }
@@ -52,7 +81,7 @@ pub fn size_of_def(defmap: &DefMap, node: &NodeId) -> u64 {
     }
 }
 
-pub fn size_of_ty(defmap: &DefMap, ty: &Ty) -> u64 {
+pub fn size_of_ty(session: &Session, ty: &Ty) -> u64 {
     match *ty {
         BoolTy => 1,
         IntTy(ref w) |
@@ -67,10 +96,10 @@ pub fn size_of_ty(defmap: &DefMap, ty: &Ty) -> u64 {
         PtrTy(..) |
         FuncTy(..) => 4,
         UnitTy => 0,
-        ArrayTy(ref t, ref l) => size_of_ty(defmap, *t) * l.unwrap(),
+        ArrayTy(ref t, ref l) => size_of_ty(session, *t) * l.unwrap(),
         TupleTy(ref tys) =>
             packed_size(
-                &tys.iter().map(|t| size_of_ty(defmap, t)).collect()),
+                &tys.iter().map(|t| size_of_ty(session, t)).collect()),
         BoundTy(..) |
         BottomTy => fail!("Type {} should not be appearing here.", ty),
         _ => fail!("Unimplemented: {}", ty),
@@ -137,7 +166,7 @@ mod tests {
         let session = Session::new();
         let mut typeck = Typechecker::new(&session);
         let ty = typeck.type_to_ty(&ast);
-        assert_eq!(size_of_ty(&session.defmap, &ty), expected_size);
+        assert_eq!(size_of_ty(&session, &ty), expected_size);
     }
 
     #[test]
@@ -195,7 +224,7 @@ mod tests {
         let mut session = Session::new();
         session.parse_str(t);
 
-        assert_eq!(size_of_def(&session.defmap, &NodeId(0)), expected_size);
+        assert_eq!(size_of_def(&session, &NodeId(0)), expected_size);
     }
 
     #[test]

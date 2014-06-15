@@ -1,25 +1,33 @@
-use session::Interner;
+use session::Session;
 
 use ast::*;
 use ir::*;
 use std::collections::TreeSet;
+use size_of::*;
+use typechecker::*;
+use util::{Width32, UnsignedInt, Name};
 
 pub struct ASTToIntermediate<'a> {
     var_count: uint,
     label_count: uint,
-    interner: &'a mut Interner,
+    session: &'a mut Session,
+    typemap: &'a mut Typemap,
 }
 
 impl<'a> ASTToIntermediate<'a> {
-    pub fn new(interner: &'a mut Interner) -> ASTToIntermediate<'a> {
+    pub fn new(session: &'a mut Session,
+               typemap: &'a mut Typemap) -> ASTToIntermediate<'a> {
         ASTToIntermediate { var_count: 0,
                             label_count: 0,
-                            interner: interner }
+                            session: session,
+                            typemap: typemap,
+        }
     }
 
     fn gen_temp(&mut self) -> Var {
         let res = Var {
-            name: self.interner.intern(format!("TEMP{}", self.var_count)),
+            name: self.session.interner.intern(
+                format!("TEMP{}", self.var_count)),
             generation: None,
         };
         self.var_count += 1;
@@ -37,13 +45,15 @@ impl<'a> ASTToIntermediate<'a> {
             ExprStmt(ref e) => self.convert_expr(e),
             SemiStmt(ref e) => self.convert_expr(e),
             LetStmt(ref pat, ref e_opt) => {
-                let v = match pat.val {
-                    IdentPat(ref ident, _) => {
-                        Var { name: ident.val.name,
-                              generation: None }
+                let (v, ty) = match pat.val {
+                    IdentPat(ref ident, ref ty_opt) => {
+                        (Var { name: ident.val.name,
+                               generation: None },
+                         ty_opt.clone())
                     },
                     _ => fail!("Only ident patterns are supported right now.")
                 };
+
                 match *e_opt {
                     Some(ref e) => {
                         let (mut ops, other_v) = self.convert_expr(e);
@@ -51,7 +61,25 @@ impl<'a> ASTToIntermediate<'a> {
                                         DirectRValue(Variable(other_v))));
                         (ops, v)
                     },
-                    None => (vec!(), v)
+                    None => {
+                        match ty {
+                            None => fail!("No type available."),
+                            Some(ref t) => {
+                                // TODO: eliminate this.
+                                let mut typeck = Typechecker::new(self.session);
+                                match typeck.type_to_ty(t) {
+                                    StructTy(ref id, _) => {
+                                        let size = size_of_def(self.session,
+                                                               id);
+                                        print!("Allocate {}\n", size);
+                                        (vec!(Assign(VarLValue(v),
+                                                     AllocaRValue(size))), v)
+                                    },
+                                    _ => (vec!(), v)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -96,6 +124,7 @@ impl<'a> ASTToIntermediate<'a> {
                 ops.push(Return(Variable(v)));
                 (ops, v)
             },
+            StructItem(..) => (vec!(), self.gen_temp()),
             _ => fail!("{}", item)//(vec!(), self.gen_temp())
         }
     }
@@ -128,9 +157,11 @@ impl<'a> ASTToIntermediate<'a> {
                                generation: None })
             },
             AssignExpr(ref op, ref e1, ref e2) => {
+                // TODO: this will break in the case of structs and enums.
+
                 let (mut res, var2) = self.convert_expr(*e2);
 
-                // The RHS might be wrapped in a GroupExpr.
+                // The LHS might be wrapped in a GroupExpr.
                 // Unwrap it.
                 let mut e1val = e1.val.clone();
                 loop {
@@ -176,6 +207,22 @@ impl<'a> ASTToIntermediate<'a> {
                             _ => fail!(),
                         }
                     },
+                    DotExpr(ref e, ref name) => {
+                        let (insts, added_addr_var) =
+                            self.struct_helper(*e, name);
+
+                        res.push_all_move(insts);
+
+                        let binop_var = self.gen_temp();
+                        (binop_var,
+                         vec!(Assign(VarLValue(binop_var.clone()),
+                                     UnOpRValue(Deref,
+                                                Variable(added_addr_var.clone())
+                                                )
+                                     )
+                              ),
+                        PtrLValue(added_addr_var))
+                    }
                     _ => fail!("Got {}", e1.val),
                 };
                 let final_var =
@@ -258,6 +305,7 @@ impl<'a> ASTToIntermediate<'a> {
                     vars.push(new_var);
                 }
                 let (new_ops, new_var) = self.convert_expr(*f);
+                ops.push_all_move(new_ops);
                 let result_var = self.gen_temp();
                 ops.push(Assign(
                     VarLValue(result_var.clone()),
@@ -265,8 +313,43 @@ impl<'a> ASTToIntermediate<'a> {
                                vars.move_iter().map(
                                    |v| Variable(v)).collect())));
                 (ops, result_var)
-            }
+            },
+            DotExpr(ref e, ref name) => {
+                let (mut ops, added_addr_var) = self.struct_helper(*e, name);
+
+                let res_var = self.gen_temp();
+                ops.push(Assign(VarLValue(res_var),
+                                UnOpRValue(Deref, Variable(added_addr_var))));
+                (ops, res_var)
+            },
             _ => (vec!(), self.gen_temp()),
         }
+    }
+
+    // Helper function for dealing with structs. Returns a list of ops and
+    // a variable that, after the ops, will point to the field `name`
+    // of the structure given by the expression `e`.
+    fn struct_helper(&mut self, e: &Expr, name: &Name) -> (Vec<Op>, Var) {
+        let (mut ops, var) = self.convert_expr(e);
+        let ty = self.typemap.types.get(&e.id.to_uint()).clone();
+        let id = match ty {
+            StructTy(ref id, _) => id,
+            _ => fail!("ICE: struct doesn't have struct type. Typechecker should have caught this.")
+        };
+        let offs = offset_of_struct_field(
+            self.session,
+            id,
+            name);
+
+        let added_addr_var = self.gen_temp();
+
+        ops.push(Assign(
+            VarLValue(added_addr_var),
+            BinOpRValue(PlusOp,
+                        Variable(var),
+                        Constant(NumLit(offs,
+                                        UnsignedInt(Width32))))));
+
+        (ops, added_addr_var)
     }
 }

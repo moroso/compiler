@@ -59,7 +59,8 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                                 _ => {},
                             }
                         }
-                    }
+                    },
+                    AllocaRValue(..) => { }
                 };
                 // TODO: this needs to handle jumps.
                 if u + 1 < len {
@@ -122,7 +123,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                     _ => {},
                 }
             },
-            Func(ref name, ref vars) => {
+            Func(_, ref vars) => {
                 let opinfo = opinfo.get_mut(u);
                 for v in vars.iter() {
                     opinfo.def.insert(v.clone());

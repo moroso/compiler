@@ -24,18 +24,19 @@ pub fn package_to_ir(p: Package) {
     let Package {
         module:  module,
         session: mut session,
-        typemap: typemap,
+        typemap: mut typemap,
     } = p;
 
     let mut result =
     {
-        let mut converter = ASTToIntermediate::new(&mut session.interner);
+        let mut converter = ASTToIntermediate::new(&mut session,
+                                                   &mut typemap);
 
         let mut result = vec!();
 
         for item in module.val.items.iter() {
             print!("{}\n", item);
-            let (insts, var) = converter.convert_item(item);
+            let (insts, _) = converter.convert_item(item);
             print!("{}\n\n", insts);
             result.push(insts);
         }
@@ -49,8 +50,7 @@ pub fn package_to_ir(p: Package) {
         for a in LivenessAnalyzer::analyze(insts).iter() {
             print!("{}\n", a);
         }
-        print!("{}\n", IRToC::convert_function(&session.interner,
-                                               insts));
+        print!("{}\n", IRToC::convert_function(&session.interner, insts));
     }
 }
 
@@ -60,6 +60,8 @@ pub fn main() {
     package_to_ir(package);
 
     return;
+
+    /*
 
     let buffer = io::BufferedReader::new(io::MemReader::new(
         //Vec::from_slice("{*(a*5+6*7)=4u16*(5u16+1u16)*foo; b=a+1; c=6+7<2 || a}".as_bytes())
@@ -88,4 +90,5 @@ pub fn main() {
     for z in opinfo.iter().zip(ops.iter()) {
         print!("{}", z);
     }
+     */
 }

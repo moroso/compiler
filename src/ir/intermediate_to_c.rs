@@ -20,14 +20,19 @@ fn print_var(interner: &Interner, v: &Var) -> String {
 fn print_lvalue(interner: &Interner, lv: &LValue) -> String {
     match *lv {
         VarLValue(ref v) => print_var(interner, v),
-        PtrLValue(ref v) => format!("*{}", print_var(interner, v)),
+        PtrLValue(ref v) => format!("*(int*){}", print_var(interner, v)),
     }
 }
 
 fn print_rvalelem(interner: &Interner, rve: &RValueElem) -> String {
     match *rve {
         Variable(ref v) => print_var(interner, v),
-        Constant(ref l) => format!("{}", l),
+        Constant(ref l) => {
+            match *l {
+                NumLit(n, _) => format!("{}", n),
+                _ => fail!("Non-integer literals not yet supported."),
+            }
+        }
     }
 }
 
@@ -41,10 +46,18 @@ fn print_rvalue(interner: &Interner, rv: &RValue) -> String {
                     )
         },
         UnOpRValue(ref op, ref v) => {
-            format!("{} {}",
-                    op,
-                    print_rvalelem(interner, v)
-                    )
+            match *op {
+                Deref => {
+                    format!("*((int*){})",
+                            print_rvalelem(interner, v))
+                },
+                _ => {
+                    format!("{} {}",
+                            op,
+                            print_rvalelem(interner, v)
+                            )
+                }
+            }
         },
         DirectRValue(ref v) => print_rvalelem(interner, v),
         CallRValue(ref v, ref args) => {
@@ -54,6 +67,9 @@ fn print_rvalue(interner: &Interner, rv: &RValue) -> String {
             s = s.append(list.connect(", ").as_slice());
             s = s.append(")");
             s
+        }
+        AllocaRValue(ref size) => {
+            format!("alloca({})", size)
         }
     }
 }
@@ -108,7 +124,7 @@ impl IRToC {
         for op in ops.iter() {
             s = s.append(match *op {
                 Assign(ref lv, ref rv) => {
-                    format!("  {} = (int)({});\n",
+                    format!("  {} = (long)({});\n",
                             print_lvalue(interner, lv),
                             print_rvalue(interner, rv))
                 },
@@ -134,11 +150,11 @@ impl IRToC {
                 },
                 Func(ref name, ref args) => {
                     let mapped_args: Vec<String> = args.iter()
-                        .map(|arg| format!("int {}", print_var(interner, arg)))
+                        .map(|arg| format!("long {}", print_var(interner, arg)))
                         .collect();
                     let mut s = format!("");
                     for var in vars.iter() {
-                        s = s.append(format!("  int {};\n",
+                        s = s.append(format!("  long {};\n",
                                              print_var(interner, *var))
                                      .as_slice());
                     }
