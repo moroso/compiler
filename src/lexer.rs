@@ -90,7 +90,6 @@ impl<T: Buffer, U> Lexer<T, U> {
             endcomment: endcomment,
         }
     }
-
 }
 
 // The meat of the lexer (read this as a stateful flat-map)

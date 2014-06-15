@@ -1036,15 +1036,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         */
         self.expect(LBrace);
         let mut statements = vec!();
-        let mut items = vec!();
-        loop {
-            match *self.peek() {
-                RBrace => break,
-                Fn | Struct | Enum | Mod => items.push(self.parse_item()),
-                _ => statements.push(self.parse_stmt()),
-            }
-        }
-
+        let items = self.parse_items_until(RBrace, |me| statements.push(me.parse_stmt()));
         self.expect(RBrace);
 
         let expr = statements.pop().and_then(|stmt| {
@@ -1195,12 +1187,49 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.add_id_and_span(EnumItem(enumname, body, type_params), start_span.to(end_span))
     }
 
+    fn parse_use_item(&mut self) -> Item {
+        let start_span = self.cur_span();
+        self.expect(Use);
+        let mut path = self.parse_path();
+        self.expect(Semicolon);
+
+        // 'use' items are always globally-scoped
+        path.val.global = true;
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(UseItem(path), start_span.to(end_span))
+    }
+
+    fn parse_items_until<U>(&mut self, end: Token, unmatched: |&mut StreamParser<'a, T>| -> U) -> Vec<Item> {
+        let mut items = vec!();
+        let mut use_items = vec!();
+        let mut count = 0;
+        while *self.peek() != end {
+            match *self.peek() {
+                Use => {
+                    if count > use_items.len() {
+                        let spot = self.cur_span().get_begin();
+                        self.error("'use' declarations must come before everything else", spot)
+                    } else {
+                        use_items.push(self.parse_use_item())
+                    }
+                }
+                Fn | Static | Enum | Struct | Mod | Extern => items.push(self.parse_item()),
+                _ => {
+                    unmatched(self);
+                }
+            }
+
+            count += 1;
+        }
+
+        // we don't have unshift_all_move :(
+        { use_items.push_all_move(items); use_items }
+    }
+
     fn parse_module_until(&mut self, end: Token) -> Module {
         let start_span = self.cur_span();
-        let mut items = vec!();
-        while *self.peek() != end {
-            items.push(self.parse_item());
-        }
+        let items = self.parse_items_until(end, |me| me.parse_item());
         let node = ModuleNode { items: items };
         let end_span = self.cur_span();
         self.add_id_and_span(node, start_span.to(end_span))

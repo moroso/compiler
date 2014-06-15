@@ -16,6 +16,9 @@ pub enum Def {
     /// Module definition, with its qualified name and the NodeIds of the child items
     ModDef(Vec<Name>, Vec<NodeId>),
 
+    /// Module definition, with its qualified name and the qualified name of the thing it imports
+    UseDef(Vec<Name>, Vec<Name>),
+
     /// Shorthand type definition
     TypeDef(Type),
 
@@ -185,6 +188,12 @@ impl<'a> Visitor for DefMapVisitor<'a> {
                 for e in expr.iter() {
                     self.visit_expr(e);
                 }
+            }
+            UseItem(ref path) => {
+                let ident = path.val.elems.last().unwrap();
+                let qn = self.make_qualified_name(ident.val.name);
+                let path_qn = path.val.elems.iter().map(|e| e.val.name).collect();
+                self.defmap.table.insert(ident.id, UseDef(qn, path_qn));
             }
         }
     }

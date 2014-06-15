@@ -895,6 +895,7 @@ impl<'a> Visitor for Typechecker<'a> {
 
     fn visit_item(&mut self, item: &Item) {
         match item.val {
+            UseItem(..) => {}
             FuncItem(_, _, ref t, ref b, ref tps) => {
                 for b in b.iter() {
                     let tp_ids = tps.iter().map(|tp| tp.id).collect();

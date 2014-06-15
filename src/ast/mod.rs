@@ -417,6 +417,7 @@ pub enum ItemNode {
     EnumItem(Ident, Vec<Variant>, Vec<Ident>),
     ModItem(Ident, Module),
     StaticItem(Ident, Type, Option<Expr>),
+    UseItem(Path),
 }
 
 impl Show for ItemNode {
@@ -464,6 +465,9 @@ impl Show for ItemNode {
                        ty,
                        expr.as_ref().map(|e| format!(" = {}", e))
                        .unwrap_or_default())
+            }
+            UseItem(ref path) => {
+                write!(f, "use {};", path)
             }
         }
     }

@@ -45,6 +45,9 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
             visitor.visit_type(ty);
             for e in expr.iter() { visitor.visit_expr(e); }
         }
+        UseItem(ref path) => {
+            visitor.visit_path(path);
+        }
     }
 }
 
