@@ -61,7 +61,7 @@ test/c-results: $(addprefix test/,$(patsubst %.mb,c-results/%.txt,$(TEST_FILES))
 
 test/c/%.c: test/%.mb mc
 	@mkdir -p $(dir $@)
-	@cat test/builtins.mb $< | ./mc --target c > $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
+	@./mc --target c $< > $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
 
 test/c-bin/%: test/c/%.c test/%.txt
 	@echo Running $(patsubst test/c/%.c,%,$<)...

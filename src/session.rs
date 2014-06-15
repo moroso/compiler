@@ -68,9 +68,23 @@ impl Session {
         }
     }
 
+    fn inject_prelude(&mut self, module: &mut Module) {
+        use std::str::StrSlice;
+        use std::mem::swap;
+
+        let s = include_str!("prelude.mb");
+        let bytes = Vec::from_slice(s.as_bytes());
+        let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
+        let lexer = Lexer::new("<prelude>", buffer);
+        let mut temp = self.parser.parse(lexer, &mut self.interner);
+        swap(&mut module.val.items, &mut temp.val.items);
+        module.val.items.push_all_move(temp.val.items);
+    }
+
     pub fn parse_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
         let lexer = new_mb_lexer(name, buffer);
-        let module = self.parser.parse(lexer, &mut self.interner);
+        let mut module = self.parser.parse(lexer, &mut self.interner);
+        self.inject_prelude(&mut module);
         self.defmap.read_module(&module);
         self.resolver.resolve_module(&self.interner, &module);
         module

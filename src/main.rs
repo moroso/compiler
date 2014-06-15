@@ -21,7 +21,7 @@ use getopts::{getopts, reqopt, optopt, optflag};
 use getopts::OptionMissing;
 use std::ascii::StrAsciiExt;
 
-use std::io::stdio;
+use std::io::{BufferedReader, File, stdio};
 use std::os;
 
 mod util;
@@ -109,7 +109,23 @@ fn main() {
         }
     };
 
-    let package = package_from_stdin();
+    let name = if matches.free.len() == 0 {
+        "-"
+    } else if matches.free.len() == 1 {
+        matches.free.get(0).as_slice()
+    } else {
+        return bail(Some("too many arguments"))
+    };
+
+    let package = if name == "-" {
+        package_from_stdin()
+    } else {
+        let path = Path::new(name);
+        let file = File::open(&path).unwrap_or_else(|e| fail!("{}", e));
+        let buffer = BufferedReader::new(file);
+        Package::new(name, buffer)
+    };
+
     target.compile(package);
 }
 
