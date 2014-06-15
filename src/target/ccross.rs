@@ -338,7 +338,6 @@ impl CCrossCompiler {
             GroupExpr(ref e) => format!("({})", self.visit_expr(*e)),
             PathExpr(ref p) => self.visit_path(p),
             StructExpr(ref p, ref args) => {
-                let structname = self.visit_path(p);
                 let args =
                     self.visit_list(
                         args,
@@ -348,8 +347,8 @@ impl CCrossCompiler {
                                     name),
                                 self.visit_expr(e)),
                         ", ");
-                format!("({{ struct {} _ = {{ {} }}; _; }})",
-                        structname, args)
+                format!("{{ {} }}",
+                        args)
             }
             BinOpExpr(ref op, ref lhs, ref rhs) => {
                 let lhs = self.visit_expr(*lhs);
