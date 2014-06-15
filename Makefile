@@ -3,6 +3,7 @@ RUST_FLAGS ?=
 MC_FILES := \
 	main.rs \
 	lexer.rs \
+	compiler_lexer.rs \
 	parser.rs \
 	span.rs \
 	typechecker.rs \

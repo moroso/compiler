@@ -27,7 +27,8 @@ use std::iter::Peekable;
 
 use ast::*;
 use values::*;
-use lexer::*;
+use lexer::{SourceToken, Lexer};
+use compiler_lexer::*;
 
 type FuncProto = (Ident, Vec<FuncArg>, Type, Vec<Ident>);
 type StaticDecl = (Ident, Type);
@@ -46,7 +47,7 @@ pub struct Parser {
 /// The state for parsing a stream of tokens into an AST node
 pub struct StreamParser<'a, T> {
     /// The token stream.
-    tokens: Peekable<SourceToken, Lexer< T>>,
+    tokens: Peekable<SourceToken<Token>, Lexer<T, Token>>,
     /// The name of the current stream being parsed.
     name: Name,
     /// The span corresponding to the last token we consumed from the stream.
@@ -182,12 +183,13 @@ impl Parser {
         NodeId(id)
     }
 
-    pub fn parse<T: Buffer>(&mut self, lexer: Lexer<T>, interner: &mut Interner) -> Module {
+    pub fn parse<T: Buffer>(&mut self, lexer: Lexer<T, Token>,
+                            interner: &mut Interner) -> Module {
         self.parse_with(lexer, interner, |p| p.parse_module())
     }
 
     pub fn parse_with<T: Buffer, U>(&mut self,
-                                    lexer: Lexer<T>,
+                                    lexer: Lexer<T, Token>,
                                     interner: &mut Interner,
                                     f: |&mut StreamParser<T>| -> U) -> U {
         let mut tokp = StreamParser::new(lexer, interner, self);
@@ -214,7 +216,8 @@ impl OpTable {
 }
 
 impl<'a, T: Buffer> StreamParser<'a, T> {
-    fn new(lexer: Lexer<T>, interner: &'a mut Interner, parser: &'a mut Parser) -> StreamParser<'a, T> {
+    fn new(lexer: Lexer<T, Token>, interner: &'a mut Interner,
+           parser: &'a mut Parser) -> StreamParser<'a, T> {
         let name = interner.intern(lexer.get_name());
         let tokens = lexer.peekable();
 

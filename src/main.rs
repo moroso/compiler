@@ -26,6 +26,7 @@ use std::os;
 
 mod util;
 mod lexer;
+mod compiler_lexer;
 mod parser;
 mod span;
 mod ast;

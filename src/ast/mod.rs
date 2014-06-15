@@ -1,4 +1,5 @@
-use lexer::{Token, SourceToken};
+use lexer::SourceToken;
+use compiler_lexer::Token;
 use util::{IntKind, Name, Width};
 
 use std::fmt;

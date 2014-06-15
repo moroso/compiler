@@ -13,6 +13,7 @@ use ast::defmap::DefMap;
 use resolver::Resolver;
 use parser::Parser;
 use lexer::Lexer;
+use compiler_lexer::new_mb_lexer;
 use ast::visit::Visitor;
 use util::Name;
 
@@ -68,7 +69,7 @@ impl Session {
     }
 
     pub fn parse_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
-        let lexer = Lexer::new(name, buffer);
+        let lexer = new_mb_lexer(name, buffer);
         let module = self.parser.parse(lexer, &mut self.interner);
         self.defmap.read_module(&module);
         self.resolver.resolve_module(&self.interner, &module);
