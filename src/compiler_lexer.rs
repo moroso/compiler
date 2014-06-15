@@ -323,3 +323,54 @@ impl<T> TokenMaker<T, Token> for fn(T) -> Token {
 impl<A, B> TokenMaker<(A, B), Token> for fn(A, B) -> Token {
     fn mk_tok(&self, (a, b): (A, B)) -> Token{ (*self)(a, b) }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lexer::*;
+    use std::vec::Vec;
+    use ast;
+    use util::GenericInt;
+
+    type SourceToken = ::lexer::SourceToken<Token>;
+
+    fn compare(actual: &[SourceToken], expected: &[Token]) {
+        for (actual_st, expected_tok)
+            in actual.iter().zip(expected.iter()) {
+            assert!(actual_st.tok == *expected_tok,
+                    format!("Failure:\n  found {:?}, expected {:?}\n",
+                            actual_st.tok, *expected_tok));
+        }
+    }
+
+    #[test]
+    fn test() {
+        let lexer1 = lexer_from_str(r#"f(x - /* I am a comment */ 0x3f5B)+1 "Hello\" World")"#);
+        let tokens1: Vec<SourceToken> = FromIterator::from_iter(lexer1);
+
+        compare(tokens1.as_slice(),
+                vec! {
+                    IdentTok(String::from_str("f")),
+                    LParen,
+                    IdentTok(String::from_str("x")),
+                    Dash,
+                    NumberTok(0x3f5B, GenericInt),
+                    RParen,
+                    Plus,
+                    NumberTok(1, GenericInt),
+                    StringTok(String::from_str(r#"Hello\" World"#)),
+                }.as_slice());
+
+        let lexer2 = lexer_from_str("let x: int = 5;");
+        let tokens2: Vec<SourceToken> = FromIterator::from_iter(lexer2);
+        compare(tokens2.as_slice(),
+                vec! {
+                    Let,
+                    IdentTok(String::from_str("x")),
+                    Colon,
+                    IdentTok(String::from_str("int")),
+                    Eq,
+                    NumberTok(5, GenericInt),
+                }.as_slice());
+    }
+}

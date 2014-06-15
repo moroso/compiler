@@ -144,6 +144,7 @@ pub fn offset_of(sizes: &Vec<u64>, item: uint) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use compiler_lexer::new_mb_lexer;
     use std::io;
     use std::io::stdio;
     use lexer::Lexer;
@@ -160,7 +161,7 @@ mod tests {
                 ));
         let mut parser = Parser::new();
         let mut interner = Interner::new();
-        let lexer = Lexer::new("<stdin>", buffer);
+        let lexer = new_mb_lexer("<stdin>", buffer);
 
         let ast = parser.parse_with(lexer, &mut interner, |p| p.parse_type());
         let session = Session::new();
