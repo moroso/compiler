@@ -18,17 +18,21 @@ use std::ascii::StrAsciiExt;
 use std::io::stdio;
 use std::os;
 
-use lexer::Lexer;
+//use util::Lexer;
+use assembler::asm_lexer::{AsmToken, new_asm_lexer};
 
-mod lexer;
+//mod lexer;
 mod span;
 // TODO: we may want to try to eliminate these dependencies.
-mod ast;
 mod util;
 mod assembler;
 
 fn main() {
     // TODO: option parsing.
 
-    let lexer = Lexer::new("<stdin>", stdio::stdin());
+    let lexer = new_asm_lexer("<stdin>", stdio::stdin());
+    let mut peekable = lexer.peekable();
+    for token in peekable {
+        print!("{}\n", token);
+    }
 }
