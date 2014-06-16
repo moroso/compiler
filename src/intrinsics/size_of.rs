@@ -1,13 +1,14 @@
-use ast::{Module, NodeId};
-use typechecker::*;
-use util::*;
-use session::*;
+use mc::ast::{Module, NodeId};
+use mc::ast::Type;
 use typechecker::Typechecker;
-use ast::defmap::*;
-use ast::Type;
 
 use std::iter::AdditiveIterator;
 use std::vec::unzip;
+
+use mc::ast::defmap::*;
+use mc::session::*;
+use typechecker::*;
+use util::*;
 
 /// The size of the tag for enums.
 static enum_tag_size: u64 = 4;
@@ -143,14 +144,17 @@ pub fn offset_of(sizes: &Vec<u64>, item: uint) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use mc::ast::NodeId;
+    use mc::lexer::{Lexer, new_mb_lexer};
+    use mc::parser::Parser;
+    use typechecker::Typechecker;
+
     use std::io;
     use std::io::stdio;
-    use lexer::{Lexer, new_mb_lexer};
-    use parser::Parser;
-    use session::*;
-    use typechecker::Typechecker;
-    use ast::NodeId;
+
+    use mc::session::*;
+
+    use super::*;
 
     // Helper function: we pass it a string describing a type and an expected
     // size, and it asserts that the size is what we expect.

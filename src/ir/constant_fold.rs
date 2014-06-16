@@ -1,9 +1,12 @@
 // Constant folding.
 
-use std::collections::TreeSet;
-use ir::*;
 use ir::util::subst;
-use ast::*;
+
+use std::collections::TreeSet;
+
+use mc::ast::*;
+
+use ir::*;
 use values::*;
 
 pub struct ConstantFolder;

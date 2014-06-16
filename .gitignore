@@ -1,9 +1,8 @@
 *~
-mc
-mc2c
-ir-tests
-mc-tests
-doc/
-test/c/
-test/c-bin/
-test/c-results/
+/mc
+/mas
+/unittest
+/doc/
+/test/c/
+/test/c-bin/
+/test/c-results/

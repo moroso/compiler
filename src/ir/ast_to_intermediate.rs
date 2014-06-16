@@ -1,11 +1,14 @@
-use session::Session;
-
-use ast::*;
-use ir::*;
-use std::collections::TreeSet;
-use size_of::*;
-use typechecker::*;
 use util::{Width32, UnsignedInt, Name};
+
+use mc::session::Session;
+
+use std::collections::TreeSet;
+
+use mc::ast::*;
+
+use intrinsics::size_of::*;
+use ir::*;
+use typechecker::*;
 
 pub struct ASTToIntermediate<'a> {
     var_count: uint,

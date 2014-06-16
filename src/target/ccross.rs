@@ -1,19 +1,24 @@
-use ast::*;
-use ast::defmap::*;
-use values::*;
-use typechecker::*;
-use std::io::stdio;
-use lexer::Lexer;
-use parser::Parser;
-use ast::visit::{Visitor, walk_module};
-use std::collections::treemap::{TreeSet, TreeMap};
-use resolver::Resolver;
-use session::Session;
+use mc::lexer::Lexer;
+use mc::parser::Parser;
+use mc::ast::visit::{Visitor, walk_module};
+use mc::resolver::Resolver;
+use mc::session::Session;
+
 use package::Package;
 use target::Target;
-use util;
 use util::Name;
-use size_of;
+use intrinsics::size_of;
+
+use std::collections::treemap::{TreeSet, TreeMap};
+
+use util;
+use std::io::stdio;
+
+use mc::ast::*;
+use mc::ast::defmap::*;
+
+use typechecker::*;
+use values::*;
 
 struct CCrossCompiler {
     structnames: TreeSet<NodeId>,

@@ -2,8 +2,10 @@
 
 use std::collections::TreeSet;
 use std::cmp::Eq;
+
+use mc::ast::*;
+
 use ir::*;
-use ast::*;
 use values::*;
 
 pub struct LivenessAnalyzer;

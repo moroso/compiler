@@ -1,8 +1,10 @@
-use ast::*;
-use ir::*;
-use values::*;
 use std::collections::TreeSet;
 use std::iter::Map;
+
+use mc::ast::*;
+
+use ir::*;
+use values::*;
 
 fn substituted_rvalue(rv: &RValue,
                       wrapped_var: RValueElem,

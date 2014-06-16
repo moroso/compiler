@@ -4,17 +4,19 @@
  * maps.
  */
 
-use std::io;
+use span::Span;
+use util::Name;
+
+use super::ast::Module;
+use super::ast::defmap::DefMap;
+use super::resolver::Resolver;
+use super::parser::Parser;
+use super::lexer::new_mb_lexer;
+use super::ast::visit::Visitor;
 
 use std::collections::{HashMap, TreeMap};
-use span::Span;
-use ast::Module;
-use ast::defmap::DefMap;
-use resolver::Resolver;
-use parser::Parser;
-use lexer::new_mb_lexer;
-use ast::visit::Visitor;
-use util::Name;
+
+use std::io;
 
 pub struct Session {
     pub defmap: DefMap,

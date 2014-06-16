@@ -1,4 +1,4 @@
-use ast::{BoolLit, LitNode, NumLit};
+use mc::ast::{BoolLit, LitNode, NumLit};
 use util::{IntKind, Width};
 
 fn num_op_helper(kind1: &IntKind, rhs: &LitNode, f: |u64| -> u64) -> LitNode {

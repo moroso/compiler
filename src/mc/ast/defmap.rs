@@ -4,8 +4,8 @@ use util::Name;
 use std::fmt;
 use std::fmt::{Formatter, Show};
 
-use ast::visit::*;
-use ast::*;
+use super::visit::*;
+use super::*;
 
 /// DefMap maps a NodeId to a Def, where a Def is anything that can be defined
 /// by an Ident.  This can be used by the Resolver to map the usages of Idents
@@ -202,9 +202,9 @@ impl<'a> Visitor for DefMapVisitor<'a> {
 #[cfg(test)]
 mod tests {
     use super::DefMap;
-    use ast::NodeId;
-    use ast::visit::Visitor;
-    use parser::ast_from_str;
+    use mc::ast::NodeId;
+    use mc::ast::visit::Visitor;
+    use mc::parser::ast_from_str;
     use std::collections::TreeMap;
 
     #[test]

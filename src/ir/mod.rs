@@ -1,5 +1,6 @@
+use mc::ast::{LitNode, BinOpNode, UnOpNode};
+
 use std::fmt::{Formatter, Result, Show};
-use ast::{LitNode, BinOpNode, UnOpNode};
 use std::collections::TreeSet;
 
 use util::Name;
@@ -9,7 +10,6 @@ pub mod liveness;
 pub mod constant_fold;
 pub mod ssa;
 pub mod util;
-pub mod intermediate_to_c;
 
 #[deriving(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Var {
@@ -143,8 +143,8 @@ impl Show for Op {
 
 #[deriving(Show, Clone)]
 pub struct OpInfo {
-    live: TreeSet<Var>, // Which variables are live at this instruction?
-    used: TreeSet<Var>, // Which variables are used?
-    def: TreeSet<Var>, // Which variables are defined here?
-    succ: TreeSet<uint>, // Instructions which can follow this one.
+    pub live: TreeSet<Var>, // Which variables are live at this instruction?
+    pub used: TreeSet<Var>, // Which variables are used?
+    pub def: TreeSet<Var>, // Which variables are defined here?
+    pub succ: TreeSet<uint>, // Instructions which can follow this one.
 }

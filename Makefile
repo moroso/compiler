@@ -2,49 +2,54 @@ RUST_FLAGS ?=
 
 MC_FILES := \
 	main.rs \
-	lexer.rs \
-	parser.rs \
+	package.rs \
 	span.rs \
 	typechecker.rs \
-	package.rs \
-	resolver.rs \
 	values.rs \
-	util/mod.rs \
-	util/lexer.rs \
-	ast/mod.rs \
-	ast/visit.rs \
-	ast/defmap.rs \
-	target/ccross.rs \
-	ir/mod.rs \
+	intrinsics/mod.rs \
+	intrinsics/size_of.rs \
 	ir/ast_to_intermediate.rs \
-	ir/liveness.rs \
 	ir/constant_fold.rs \
+	ir/liveness.rs \
+	ir/mod.rs \
 	ir/ssa.rs \
 	ir/util.rs \
-	ir/intermediate_to_c.rs \
-	intermediate_tests.rs \
-	size_of.rs
+	mas/ast.rs \
+	mas/lexer.rs \
+	mas/mod.rs \
+	mas/parser.rs \
+	mc/ast/defmap.rs \
+	mc/ast/mod.rs \
+	mc/ast/visit.rs \
+	mc/mod.rs \
+	mc/lexer.rs \
+	mc/parser.rs \
+	mc/prelude.mb \
+	mc/resolver.rs \
+	mc/session.rs \
+	target/ccross.rs \
+	target/ir.rs \
+	target/mod.rs \
+	util/lexer.rs \
+	util/mod.rs \
 
 TEST_FILES := $(patsubst test/%,%,$(wildcard test/test_*.mb))
 
 mc: $(addprefix src/,$(MC_FILES))
-	rustc $(RUST_FLAGS) $< -o $@ -g
+	rustc $(RUST_FLAGS) $< --cfg mc -o $@ -g
 
-mc-tests: $(addprefix src/,$(MC_FILES))
+mas: $(addprefix src/,$(MC_FILES))
+	rustc $(RUST_FLAGS) $< --cfg mas -o $@
+
+unittest: $(addprefix src/,$(MC_FILES))
 	rustc $(RUST_FLAGS) --test $< -o $@ -g
 
-ir-tests: $(addprefix src/,$(MC_FILES))
-	rustc $(RUST_FLAGS) $< --cfg ir_tests -o $@
+all: mc mas unittest
 
-all: mc mc-tests ir-tests
+run-tests: unittest
+	./unittest
 
-run-tests: mc-tests
-	./mc-tests
-
-run-ir-tests: ir-tests
-#	./ir-tests
-
-check: run-tests run-ir-tests test
+check: run-tests test
 
 docs: doc/regexp/index.html
 
@@ -75,4 +80,4 @@ test/c-results/%.txt: test/c-bin/%
 
 .PHONY: all docs clean run-tests run-ir-tests check
 clean:
-	rm -rf *~ doc mc mc-tests ir-tests test/c test/c-bin test/c-results/*.txt
+	rm -rf *~ doc mc mas unittest test/c test/c-bin test/c-results/*.txt

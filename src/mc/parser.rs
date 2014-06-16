@@ -17,17 +17,21 @@
  * nodes we build.
  */
 
-use std::collections::{HashMap, TreeMap};
-use session::Interner;
 use span::{SourcePos, Span, mk_sp};
 use util::Name;
 
+use super::session::Interner;
+
 use std::{io, mem, num, vec};
+use std::collections::{HashMap, TreeMap};
 use std::iter::Peekable;
 
-use ast::*;
-use lexer::*;
+use super::ast::*;
+use super::lexer::*;
+
 use values::*;
+
+use FilePath = std::path::Path;
 
 type FuncProto = (Ident, Vec<FuncArg>, Type, Vec<Ident>);
 type StaticDecl = (Ident, Type);
@@ -57,6 +61,8 @@ pub struct StreamParser<'a, T> {
     interner: &'a mut Interner,
     /// Any parsing restriction in the current context
     restriction: Restriction,
+    /// Path to current source file
+    source: FilePath,
 }
 
 #[deriving(PartialEq, Eq)]
@@ -227,6 +233,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             interner: interner,
             last_span: mk_sp(SourcePos::new(), 0),
             restriction: NoRestriction,
+            source: FilePath::new("."),
         }
     }
 
@@ -1245,9 +1252,18 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         let start_span = self.cur_span();
         self.expect(Mod);
         let name = self.parse_ident();
-        self.expect(LBrace);
-        let module = self.parse_module_until(RBrace);
-        self.expect(RBrace);
+        let module = match *self.peek() {
+            LBrace => {
+                self.expect(LBrace);
+                let module = self.parse_module_until(RBrace);
+                self.expect(RBrace);
+                module
+            }
+            Semicolon => {
+                fail!("not ready yet")
+            }
+            _ => self.peek_error("Expected opening brace or semicolon"),
+        };
         let end_span = self.cur_span();
         self.add_id_and_span(ModItem(name, module), start_span.to(end_span))
     }
@@ -1300,9 +1316,10 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::Parser;
-    use ast::Expr;
+    use super::super::ast::Expr;
+
+    use super::*;
 
     #[test]
     fn test_basic_arith_expr() {

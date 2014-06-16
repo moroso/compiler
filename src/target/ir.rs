@@ -1,11 +1,27 @@
-use ast::*;
-use ir::*;
-use util::Name;
-use session::Interner;
-use std::collections::{TreeMap, SmallIntMap, TreeSet};
-use ir::liveness::LivenessAnalyzer;
+use package::Package;
 
-pub struct IRToC;
+use mc::lexer::Lexer;
+use mc::parser::Parser;
+use mc::session::Interner;
+
+use util::Name;
+
+use ir::liveness::LivenessAnalyzer;
+use ir::ast_to_intermediate::ASTToIntermediate;
+use ir::constant_fold::ConstantFolder;
+use ir::ssa::ToSSA;
+
+use super::Target;
+
+use std::collections::{TreeMap, SmallIntMap, TreeSet};
+use std::io::stdio;
+
+use std::io;
+
+use mc::ast::*;
+use ir::*;
+
+pub struct IRTarget;
 
 fn print_var(interner: &Interner, v: &Var) -> String {
     format!("{}{}",
@@ -90,8 +106,8 @@ fn assign_vars(interner: &Interner,
     s
 }
 
-impl IRToC {
-    pub fn convert_function(interner: &Interner, ops: &Vec<Op>) -> String {
+impl IRTarget {
+    fn convert_function(&self, interner: &Interner, ops: &Vec<Op>) -> String {
         let mut s = "".to_string();
         let mut vars = TreeSet::new();
         let mut labels: SmallIntMap<TreeMap<Name, uint>> = SmallIntMap::new();
@@ -169,5 +185,45 @@ impl IRToC {
             }.as_slice());
         }
         s.append("}\n")
+    }
+}
+
+impl Target for IRTarget {
+    fn new(_args: Vec<String>) -> IRTarget {
+        IRTarget
+    }
+
+    fn compile(&self, p: Package) {
+        let Package {
+            module:  module,
+            session: mut session,
+            typemap: mut typemap,
+        } = p;
+
+        let mut result =
+        {
+            let mut converter = ASTToIntermediate::new(&mut session,
+                                                       &mut typemap);
+
+            let mut result = vec!();
+
+            for item in module.val.items.iter() {
+                print!("{}\n", item);
+                let (insts, _) = converter.convert_item(item);
+                print!("{}\n\n", insts);
+                result.push(insts);
+            }
+            result
+        };
+
+        for insts in result.mut_iter() {
+            ToSSA::to_ssa(insts);
+            ConstantFolder::fold(insts);
+            print!("{}\n", insts);
+            for a in LivenessAnalyzer::analyze(insts).iter() {
+                print!("{}\n", a);
+            }
+            print!("{}\n", self.convert_function(&session.interner, insts));
+        }
     }
 }

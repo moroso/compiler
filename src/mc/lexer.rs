@@ -1,4 +1,5 @@
-use ast;
+use super::ast;
+
 use util::{IntKind, GenericInt, SignedInt, UnsignedInt};
 use util::{Width, AnyWidth, Width8, Width16, Width32};
 use std::{io, option, iter};
@@ -335,11 +336,14 @@ impl<A, B> TokenMaker<(A, B), Token> for fn(A, B) -> Token {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use ST = super::SourceToken;
-    use std::vec::Vec;
-    use ast;
     use util::GenericInt;
+
+    use ST = super::SourceToken;
+    use super::super::ast;
+
+    use std::vec::Vec;
+
+    use super::*;
 
     type SourceToken = ST<Token>;
 

@@ -1,15 +1,16 @@
-use std::collections::{SmallIntMap, TreeMap, EnumSet};
-use std::collections::enum_set::CLike;
-use resolver::Resolver;
-use session::Session;
+use mc::resolver::Resolver;
+use mc::session::Session;
 use util::{IntKind, GenericInt, SignedInt, UnsignedInt};
 use util::{Width, AnyWidth, Width8, Width16, Width32};
 
+use std::collections::{SmallIntMap, TreeMap, EnumSet};
+use std::collections::enum_set::CLike;
+
 use std::fmt;
 
-use ast::*;
-use ast::defmap::*;
-use ast::visit::*;
+use mc::ast::*;
+use mc::ast::defmap::*;
+use mc::ast::visit::*;
 
 #[deriving(Eq, PartialEq, Show, Clone)]
 struct BoundsId(uint);
@@ -944,12 +945,14 @@ impl<'a> Visitor for Typechecker<'a> {
 
 #[cfg(test)]
 mod tests {
-    use session::Session;
-    use ast::NodeId;
-    use ast::visit::Visitor;
-    use parser::ast_from_str;
-    use std::collections::TreeMap;
+    use mc::ast::NodeId;
+    use mc::ast::visit::Visitor;
+    use mc::parser::ast_from_str;
+    use mc::session::Session;
+
     use super::Typechecker;
+
+    use std::collections::TreeMap;
 
     #[test]
     fn basic_tyck_test() {

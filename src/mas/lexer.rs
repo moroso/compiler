@@ -1,53 +1,54 @@
 use util::lexer::*;
-use assembler::*;
+use super::ast::*;
 
 #[deriving(Eq, PartialEq, Clone, Show)]
-pub enum AsmToken {
-    AsmWS,
+pub enum Token {
+    WS,
 
-    AsmLong,
-    AsmDotGlobl,
+    Long,
+    DotGlobl,
 
-    AsmReg(Reg),
-    AsmPredReg(Pred),
-    AsmNumLit(u32),
-    AsmIdentTok(String),
-    AsmShift(ShiftType),
+    Reg(Reg),
+    PredReg(Pred),
+    NumLit(u32),
+    IdentTok(String),
+    Shift(ShiftType),
 
-    AsmColon,
-    AsmLBrace,
-    AsmRBrace,
-    AsmSemi,
-    AsmPlus,
-    AsmMinus,
-    AsmLt,
-    AsmLe,
-    AsmGt,
-    AsmGe,
-    AsmStar,
-    AsmLParen,
-    AsmRParen,
-    AsmEqEq,
+    Colon,
+    LBrace,
+    RBrace,
+    Semi,
+    Plus,
+    Minus,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    Star,
+    LParen,
+    RParen,
+    EqEq,
 
-    AsmGets,
-    AsmPredicates,
+    Gets,
+    Predicates,
 
     // Special
-    AsmEof,
+    Eof,
+
     // The following two serve as flags for the lexer (to indicate when we
     // enter and exit a multi-line comment). They should never be part of
     // the token stream it generates.
-    AsmBeginComment,
-    AsmEndComment,
+    BeginComment,
+    EndComment,
 }
 
 pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
     name: S,
-    buffer: T) -> Lexer<T, AsmToken> {
+    buffer: T) -> Lexer<T, Token> {
 
     macro_rules! lexer_rules {
         ( $( $c:expr => $m:expr ),*) => (
-            vec!( $( box LexerRule { matcher: $m, maker: $c } as Box<LexerRuleT<AsmToken>> ),* )
+            vec!( $( box LexerRule { matcher: $m, maker: $c } as Box<LexerRuleT<Token>> ),* )
                 )
     }
     macro_rules! matcher { ( $e:expr ) => ( regex!(concat!("^(?:", $e, ")"))) }
@@ -169,39 +170,39 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
 
     let rules = lexer_rules! {
         // Whitespace, including C-style comments
-        AsmWS         => matcher!(r"//.*|\s"),
+        WS         => matcher!(r"//.*|\s"),
 
-        AsmColon      => ":",
-        AsmLBrace     => "{",
-        AsmRBrace     => "}",
-        AsmSemi       => ";",
-        AsmGets       => "<-",
-        AsmPredicates => "->",
-        AsmPlus       => "+",
-        AsmMinus      => "-",
-        AsmLt         => "<",
-        AsmGt         => ">",
-        AsmLe         => "<=",
-        AsmGe         => ">=",
-        AsmStar       => "*",
-        AsmLParen     => "(",
-        AsmRParen     => ")",
-        AsmEqEq       => "==",
+        Colon      => ":",
+        LBrace     => "{",
+        RBrace     => "}",
+        Semi       => ";",
+        Gets       => "<-",
+        Predicates => "->",
+        Plus       => "+",
+        Minus      => "-",
+        Lt         => "<",
+        Gt         => ">",
+        Le         => "<=",
+        Ge         => ">=",
+        Star       => "*",
+        LParen     => "(",
+        RParen     => ")",
+        EqEq       => "==",
         // TODO: the other ops we need.
 
         // TODO: shifts. Currently, these are lexed incorrectly!
 
-        AsmDotGlobl   => ".globl",
-        AsmLong       => "long",
+        DotGlobl   => ".globl",
+        Long       => "long",
 
-        AsmNumLit     => CharLiteralRule,
-        AsmNumLit     => NumberLiteralRule,
+        NumLit     => CharLiteralRule,
+        NumLit     => NumberLiteralRule,
 
-        AsmReg        => RegisterRule,
-        AsmPredReg    => PredicateRule,
-        AsmIdentTok   => matcher!(r"[a-zA-Z_]\w*"),
+        Reg        => RegisterRule,
+        PredReg    => PredicateRule,
+        IdentTok   => matcher!(r"[a-zA-Z_]\w*"),
         // TODO: a specific matcher for this.
-        AsmIdentTok   => matcher!(r"\.[0-9]+(a|b)?")
+        IdentTok   => matcher!(r"\.[0-9]+(a|b)?")
     };
 
     // A special set of rules, just for when we're within a multi-line
@@ -210,36 +211,35 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         // The start of a multi-line comment.
         // This is to properly handle nested multiline comments.
         // We increase the multiline-comment-nesting-counter with this.
-        AsmBeginComment => matcher!(r"/\*"),
+        BeginComment => matcher!(r"/\*"),
 
         // The end of a multi-line comment.
         // We decrease the multiline-comment-nesting-counter with this.
-        AsmEndComment => matcher!(r"\*/"),
+        EndComment => matcher!(r"\*/"),
 
         // If we're within a comment, any string not
         // containing "/*" or "*/" is considered whitespace.
-        AsmWS => matcher!(r"(?:[^*/]|/[^*]|\*[^/])*")
+        WS => matcher!(r"(?:[^*/]|/[^*]|\*[^/])*")
     };
 
+    let morasm = Language {
+        rules: rules,
+        comment_rules: comment_rules,
+        eof: Eof,
+        ws: WS,
+        begin_comment: BeginComment,
+        end_comment: EndComment,
+    };
 
-    Lexer::new(
-        Language {
-            rules: rules,
-            comment_rules: comment_rules,
-            eof:AsmEof,
-            ws: AsmWS,
-            begin_comment: AsmBeginComment,
-            end_comment: AsmEndComment
-        }, name, buffer)
-
+    Lexer::new(morasm, name, buffer)
 }
 
 // TODO: genericize these, so they're not duplicated between here and
 // compiler_lexer.
-impl TokenMaker<(), AsmToken> for AsmToken {
-    fn mk_tok(&self, _: ()) -> AsmToken { self.clone() }
+impl TokenMaker<(), Token> for Token {
+    fn mk_tok(&self, _: ()) -> Token { self.clone() }
 }
 
-impl<T> TokenMaker<T, AsmToken> for fn(T) -> AsmToken {
-    fn mk_tok(&self, arg: T) -> AsmToken { (*self)(arg) }
+impl<T> TokenMaker<T, Token> for fn(T) -> Token {
+    fn mk_tok(&self, arg: T) -> Token { (*self)(arg) }
 }

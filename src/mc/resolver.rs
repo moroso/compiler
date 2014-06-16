@@ -1,9 +1,10 @@
-use ast::*;
-use ast::visit::*;
+use mc::session::Interner;
+use util::Name;
+
 use std::collections::{SmallIntMap, TreeMap};
 
-use session::Interner;
-use util::Name;
+use mc::ast::*;
+use mc::ast::visit::*;
 
 //#[allow(non_camel_case_types)] leaving the warning so we remember to patch rust later
 pub enum NS {
@@ -427,9 +428,9 @@ impl<'a> Visitor for ModuleResolver<'a> {
 #[cfg(test)]
 mod tests {
     use super::Resolver;
-    use ast::NodeId;
-    use ast::visit::Visitor;
-    use parser::ast_from_str;
+    use super::super::ast::NodeId;
+    use super::super::ast::visit::Visitor;
+    use super::super::parser::ast_from_str;
     use std::collections::TreeMap;
 
     #[test]

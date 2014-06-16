@@ -7,12 +7,10 @@
 use std::fmt;
 use std::fmt::{Formatter, Show};
 
-pub mod asm_lexer;
-
 #[deriving(Clone, Eq, PartialEq)]
 pub struct Pred {
-    inverted: bool,
-    reg: u8, // Can only take the values 0-3.
+    pub inverted: bool,
+    pub reg: u8, // Can only take the values 0-3.
 }
 
 impl Show for Pred {
@@ -25,7 +23,7 @@ impl Show for Pred {
 
 #[deriving(Clone, Eq, PartialEq)]
 pub struct Reg {
-    index: u8,
+    pub index: u8,
 }
 
 impl Show for Reg {

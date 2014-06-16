@@ -1,4 +1,4 @@
-use ast::*;
+use super::*;
 
 pub trait Visitor {
     fn visit_item(&mut self, item: &Item) { walk_item(self, item) }

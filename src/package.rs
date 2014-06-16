@@ -1,6 +1,6 @@
-use ast::Module;
-use ast::visit::Visitor;
-use session::Session;
+use mc::ast::Module;
+use mc::ast::visit::Visitor;
+use mc::session::Session;
 use typechecker::{Typechecker, Typemap};
 
 pub struct Package {
