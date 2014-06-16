@@ -1,8 +1,9 @@
+#ifndef LIST_MH
+#define LIST_MH
+
 // Modeled after Linux's list.h
 // Needs the C preprocessor. container_of is pretty necessary for
 // the whole scheme. The other macros are just convenient.
-
-
 
 // Generic defines
 #define offset_of(st, m) ((&(0 as *st)->m) as u32)
@@ -95,3 +96,6 @@ fn list_is_empty(n: *list_head) -> bool {
 fn list_is_singleton(n: *list_head) -> bool {
     n->next == n->prev && n != n->next
 }
+
+
+#endif
