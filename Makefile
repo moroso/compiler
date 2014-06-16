@@ -3,14 +3,14 @@ RUST_FLAGS ?=
 MC_FILES := \
 	main.rs \
 	lexer.rs \
-	compiler_lexer.rs \
 	parser.rs \
 	span.rs \
 	typechecker.rs \
 	package.rs \
 	resolver.rs \
-	util.rs \
 	values.rs \
+	util/mod.rs \
+	util/lexer.rs \
 	ast/mod.rs \
 	ast/visit.rs \
 	ast/defmap.rs \

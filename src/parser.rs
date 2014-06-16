@@ -26,9 +26,8 @@ use std::{io, mem, num, vec};
 use std::iter::Peekable;
 
 use ast::*;
+use lexer::*;
 use values::*;
-use lexer::{SourceToken, Lexer};
-use compiler_lexer::*;
 
 type FuncProto = (Ident, Vec<FuncArg>, Type, Vec<Ident>);
 type StaticDecl = (Ident, Type);

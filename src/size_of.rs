@@ -144,10 +144,9 @@ pub fn offset_of(sizes: &Vec<u64>, item: uint) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use compiler_lexer::new_mb_lexer;
     use std::io;
     use std::io::stdio;
-    use lexer::Lexer;
+    use lexer::{Lexer, new_mb_lexer};
     use parser::Parser;
     use session::*;
     use typechecker::Typechecker;

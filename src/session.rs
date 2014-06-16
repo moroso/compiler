@@ -12,8 +12,7 @@ use ast::Module;
 use ast::defmap::DefMap;
 use resolver::Resolver;
 use parser::Parser;
-use lexer::Lexer;
-use compiler_lexer::new_mb_lexer;
+use lexer::new_mb_lexer;
 use ast::visit::Visitor;
 use util::Name;
 
