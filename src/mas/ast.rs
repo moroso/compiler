@@ -64,9 +64,11 @@ pub enum AluOp {
 }
 
 // Compare types.
+#[deriving(Show, Eq, PartialEq)]
 pub enum CompareType {
     CmpLTU,
     CmpLEU,
+    CmpEQ,
     CmpRESERVED,
     CmpLTS,
     CmpLES,
@@ -81,6 +83,21 @@ pub enum ShiftType {
     SraShift,
     SrlShift,
     RorShift,
+}
+
+// Load/Store types.
+#[deriving(Clone, Eq, PartialEq, Show)]
+pub enum LsuWidth {
+    LsuWidthB,
+    LsuWidthH,
+    LsuWidthL,
+    LsuLLSC, // Not really a width, but...
+}
+
+#[deriving(Clone, Eq, PartialEq, Show)]
+pub struct LsuOp {
+    pub store: bool,
+    pub width: LsuWidth,
 }
 
 impl Show for ShiftType {
@@ -136,5 +153,34 @@ pub enum InstNode {
                   Reg, // Rs
                   ShiftType,
                   Reg // Rt
-                  )
+                  ),
+    LongInst(u32),
+    NopInst,
+    LoadInst(Pred,
+             LsuOp,
+             Reg, // Rd
+             Reg, // Rs
+             i32 // Offset
+             ),
+    StoreInst(Pred,
+              LsuOp,
+              Reg, // Rs
+              i32, // Offset
+              Reg // Rt
+              ),
+    CompareShortInst(Pred,
+                     Pred, // Destination pred register
+                     Reg, // Rs
+                     CompareType,
+                     u32, // Constant value
+                     u8 // Rotate amount
+                     ),
+    CompareRegInst(Pred,
+                   Pred, // Destination pred register
+                   Reg, // Rs
+                   CompareType,
+                   Reg, // Rt
+                   ShiftType,
+                   u8 // Shift amount
+                   ),
 }

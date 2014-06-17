@@ -63,6 +63,21 @@ fn tok_to_unop(tok: &Token) -> Option<AluOp> {
     }
 }
 
+fn tok_to_cmp(tok: &Token) -> Option<CompareType> {
+    match *tok {
+        Lt => Some(CmpLTU),
+        Le => Some(CmpLEU),
+        Lts => Some(CmpLTS),
+        Les => Some(CmpLES),
+        EqEq => Some(CmpEQ),
+        Eq => Some(CmpEQ),
+        Bs => Some(CmpBS),
+        Amp => Some(CmpBS),
+        Bc => Some(CmpBC),
+        _ => None,
+    }
+}
+
 impl<T: Buffer> AsmParser<T> {
 
     pub fn new(tokens: Peekable<SourceToken<Token>, Lexer<T, Token>>
@@ -121,6 +136,20 @@ impl<T: Buffer> AsmParser<T> {
         }
     }
 
+    fn assert_signed_num_size(&self, num: i32, size: u8) {
+        self.assert_num_size(if num < 0 { -num } else { num } as u32,
+                             size);
+        // But we also have to make sure the sign bit is okay.
+        // This checks that the sign bit is cleared if n is
+        // nonnegative, and set if it's negative.
+        if (num >= 0) != (num & (1<<(size-1)) == 0) {
+            self.error(format!(
+                "Signed number {} (0b{:t}) needs more than {} bits.",
+                num, num, size));
+        }
+    }
+
+
     // asm-specific parsing functions start here!
 
     /// Parse either a register by itself, or a register with a shift
@@ -151,6 +180,7 @@ impl<T: Buffer> AsmParser<T> {
                                 self.assert_num_size(
                                     num, 5);
                                 self.expect(RParen);
+
                                 (reg, (shifttype, num as u8))
                             },
                             _ => self.error("Need a shift amount"),
@@ -321,6 +351,62 @@ impl<T: Buffer> AsmParser<T> {
         }
     }
 
+    /// Parses anything that comes after the width specifier in a load or
+    /// store.
+    /// So, in *l(r8 + 12), this parses the (r8 + 12) part.
+    fn parse_deref_common(&mut self) -> (Reg, i32) {
+        self.expect(LParen);
+        let reg = match self.eat() {
+            Reg(reg) => reg,
+            _ => self.error("Expected register."),
+        };
+
+        let next_tok = self.eat();
+        let offs: i32 = match next_tok {
+            Plus |
+            Dash => {
+                match self.eat() {
+                    NumLit(n) => {
+                        let mut n = n as i32;
+                        if next_tok == Dash { n = -n; }
+                        // We must fit into 12 bits...
+                        self.assert_signed_num_size(n, 12);
+                        self.expect(RParen);
+
+                        n
+                    },
+                    _ => self.error("Need a number."),
+                }
+            },
+            RParen => 0,
+            _ => self.error("Need +, -, or a closing paren."),
+        };
+
+        (reg, offs)
+    }
+
+    // Parse a load. We've already parsed the predicate and destination
+    // register; this will take something like
+    // *l(r8 + 6)
+    // and return the appropriate instruction.
+    fn parse_load(&mut self, pred: Pred, rd: Reg) -> InstNode {
+        let width = match self.eat() {
+            LoadStore(width) => width,
+            _ => fail!("ICE"),
+        };
+
+        let (reg, offs) = self.parse_deref_common();
+
+        LoadInst(pred,
+                 LsuOp {
+                     store: false, // it's a load.
+                     width: width,
+                 },
+                 rd,
+                 reg,
+                 offs)
+    }
+
     /// Parse the actual op/literal part of an instruction; that is,
     /// everything to the right of the '<-'.
     /// We're passed in the predicate and destination register, which
@@ -338,7 +424,81 @@ impl<T: Buffer> AsmParser<T> {
                 NumLit(..) |
                 Reg(..) |
                 LParen => self.parse_expr(pred, rd, None),
+                LoadStore(..) => self.parse_load(pred, rd),
                 _ => self.error("Unexpected token."),
+            }
+        }
+    }
+
+    // Assumes the "long" keyword has already been consumed.
+    pub fn parse_long(&mut self) -> InstNode {
+        match self.eat() {
+            NumLit(n) => LongInst(n),
+            _ => self.error("Must have a numeric literal for long."),
+        }
+    }
+
+    pub fn parse_store(&mut self, pred: Pred, width: LsuWidth) -> InstNode {
+        let (reg, offs) = self.parse_deref_common();
+
+        self.expect(Gets);
+
+        let rhsreg = match self.eat() {
+            Reg(rhsreg) => rhsreg,
+            _ => self.error("Expected a register."),
+        };
+
+        StoreInst(pred,
+                  LsuOp {
+                      store: false, // it's a load.
+                      width: width,
+                  },
+                  reg,
+                  offs,
+                  rhsreg)
+    }
+
+    /// Parse a conditional. We've already parsed the predicate register,
+    /// and the "<-".
+    pub fn parse_conditional(&mut self, pred: Pred,
+                             dest_pred: Pred) -> InstNode {
+        if dest_pred.inverted {
+            self.error("Cannot assign to an inverted predicate");
+        }
+
+        let reg = match self.eat() {
+            Reg(reg) => reg,
+            _ => self.error("Expected register."),
+        };
+
+        let op = match tok_to_cmp(&self.eat()) {
+            Some(op) => op,
+            None => self.error("Expected a comparison op."),
+        };
+
+        match *self.peek() {
+            NumLit(n) => {
+                self.eat();
+                let (val, rot) = self.pack_int_unwrap(n, 10);
+                CompareShortInst(
+                    pred,
+                    dest_pred,
+                    reg,
+                    op,
+                    val,
+                    rot)
+            },
+            _ => {
+                let (reg_rt,
+                     (shifttype, shiftamt)) = self.parse_reg_maybe_shift();
+                CompareRegInst(
+                    pred,
+                    dest_pred,
+                    reg,
+                    op,
+                    reg_rt,
+                    shifttype,
+                    shiftamt)
             }
         }
     }
@@ -346,22 +506,52 @@ impl<T: Buffer> AsmParser<T> {
     /// Parse an entire instruction.
     pub fn parse_inst(&mut self) -> InstNode {
         // Begin by parsing the predicate register for this instruction.
-        let pred = match *self.peek() {
+        let mut cur_inst = self.eat();
+        let pred = match cur_inst {
             PredReg(pred) => {
-                self.eat();
-                self.expect(Predicates);
+                // There's a predicate register, but we don't know what
+                // context it appears in: we may be assigning to it, or
+                // predicating based on it.
+                match *self.peek() {
+                    Predicates => {
+                        // It's actually predicating.
+                        self.eat();
+                        cur_inst = self.eat();
 
-                pred.clone()
+                        Some(pred)
+                    },
+                    Gets => // It's being assigned to. Punt on this.
+                        None,
+                    _ => self.error("Unexpected token."),
+                }
             },
-             // If no predicate is given, it's always true:
-            _ => true_pred,
+            _ => None,
         };
 
-        match *self.peek() {
+        match cur_inst {
             Reg(reg) => {
-                self.eat();
                 self.expect(Gets);
-                self.parse_op_or_expr(pred, reg.clone())
+                self.parse_op_or_expr(pred.unwrap_or(true_pred), reg.clone())
+            },
+            PredReg(destpred) => {
+                self.expect(Gets);
+                self.parse_conditional(pred.unwrap_or(true_pred), destpred)
+            },
+            LoadStore(width) =>
+                self.parse_store(pred.unwrap_or(true_pred), width),
+            Nop => {
+                if pred != None {
+                    self.error("Cannot have a predicate for a nop.");
+                }
+
+                NopInst
+            },
+            Long => {
+                if pred != None {
+                    self.error("Cannot have a predicate for a long");
+                }
+
+                self.parse_long()
             },
             _ => unimplemented!()
         }
@@ -702,5 +892,288 @@ mod tests {
                                  Reg { index: 7 },
                                  SraShift,
                                  Reg { index: 8 }));
+    }
+
+    #[test]
+    fn test_parse_inst_nop() {
+        assert_eq!(inst_from_str("nop"), NopInst);
+    }
+
+    #[test]
+    #[should_fail]
+    fn test_parse_nop_with_pred() {
+        // Nop instructions can't have predicates.
+        inst_from_str("p0 -> nop");
+    }
+
+    #[test]
+    fn test_parse_inst_long() {
+        assert_eq!(inst_from_str("long 0x56"), LongInst(0x56));
+    }
+
+    #[test]
+    #[should_fail]
+    fn test_parse_long_with_pred() {
+        // Long directives can't have predicates.
+        inst_from_str("p0 -> long 0x56");
+    }
+
+    #[test]
+    fn test_parse_inst_load() {
+        assert_eq!(inst_from_str("r9 <- *l(r8)"),
+                   LoadInst(Pred { inverted: false,
+                                   reg: 3 },
+                            LsuOp { store: false,
+                                    width: LsuWidthL },
+                            Reg { index: 9 },
+                            Reg { index: 8 },
+                            0));
+
+        assert_eq!(inst_from_str("r9 <- *l(r8 + 6)"),
+                   LoadInst(Pred { inverted: false,
+                                   reg: 3 },
+                            LsuOp { store: false,
+                                    width: LsuWidthL },
+                            Reg { index: 9 },
+                            Reg { index: 8 },
+                            6));
+
+        assert_eq!(inst_from_str("r9 <- *l(r8 - 6)"),
+                   LoadInst(Pred { inverted: false,
+                                   reg: 3 },
+                            LsuOp { store: false,
+                                    width: LsuWidthL },
+                            Reg { index: 9 },
+                            Reg { index: 8 },
+                            -6));
+
+        assert_eq!(inst_from_str("r9 <- *l(r8 + -0x6)"),
+                   LoadInst(Pred { inverted: false,
+                                   reg: 3 },
+                            LsuOp { store: false,
+                                    width: LsuWidthL },
+                            Reg { index: 9 },
+                            Reg { index: 8 },
+                            -6));
+
+        assert_eq!(inst_from_str("r9 <- *llsc(r8 + -0x6)"),
+                   LoadInst(Pred { inverted: false,
+                                   reg: 3 },
+                            LsuOp { store: false,
+                                    width: LsuLLSC },
+                            Reg { index: 9 },
+                            Reg { index: 8 },
+                            -6));
+
+        // The largest positive value that can be used as an offset.
+        assert_eq!(inst_from_str("r9 <- *l(r8 + 0b11111111111)"),
+                   LoadInst(Pred { inverted: false,
+                                   reg: 3 },
+                            LsuOp { store: false,
+                                    width: LsuWidthL },
+                            Reg { index: 9 },
+                            Reg { index: 8 },
+                            0b11111111111));
+
+        // The most negative value that can be used as an offset.
+        assert_eq!(inst_from_str("r9 <- *l(r8 - 0b100000000000)"),
+                   LoadInst(Pred { inverted: false,
+                                   reg: 3 },
+                            LsuOp { store: false,
+                                    width: LsuWidthL },
+                            Reg { index: 9 },
+                            Reg { index: 8 },
+                            -0b100000000000));
+    }
+
+    #[test]
+    #[should_fail]
+    fn test_load_with_bad_offset() {
+        // This offset is too long.
+        inst_from_str("r9 <- *l(r8 + 0b100000000000)");
+    }
+
+    #[test]
+    #[should_fail]
+    fn test_load_with_bad_negative_offset() {
+        // This offset is too long.
+        inst_from_str("r9 <- *l(r8 - 0b100000000001)");
+    }
+
+    #[test]
+    fn test_parse_inst_store() {
+        assert_eq!(inst_from_str("*l(r8) <- r9"),
+                   StoreInst(Pred { inverted: false,
+                                    reg: 3 },
+                             LsuOp { store: false,
+                                     width: LsuWidthL },
+                             Reg { index: 8 },
+                             0,
+                             Reg { index: 9 }
+                             ));
+
+        assert_eq!(inst_from_str("*l(r8 + 6) <- r9"),
+                   StoreInst(Pred { inverted: false,
+                                    reg: 3 },
+                             LsuOp { store: false,
+                                     width: LsuWidthL },
+                             Reg { index: 8 },
+                             6,
+                             Reg { index: 9 }
+                             ));
+
+        assert_eq!(inst_from_str("*l(r8 - 6) <- r9"),
+                   StoreInst(Pred { inverted: false,
+                                    reg: 3 },
+                             LsuOp { store: false,
+                                     width: LsuWidthL },
+                             Reg { index: 8 },
+                             -6,
+                             Reg { index: 9 }
+                             ));
+
+        assert_eq!(inst_from_str("*l(r8 + -0x6) <- r9"),
+                   StoreInst(Pred { inverted: false,
+                                    reg: 3 },
+                             LsuOp { store: false,
+                                     width: LsuWidthL },
+                             Reg { index: 8 },
+                             -6,
+                             Reg { index: 9 }
+                             ));
+
+        assert_eq!(inst_from_str("*llsc(r8 + -0x6) <- r9"),
+                   StoreInst(Pred { inverted: false,
+                                    reg: 3 },
+                             LsuOp { store: false,
+                                     width: LsuLLSC },
+                             Reg { index: 8 },
+                             -6,
+                             Reg { index: 9 }
+                             ));
+
+        // The largest positive value that can be used as an offset.
+        assert_eq!(inst_from_str("*l(r8 + 0b11111111111) <- r9"),
+                   StoreInst(Pred { inverted: false,
+                                    reg: 3 },
+                             LsuOp { store: false,
+                                     width: LsuWidthL },
+                             Reg { index: 8 },
+                             0b11111111111,
+                             Reg { index: 9 }
+                             ));
+
+        // The most negative value that can be used as an offset.
+        assert_eq!(inst_from_str("*l(r8 - 0b100000000000) <- r9"),
+                   StoreInst(Pred { inverted: false,
+                                    reg: 3 },
+                             LsuOp { store: false,
+                                     width: LsuWidthL },
+                             Reg { index: 8 },
+                             -0b100000000000,
+                             Reg { index: 9 }
+                             ));
+    }
+
+    #[test]
+    fn test_parse_inst_compareshort() {
+        assert_eq!(inst_from_str("p1 <- r3 == 0"),
+                   CompareShortInst(Pred { inverted: false,
+                                           reg: 3 },
+                                    Pred { inverted: false,
+                                           reg: 1 },
+                                    Reg { index: 3 },
+                                    CmpEQ,
+                                    0,
+                                    0));
+
+        assert_eq!(inst_from_str("p1 <- r3 <=s 0"),
+                   CompareShortInst(Pred { inverted: false,
+                                           reg: 3 },
+                                    Pred { inverted: false,
+                                           reg: 1 },
+                                    Reg { index: 3 },
+                                    CmpLES,
+                                    0,
+                                    0));
+
+        assert_eq!(inst_from_str("!p0 -> p1 <- r3 == 0"),
+                   CompareShortInst(Pred { inverted: true,
+                                           reg: 0 },
+                                    Pred { inverted: false,
+                                           reg: 1 },
+                                    Reg { index: 3 },
+                                    CmpEQ,
+                                    0,
+                                    0));
+
+        assert_eq!(inst_from_str("p1 <- r3 == 0b1111111111"),
+                   CompareShortInst(Pred { inverted: false,
+                                           reg: 3 },
+                                    Pred { inverted: false,
+                                           reg: 1 },
+                                    Reg { index: 3 },
+                                    CmpEQ,
+                                    0b1111111111,
+                                    0));
+
+        assert_eq!(inst_from_str(
+            "p1 <- r3 == 0b10000000000000000000000000000001"),
+                   CompareShortInst(Pred { inverted: false,
+                                           reg: 3 },
+                                    Pred { inverted: false,
+                                           reg: 1 },
+                                    Reg { index: 3 },
+                                    CmpEQ,
+                                    0b110,
+                                    1));
+    }
+
+    #[test]
+    #[should_fail]
+    fn test_compareshort_bad_const() {
+        inst_from_str("p1 <- r3 == 0b11111111111");
+    }
+
+    #[test]
+    #[should_fail]
+    fn test_compareshort_negated_dest() {
+        inst_from_str("!p1 <- r3 == 0");
+    }
+
+    #[test]
+    fn test_parse_inst_comparereg() {
+        assert_eq!(inst_from_str("p1 <- r3 == r4"),
+                   CompareRegInst(Pred { inverted: false,
+                                         reg: 3 },
+                                  Pred { inverted: false,
+                                         reg: 1 },
+                                  Reg { index: 3 },
+                                  CmpEQ,
+                                  Reg { index: 4 },
+                                  SllShift,
+                                  0));
+
+        assert_eq!(inst_from_str("!p0 -> p1 <- r3 == r4"),
+                   CompareRegInst(Pred { inverted: true,
+                                         reg: 0 },
+                                  Pred { inverted: false,
+                                         reg: 1 },
+                                  Reg { index: 3 },
+                                  CmpEQ,
+                                  Reg { index: 4 },
+                                  SllShift,
+                                  0));
+
+        assert_eq!(inst_from_str("!p0 -> p1 <- r3 == (r4 << 5)"),
+                   CompareRegInst(Pred { inverted: true,
+                                         reg: 0 },
+                                  Pred { inverted: false,
+                                         reg: 1 },
+                                  Reg { index: 3 },
+                                  CmpEQ,
+                                  Reg { index: 4 },
+                                  SllShift,
+                                  5));
     }
 }
