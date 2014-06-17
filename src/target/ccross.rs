@@ -553,7 +553,7 @@ impl Target for CTarget {
         println!("{}", "typedef unsigned int uint_t;");
         println!("{}", "typedef int int_t;");
 
-        println!("{}", "int printf0_(uint8_t *s) { return fputs((char *)s, stdout); }");
+        println!("{}", "int printf0_(uint8_t *s) { return printf(\"%s\", (char *)s); }");
         println!("{}", "int printf1_(uint8_t *s, uint32_t a) { return printf((char *)s, a); }");
         println!("{}", "int printf2_(uint8_t *s, uint32_t a, uint32_t b) { return printf((char *)s, a, b); }");
         println!("{}", "int printf3_(uint8_t *s, uint32_t a, uint32_t b, uint32_t c) { return printf((char *)s, a, b, c); }");
