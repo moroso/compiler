@@ -52,6 +52,17 @@ fn tok_to_op(tok: &Token) -> Option<AluOp> {
     }
 }
 
+fn tok_to_unop(tok: &Token) -> Option<AluOp> {
+    match *tok {
+        Mov => Some(MovAluOp),
+        Tilde |
+        Mvn => Some(MvnAluOp),
+        Sxb => Some(SxbAluOp),
+        Sxh => Some(SxhAluOp),
+        _ => None,
+    }
+}
+
 impl<T: Buffer> AsmParser<T> {
 
     pub fn new(tokens: Peekable<SourceToken<Token>, Lexer<T, Token>>
@@ -184,8 +195,8 @@ impl<T: Buffer> AsmParser<T> {
                 match tok_to_op(self.peek()) {
                     Some(op) => {
                         // It's a binary operator. It can be followed by
-                        // a register (which may be shifted), or a literal,
-                        // or '.long'.
+                        // a register (which may be shifted), a literal,
+                        // or 'long' keyword.
                         self.eat();
                         match *self.peek() {
                             LParen | Reg(..) => {
@@ -211,23 +222,50 @@ impl<T: Buffer> AsmParser<T> {
                                     val,
                                     rot)
                             },
+                            Long => {
+                                ALULongInst(
+                                    pred,
+                                    op,
+                                    rd,
+                                    reg)
+                            },
                             _ => self.error("Unexpected token."),
                         }
                     },
                     None => {
-                        // There was no binary operator. We're done.
-                        ALU1RegInst(
-                            pred,
-                            MovAluOp,
-                            rd,
-                            reg,
-                            from_int(0).unwrap(),
-                            0)
+                        // There was no binary ALU operator. Either there's a
+                        // shift operator instead, or we're done.
+                        match *self.peek() {
+                            Shift(shift) => {
+                                // It's a shift. There's should be a reg
+                                // after it, and that's it.
+                                self.eat();
+                                match self.eat() {
+                                    Reg(reg2) =>
+                                        ALU1RegShInst(
+                                            pred,
+                                            rd,
+                                            reg,
+                                            shift,
+                                            reg2),
+                                    _ => self.error("Unexpected token."),
+                                }
+                            },
+                            _ => {
+                                // Just the register. So it's just a move.
+                                ALU1RegInst(
+                                    pred,
+                                    MovAluOp,
+                                    rd,
+                                    reg,
+                                    from_int(0).unwrap(),
+                                    0)
+                            }
+                        }
                     }
                 }
             }
         }
-        
     }
 
     /// Convenience function. Will try to take `n` and pack it into
@@ -288,17 +326,20 @@ impl<T: Buffer> AsmParser<T> {
     /// We're passed in the predicate and destination register, which
     /// have already been parsed by now.
     fn parse_op_or_expr(&mut self, pred: Pred, rd: Reg) -> InstNode {
-        match *self.peek() {
-            // TODO: helper function that takes unary op tokens to their ops.
-            NumLit(..) |
-            Reg(..) |
-            LParen => self.parse_expr(pred, rd, None),
-            Mov => { self.eat(); self.parse_expr(pred, rd, Some(MovAluOp)) },
-            Tilde |
-            Mvn => { self.eat(); self.parse_expr(pred, rd, Some(MvnAluOp)) },
-            Sxb => { self.eat(); self.parse_expr(pred, rd, Some(SxbAluOp)) },
-            Sxh => { self.eat(); self.parse_expr(pred, rd, Some(SxhAluOp)) },
-            _ => unimplemented!(),
+        match tok_to_unop(self.peek()) {
+            Some(tok) => {
+                // There's a unary operator!
+                self.eat();
+                self.parse_expr(pred, rd, Some(tok))
+            },
+            None => match *self.peek() {
+                // No unary operator. That means there must be a literal,
+                // a register, or an opening paren (for a shift).
+                NumLit(..) |
+                Reg(..) |
+                LParen => self.parse_expr(pred, rd, None),
+                _ => self.error("Unexpected token."),
+            }
         }
     }
 
@@ -552,6 +593,7 @@ mod tests {
     #[test]
     #[should_fail]
     fn test_invalid_shift_in_alu1reg() {
+        // We're shifting by too much.
         inst_from_str("r4 <- (r5 << 33)");
     }
 
@@ -616,5 +658,49 @@ mod tests {
                                Reg { index: 8 },
                                SllShift,
                                0));
+    }
+
+    #[test]
+    fn test_parse_inst_alulong() {
+        assert_eq!(inst_from_str("r6 <- r7 + long"),
+                   ALULongInst(Pred { inverted: false,
+                                      reg: 3 },
+                               AddAluOp,
+                               Reg { index: 6 },
+                               Reg { index: 7 }));
+
+        assert_eq!(inst_from_str("!p2 -> r6 <- r7 + long"),
+                   ALULongInst(Pred { inverted: true,
+                                      reg: 2 },
+                               AddAluOp,
+                               Reg { index: 6 },
+                               Reg { index: 7 }));
+    }
+
+    #[test]
+    fn test_parse_inst_alu1regsh() {
+        assert_eq!(inst_from_str("r6 <- r7 << r8"),
+                   ALU1RegShInst(Pred { inverted: false,
+                                        reg: 3 },
+                                 Reg { index: 6 },
+                                 Reg { index: 7 },
+                                 SllShift,
+                                 Reg { index: 8 }));
+
+        assert_eq!(inst_from_str("r6 <- r7 >>u r8"),
+                   ALU1RegShInst(Pred { inverted: false,
+                                        reg: 3 },
+                                 Reg { index: 6 },
+                                 Reg { index: 7 },
+                                 SrlShift,
+                                 Reg { index: 8 }));
+
+        assert_eq!(inst_from_str("!p2 -> r6 <- r7 >>s r8"),
+                   ALU1RegShInst(Pred { inverted: true,
+                                        reg: 2 },
+                                 Reg { index: 6 },
+                                 Reg { index: 7 },
+                                 SraShift,
+                                 Reg { index: 8 }));
     }
 }
