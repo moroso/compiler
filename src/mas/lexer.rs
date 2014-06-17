@@ -1,3 +1,4 @@
+use std::io;
 use util::lexer::*;
 use super::ast::*;
 
@@ -19,7 +20,8 @@ pub enum Token {
     RBrace,
     Semi,
     Plus,
-    Minus,
+    Dash,
+    DashColon,
     Lt,
     Le,
     Gt,
@@ -28,6 +30,21 @@ pub enum Token {
     LParen,
     RParen,
     EqEq,
+    Tilde,
+    TildePipe,
+    Amp,
+    Caret,
+    Nor,
+    Pipe,
+    Sxb,
+    Sxh,
+    Mov,
+    Mvn,
+    Sub,
+    Rsb,
+    Xor,
+    Or,
+    And,
 
     Gets,
     Predicates,
@@ -179,7 +196,10 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         Gets       => "<-",
         Predicates => "->",
         Plus       => "+",
-        Minus      => "-",
+        Dash       => "-",
+        Sub        => matcher!(r"(?i:sub)"),
+        DashColon  => "-:",
+        Rsb        => matcher!(r"(?i:rsb)"),
         Lt         => "<",
         Gt         => ">",
         Le         => "<=",
@@ -188,6 +208,20 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         LParen     => "(",
         RParen     => ")",
         EqEq       => "==",
+        Tilde      => "~",
+        Amp        => "&",
+        And        => matcher!(r"(?i:and)"),
+        Caret      => "^",
+        Xor        => matcher!(r"(?i:xor)"),
+        TildePipe  => "~|",
+        Nor        => matcher!(r"(?i:nor)"),
+        Pipe       => "|",
+        Or         => matcher!(r"(?i:or)"),
+        Sxb        => matcher!(r"(?i:sxb)"),
+        Sxh        => matcher!(r"(?i:sxh)"),
+        Mov        => matcher!(r"(?i:mov)"),
+        Mvn        => matcher!(r"(?i:mvn)"),
+
         // TODO: the other ops we need.
 
         // TODO: shifts. Currently, these are lexed incorrectly!
@@ -200,6 +234,7 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
 
         Reg        => RegisterRule,
         PredReg    => PredicateRule,
+        Shift      => ShiftRule,
         IdentTok   => matcher!(r"[a-zA-Z_]\w*"),
         // TODO: a specific matcher for this.
         IdentTok   => matcher!(r"\.[0-9]+(a|b)?")
@@ -242,4 +277,12 @@ impl TokenMaker<(), Token> for Token {
 
 impl<T> TokenMaker<T, Token> for fn(T) -> Token {
     fn mk_tok(&self, arg: T) -> Token { (*self)(arg) }
+}
+
+// Convenience for tests
+pub fn asm_lexer_from_str(s: &str) -> Lexer<io::BufferedReader<io::MemReader>, Token> {
+    use std::str::StrSlice;
+    let bytes = Vec::from_slice(s.as_bytes());
+    let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
+    new_asm_lexer("test", buffer)
 }

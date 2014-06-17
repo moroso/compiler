@@ -6,6 +6,7 @@ use std::io::stdio;
 use std::os;
 
 use self::lexer::{Token, new_asm_lexer};
+use self::parser::AsmParser;
 
 pub mod lexer;
 pub mod parser;
@@ -15,8 +16,7 @@ pub fn main() {
     // TODO: option parsing.
 
     let lexer = new_asm_lexer("<stdin>", stdio::stdin());
-    let mut peekable = lexer.peekable();
-    for token in peekable {
-        print!("{}\n", token);
-    }
+    let peekable = lexer.peekable();
+    let mut parser = AsmParser::new(peekable);
+    print!("{}\n", parser.parse_inst());
 }

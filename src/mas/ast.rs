@@ -7,6 +7,19 @@
 use std::fmt;
 use std::fmt::{Formatter, Show};
 
+// A predicate that is always true.
+pub static true_pred: Pred = Pred {
+    inverted: false,
+    reg: 3,
+};
+
+// The link register.
+pub static link_reg: Reg = Reg {
+    index: 31,
+};
+
+
+
 #[deriving(Clone, Eq, PartialEq)]
 pub struct Pred {
     pub inverted: bool,
@@ -33,6 +46,7 @@ impl Show for Reg {
 }
 
 // Opcodes for the ALU.
+#[deriving(Show, Eq, PartialEq)]
 pub enum AluOp {
     AddAluOp,
     AndAluOp,
@@ -61,7 +75,7 @@ pub enum CompareType {
 }
 
 // Shift types.
-#[deriving(Clone, Eq, PartialEq)]
+#[deriving(Clone, Eq, PartialEq, FromPrimitive)]
 pub enum ShiftType {
     SllShift,
     SraShift,
@@ -82,25 +96,34 @@ impl Show for ShiftType {
     }
 }
 
+#[deriving(Show, Eq, PartialEq)]
 pub enum InstNode {
     ALU1ShortInst(Pred, // Instruction predicate
                   AluOp, // Actual op
                   Reg, // Rd
                   u32, // Constant value
-                  u32 // Rotate amount
+                  u8 // Rotate amount
                   ),
     ALU2ShortInst(Pred, // Instruction predicate
                   AluOp, // Actual op
                   Reg, // Rd
                   Reg, // Rs
-                  u32 // Rotate amount
+                  u32, // Constant value
+                  u8 // Rotate amount
                   ),
-    ALURegInst(Pred,
-               u8, // Shift amount
-               ShiftType,
-               Reg, // Rt
-               AluOp,
-               Reg, // Rd
-               Reg // Rs
-               ),
+    ALU1RegInst(Pred,
+                AluOp,
+                Reg, // Rd
+                Reg, // Rs
+                ShiftType,
+                u8 // Shift amount
+                ),
+    ALU2RegInst(Pred,
+                AluOp,
+                Reg, // Rd
+                Reg, // Rs
+                Reg, // Rt
+                ShiftType,
+                u8 // Shift amount
+                ),
 }
