@@ -6,7 +6,7 @@ fn fib(x: u32) -> u32 {
 }
 
 fn main() -> u32 {
-    print_int(fib(10));
+    print_uint(fib(10));
 
     0
 }

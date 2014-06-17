@@ -12,24 +12,24 @@ fn main() -> u32 {
     let z: TestEnum = Quux(4+5, &i);
 
     match x {
-        Foo => print_int(0),
-        Bar(fieldx) => print_int(fieldx),
-        Quux(fieldx, fieldy) => print_int(fieldx),
+        Foo => print_uint(0),
+        Bar(fieldx) => print_uint(fieldx),
+        Quux(fieldx, fieldy) => print_uint(fieldx),
     };
 
     match y {
-        Foo => print_int(0),
-        Bar(fieldx) => print_int(fieldx),
-        Quux(fieldx, fieldy) => print_int(fieldx),
+        Foo => print_uint(0),
+        Bar(fieldx) => print_uint(fieldx),
+        Quux(fieldx, fieldy) => print_uint(fieldx),
     };
 
     match z {
-        Foo => print_int(0),
-        Bar(fieldx) => print_int(fieldx),
-        Quux(fieldx, fieldy) => { print_int(fieldx); print_int(*fieldy); },
+        Foo => print_uint(0),
+        Bar(fieldx) => print_uint(fieldx),
+        Quux(fieldx, fieldy) => { print_uint(fieldx); print_uint(*fieldy); },
     };
 
-    print_int(match z {
+    print_uint(match z {
         Foo => 0,
         Bar(fieldx) => fieldx,
         Quux(fieldx, fieldy) => *fieldy,

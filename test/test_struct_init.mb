@@ -7,10 +7,10 @@ static bar: foo = foo { x: 123, y: 456 };
 
 fn main() -> u32 {
     let a = foo { x: 5, y: 7 };
-    print_int(a.x);
-    print_int(a.y);
-    print_int(bar.x);
-    print_int(bar.y);
+    print_uint(a.x);
+    print_uint(a.y);
+    print_uint(bar.x);
+    print_uint(bar.y);
 
     0
 }

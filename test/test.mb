@@ -5,7 +5,7 @@
  * Splendid. */
 
 fn print_f_of_int(x: u32, f: fn(u32) -> u32) {
-    print_int(f(x));
+    print_uint(f(x));
 }
 
 fn bar(n: u32) -> u32 {
@@ -30,31 +30,31 @@ fn deref(x: *u32) -> u32 {
 }
 
 fn main() -> u32 {
-    print_int(fib(10));
+    print_uint(fib(10));
     print_f_of_int(10, fib);
     let z: u32 = 5;
-    print_int(deref(&z));
+    print_uint(deref(&z));
     while z > 0 {
-        print_int(fib(z));
+        print_uint(fib(z));
         z = z - 1;
     };
     let i: u32;
     for(i=0; i<7; i+=1) {
-        print_int(fib(i));
+        print_uint(fib(i));
     };
     let x: u32;
     let y: u32;
-    print_int(i);
+    print_uint(i);
     x = y = i += 7;
-    print_int(i);
-    print_int(x);
-    print_int(y);
+    print_uint(i);
+    print_uint(x);
+    print_uint(y);
     y %= 3;
-    print_int(y);
+    print_uint(y);
     for(i=0; i<10; i+=1) {
         if(i==6) { break; }
         if(i==3) { continue; }
-        print_int(i);
+        print_uint(i);
     }
     deref(&z)
 }

@@ -7,8 +7,8 @@ fn main() -> u32 {
     arr[2] = 12;
     arr[3] = 13;
 
-    print_int(arr[2]);
-    print_int(v[3]);
+    print_uint(arr[2]);
+    print_uint(v[3]);
 
     0
 }

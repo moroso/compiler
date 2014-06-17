@@ -12,7 +12,7 @@ struct nobe {
 fn print_list(head: *list_head) {
     let p: *nobe;
     list_foreach_entry(p, head, nobe, link) {
-        print_int(p->n);
+        print_uint(p->n);
     }
     print_newline();
 }

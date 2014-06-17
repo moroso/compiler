@@ -23,7 +23,7 @@ fn main() -> i32 {
 
     let iterlist: *ll = 0 as *ll;
     for (iterlist = list; iterlist != (0 as *ll); iterlist = iterlist->next) {
-        print_int(iterlist->data);
+        print_uint(iterlist->data);
     };
     0
 }

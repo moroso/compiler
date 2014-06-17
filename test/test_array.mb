@@ -2,6 +2,6 @@ fn main() -> u32 {
     let x: u32[5];
 
     x[4] = 2;
-    print_int(x[4]);
+    print_uint(x[4]);
     0
 }
