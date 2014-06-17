@@ -93,7 +93,6 @@ pub fn size_of_ty(session: &Session, ty: &Ty) -> u64 {
             Width8 => 1,
         },
         GenericIntTy |
-        StrTy |
         PtrTy(..) |
         FuncTy(..) => 4,
         UnitTy => 0,

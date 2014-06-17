@@ -1,0 +1,10 @@
+
+fn main() -> u32 {
+    let s = "hello, world\n";
+    printf0_(s);
+    printf0_("Hello, World.\n");
+    printf1_("a number: %u\n", 12);
+    printf2_("a number: %u and another %u\n", 12, 1337);
+
+    0
+}

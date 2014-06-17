@@ -28,7 +28,6 @@ pub enum Ty {
     GenericIntTy,
     IntTy(Width),
     UintTy(Width),
-    StrTy,
     UnitTy,
     PtrTy(Box<Ty>),
     ArrayTy(Box<Ty>, Option<u64>),
@@ -44,7 +43,7 @@ impl Ty {
     fn kinds(&self) -> EnumSet<Kind> {
         let mut set = EnumSet::empty();
         match *self {
-            StrTy | FuncTy(..) | ArrayTy(..) => {
+            FuncTy(..) | ArrayTy(..) => {
                 set.add(EqKind); // effectively pointer equality
             }
             BoolTy => {
@@ -229,14 +228,14 @@ impl<'a> Typechecker<'a> {
             session: session,
             next_bounds_id: 0,
             exits: vec!(),
-            typemap: Typemap { 
+            typemap: Typemap {
                 types: SmallIntMap::new(),
                 bounds: SmallIntMap::new(),
             }
         }
     }
 
-    pub fn get_typemap(self) -> Typemap { 
+    pub fn get_typemap(self) -> Typemap {
         self.typemap
     }
 
@@ -426,7 +425,7 @@ impl<'a> Typechecker<'a> {
     fn lit_to_ty(&mut self, lit: &Lit) -> Ty {
         save_ty!(lit, match lit.val {
             NumLit(_, ik) => intkind_to_ty(ik),
-            StringLit(..) => StrTy,
+            StringLit(..) => PtrTy(box UintTy(Width8)),
             BoolLit(..) => BoolTy,
             NullLit => PtrTy(box BottomTy),
         })

@@ -273,8 +273,9 @@ impl CCrossCompiler {
         match *t {
             BoolTy => String::from_str("int"),
             UnitTy => String::from_str("void"),
-            IntTy(..) | GenericIntTy => String::from_str("int"),
-            UintTy(..) => String::from_str("unsigned int"),
+            GenericIntTy => String::from_str("int"),
+            IntTy(w) => format!("int{}_t", w),
+            UintTy(w) => format!("uint{}_t", w),
             PtrTy(ref t) | ArrayTy(ref t, _) => {
                 format!("{}*", self.visit_ty(*t))
             },
@@ -330,7 +331,7 @@ impl CCrossCompiler {
     fn visit_lit(&self, lit: &Lit) -> String {
         match lit.val {
             NumLit(ref n, _) => format!("{}", n),
-            StringLit(_) => fail!("TODO"),
+            StringLit(ref s) => format!("\"{}\"", s),
             BoolLit(ref b) => format!("{}", if *b { 1 } else { 0 }),
             NullLit => String::from_str("NULL"),
         }
@@ -547,8 +548,15 @@ impl Target for CTarget {
 
         println!("{}", "#include <stdio.h>");
         println!("{}", "#include <stdlib.h>");
+        println!("{}", "#include <stdint.h>");
         println!("{}", "#include <assert.h>");
-        println!("{}", "extern unsigned machine_phys_frames(); // lol.");
+        println!("{}", "typedef unsigned int uint_t;");
+        println!("{}", "typedef int int_t;");
+
+        println!("{}", "int printf0_(uint8_t *s) { return fputs((char *)s, stdout); }");
+        println!("{}", "int printf1_(uint8_t *s, uint32_t a) { return printf((char *)s, a); }");
+        println!("{}", "int printf2_(uint8_t *s, uint32_t a, uint32_t b) { return printf((char *)s, a, b); }");
+        println!("{}", "int printf3_(uint8_t *s, uint32_t a, uint32_t b, uint32_t c) { return printf((char *)s, a, b, c); }");
         println!("{}", "int print_int(int x) { printf(\"%d\\n\", x); return x; }");
         println!("{}", "int print_char(int x) { printf(\"%c\", x); return x; }");
         println!("{}", cc.visit_module(&module));
