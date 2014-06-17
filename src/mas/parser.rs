@@ -112,18 +112,28 @@ impl<T: Buffer> AsmParser<T> {
 
     // asm-specific parsing functions start here!
 
+    /// Parse either a register by itself, or a register with a shift
+    /// (e.g. (r7 << 3) ).
     fn parse_reg_maybe_shift(&mut self) -> (Reg, (ShiftType, u8)) {
         let tok = self.eat();
         match tok {
+            // Bare register.
             Reg(reg) => (reg, (from_int(0).unwrap(), 0)),
+
+            // Something parenthesized.
             LParen => {
+                // No matter what, there should be a register.
                 let reg = match *self.peek() {
                     Reg(reg) => { self.eat(); reg },
                     _ => self.error(format!("Expected register; got {}", tok)),
                 };
                 let inner_tok = self.eat();
                 match inner_tok {
+                    // There's just the one register, that for some reason
+                    // is in parentheses.
                     RParen => (reg, (from_int(0).unwrap(), 0)),
+
+                    // There's a shift.
                     Shift(shifttype) => {
                         match self.eat() {
                             NumLit(num) => {
@@ -142,6 +152,13 @@ impl<T: Buffer> AsmParser<T> {
         }
     }
 
+    /// This function assumes we've parsed the destination register
+    /// and the "gets" arrow, and possibly a (unary) op before it.
+    /// All of these things are passed in as parameters; it does the
+    /// parsing of the rest of the instruction.
+    /// This function is not responsible for functions that have only
+    /// one register operand and do shifts to it, or that have a
+    /// literal as the first operand.
     fn parse_reg_and_maybe_binop(&mut self, pred: Pred, rd: Reg,
                                  op: Option<AluOp>) -> InstNode {
         let reg = match self.eat() {
@@ -149,10 +166,9 @@ impl<T: Buffer> AsmParser<T> {
             _ => self.error("Expected reg."),
         };
 
-        // If an op had been given, there can't be a binop later.
         match op {
+            // If an op had been given, there can't be a binop later.
             Some(o) => {
-                self.expect(Semi);
                 ALU1RegInst(
                     pred,
                     o,
@@ -161,16 +177,21 @@ impl<T: Buffer> AsmParser<T> {
                     from_int(0).unwrap(),
                     0)
             },
+            // No op was given before this, so the instruction so far looks
+            // like "p1 -> r3 <- r6". Either we're done, or there's a binary
+            // operator after this.
             None => {
                 match tok_to_op(self.peek()) {
                     Some(op) => {
+                        // It's a binary operator. It can be followed by
+                        // a register (which may be shifted), or a literal,
+                        // or '.long'.
                         self.eat();
                         match *self.peek() {
                             LParen | Reg(..) => {
                                 let (rs,
                                      (shifttype, shiftamt)
                                      ) = self.parse_reg_maybe_shift();
-                                self.expect(Semi);
                                 ALU2RegInst(
                                     pred,
                                     op,
@@ -194,7 +215,7 @@ impl<T: Buffer> AsmParser<T> {
                         }
                     },
                     None => {
-                        self.expect(Semi);
+                        // There was no binary operator. We're done.
                         ALU1RegInst(
                             pred,
                             MovAluOp,
@@ -209,6 +230,9 @@ impl<T: Buffer> AsmParser<T> {
         
     }
 
+    /// Convenience function. Will try to take `n` and pack it into
+    /// `size` bits and an even-numbered shift, generating an error if
+    /// that fails.
     fn pack_int_unwrap(&self, n: u32, size: u8) -> (u32, u8) {
         match pack_int(n, size) {
             Some(x) => x,
@@ -218,12 +242,16 @@ impl<T: Buffer> AsmParser<T> {
         }
     }
 
+    /// Parse everything to the right of the '<- op' in an instruction.
+    /// The predicate and destination registers were already parsed and
+    /// are passed in as parameters. If there was a unary op, that's
+    /// also passed in.
     fn parse_expr(&mut self, pred: Pred, rd: Reg,
                  op: Option<AluOp>) -> InstNode {
         match *self.peek() {
             NumLit(n) => {
+                // We're just storing a number.
                 self.eat();
-                self.expect(Semi);
                 let (val, rot) = self.pack_int_unwrap(n, 15);
                 ALU1ShortInst(
                     pred,
@@ -233,11 +261,16 @@ impl<T: Buffer> AsmParser<T> {
                     rot)
             },
             Reg(..) => {
+                // There's a register. Either that's *all* there is
+                // (we're applying a unary op to a register), or there's
+                // a binary op. `parse_reg_and_maybe_binop` will take
+                // care of figuring all that out.
                 self.parse_reg_and_maybe_binop(pred, rd, op)
             },
             _ => {
+                // The only option left is that we're applying a unary op
+                // to a *shifted* register.
                 let (reg, (shifttype, shiftamt)) = self.parse_reg_maybe_shift();
-                self.expect(Semi);
                 ALU1RegInst(
                     pred,
                     op.unwrap_or(MovAluOp),
@@ -250,11 +283,13 @@ impl<T: Buffer> AsmParser<T> {
         }
     }
 
+    /// Parse the actual op/literal part of an instruction; that is,
+    /// everything to the right of the '<-'.
+    /// We're passed in the predicate and destination register, which
+    /// have already been parsed by now.
     fn parse_op_or_expr(&mut self, pred: Pred, rd: Reg) -> InstNode {
-        // Parse the actual op/literal part of an instruction.
-        // We're passed in the predicate and destination register, which
-        // have already been parsed by now.
         match *self.peek() {
+            // TODO: helper function that takes unary op tokens to their ops.
             NumLit(..) |
             Reg(..) |
             LParen => self.parse_expr(pred, rd, None),
@@ -267,6 +302,7 @@ impl<T: Buffer> AsmParser<T> {
         }
     }
 
+    /// Parse an entire instruction.
     pub fn parse_inst(&mut self) -> InstNode {
         // Begin by parsing the predicate register for this instruction.
         let pred = match *self.peek() {
@@ -320,7 +356,7 @@ mod tests {
 
     #[test]
     fn test_parse_inst_alu1short() {
-        assert_eq!(inst_from_str("p1 -> r4 <- 5;"),
+        assert_eq!(inst_from_str("p1 -> r4 <- 5"),
                    ALU1ShortInst(Pred { inverted: false,
                                         reg: 1 },
                                  MovAluOp,
@@ -328,7 +364,7 @@ mod tests {
                                  5,
                                  0));
 
-        assert_eq!(inst_from_str("!p1 -> r4 <- 5;"),
+        assert_eq!(inst_from_str("!p1 -> r4 <- 5"),
                    ALU1ShortInst(Pred { inverted: true,
                                         reg: 1 },
                                  MovAluOp,
@@ -336,7 +372,7 @@ mod tests {
                                  5,
                                  0));
 
-        assert_eq!(inst_from_str("!p1 -> r4 <- ~5;"),
+        assert_eq!(inst_from_str("!p1 -> r4 <- ~5"),
                    ALU1ShortInst(Pred { inverted: true,
                                         reg: 1 },
                                  MvnAluOp,
@@ -344,7 +380,7 @@ mod tests {
                                  5,
                                  0));
 
-        assert_eq!(inst_from_str("r4 <- ~5;"),
+        assert_eq!(inst_from_str("r4 <- ~5"),
                    ALU1ShortInst(Pred { inverted: false,
                                         reg: 3 },
                                  MvnAluOp,
@@ -352,7 +388,7 @@ mod tests {
                                  5,
                                  0));
 
-        assert_eq!(inst_from_str("r4 <- SxB 5;"),
+        assert_eq!(inst_from_str("r4 <- SxB 5"),
                    ALU1ShortInst(Pred { inverted: false,
                                         reg: 3 },
                                  SxbAluOp,
@@ -361,7 +397,7 @@ mod tests {
                                  0));
 
         assert_eq!(inst_from_str(
-            "r4 <- SxB 0b10000000000000000000000000000001;"),
+            "r4 <- SxB 0b10000000000000000000000000000001"),
                    ALU1ShortInst(Pred { inverted: false,
                                         reg: 3 },
                                  SxbAluOp,
@@ -371,7 +407,7 @@ mod tests {
 
         // This is just long enough to be packed.
         assert_eq!(inst_from_str(
-            "r4 <- SxB 0b111111111111111;"),
+            "r4 <- SxB 0b111111111111111"),
                    ALU1ShortInst(Pred { inverted: false,
                                         reg: 3 },
                                  SxbAluOp,
@@ -380,7 +416,7 @@ mod tests {
                                  0));
 
         assert_eq!(inst_from_str(
-            "r4 <- SxB -0xffffffff;"),
+            "r4 <- SxB -0xffffffff"),
                    ALU1ShortInst(Pred { inverted: false,
                                         reg: 3 },
                                  SxbAluOp,
@@ -394,12 +430,12 @@ mod tests {
     fn test_invalid_short_in_alu1inst()
     {
         // This value is too long to be packed into the instruction.
-        inst_from_str("r4 <- 0b1111111111111111;");
+        inst_from_str("r4 <- 0b1111111111111111");
     }
 
     #[test]
     fn test_parse_inst_alu2short() {
-        assert_eq!(inst_from_str("r6 <- r7 + 0;"),
+        assert_eq!(inst_from_str("r6 <- r7 + 0"),
                    ALU2ShortInst(Pred { inverted: false,
                                         reg: 3 },
                                  AddAluOp,
@@ -408,7 +444,7 @@ mod tests {
                                  0,
                                  0));
 
-        assert_eq!(inst_from_str("r6 <- r7 + 0b100;"),
+        assert_eq!(inst_from_str("r6 <- r7 + 0b100"),
                    ALU2ShortInst(Pred { inverted: false,
                                         reg: 3 },
                                  AddAluOp,
@@ -417,7 +453,7 @@ mod tests {
                                  0b100,
                                  0));
 
-        assert_eq!(inst_from_str("r6 <- r7 + 0b1111111111;"),
+        assert_eq!(inst_from_str("r6 <- r7 + 0b1111111111"),
                    ALU2ShortInst(Pred { inverted: false,
                                         reg: 3 },
                                  AddAluOp,
@@ -426,7 +462,7 @@ mod tests {
                                  0b1111111111,
                                  0));
 
-        assert_eq!(inst_from_str("r6 <- r7 | 0b1111111111;"),
+        assert_eq!(inst_from_str("r6 <- r7 | 0b1111111111"),
                    ALU2ShortInst(Pred { inverted: false,
                                         reg: 3 },
                                  OrAluOp,
@@ -435,7 +471,7 @@ mod tests {
                                  0b1111111111,
                                  0));
 
-        assert_eq!(inst_from_str("r6 <- r7 oR 0b1111111111;"),
+        assert_eq!(inst_from_str("r6 <- r7 oR 0b1111111111"),
                    ALU2ShortInst(Pred { inverted: false,
                                         reg: 3 },
                                  OrAluOp,
@@ -444,7 +480,7 @@ mod tests {
                                  0b1111111111,
                                  0));
 
-        assert_eq!(inst_from_str("!p2 -> r6 <- r7 oR 0b1111111111;"),
+        assert_eq!(inst_from_str("!p2 -> r6 <- r7 oR 0b1111111111"),
                    ALU2ShortInst(Pred { inverted: true,
                                         reg: 2 },
                                  OrAluOp,
@@ -454,7 +490,7 @@ mod tests {
                                  0));
 
         assert_eq!(inst_from_str(
-            "!p2 -> r6 <- r7 oR 0b10000000000000000000000000000001;"),
+            "!p2 -> r6 <- r7 oR 0b10000000000000000000000000000001"),
                    ALU2ShortInst(Pred { inverted: true,
                                         reg: 2 },
                                  OrAluOp,
@@ -464,7 +500,7 @@ mod tests {
                                  1));
 
         assert_eq!(inst_from_str(
-            "r6 <- r7 + -0xffffffff;"),
+            "r6 <- r7 + -0xffffffff"),
                    ALU2ShortInst(Pred { inverted: false,
                                         reg: 3 },
                                  AddAluOp,
@@ -478,12 +514,12 @@ mod tests {
     #[should_fail]
     fn test_invalid_short_in_alu2short() {
         // Value is too long for the instruction.
-        inst_from_str("r6 <- r7 + 0b11111111111;");
+        inst_from_str("r6 <- r7 + 0b11111111111");
     }
 
     #[test]
     fn test_parse_inst_alu1reg() {
-        assert_eq!(inst_from_str("p1 -> r4 <- r5;"),
+        assert_eq!(inst_from_str("p1 -> r4 <- r5"),
                    ALU1RegInst(Pred { inverted: false,
                                       reg: 1 },
                                MovAluOp,
@@ -493,7 +529,7 @@ mod tests {
                                0));
 
 
-        assert_eq!(inst_from_str("p1 -> r4 <- (r5);"),
+        assert_eq!(inst_from_str("p1 -> r4 <- (r5)"),
                    ALU1RegInst(Pred { inverted: false,
                                       reg: 1 },
                                MovAluOp,
@@ -503,7 +539,7 @@ mod tests {
                                0));
 
 
-        assert_eq!(inst_from_str("p1 -> r4 <- (r5 << 6);"),
+        assert_eq!(inst_from_str("p1 -> r4 <- (r5 << 6)"),
                    ALU1RegInst(Pred { inverted: false,
                                       reg: 1 },
                                MovAluOp,
@@ -516,12 +552,12 @@ mod tests {
     #[test]
     #[should_fail]
     fn test_invalid_shift_in_alu1reg() {
-        inst_from_str("r4 <- (r5 << 33);");
+        inst_from_str("r4 <- (r5 << 33)");
     }
 
     #[test]
     fn test_parse_inst_alu2reg() {
-        assert_eq!(inst_from_str("r6 <- r7 + r8;"),
+        assert_eq!(inst_from_str("r6 <- r7 + r8"),
                    ALU2RegInst(Pred { inverted: false,
                                       reg: 3 },
                                AddAluOp,
@@ -531,7 +567,7 @@ mod tests {
                                SllShift,
                                0));
 
-        assert_eq!(inst_from_str("r6 <- r7 + (r8);"),
+        assert_eq!(inst_from_str("r6 <- r7 + (r8)"),
                    ALU2RegInst(Pred { inverted: false,
                                       reg: 3 },
                                AddAluOp,
@@ -541,7 +577,7 @@ mod tests {
                                SllShift,
                                0));
 
-        assert_eq!(inst_from_str("r6 <- r7 + (r8 << 6);"),
+        assert_eq!(inst_from_str("r6 <- r7 + (r8 << 6)"),
                    ALU2RegInst(Pred { inverted: false,
                                       reg: 3 },
                                AddAluOp,
@@ -551,7 +587,7 @@ mod tests {
                                SllShift,
                                6));
 
-        assert_eq!(inst_from_str("r6 <- r7 -: r8;"),
+        assert_eq!(inst_from_str("r6 <- r7 -: r8"),
                    ALU2RegInst(Pred { inverted: false,
                                       reg: 3 },
                                RsbAluOp,
@@ -561,7 +597,7 @@ mod tests {
                                SllShift,
                                0));
 
-        assert_eq!(inst_from_str("r6 <- r7 rsb r8;"),
+        assert_eq!(inst_from_str("r6 <- r7 rsb r8"),
                    ALU2RegInst(Pred { inverted: false,
                                       reg: 3 },
                                RsbAluOp,
@@ -571,7 +607,7 @@ mod tests {
                                SllShift,
                                0));
 
-        assert_eq!(inst_from_str("!p1 -> r6 <- r7 rsb r8;"),
+        assert_eq!(inst_from_str("!p1 -> r6 <- r7 rsb r8"),
                    ALU2RegInst(Pred { inverted: true,
                                       reg: 1 },
                                RsbAluOp,
