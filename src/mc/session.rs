@@ -6,6 +6,8 @@
 
 use span::Span;
 use util::Name;
+use mc::ast::NodeId;
+
 
 use super::ast::Module;
 use super::ast::defmap::DefMap;
@@ -68,6 +70,22 @@ impl Session {
             interner: Interner::new(),
         }
     }
+
+    pub fn error_fatal<T: Str>(&self, nid: NodeId, msg: T) -> ! {
+        let sp = self.parser.span_of(&nid);
+        fail!("\n{}\nat: {}\n", msg.as_slice(), sp);
+    }
+    pub fn error<T: Str>(&self, nid: NodeId, msg: T) {
+        // For now everything is fatal.
+        self.error_fatal(nid, msg);
+    }
+    pub fn bug_span<T: Str>(&self, nid: NodeId, msg: T) -> ! {
+        let sp = self.parser.span_of(&nid);
+        fail!("\nBum bum bum budda bum bum tsch:\n\
+              Internal Compiler Error{}\n\
+              at: {}\n", msg.as_slice(), sp);
+    }
+
 
     fn inject_prelude(&mut self, module: &mut Module) {
         use std::str::StrSlice;

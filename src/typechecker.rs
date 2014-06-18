@@ -2,6 +2,7 @@ use mc::resolver::Resolver;
 use mc::session::Session;
 use util::{IntKind, GenericInt, SignedInt, UnsignedInt};
 use util::{Width, AnyWidth, Width8, Width16, Width32};
+use span::Span;
 
 use std::collections::{SmallIntMap, TreeMap, EnumSet};
 use std::collections::enum_set::CLike;
@@ -235,6 +236,14 @@ impl<'a> Typechecker<'a> {
         }
     }
 
+    // Should probably live elsewhere.
+    pub fn error_fatal<T: Str>(&self, nid: NodeId, msg: T) -> ! {
+        self.session.error_fatal(nid, msg);
+    }
+    pub fn error<T: Str>(&self, nid: NodeId, msg: T) {
+        self.session.error(nid, msg);
+    }
+
     pub fn get_typemap(self) -> Typemap {
         self.typemap
     }
@@ -298,7 +307,7 @@ impl<'a> Typechecker<'a> {
                                   .filter_map(|gs| gs.find(&nid))
                                   .next() {
             Some(ty) => ty.clone(),
-            None => fail!("Missing generic {}", nid),
+            None => self.error_fatal(nid, "Missing generic"),
         }
     }
 
@@ -322,7 +331,7 @@ impl<'a> Typechecker<'a> {
                     }
                     GenericDef => self.generic_to_ty(nid),
                     TypeDef(ref t) => self.type_to_ty(t),
-                    _ => fail!("Expected type name"),
+                    _ => self.error_fatal(t.id, "Expected type name"),
                 }
             },
             FuncType(ref args, ref t) => {
@@ -371,7 +380,7 @@ impl<'a> Typechecker<'a> {
                     VariantDef(_, ref enum_nid, ref args) => {
                         let tps = match *self.session.defmap.find(enum_nid).take_unwrap() {
                             EnumDef(_, _, ref tps) => tps,
-                            _ => fail!("Nonsensical enum id for variant"),
+                            _ => self.error_fatal(nid, "Nonsensical enum id for variant"),
                         };
 
                         let tp_tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, true);
@@ -466,7 +475,7 @@ impl<'a> Typechecker<'a> {
                     VariantDef(_, ref enum_nid, ref args) => {
                         let tps = match *self.session.defmap.find(enum_nid).take_unwrap() {
                             EnumDef(_, _, ref tps) => tps,
-                            _ => fail!("Nonsensical enum id for variant"),
+                            _ => self.error_fatal(expr.id, "Nonsensical enum id for variant"),
                         };
 
                         let tp_tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, true);
@@ -493,14 +502,16 @@ impl<'a> Typechecker<'a> {
                             None => self.get_bound_ty(nid),
                         }
                     }
-                    _ => fail!("{} does not name a value", path),
+                    _ => self.error_fatal(expr.id,
+                                          format!("{} does not name a value", path)),
                 }
             }
             StructExpr(ref path, ref flds) => {
                 let nid = self.session.resolver.def_from_path(path);
                 let (fields, tps) = match *self.session.defmap.find(&nid).take_unwrap() {
                     StructDef(_, ref fields, ref tps) => (fields, tps),
-                    _ => fail!("{} does not name a struct", path),
+                    _ => self.error_fatal(expr.id,
+                                          format!("{} does not name a struct", path)),
                 };
 
                 let tp_tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, true);
@@ -530,9 +541,9 @@ impl<'a> Typechecker<'a> {
             UnOpExpr(ref op, ref e) => {
                 let ty = self.expr_to_ty(*e);
                 let expr_ty = match op.val {
-                    Negate => self.check_ty_bounds(ty, Constrained(enumset!(SubKind))),
-                    BitNot => self.check_ty_bounds(ty, Constrained(enumset!(BitXorKind))),
-                    LogNot => self.check_ty_bounds(ty, Concrete(BoolTy)),
+                    Negate => self.check_ty_bounds(e.id, ty, Constrained(enumset!(SubKind))),
+                    BitNot => self.check_ty_bounds(e.id, ty, Constrained(enumset!(BitXorKind))),
+                    LogNot => self.check_ty_bounds(e.id, ty, Concrete(BoolTy)),
                     AddrOf => PtrTy(box ty),
                     Deref => match ty {
                         PtrTy(p_ty) => *p_ty,
@@ -546,7 +557,7 @@ impl<'a> Typechecker<'a> {
                 let a_ty = self.expr_to_ty(*a);
                 let i_ty = self.expr_to_ty(*i);
 
-                self.check_ty_bounds(i_ty, Concrete(UintTy(AnyWidth)));
+                self.check_ty_bounds(i.id, i_ty, Concrete(UintTy(AnyWidth)));
 
                 match a_ty {
                     ArrayTy(ty, _) | PtrTy(ty) => *ty,
@@ -584,20 +595,22 @@ impl<'a> Typechecker<'a> {
 
                 match e_ty {
                     GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) => {}
-                    _ => fail!("Cannot cast expression of non-integral type"),
+                    _ => self.error(expr.id, "Cannot cast expression of non-integral type"),
                 }
 
                 match t_ty {
-                    GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) => t_ty,
-                    _ => fail!("Cannot cast to non-integral type"),
+                    GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) => {},
+                    _ => self.error(expr.id, "Cannot cast to non-integral/pointer type"),
                 }
+
+                t_ty
             }
             AssignExpr(ref op, ref lv, ref rv) => {
                 let l_ty = match lv.val {
                     PathExpr(..) | UnOpExpr(WithId { val: Deref, .. }, _) | IndexExpr(..) | DotExpr(..) | ArrowExpr(..) => {
                         self.expr_to_ty(*lv)
                     }
-                    _ => fail!("LHS of assignment is not an lvalue"),
+                    _ => self.error_fatal(lv.id, "LHS of assignment is not an lvalue"),
                 };
 
                 let r_ty = self.expr_to_ty(*rv);
@@ -611,7 +624,8 @@ impl<'a> Typechecker<'a> {
                 let e_ty = self.expr_to_ty(*e);
                 let (nid, tp_tys) = match self.unify(BottomTy, e_ty) {
                     StructTy(nid, tp_tys) => (nid, tp_tys),
-                    ty => fail!("Expression is not a structure, got {}", ty),
+                    ty => self.error_fatal(e.id,
+                                           format!("Expression is not a structure, got {}", ty)),
                 };
 
                 match *self.session.defmap.find(&nid).take_unwrap() {
@@ -632,7 +646,7 @@ impl<'a> Typechecker<'a> {
                 let e_ty = self.expr_to_ty(*e);
                 let (nid, tp_tys) = match self.unify(BottomTy, e_ty) {
                     PtrTy(box StructTy(nid, tp_tys)) => (nid, tp_tys),
-                    _ => fail!("Expression is not a pointer to a structure"),
+                    _ => self.error_fatal(e.id, "Expression is not a pointer to a structure"),
                 };
 
                 match *self.session.defmap.find(&nid).take_unwrap() {
@@ -691,19 +705,19 @@ impl<'a> Typechecker<'a> {
         block.expr.as_ref().map(|e| self.expr_to_ty(e)).unwrap_or(UnitTy)
     }
 
-    fn merge_bounds(&mut self, b1: TyBounds, b2: TyBounds) -> TyBounds {
+    fn merge_bounds(&mut self, nid: NodeId, b1: TyBounds, b2: TyBounds) -> TyBounds {
         match (b1, b2) {
             (Unconstrained, bs) | (bs, Unconstrained) => bs,
             (Concrete(t1), Concrete(t2)) => Concrete(self.unify(t1, t2)),
             (Constrained(ks), Concrete(ty)) | (Concrete(ty), Constrained(ks)) =>
-                Concrete(self.check_ty_bounds(ty, Constrained(ks))),  // do something about Concrete(BoundTy)
+                Concrete(self.check_ty_bounds(nid, ty, Constrained(ks))),  // do something about Concrete(BoundTy)
             (Constrained(ks1), Constrained(ks2)) => {
                 Constrained(ks1.union(ks2))
             }
         }
     }
 
-    fn check_ty_bounds(&mut self, t1: Ty, bounds: TyBounds) -> Ty {
+    fn check_ty_bounds(&mut self, nid: NodeId, t1: Ty, bounds: TyBounds) -> Ty {
         match bounds {
             Unconstrained => t1,
             Concrete(t2) => self.unify(t1, t2),
@@ -711,12 +725,19 @@ impl<'a> Typechecker<'a> {
                 match t1 {
                     BoundTy(bid) => {
                         let b1 = self.get_bounds(bid);
-                        let bounds = self.merge_bounds(b1, bounds);
+                        let bounds = self.merge_bounds(nid, b1, bounds);
                         self.update_bounds(bid, bounds);
                         BoundTy(bid)
                     }
-                    _ => if t1.kinds().contains(ks) { t1 }
-                         else { fail!("Expected type with bounds {} but found type {}", bounds, t1) }
+                    _ => {
+                        if !t1.kinds().contains(ks) {
+                            self.error(
+                                nid,
+                                format!("Expected type with bounds {} but found type {}",
+                                        bounds, t1));
+                        }
+                        t1
+                    }
                 }
             }
         }
@@ -739,7 +760,7 @@ impl<'a> Typechecker<'a> {
             (_, l_ty, r_ty) => {
                 let kinds = op_to_kind_set(op);
                 let bounds = Constrained(kinds);
-                let ty = self.check_ty_bounds(l_ty, bounds);
+                let ty = self.check_ty_bounds(DUMMY_NODEID, l_ty, bounds);
 
                 if kinds.intersects(enumset!(EqKind, CmpKind, AndKind, OrKind)) {
                     BoolTy
@@ -761,7 +782,7 @@ impl<'a> Typechecker<'a> {
                     } else {
                         let bs1 = self.get_bounds(b1);
                         let bs2 = self.get_bounds(b2);
-                        let bounds = self.merge_bounds(bs1, bs2);
+                        let bounds = self.merge_bounds(DUMMY_NODEID, bs1, bs2);
                         self.update_bounds(b1, bounds.clone());
                         self.update_bounds(b2, bounds.clone());
                         bounds
@@ -774,7 +795,7 @@ impl<'a> Typechecker<'a> {
             },
             (BoundTy(b), t) | (t, BoundTy(b)) => {
                 let bounds = self.get_bounds(b);
-                let t = self.check_ty_bounds(t, bounds);
+                let t = self.check_ty_bounds(DUMMY_NODEID, t, bounds);
                 self.update_bounds(b, Concrete(t.clone()));
                 t
             },
@@ -869,7 +890,9 @@ impl<'a> Visitor for Typechecker<'a> {
         match stmt.val {
             LetStmt(ref pat, ref e) => {
                 match pat.val {
-                    VariantPat(..) => fail!("Cannot bind refutable pattern in let statement"),
+                    VariantPat(..) => self.error(
+                        stmt.id,
+                        "Cannot bind refutable pattern in let statement"),
                     _ => {}
                 }
 
@@ -918,7 +941,7 @@ impl<'a> Visitor for Typechecker<'a> {
                         }
 
                         if diverges && ty != BottomTy {
-                            fail!("diverging function may return");
+                            me.error(item.id, "diverging function may return");
                         }
                     });
                 }
