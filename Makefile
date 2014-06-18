@@ -6,9 +6,12 @@ MC_FILES := \
 	span.rs \
 	typechecker.rs \
 	values.rs \
+	codegen/mod.rs \
+	codegen/register_color.rs \
 	intrinsics/mod.rs \
 	intrinsics/size_of.rs \
 	ir/ast_to_intermediate.rs \
+	ir/conflicts.rs \
 	ir/constant_fold.rs \
 	ir/liveness.rs \
 	ir/mod.rs \
@@ -28,6 +31,7 @@ MC_FILES := \
 	mc/prelude.mb \
 	mc/resolver.rs \
 	mc/session.rs \
+	target/asm.rs \
 	target/ccross.rs \
 	target/ir.rs \
 	target/mod.rs \

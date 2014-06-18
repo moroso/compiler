@@ -25,6 +25,7 @@ mod ir;
 mod span;
 mod target;
 mod values;
+mod codegen;
 
 mod mc;
 mod mas;

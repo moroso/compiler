@@ -1,5 +1,5 @@
 use package::Package;
-use target::{Target, CTarget, IRTarget};
+use target::{Target, CTarget, IRTarget, AsmTarget};
 use typechecker::Typechecker;
 
 use self::ast::visit::Visitor;
@@ -75,6 +75,7 @@ pub fn main() {
         "c" => CTarget,
         "ir" => IRTarget,
         "null" => NullTarget,
+        "asm" => AsmTarget,
     };
 
     let target_arg = matches.opt_str("target").unwrap_or(String::from_str("null"));

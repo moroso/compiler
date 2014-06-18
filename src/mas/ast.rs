@@ -34,7 +34,7 @@ impl Show for Pred {
     }
 }
 
-#[deriving(Clone, Eq, PartialEq)]
+#[deriving(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Reg {
     pub index: u8,
 }
