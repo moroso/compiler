@@ -1,0 +1,8 @@
+fn main(x: u32) -> u32 {
+    let a = x;
+    let b = a + 0xff;
+    let c = b + b;
+    let d = c + c - b + 1 + a;
+
+    d
+}

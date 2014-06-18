@@ -10,46 +10,50 @@ pub enum RegisterColor {
     Spilled,
 }
 
-/// Greedy register allocator, favoring variables that are used more often.
-pub fn register_color(conflicts: TreeMap<Var, TreeSet<Var>>,
-                      frequencies: TreeMap<Var, u32>,
-                      num_colors: uint,
-                      ) -> TreeMap<Var, RegisterColor> {
-    let mut coloring = TreeMap::<Var, RegisterColor>::new();
+pub struct RegisterColorer;
 
-    let mut freq_vec: Vec<(&Var, &u32)> = frequencies.iter().collect();
-    freq_vec.sort_by(|&(_, a), &(_, b)| b.cmp(a));
+impl RegisterColorer {
+    /// Greedy register allocator, favoring variables that are used more often.
+    pub fn color(conflicts: TreeMap<Var, TreeSet<Var>>,
+                 frequencies: TreeMap<Var, u32>,
+                 num_colors: uint
+                 ) -> TreeMap<Var, RegisterColor> {
+        let mut coloring = TreeMap::<Var, RegisterColor>::new();
 
-    for (var, _) in freq_vec.move_iter() {
-        let empty_treeset = TreeSet::<Var>::new();
-        let ref adjacent_vars =
-            conflicts
-            .find(var)
-            .unwrap_or(&empty_treeset);
-        let adjacent_colors: TreeSet<RegisterColor>
-            = FromIterator::from_iter(adjacent_vars.iter()
-                                      .map(|var|
-                                           *coloring
-                                           .find(var)
-                                           .unwrap_or(
-                                               &Spilled)
-                                           ));
+        let mut freq_vec: Vec<(&Var, &u32)> = frequencies.iter().collect();
+        freq_vec.sort_by(|&(_, a), &(_, b)| b.cmp(a));
 
-        let mut color = Spilled;
+        for (var, _) in freq_vec.move_iter() {
+            let empty_treeset = TreeSet::<Var>::new();
+            let ref adjacent_vars =
+                conflicts
+                .find(var)
+                .unwrap_or(&empty_treeset);
+            let adjacent_colors: TreeSet<RegisterColor>
+                = FromIterator::from_iter(adjacent_vars.iter()
+                                          .map(|var|
+                                               *coloring
+                                               .find(var)
+                                               .unwrap_or(
+                                                   &Spilled)
+                                               ));
 
-        for n in range(0, num_colors) {
-            if !adjacent_colors.contains(
-                &RegColor(Reg { index: n as u8 } )
-                    ) {
-                color = RegColor(Reg { index: n as u8 } );
-                break;
+            let mut color = Spilled;
+
+            for n in range(0, num_colors) {
+                if !adjacent_colors.contains(
+                    &RegColor(Reg { index: n as u8 } )
+                        ) {
+                    color = RegColor(Reg { index: n as u8 } );
+                    break;
+                }
             }
+
+            coloring.insert(*var, color);
         }
 
-        coloring.insert(*var, color);
+        coloring
     }
-
-    coloring
 }
 
 #[cfg(test)]
@@ -73,7 +77,7 @@ mod tests {
             frequencies.insert(var(n), 1);
         }
 
-        let coloring = register_color(conflicts, frequencies, 10);
+        let coloring = RegisterColorer::color(conflicts, frequencies, 10);
         for (_, &color) in coloring.iter() {
             assert_eq!(color, RegColor(Reg { index: 0 } ));
         }
@@ -96,7 +100,7 @@ mod tests {
             conflicts.insert(var(n), conflict_set);
         }
 
-        let coloring = register_color(conflicts, frequencies, 10);
+        let coloring = RegisterColorer::color(conflicts, frequencies, 10);
         for i in range(0, 10) {
             let color = *coloring.find(&var(i)).unwrap();
             assert_eq!(color, RegColor(Reg { index: i as u8 } ));
@@ -126,7 +130,7 @@ mod tests {
             conflicts.insert(var(n), conflict_set);
         }
 
-        let coloring = register_color(conflicts, frequencies, 10);
+        let coloring = RegisterColorer::color(conflicts, frequencies, 10);
         for i in range(0, 20) {
             let color = *coloring.find(&var(i)).unwrap();
             assert_eq!(color, RegColor(Reg { index: (i%2) as u8 } ));

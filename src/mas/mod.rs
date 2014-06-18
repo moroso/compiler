@@ -13,6 +13,7 @@ pub mod lexer;
 pub mod parser;
 pub mod ast;
 pub mod encoder;
+pub mod util;
 
 pub fn main() {
     // TODO: option parsing.

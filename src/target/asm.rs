@@ -10,10 +10,11 @@ use ir::liveness::LivenessAnalyzer;
 use ir::ast_to_intermediate::ASTToIntermediate;
 use ir::constant_fold::ConstantFolder;
 use ir::ssa::ToSSA;
-use ir::conflicts::conflicts;
+use ir::conflicts::ConflictAnalyzer;
 
-use codegen::register_color::*;
+use codegen::register_color::RegisterColorer;
 use codegen::num_usable_vars;
+use codegen::IrToAsm;
 
 pub struct AsmTarget;
 
@@ -52,11 +53,15 @@ impl Target for AsmTarget {
                 print!("{}\n", a);
             }
             print!("{}\n", insts);
-            let (conflict_map, counts) = conflicts(insts);
+            let (conflict_map, counts) = ConflictAnalyzer::conflicts(insts);
             print!("conflicts: {}\ncounts: {}\n", conflict_map, counts);
             print!("{}\n",
-                   register_color(conflict_map, counts,
-                                  num_usable_vars as uint));
+                   RegisterColorer::color(conflict_map, counts,
+                                          num_usable_vars as uint));
+
+            for inst in IrToAsm::ir_to_asm(insts).iter() {
+                print!("   {}\n", inst);
+            }
         }
     }
 

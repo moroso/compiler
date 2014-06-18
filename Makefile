@@ -8,6 +8,7 @@ MC_FILES := \
 	values.rs \
 	codegen/mod.rs \
 	codegen/register_color.rs \
+	codegen/ir_to_asm.rs \
 	intrinsics/mod.rs \
 	intrinsics/size_of.rs \
 	ir/ast_to_intermediate.rs \
@@ -18,10 +19,11 @@ MC_FILES := \
 	ir/ssa.rs \
 	ir/util.rs \
 	mas/ast.rs \
+	mas/encoder.rs \
 	mas/lexer.rs \
 	mas/mod.rs \
 	mas/parser.rs \
-	mas/encoder.rs \
+	mas/util.rs \
 	mc/ast/defmap.rs \
 	mc/ast/mod.rs \
 	mc/ast/visit.rs \
