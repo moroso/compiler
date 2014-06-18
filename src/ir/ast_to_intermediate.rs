@@ -70,7 +70,7 @@ impl<'a> ASTToIntermediate<'a> {
                             Some(ref t) => {
                                 // TODO: eliminate this.
                                 let mut typeck = Typechecker::new(self.session);
-                                match typeck.type_to_ty(t) {
+                                match typeck.type_to_ty(t).ty {
                                     StructTy(ref id, _) => {
                                         let size = size_of_def(self.session,
                                                                id);
@@ -296,7 +296,7 @@ impl<'a> ASTToIntermediate<'a> {
             },
             //ForExpr(ref init, ref cond, ref iter, ref body) => {
             //    let (mut insts, _) = self.convert_expr(*init);
-            //    
+            //
             //}
             GroupExpr(ref e) => self.convert_expr(*e),
             CallExpr(ref f, ref args) => {
@@ -335,7 +335,7 @@ impl<'a> ASTToIntermediate<'a> {
     fn struct_helper(&mut self, e: &Expr, name: &Name) -> (Vec<Op>, Var) {
         let (mut ops, var) = self.convert_expr(e);
         let ty = self.typemap.types.get(&e.id.to_uint()).clone();
-        let id = match ty {
+        let id = match ty.ty {
             StructTy(ref id, _) => id,
             _ => fail!("ICE: struct doesn't have struct type. Typechecker should have caught this.")
         };

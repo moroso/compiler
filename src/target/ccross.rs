@@ -270,7 +270,7 @@ impl CCrossCompiler {
     }
 
     fn visit_ty(&self, t: &Ty) -> String {
-        match *t {
+        match t.ty {
             BoolTy => String::from_str("int"),
             UnitTy => String::from_str("void"),
             GenericIntTy => String::from_str("int"),
@@ -452,7 +452,7 @@ impl CCrossCompiler {
             MatchExpr(ref e, ref arms) => {
                 // TODO: allow types other than ints.
                 let overall_type = self.typemap.types.get(&expr.id.to_uint());
-                let is_void = *overall_type == UnitTy;
+                let is_void = overall_type.ty == UnitTy;
                 let overall_type_name = self.visit_ty(overall_type);
 
                 let expr = self.visit_expr(*e);

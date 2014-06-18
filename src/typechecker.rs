@@ -24,7 +24,7 @@ impl BoundsId {
 }
 
 #[deriving(Eq, PartialEq, Show, Clone)]
-pub enum Ty {
+pub enum Ty_ {
     BoolTy,
     GenericIntTy,
     IntTy(Width),
@@ -40,7 +40,13 @@ pub enum Ty {
     BottomTy,
 }
 
-impl Ty {
+#[deriving(Eq, PartialEq, Show, Clone)]
+pub struct Ty {
+    pub ty: Ty_,
+    pub id: NodeId,
+}
+
+impl Ty_ {
     fn kinds(&self) -> EnumSet<Kind> {
         let mut set = EnumSet::empty();
         match *self {
@@ -81,6 +87,21 @@ impl Ty {
     fn is_of_kind(&self, k: Kind) -> bool {
         self.kinds().contains_elem(k)
     }
+}
+impl Ty {
+    fn kinds(&self) -> EnumSet<Kind> {
+        self.ty.kinds()
+    }
+    fn is_of_kind(&self, k: Kind) -> bool {
+        self.ty.is_of_kind(k)
+    }
+}
+
+fn mk_ty(ty: Ty_, src: NodeId) -> Ty {
+    Ty { ty: ty, id: src }
+}
+fn mk_i(ty: Ty_) -> Ty {
+    Ty { ty: ty, id: DUMMY_NODEID }
 }
 
 #[deriving(Eq, PartialEq, Clone)]
@@ -179,7 +200,7 @@ pub struct Typechecker<'a> {
     typemap: Typemap,
 }
 
-fn intkind_to_ty(ik: IntKind) -> Ty {
+fn intkind_to_ty(ik: IntKind) -> Ty_ {
     match ik {
         GenericInt     => GenericIntTy,
         SignedInt(w)   => IntTy(w),
@@ -189,6 +210,9 @@ fn intkind_to_ty(ik: IntKind) -> Ty {
 
 macro_rules! save_ty {
     ($n:expr, $t:expr) => ({ let ty = $t; self.typemap.types.insert($n.id.to_uint(), ty.clone()); ty })
+}
+macro_rules! save_ty_ {
+    ($n:expr, $t:expr) => ({ let ty = mk_ty($t, $n.id); self.typemap.types.insert($n.id.to_uint(), ty.clone()); ty })
 }
 
 macro_rules! enumset {
@@ -253,7 +277,7 @@ impl<'a> Typechecker<'a> {
             Some(ref ts) if ts.len() == tps.len() =>
                 ts.iter().map(|t| self.type_to_ty(t)).collect(),
             None if infer =>
-                tps.iter().map(|_| BoundTy(self.add_bounds())).collect(),
+                tps.iter().map(|id| mk_ty(BoundTy(self.add_bounds()), *id)).collect(),
             None if tps.len() == 0 =>
                 vec!(),
             _ =>
@@ -291,14 +315,14 @@ impl<'a> Typechecker<'a> {
     fn add_bound_ty(&mut self, nid: NodeId) -> Ty {
         let bid = self.add_bounds();
         self.defs.insert(nid, bid);
-        BoundTy(bid)
+        mk_ty(BoundTy(bid), nid)
     }
 
     fn get_bound_ty(&mut self, nid: NodeId) -> Ty {
         let bid = *self.defs.find(&nid).take_unwrap();
         match self.get_bounds(bid) {
             Concrete(ty) => ty,
-            _ => BoundTy(bid),
+            _ => mk_ty(BoundTy(bid), nid),
         }
     }
 
@@ -312,7 +336,7 @@ impl<'a> Typechecker<'a> {
     }
 
     pub fn type_to_ty(&mut self, t: &Type) -> Ty {
-        save_ty!(t, match t.val {
+        save_ty_!(t, match t.val {
             BoolType => BoolTy,
             UnitType => UnitTy,
             DivergingType => BottomTy,
@@ -329,8 +353,8 @@ impl<'a> Typechecker<'a> {
                         let tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, false);
                         EnumTy(nid, tys)
                     }
-                    GenericDef => self.generic_to_ty(nid),
-                    TypeDef(ref t) => self.type_to_ty(t),
+                    GenericDef => self.generic_to_ty(nid).ty,
+                    TypeDef(ref t) => self.type_to_ty(t).ty,
                     _ => self.error_fatal(t.id, "Expected type name"),
                 }
             },
@@ -361,7 +385,7 @@ impl<'a> Typechecker<'a> {
             DiscardPat(ref t) => {
                 match *t {
                     Some(ref t) => self.type_to_ty(t),
-                    None => BoundTy(self.add_bounds()),
+                    None => mk_ty(BoundTy(self.add_bounds()), pat.id),
                 }
             }
             IdentPat(ref ident, ref t) => {
@@ -372,7 +396,7 @@ impl<'a> Typechecker<'a> {
             }
             TuplePat(ref pats) => {
                 let tys = pats.iter().map(|p| self.pat_to_ty(p)).collect();
-                TupleTy(tys)
+                mk_ty(TupleTy(tys), pat.id)
             }
             VariantPat(ref path, ref pats) => {
                 let nid = self.session.resolver.def_from_path(path);
@@ -398,7 +422,7 @@ impl<'a> Typechecker<'a> {
                             }
                         });
 
-                        EnumTy(*enum_nid, tp_tys)
+                        mk_ty(EnumTy(*enum_nid, tp_tys), pat.id)
                     }
                     _ => unreachable!(),
                 }
@@ -423,7 +447,7 @@ impl<'a> Typechecker<'a> {
                             }
                         });
 
-                        StructTy(nid, tp_tys)
+                        mk_ty(StructTy(nid, tp_tys), pat.id)
                     }
                     _ => unreachable!(),
                 }
@@ -432,11 +456,11 @@ impl<'a> Typechecker<'a> {
     }
 
     fn lit_to_ty(&mut self, lit: &Lit) -> Ty {
-        save_ty!(lit, match lit.val {
+        save_ty_!(lit, match lit.val {
             NumLit(_, ik) => intkind_to_ty(ik),
-            StringLit(..) => PtrTy(box UintTy(Width8)),
+            StringLit(..) => PtrTy(box mk_ty(UintTy(Width8), lit.id)),
             BoolLit(..) => BoolTy,
-            NullLit => PtrTy(box BottomTy),
+            NullLit => PtrTy(box mk_ty(BottomTy, lit.id)),
         })
     }
 
@@ -448,14 +472,20 @@ impl<'a> Typechecker<'a> {
                 _ => fail!("Nonsensical arg id for func def"),
             }
         }).collect();
-        FuncTy(arg_tys, box ret_ty)
+        /* XXX: this is a bad nodeid to use */
+        let nid = ret_t.id;
+        mk_ty(FuncTy(arg_tys, box ret_ty), nid)
     }
 
     fn expr_to_ty(&mut self, expr: &Expr) -> Ty {
+        let id = expr.id;
+        let mk = |ty| mk_ty(ty, id);
+
+
         save_ty!(expr, match expr.val {
-            UnitExpr => UnitTy,
+            UnitExpr => mk(UnitTy),
             LitExpr(ref l) => self.lit_to_ty(l),
-            TupleExpr(ref es) => TupleTy(es.iter().map(|e| self.expr_to_ty(e)).collect()),
+            TupleExpr(ref es) => mk(TupleTy(es.iter().map(|e| self.expr_to_ty(e)).collect())),
             GroupExpr(ref e) => self.expr_to_ty(*e),
             PathExpr(ref path) => {
                 let nid = self.session.resolver.def_from_path(path);
@@ -482,7 +512,7 @@ impl<'a> Typechecker<'a> {
 
                         let ctor = |tp_tys| EnumTy(*enum_nid, tp_tys);
                         if args.len() == 0 {
-                            ctor(tp_tys)
+                            mk(ctor(tp_tys))
                         } else {
                             let mut gs = TreeMap::new();
                             for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
@@ -493,7 +523,9 @@ impl<'a> Typechecker<'a> {
                                 args.iter().map(|t| me.type_to_ty(t)).collect()
                             );
 
-                            FuncTy(arg_tys, box ctor(tp_tys))
+                            // XXX: better spans?
+                            let ret_ty = mk(ctor(tp_tys));
+                            mk(FuncTy(arg_tys, box ret_ty))
                         }
                     }
                     PatDef(ref t) => {
@@ -530,7 +562,7 @@ impl<'a> Typechecker<'a> {
                     }
                 });
 
-                StructTy(nid, tp_tys)
+                mk(StructTy(nid, tp_tys))
             }
             BinOpExpr(ref op, ref l, ref r) => {
                 let l_ty = self.expr_to_ty(*l);
@@ -541,12 +573,12 @@ impl<'a> Typechecker<'a> {
             UnOpExpr(ref op, ref e) => {
                 let ty = self.expr_to_ty(*e);
                 let expr_ty = match op.val {
-                    Negate => self.check_ty_bounds(e.id, ty, Constrained(enumset!(SubKind))),
-                    BitNot => self.check_ty_bounds(e.id, ty, Constrained(enumset!(BitXorKind))),
-                    LogNot => self.check_ty_bounds(e.id, ty, Concrete(BoolTy)),
-                    AddrOf => PtrTy(box ty),
-                    Deref => match ty {
-                        PtrTy(p_ty) => *p_ty,
+                    Negate => self.check_ty_bounds(ty, Constrained(enumset!(SubKind))),
+                    BitNot => self.check_ty_bounds(ty, Constrained(enumset!(BitXorKind))),
+                    LogNot => self.check_ty_bounds(ty, Concrete(mk_i(BoolTy))),
+                    AddrOf => mk(PtrTy(box ty)),
+                    Deref => match ty.ty {
+                        PtrTy(p_ty) => mk(p_ty.ty),
                         _ => unreachable!(),
                     }
                 };
@@ -556,17 +588,16 @@ impl<'a> Typechecker<'a> {
             IndexExpr(ref a, ref i) => {
                 let a_ty = self.expr_to_ty(*a);
                 let i_ty = self.expr_to_ty(*i);
+                self.check_ty_bounds(i_ty, Concrete(mk_i(UintTy(AnyWidth))));
 
-                self.check_ty_bounds(i.id, i_ty, Concrete(UintTy(AnyWidth)));
-
-                match a_ty {
+                match a_ty.ty {
                     ArrayTy(ty, _) | PtrTy(ty) => *ty,
                     _ => unreachable!(),
                 }
             }
             IfExpr(ref c, ref tb, ref fb) => {
                 let c_ty = self.expr_to_ty(*c);
-                self.unify(BoolTy, c_ty);
+                self.unify(mk_i(BoolTy), c_ty);
                 let tb_ty = self.block_to_ty(*tb);
                 let fb_ty = self.block_to_ty(*fb);
                 self.unify(tb_ty, fb_ty)
@@ -574,7 +605,7 @@ impl<'a> Typechecker<'a> {
             CallExpr(ref e, ref args) => {
                 let arg_tys = args.iter().map(|arg| self.expr_to_ty(arg)).collect();
                 let e_ty = self.expr_to_ty(*e);
-                match self.unify(FuncTy(arg_tys, box BottomTy), e_ty) {
+                match self.unify(mk(FuncTy(arg_tys, box mk_i(BottomTy))), e_ty).ty {
                     FuncTy(_, ret_ty) => *ret_ty,
                     _ => unreachable!(),
                 }
@@ -585,20 +616,20 @@ impl<'a> Typechecker<'a> {
             ReturnExpr(ref e) => {
                 let ty = self.expr_to_ty(*e);
                 self.exits.push(ty);
-                BottomTy
+                mk(BottomTy)
             }
-            BreakExpr => BottomTy,
-            ContinueExpr => BottomTy,
+            BreakExpr => mk(BottomTy),
+            ContinueExpr => mk(BottomTy),
             CastExpr(ref e, ref t) => {
                 let e_ty = self.expr_to_ty(*e);
                 let t_ty = self.type_to_ty(t);
 
-                match e_ty {
+                match e_ty.ty {
                     GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) => {}
                     _ => self.error(expr.id, "Cannot cast expression of non-integral type"),
                 }
 
-                match t_ty {
+                match t_ty.ty {
                     GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) => {},
                     _ => self.error(expr.id, "Cannot cast to non-integral/pointer type"),
                 }
@@ -622,7 +653,7 @@ impl<'a> Typechecker<'a> {
             }
             DotExpr(ref e, ref fld) => {
                 let e_ty = self.expr_to_ty(*e);
-                let (nid, tp_tys) = match self.unify(BottomTy, e_ty) {
+                let (nid, tp_tys) = match self.unify(mk_i(BottomTy), e_ty).ty {
                     StructTy(nid, tp_tys) => (nid, tp_tys),
                     ty => self.error_fatal(e.id,
                                            format!("Expression is not a structure, got {}", ty)),
@@ -644,8 +675,8 @@ impl<'a> Typechecker<'a> {
             }
             ArrowExpr(ref e, ref fld) => {
                 let e_ty = self.expr_to_ty(*e);
-                let (nid, tp_tys) = match self.unify(BottomTy, e_ty) {
-                    PtrTy(box StructTy(nid, tp_tys)) => (nid, tp_tys),
+                let (nid, tp_tys) = match self.unify(mk_i(BottomTy), e_ty).ty {
+                    PtrTy(box Ty {ty: StructTy(nid, tp_tys), id: _}) => (nid, tp_tys),
                     _ => self.error_fatal(e.id, "Expression is not a pointer to a structure"),
                 };
 
@@ -665,25 +696,26 @@ impl<'a> Typechecker<'a> {
             }
             WhileExpr(ref e, ref b) => {
                 let e_ty = self.expr_to_ty(*e);
-                self.unify(BoolTy, e_ty);
+
+                self.unify(mk_i(BoolTy), e_ty);
 
                 let b_ty = self.block_to_ty(*b);
-                self.unify(UnitTy, b_ty)
+                self.unify(mk_i(UnitTy), b_ty)
             }
             ForExpr(ref init, ref cond, ref step, ref b) => {
                 let _ = self.expr_to_ty(*init);
 
                 let c_ty = self.expr_to_ty(*cond);
-                self.unify(BoolTy, c_ty);
+                self.unify(mk_i(BoolTy), c_ty);
 
                 let _ = self.expr_to_ty(*step);
 
                 let b_ty = self.block_to_ty(*b);
-                self.unify(UnitTy, b_ty)
+                self.unify(mk_i(UnitTy), b_ty)
             }
             MatchExpr(ref e, ref arms) => {
                 let mut e_ty = self.expr_to_ty(*e);
-                let mut ty = BottomTy;
+                let mut ty = mk(BottomTy);
                 for arm in arms.iter() {
                     let pat_ty = self.pat_to_ty(&arm.pat);
                     let body_ty = self.expr_to_ty(&arm.body);
@@ -702,37 +734,38 @@ impl<'a> Typechecker<'a> {
         for stmt in block.stmts.iter() {
             self.visit_stmt(stmt);
         }
-        block.expr.as_ref().map(|e| self.expr_to_ty(e)).unwrap_or(UnitTy)
+        // XXX: No node ids??
+        block.expr.as_ref().map(|e| self.expr_to_ty(e)).unwrap_or(mk_i(UnitTy))
     }
 
-    fn merge_bounds(&mut self, nid: NodeId, b1: TyBounds, b2: TyBounds) -> TyBounds {
+    fn merge_bounds(&mut self, b1: TyBounds, b2: TyBounds) -> TyBounds {
         match (b1, b2) {
             (Unconstrained, bs) | (bs, Unconstrained) => bs,
             (Concrete(t1), Concrete(t2)) => Concrete(self.unify(t1, t2)),
             (Constrained(ks), Concrete(ty)) | (Concrete(ty), Constrained(ks)) =>
-                Concrete(self.check_ty_bounds(nid, ty, Constrained(ks))),  // do something about Concrete(BoundTy)
+                Concrete(self.check_ty_bounds(ty, Constrained(ks))),  // do something about Concrete(BoundTy)
             (Constrained(ks1), Constrained(ks2)) => {
                 Constrained(ks1.union(ks2))
             }
         }
     }
 
-    fn check_ty_bounds(&mut self, nid: NodeId, t1: Ty, bounds: TyBounds) -> Ty {
+    fn check_ty_bounds(&mut self, t1: Ty, bounds: TyBounds) -> Ty {
         match bounds {
             Unconstrained => t1,
             Concrete(t2) => self.unify(t1, t2),
             Constrained(ks) => {
-                match t1 {
+                match t1.ty {
                     BoundTy(bid) => {
                         let b1 = self.get_bounds(bid);
-                        let bounds = self.merge_bounds(nid, b1, bounds);
+                        let bounds = self.merge_bounds(b1, bounds);
                         self.update_bounds(bid, bounds);
-                        BoundTy(bid)
+                        mk_ty(BoundTy(bid), t1.id)
                     }
                     _ => {
                         if !t1.kinds().contains(ks) {
                             self.error(
-                                nid,
+                                t1.id,
                                 format!("Expected type with bounds {} but found type {}",
                                         bounds, t1));
                         }
@@ -744,37 +777,46 @@ impl<'a> Typechecker<'a> {
     }
 
     fn unify_with_binop(&mut self, op: &BinOp, l_ty: Ty, r_ty: Ty) -> Ty {
-        fn is_integral_ty(t: &Ty) -> bool {
+        fn is_integral_ty(t: &Ty_) -> bool {
             match *t {
                 UintTy(..) | IntTy(..) | GenericIntTy => true,
                 _ => false,
             }
         };
 
-        match (op.val, l_ty, r_ty) {
+        let l_id = l_ty.id;
+        let r_id = r_ty.id;
+
+        match (op.val, l_ty.ty, r_ty.ty) {
             // Once again we appease the borrow checker...
             (PlusOp, ref t, ref mut p@PtrTy(..)) | (PlusOp, ref mut p@PtrTy(..), ref t) if is_integral_ty(t) =>
-                ::std::mem::replace(p, UnitTy),
+                mk_ty(::std::mem::replace(p, UnitTy), l_ty.id),
             (MinusOp, PtrTy(..), PtrTy(..)) =>
-                UintTy(Width32), //TODO PtrWidth
+                // XXX: this span is bogus
+                mk_ty(UintTy(Width32), l_ty.id), //TODO PtrWidth
             (_, l_ty, r_ty) => {
                 let kinds = op_to_kind_set(op);
                 let bounds = Constrained(kinds);
-                let ty = self.check_ty_bounds(DUMMY_NODEID, l_ty, bounds);
+                let ty = self.check_ty_bounds(mk_ty(l_ty, l_id), bounds);
 
                 if kinds.intersects(enumset!(EqKind, CmpKind, AndKind, OrKind)) {
-                    BoolTy
+                    mk_ty(BoolTy, l_id)
                 } else {
-                    self.unify(ty, r_ty)
+                    self.unify(ty, mk_ty(r_ty, r_id))
                 }
             }
         }
     }
 
-    fn unify(&mut self, t1: Ty, t2: Ty) -> Ty {
+    fn unify(&mut self, ty1: Ty, ty2: Ty) -> Ty {
+        let id1 = ty1.id;
+        let id2 = ty2.id;
+        let id = if id1 == DUMMY_NODEID { id2 } else { id1 };
+
         // TODO pointers and ints together
-        match (t1, t2) {
-            (BottomTy, t) | (t, BottomTy) => t,
+        match (ty1.ty, ty2.ty) {
+            (BottomTy, t) => mk_ty(t, id2),
+            (t, BottomTy) => mk_ty(t, id1),
             (BoundTy(b1), BoundTy(b2)) => {
                 let bounds =
                     if b1 == b2 {
@@ -782,7 +824,7 @@ impl<'a> Typechecker<'a> {
                     } else {
                         let bs1 = self.get_bounds(b1);
                         let bs2 = self.get_bounds(b2);
-                        let bounds = self.merge_bounds(DUMMY_NODEID, bs1, bs2);
+                        let bounds = self.merge_bounds(bs1, bs2);
                         self.update_bounds(b1, bounds.clone());
                         self.update_bounds(b2, bounds.clone());
                         bounds
@@ -790,17 +832,19 @@ impl<'a> Typechecker<'a> {
 
                 match bounds {
                     Concrete(ty) => ty,
-                    _ => BoundTy(b1),
+                    _ => mk_ty(BoundTy(b1), id),
                 }
             },
-            (BoundTy(b), t) | (t, BoundTy(b)) => {
+            (BoundTy(b), ty) | (ty, BoundTy(b)) => {
                 let bounds = self.get_bounds(b);
-                let t = self.check_ty_bounds(DUMMY_NODEID, t, bounds);
+                // XXX: bad span?
+                let t = self.check_ty_bounds(mk_ty(ty, id), bounds);
                 self.update_bounds(b, Concrete(t.clone()));
                 t
             },
-            (GenericIntTy, IntTy(w)) | (IntTy(w), GenericIntTy) => IntTy(w),
-            (GenericIntTy, UintTy(w)) | (UintTy(w), GenericIntTy) => UintTy(w),
+            // XXX: bad spans?
+            (GenericIntTy, IntTy(w)) | (IntTy(w), GenericIntTy) => mk_ty(IntTy(w), id),
+            (GenericIntTy, UintTy(w)) | (UintTy(w), GenericIntTy) => mk_ty(UintTy(w), id),
             (ref t@IntTy(ref w1), IntTy(ref w2)) | (ref t@UintTy(ref w1), UintTy(ref w2)) => {
                 let ctor = match *t {
                     IntTy(..) => IntTy,
@@ -814,73 +858,76 @@ impl<'a> Typechecker<'a> {
                         if w1 == w2 {
                             w1
                         } else {
-                            self.mismatch(&ctor(w1), &ctor(w2))
+                            self.mismatch(id1, id2, &ctor(w1), &ctor(w2))
                         }
                     }
                 };
 
-                ctor(w)
+                mk_ty(ctor(w), id)
             },
             (PtrTy(p1), PtrTy(p2)) =>
-                PtrTy(box self.unify(*p1, *p2)),
+                mk_ty(PtrTy(box self.unify(*p1, *p2)), id),
             (ArrayTy(a1, l1), ArrayTy(a2, l2)) => {
                 let l = match (l1, l2) {
                     (None, l) | (l, None) => l,
                     (Some(l1), Some(l2)) if l1 == l2 => Some(l1),
-                    _ => self.mismatch(&ArrayTy(a1, l1), &ArrayTy(a2, l2)),
+                    _ => self.mismatch(id1, id2, &ArrayTy(a1, l1), &ArrayTy(a2, l2)),
                 };
 
-                ArrayTy(box self.unify(*a1, *a2), l)
+                mk_ty(ArrayTy(box self.unify(*a1, *a2), l), id)
             },
             (TupleTy(ts1), TupleTy(ts2)) => {
                 if ts1.len() == ts2.len() {
-                    TupleTy(ts1.move_iter().zip(
-                            ts2.move_iter()).map(
-                                |(t1, t2)| self.unify(t1, t2))
-                        .collect())
+                    let t = TupleTy(ts1.move_iter().zip(
+                                    ts2.move_iter()).map(
+                                    |(t1, t2)| self.unify(t1, t2))
+                                    .collect());
+                    mk_ty(t, id)
                 } else {
-                    self.mismatch(&TupleTy(ts1), &TupleTy(ts2))
+                    self.mismatch(id1, id2, &TupleTy(ts1), &TupleTy(ts2))
                 }
             },
             (FuncTy(args1, t1), FuncTy(args2, t2)) => {
                 if args1.len() == args2.len() {
-                    FuncTy(args1.move_iter().zip(
-                           args2.move_iter()).map(
-                               |(arg1, arg2)| self.unify(arg1, arg2))
-                       .collect(), box self.unify(*t1, *t2))
+                    let t =
+                        FuncTy(args1.move_iter().zip(
+                               args2.move_iter()).map(
+                                   |(arg1, arg2)| self.unify(arg1, arg2))
+                               .collect(), box self.unify(*t1, *t2));
+                    mk_ty(t, id)
                 } else {
-                    self.mismatch(&FuncTy(args1, t1), &FuncTy(args2, t2))
+                    self.mismatch(id1, id2, &FuncTy(args1, t1), &FuncTy(args2, t2))
                 }
             },
             (StructTy(d1, ts1), StructTy(d2, ts2)) => {
                 if d1 != d2 {
-                    self.mismatch(&StructTy(d1, ts1), &StructTy(d2, ts2));
+                    self.mismatch(id1, id2, &StructTy(d1, ts1), &StructTy(d2, ts2));
                 } else {
                     if ts1.len() != ts2.len() {
                         fail!("Inconsistent number of type parameters for struct {}", d1);
                     }
 
                     let ts = ts1.move_iter().zip(ts2.move_iter()).map(|(t1, t2)| self.unify(t1, t2)).collect();
-                    StructTy(d1, ts)
+                    mk_ty(StructTy(d1, ts), id)
                 }
             },
             (EnumTy(d1, ts1), EnumTy(d2, ts2)) => {
                 if d1 != d2 {
-                    self.mismatch(&EnumTy(d1, ts1), &EnumTy(d2, ts2));
+                    self.mismatch(id1, id2, &EnumTy(d1, ts1), &EnumTy(d2, ts2));
                 } else {
                     if ts1.len() != ts2.len() {
                         fail!("Inconsistent number of type parameters for enum {}", d1);
                     }
 
                     let ts = ts1.move_iter().zip(ts2.move_iter()).map(|(t1, t2)| self.unify(t1, t2)).collect();
-                    EnumTy(d1, ts)
+                    mk_ty(EnumTy(d1, ts), id)
                 }
             },
-            (t1, t2) => if t1 == t2 { t1 } else { self.mismatch(&t1, &t2) }
+            (t1, t2) => if t1 == t2 { mk_ty(t1, id) } else { self.mismatch(id1, id2, &t1, &t2) }
         }
     }
 
-    fn mismatch(&self, t1: &Ty, t2: &Ty) -> ! {
+    fn mismatch(&self, _id1: NodeId, _id2: NodeId, t1: &Ty_, t2: &Ty_) -> ! {
         fail!("Expected type {} but found type {}", t1, t2)
     }
 }
@@ -908,7 +955,7 @@ impl<'a> Visitor for Typechecker<'a> {
             }
             ExprStmt(ref e) => {
                 let ty = self.expr_to_ty(e);
-                self.unify(UnitTy, ty);
+                self.unify(mk_i(UnitTy), ty);
             }
             SemiStmt(ref e) => {
                 self.expr_to_ty(e);
@@ -934,13 +981,13 @@ impl<'a> Visitor for Typechecker<'a> {
                         me.exits.push(ty);
 
                         let mut ty = me.type_to_ty(t);
-                        let diverges = ty == BottomTy;
+                        let diverges = ty.ty == BottomTy;
                         for i in range(0, me.exits.len()).rev() {
                             let exit_ty = me.exits.swap_remove(i).take_unwrap();
                             ty = me.unify(ty, exit_ty);
                         }
 
-                        if diverges && ty != BottomTy {
+                        if diverges && ty.ty != BottomTy {
                             me.error(item.id, "diverging function may return");
                         }
                     });

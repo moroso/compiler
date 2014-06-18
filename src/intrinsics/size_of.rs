@@ -83,7 +83,7 @@ pub fn size_of_def(session: &Session, node: &NodeId) -> u64 {
 }
 
 pub fn size_of_ty(session: &Session, ty: &Ty) -> u64 {
-    match *ty {
+    match ty.ty {
         BoolTy => 1,
         IntTy(ref w) |
         UintTy(ref w) => match *w {
