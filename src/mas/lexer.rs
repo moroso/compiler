@@ -265,7 +265,7 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         // TODO: shifts. Currently, these are lexed incorrectly!
 
         DotGlobl   => ".globl",
-        Long       => "long",
+        Long       => matcher!(r"(?i:long)"),
 
         NumLit     => CharLiteralRule,
         NumLit     => NumberLiteralRule,

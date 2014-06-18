@@ -143,11 +143,15 @@ pub enum InstNode {
                 ShiftType,
                 u8 // Shift amount
                 ),
-    ALULongInst(Pred,
-                AluOp,
-                Reg, // Rd
-                Reg // Rs
-                ),
+    ALU2LongInst(Pred,
+                 AluOp,
+                 Reg, // Rd
+                 Reg // Rs
+                 ),
+    ALU1LongInst(Pred,
+                 AluOp,
+                 Reg // Rd
+                 ),
     ALU1RegShInst(Pred,
                   Reg, // Rd
                   Reg, // Rs

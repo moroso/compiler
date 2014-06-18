@@ -253,7 +253,7 @@ impl<T: Buffer> AsmParser<T> {
                                     rot)
                             },
                             Long => {
-                                ALULongInst(
+                                ALU2LongInst(
                                     pred,
                                     op,
                                     rd,
@@ -334,6 +334,13 @@ impl<T: Buffer> AsmParser<T> {
                 // a binary op. `parse_reg_and_maybe_binop` will take
                 // care of figuring all that out.
                 self.parse_reg_and_maybe_binop(pred, rd, op)
+            },
+            Long => {
+                self.eat();
+                ALU1LongInst(
+                    pred,
+                    op.unwrap_or(MovAluOp),
+                    rd)
             },
             _ => {
                 // The only option left is that we're applying a unary op
@@ -423,6 +430,7 @@ impl<T: Buffer> AsmParser<T> {
                 // a register, or an opening paren (for a shift).
                 NumLit(..) |
                 Reg(..) |
+                Long |
                 LParen => self.parse_expr(pred, rd, None),
                 LoadStore(..) => self.parse_load(pred, rd),
                 _ => self.error("Unexpected token."),
@@ -851,20 +859,41 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_inst_alulong() {
+    fn test_parse_inst_alu2long() {
         assert_eq!(inst_from_str("r6 <- r7 + long"),
-                   ALULongInst(Pred { inverted: false,
+                   ALU2LongInst(Pred { inverted: false,
                                       reg: 3 },
-                               AddAluOp,
-                               Reg { index: 6 },
-                               Reg { index: 7 }));
+                                AddAluOp,
+                                Reg { index: 6 },
+                                Reg { index: 7 }));
 
         assert_eq!(inst_from_str("!p2 -> r6 <- r7 + long"),
-                   ALULongInst(Pred { inverted: true,
-                                      reg: 2 },
-                               AddAluOp,
-                               Reg { index: 6 },
-                               Reg { index: 7 }));
+                   ALU2LongInst(Pred { inverted: true,
+                                       reg: 2 },
+                                AddAluOp,
+                                Reg { index: 6 },
+                                Reg { index: 7 }));
+    }
+
+    #[test]
+    fn test_parse_inst_alu1long() {
+        assert_eq!(inst_from_str("r6 <- long"),
+                   ALU1LongInst(Pred { inverted: false,
+                                       reg: 3 },
+                                MovAluOp,
+                                Reg { index : 6 }));
+
+        assert_eq!(inst_from_str("r6 <- ~long"),
+                   ALU1LongInst(Pred { inverted: false,
+                                       reg: 3 },
+                                MvnAluOp,
+                                Reg { index : 6 }));
+
+        assert_eq!(inst_from_str("!p2 -> r6 <- long"),
+                   ALU1LongInst(Pred { inverted: true,
+                                       reg: 2 },
+                                MovAluOp,
+                                Reg { index : 6 }));
     }
 
     #[test]
