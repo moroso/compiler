@@ -10,6 +10,7 @@ use span::{SourcePos, Span, mk_sp};
 pub struct AsmParser<T> {
     tokens: Peekable<SourceToken<Token>, Lexer<T, Token>>,
     last_span: Span,
+    error_on_misplaced_inst: bool,
 }
 
 /// Several instructions are encoded with a value and an even shift amount.
@@ -78,13 +79,39 @@ fn tok_to_cmp(tok: &Token) -> Option<CompareType> {
     }
 }
 
+enum InstType {
+    ALUInstType,
+    ControlType,
+    MemoryType,
+    LongType,
+}
+
+fn classify_inst(inst: &InstNode) -> InstType {
+    match *inst {
+        ALU1ShortInst(..) |
+        ALU2ShortInst(..) |
+        ALU1RegInst(..) |
+        ALU2RegInst(..) |
+        ALU2LongInst(..) |
+        ALU1LongInst(..) |
+        ALU1RegShInst(..) |
+        CompareShortInst(..) |
+        CompareRegInst(..) |
+        NopInst => ALUInstType,
+        LongInst(..) => LongType,
+        LoadInst(..) |
+        StoreInst(..) => MemoryType,
+    }
+}
+
 impl<T: Buffer> AsmParser<T> {
 
     pub fn new(tokens: Peekable<SourceToken<Token>, Lexer<T, Token>>
            ) -> AsmParser<T> {
         AsmParser {
             tokens: tokens,
-            last_span: mk_sp(SourcePos::new(), 0)
+            last_span: mk_sp(SourcePos::new(), 0),
+            error_on_misplaced_inst: true,
         }
     }
 
@@ -243,6 +270,7 @@ impl<T: Buffer> AsmParser<T> {
                                     shiftamt)
                             },
                             NumLit(num) => {
+                                self.eat();
                                 let (val, rot) = self.pack_int_unwrap(num, 10);
                                 ALU2ShortInst(
                                     pred,
@@ -253,6 +281,7 @@ impl<T: Buffer> AsmParser<T> {
                                     rot)
                             },
                             Long => {
+                                self.eat();
                                 ALU2LongInst(
                                     pred,
                                     op,
@@ -514,8 +543,8 @@ impl<T: Buffer> AsmParser<T> {
     /// Parse an entire instruction.
     pub fn parse_inst(&mut self) -> InstNode {
         // Begin by parsing the predicate register for this instruction.
-        let mut cur_inst = self.eat();
-        let pred = match cur_inst {
+        let mut cur_tok = self.eat();
+        let pred = match cur_tok {
             PredReg(pred) => {
                 // There's a predicate register, but we don't know what
                 // context it appears in: we may be assigning to it, or
@@ -524,7 +553,7 @@ impl<T: Buffer> AsmParser<T> {
                     Predicates => {
                         // It's actually predicating.
                         self.eat();
-                        cur_inst = self.eat();
+                        cur_tok = self.eat();
 
                         Some(pred)
                     },
@@ -536,7 +565,7 @@ impl<T: Buffer> AsmParser<T> {
             _ => None,
         };
 
-        match cur_inst {
+        match cur_tok {
             Reg(reg) => {
                 self.expect(Gets);
                 self.parse_op_or_expr(pred.unwrap_or(true_pred), reg.clone())
@@ -563,6 +592,42 @@ impl<T: Buffer> AsmParser<T> {
             },
             _ => unimplemented!()
         }
+    }
+
+    pub fn parse_inst_packet(&mut self) -> InstPacket {
+        let mut insts: InstPacket = [NopInst, NopInst, NopInst, NopInst];
+
+        self.expect(LBrace);
+        for i in range(0u, 4u) {
+            match *self.peek() {
+                RBrace => {
+                    self.eat();
+                    return insts;
+                }
+                _ => {
+                    insts[i] = self.parse_inst();
+                    if self.error_on_misplaced_inst {
+                        match classify_inst(&insts[i]) {
+                            ControlType => {
+                                if i != 0 {
+                                    self.error("Control instructions are only allowed in the first slot.");
+                                }
+                            },
+                            MemoryType => {
+                                if i > 1 {
+                                    self.error("Memory instructions are only allowed in the first two slots.");
+                                }
+                            },
+                            _ => {}
+                        }
+                    }
+                    if *self.peek() == Semi { self.eat(); }
+                }
+            }
+        }
+        self.expect(RBrace);
+
+        insts
     }
 }
 
@@ -786,6 +851,15 @@ mod tests {
                                Reg { index: 5 },
                                SllShift,
                                6));
+
+        assert_eq!(inst_from_str("r4 <- lr"),
+                   ALU1RegInst(Pred { inverted: false,
+                                      reg: 3 },
+                               MovAluOp,
+                               Reg { index: 4 },
+                               Reg { index: 31 },
+                               SllShift,
+                               0));
     }
 
     #[test]

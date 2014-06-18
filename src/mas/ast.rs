@@ -131,7 +131,7 @@ pub enum InstNode {
     ALU1RegInst(Pred,
                 AluOp,
                 Reg, // Rd
-                Reg, // Rs
+                Reg, // Rt
                 ShiftType,
                 u8 // Shift amount
                 ),
@@ -187,4 +187,13 @@ pub enum InstNode {
                    ShiftType,
                    u8 // Shift amount
                    ),
+}
+
+pub type InstPacket = [InstNode, ..4];
+
+impl Show for InstPacket {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{{ {}; {}; {}; {} }}",
+               self[0], self[1], self[2], self[3])
+    }
 }

@@ -7,10 +7,12 @@ use std::os;
 
 use self::lexer::{Token, new_asm_lexer};
 use self::parser::AsmParser;
+use self::encoder::encode;
 
 pub mod lexer;
 pub mod parser;
 pub mod ast;
+pub mod encoder;
 
 pub fn main() {
     // TODO: option parsing.
@@ -18,5 +20,13 @@ pub fn main() {
     let lexer = new_asm_lexer("<stdin>", stdio::stdin());
     let peekable = lexer.peekable();
     let mut parser = AsmParser::new(peekable);
-    print!("{}\n", parser.parse_inst());
+    loop {
+        let packet = parser.parse_inst_packet();
+        print!("{}\n", packet);
+        print!("{:08x} {:08x} {:08x} {:08x}\n",
+               encode(&packet[0]),
+               encode(&packet[1]),
+               encode(&packet[2]),
+               encode(&packet[3]));
+    }
 }

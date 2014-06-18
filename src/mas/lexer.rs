@@ -92,9 +92,15 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
                               Reg { index: n }
                           }))
                 },
-                _ => None
+                _ => {
+                    let matcher = matcher!(r"lr");
+                    match matcher.captures(s) {
+                        Some(groups) => Some((groups.at(0).len(),
+                                              Reg { index: 31 })),
+                        _ => None
+                    }
+                }
             }
-
         }
     }
 

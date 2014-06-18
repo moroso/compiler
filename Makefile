@@ -18,6 +18,7 @@ MC_FILES := \
 	mas/lexer.rs \
 	mas/mod.rs \
 	mas/parser.rs \
+	mas/encoder.rs \
 	mc/ast/defmap.rs \
 	mc/ast/mod.rs \
 	mc/ast/visit.rs \
