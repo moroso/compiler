@@ -3,6 +3,7 @@ fn main(x: u32) -> u32 {
     let b = a + 0xff;
     let c = b + b;
     let d = c + c - b + 1 + a;
+    let e = 1 - d;
 
-    d
+    e
 }

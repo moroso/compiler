@@ -53,6 +53,15 @@ pub enum RValueElem {
     Constant(LitNode),
 }
 
+impl RValueElem {
+    pub fn is_variable(&self) -> bool {
+        match *self {
+            Variable(..) => true,
+            Constant(..) => false,
+        }
+    }
+}
+
 impl Show for RValueElem {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
