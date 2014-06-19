@@ -72,7 +72,7 @@ impl Session {
         }
     }
 
-    pub fn errors_fatal<T: Str>(&self, errors: &[(NodeId, T)]) -> ! {
+    pub fn messages<T: Str>(&self, errors: &[(NodeId, T)]) {
         let mut full_msg = String::new();
         for &(nid, ref msg) in errors.iter() {
             full_msg.push_str(msg.as_slice());
@@ -86,19 +86,26 @@ impl Session {
 
         }
 
-        fail!("\n{}", full_msg)
+        print!("{}", full_msg);
     }
 
+    pub fn message<T: Str>(&self, nid: NodeId, msg: T) {
+        self.messages([(nid, msg)]);
+    }
 
+    pub fn errors_fatal<T: Str>(&self, errors: &[(NodeId, T)]) -> ! {
+        self.messages(errors);
+        println!("");
+        fail!("Aborting")
+    }
     pub fn error_fatal<T: Str>(&self, nid: NodeId, msg: T) -> ! {
-//        let sp = self.parser.span_of(&nid);
-//        fail!("\n{}\nat: {}\n", msg.as_slice(), sp);
         self.errors_fatal([(nid, msg)]);
     }
     pub fn error<T: Str>(&self, nid: NodeId, msg: T) {
         // For now everything is fatal.
         self.error_fatal(nid, msg);
     }
+
     pub fn bug_span<T: Str>(&self, nid: NodeId, msg: T) -> ! {
         let sp = self.parser.span_of(&nid);
         fail!("\nBum bum bum budda bum bum tsch:\n\

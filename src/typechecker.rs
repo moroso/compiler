@@ -122,6 +122,48 @@ enum Kind {
     ShlKind,
 }
 
+#[deriving(Eq, PartialEq, Clone)]
+enum ErrorCause {
+    InvalidArg,
+    InvalidReturn,
+    InvalidIndex,
+    InvalidUnop,
+    InvalidBinop,
+    InvalidField,
+    InvalidCond,
+    InvalidIfBranches,
+    InvalidCall,
+    InvalidAssignment,
+    InvalidLoopTy,
+    InvalidMatchPat,
+    InvalidMatchResult,
+}
+
+impl fmt::Show for ErrorCause {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let s = match *self {
+            InvalidArg => "incorrect arg type",
+            InvalidReturn => "incorrect return type",
+            InvalidIndex => "invalid index type",
+            InvalidUnop => "invalid argument type to unary op",
+            InvalidBinop => "invalid arguments to binary op",
+            InvalidField => "invalid struct field in literal/pattern",
+            InvalidCond => "non-bool used as predicate for conditional",
+            InvalidIfBranches => "types of if branches don't match",
+            // This needs to be broken up badly.
+            InvalidCall => "incorrect function call",
+            InvalidAssignment => "left and right hand sides of assignment don't match",
+            InvalidLoopTy => "type of loop body not unit",
+            InvalidMatchPat => "pattern does not have same type as value being matched ",
+            InvalidMatchResult => "arms in match have different types"
+        };
+
+        write!(f, "{}", s)
+    }
+}
+
+
+
 impl CLike for Kind {
     fn to_uint(&self) -> uint {
         *self as uint
@@ -198,6 +240,8 @@ pub struct Typechecker<'a> {
     next_bounds_id: uint,
     exits: Vec<Ty>,
     typemap: Typemap,
+    // This is hacky but it cuts down on plumbing
+    current_cause: Option<(NodeId, ErrorCause)>
 }
 
 fn intkind_to_ty(ik: IntKind) -> Ty_ {
@@ -256,15 +300,26 @@ impl<'a> Typechecker<'a> {
             typemap: Typemap {
                 types: SmallIntMap::new(),
                 bounds: SmallIntMap::new(),
-            }
+            },
+            current_cause: None
         }
     }
 
     // Should probably live elsewhere.
+    pub fn type_error(&self) {
+        let (nid, msg) = match self.current_cause {
+            None => (DUMMY_NODEID, format!("Type error")),
+            Some((nid, cause)) => (nid, format!("Type error: {}", cause))
+        };
+        self.session.message(nid, msg);
+    }
+
     pub fn error_fatal<T: Str>(&self, nid: NodeId, msg: T) -> ! {
+        self.type_error();
         self.session.error_fatal(nid, msg);
     }
     pub fn error<T: Str>(&self, nid: NodeId, msg: T) {
+        self.type_error();
         self.session.error(nid, msg);
     }
 
@@ -425,7 +480,7 @@ impl<'a> Typechecker<'a> {
                             for (arg, pat) in args.iter().zip(pats.iter()) {
                                 let arg_ty = me.type_to_ty(arg);
                                 let pat_ty = me.pat_to_ty(pat);
-                                me.unify(arg_ty, pat_ty);
+                                me.unifyw(pat.id, InvalidArg, arg_ty, pat_ty);
                             }
                         });
 
@@ -451,7 +506,7 @@ impl<'a> Typechecker<'a> {
                                     |x| x.clone().val1()).zip(fps.iter()) {
                                 let field_ty = me.type_to_ty(&field);
                                 let fp_ty = me.pat_to_ty(&fp.pat);
-                                me.unify(field_ty, fp_ty);
+                                me.unifyw(fp.pat.id, InvalidField, field_ty, fp_ty);
                             }
                         });
 
@@ -569,7 +624,7 @@ impl<'a> Typechecker<'a> {
                             |x| x.clone().val1()).zip(flds.iter()) {
                         let field_ty = me.type_to_ty(&field);
                         let fld_ty = me.expr_to_ty(fld.ref1());
-                        me.unify(field_ty, fld_ty);
+                        me.unifyw(fld.ref1().id, InvalidField, field_ty, fld_ty);
                     }
                 });
 
@@ -579,14 +634,17 @@ impl<'a> Typechecker<'a> {
                 let l_ty = self.expr_to_ty(*l);
                 let r_ty = self.expr_to_ty(*r);
 
-                self.unify_with_binop(op, l_ty, r_ty)
+                self.unify_with_binop(expr.id, op, l_ty, r_ty)
             }
             UnOpExpr(ref op, ref e) => {
                 let ty = self.expr_to_ty(*e);
                 let expr_ty = match op.val {
-                    Negate => self.check_ty_bounds(ty, Constrained(enumset!(SubKind))),
-                    BitNot => self.check_ty_bounds(ty, Constrained(enumset!(BitXorKind))),
-                    LogNot => self.check_ty_bounds(ty, Concrete(mk_i(BoolTy))),
+                    Negate => self.check_ty_bounds_w(e.id, InvalidUnop,
+                                                     ty, Constrained(enumset!(SubKind))),
+                    BitNot => self.check_ty_bounds_w(e.id, InvalidUnop,
+                                                     ty, Constrained(enumset!(BitXorKind))),
+                    LogNot => self.check_ty_bounds_w(e.id, InvalidUnop,
+                                                     ty, Concrete(mk_i(BoolTy))),
                     AddrOf => mk(PtrTy(box ty)),
                     Deref => match ty.ty {
                         PtrTy(p_ty) => mk(p_ty.ty),
@@ -599,7 +657,8 @@ impl<'a> Typechecker<'a> {
             IndexExpr(ref a, ref i) => {
                 let a_ty = self.expr_to_ty(*a);
                 let i_ty = self.expr_to_ty(*i);
-                self.check_ty_bounds(i_ty, Concrete(mk_i(UintTy(AnyWidth))));
+                self.check_ty_bounds_w(i.id, InvalidIndex,
+                                       i_ty, Concrete(mk_i(UintTy(AnyWidth))));
 
                 match a_ty.ty {
                     ArrayTy(ty, _) | PtrTy(ty) => *ty,
@@ -608,15 +667,19 @@ impl<'a> Typechecker<'a> {
             }
             IfExpr(ref c, ref tb, ref fb) => {
                 let c_ty = self.expr_to_ty(*c);
-                self.unify(mk_i(BoolTy), c_ty);
+                self.unifyw(c.id, InvalidCond, mk_i(BoolTy), c_ty);
                 let tb_ty = self.block_to_ty(*tb);
                 let fb_ty = self.block_to_ty(*fb);
-                self.unify(tb_ty, fb_ty)
+                self.unifyw(expr.id, InvalidIfBranches, tb_ty, fb_ty)
             }
             CallExpr(ref e, ref args) => {
                 let arg_tys = args.iter().map(|arg| self.expr_to_ty(arg)).collect();
                 let e_ty = self.expr_to_ty(*e);
-                match self.unify(mk(FuncTy(arg_tys, box mk_i(BottomTy))), e_ty).ty {
+                // Would be better messages if this was broken down more
+                // Unclear which to put first
+                match self.unifyw(expr.id, InvalidCall,
+                                  e_ty,
+                                  mk(FuncTy(arg_tys, box mk_i(BottomTy)))).ty {
                     FuncTy(_, ret_ty) => *ret_ty,
                     _ => unreachable!(),
                 }
@@ -625,6 +688,7 @@ impl<'a> Typechecker<'a> {
                 self.block_to_ty(*b)
             }
             ReturnExpr(ref e) => {
+                // XXX check type
                 let ty = self.expr_to_ty(*e);
                 self.exits.push(ty);
                 mk(BottomTy)
@@ -658,8 +722,8 @@ impl<'a> Typechecker<'a> {
                 let r_ty = self.expr_to_ty(*rv);
 
                 match *op {
-                    Some(ref op) => self.unify_with_binop(op, l_ty, r_ty),
-                    None => self.unify(l_ty, r_ty),
+                    Some(ref op) => self.unify_with_binop(expr.id, op, l_ty, r_ty),
+                    None => self.unifyw(expr.id, InvalidAssignment, l_ty, r_ty),
                 }
             }
             DotExpr(ref e, ref fld) => {
@@ -708,21 +772,21 @@ impl<'a> Typechecker<'a> {
             WhileExpr(ref e, ref b) => {
                 let e_ty = self.expr_to_ty(*e);
 
-                self.unify(mk_i(BoolTy), e_ty);
+                self.unifyw(e.id, InvalidCond, mk_i(BoolTy), e_ty);
 
                 let b_ty = self.block_to_ty(*b);
-                self.unify(mk_i(UnitTy), b_ty)
+                self.unifyw(expr.id, InvalidLoopTy, mk_i(UnitTy), b_ty)
             }
             ForExpr(ref init, ref cond, ref step, ref b) => {
                 let _ = self.expr_to_ty(*init);
 
                 let c_ty = self.expr_to_ty(*cond);
-                self.unify(mk_i(BoolTy), c_ty);
+                self.unifyw(cond.id, InvalidCond, mk_i(BoolTy), c_ty);
 
                 let _ = self.expr_to_ty(*step);
 
                 let b_ty = self.block_to_ty(*b);
-                self.unify(mk_i(UnitTy), b_ty)
+                self.unifyw(expr.id, InvalidLoopTy, mk_i(UnitTy), b_ty)
             }
             MatchExpr(ref e, ref arms) => {
                 let mut e_ty = self.expr_to_ty(*e);
@@ -730,8 +794,8 @@ impl<'a> Typechecker<'a> {
                 for arm in arms.iter() {
                     let pat_ty = self.pat_to_ty(&arm.pat);
                     let body_ty = self.expr_to_ty(&arm.body);
-                    e_ty = self.unify(e_ty, pat_ty);
-                    ty = self.unify(ty, body_ty);
+                    e_ty = self.unifyw(arm.pat.id, InvalidMatchPat, e_ty, pat_ty);
+                    ty = self.unifyw(arm.body.id, InvalidMatchResult, ty, body_ty);
                 }
                 ty
             }
@@ -761,6 +825,7 @@ impl<'a> Typechecker<'a> {
         }
     }
 
+
     fn check_ty_bounds(&mut self, t1: Ty, bounds: TyBounds) -> Ty {
         match bounds {
             Unconstrained => t1,
@@ -787,7 +852,7 @@ impl<'a> Typechecker<'a> {
         }
     }
 
-    fn unify_with_binop(&mut self, op: &BinOp, l_ty: Ty, r_ty: Ty) -> Ty {
+    fn unify_with_binop(&mut self, nid: NodeId, op: &BinOp, l_ty: Ty, r_ty: Ty) -> Ty {
         fn is_integral_ty(t: &Ty_) -> bool {
             match *t {
                 UintTy(..) | IntTy(..) | GenericIntTy => true,
@@ -813,10 +878,26 @@ impl<'a> Typechecker<'a> {
                 if kinds.intersects(enumset!(EqKind, CmpKind, AndKind, OrKind)) {
                     mk_ty(BoolTy, l_id)
                 } else {
-                    self.unify(ty, mk_ty(r_ty, r_id))
+                    self.unifyw(nid, InvalidBinop, ty, mk_ty(r_ty, r_id))
                 }
             }
         }
+    }
+
+    // FIXME duplication
+    fn unifyw(&mut self, nid: NodeId, cause: ErrorCause, ty1: Ty, ty2: Ty) -> Ty {
+        self.current_cause = Some((nid, cause));
+        let t = self.unify(ty1, ty2);
+        self.current_cause = None;
+        t
+    }
+
+    fn check_ty_bounds_w(&mut self, nid: NodeId, cause: ErrorCause,
+                         t1: Ty, bounds: TyBounds) -> Ty {
+        self.current_cause = Some((nid, cause));
+        let t = self.check_ty_bounds(t1, bounds);
+        self.current_cause = None;
+        t
     }
 
     fn unify(&mut self, ty1: Ty, ty2: Ty) -> Ty {
@@ -943,6 +1024,7 @@ impl<'a> Typechecker<'a> {
     }
 
     fn mismatch(&self, id1: NodeId, id2: NodeId, t1: &Ty_, t2: &Ty_) -> ! {
+        self.type_error();
         self.session.errors_fatal([
             (id1, format!("Expected type: {}", t1)),
             (id2, format!("but got type: {}", t2))
