@@ -89,7 +89,7 @@ struct ModuleCollector {
     tree: TreeMap<NodeId, ModuleScope>,
 }
 
-pub struct ModuleResolver<'a> {
+struct ModuleResolver<'a> {
     session: &'a mut Session,
     scope: Vec<Subscope>,
     tree: TreeMap<NodeId, ModuleScope>,
@@ -107,6 +107,21 @@ impl Resolver {
     pub fn def_from_path(&self, path: &Path) -> NodeId {
         *self.table.find(&path.id).unwrap()
     }
+
+    // The entry point for the resolver
+    pub fn resolve(session: &mut Session,
+                   module: &Module) {
+        let (root, tree) = ModuleCollector::collect(module);
+
+        let mut modres = ModuleResolver {
+            session: session,
+            scope: vec!(root),
+            tree: tree,
+            root: OnBranch(0),
+        };
+
+        modres.visit_module(module);
+    }
 }
 
 impl ModuleCollector {
@@ -120,21 +135,6 @@ impl ModuleCollector {
 }
 
 impl<'a> ModuleResolver<'a> {
-    // The entry point for the resolver
-    pub fn process(session: &'a mut Session,
-                   module: &Module) {
-        let (root, tree) = ModuleCollector::collect(module);
-
-        let mut modres = ModuleResolver {
-            session: session,
-            scope: vec!(root),
-            tree: tree,
-            root: OnBranch(0),
-        };
-
-        modres.visit_module(module);
-    }
-
     /// Search the current scope stack local-to-global for a matching ident in the requested namespace
     fn try_resolve_path(&mut self, ns: NS, path: &Path) -> Option<NodeId> {
         use std::slice;
@@ -428,7 +428,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::ModuleResolver;
+    use super::Resolver;
     use super::super::session::Session;
     use super::super::ast::NodeId;
     use super::super::ast::visit::Visitor;
@@ -437,27 +437,21 @@ mod tests {
 
     #[test]
     fn basic_resolver_test() {
-        let (interner, tree) = ast_from_str("fn wot<T>(t: T) -> T { let u = t; }", |p| p.parse_module());
-        let mut session = Session::new();
-        session.interner = interner;
-        ModuleResolver::process(&mut session, &tree);
+        let (mut session, tree) = ast_from_str("fn wot<T>(t: T) -> T { let u = t; }", |p| p.parse_module());
+        Resolver::resolve(&mut session, &tree);
     }
 
     #[test]
     #[should_fail]
     fn unresolved_name() {
-        let (interner, tree) = ast_from_str("fn lol<T>(t: T) { let u = wot; }", |p| p.parse_module()); // unresolved name wot
-        let mut session = Session::new();
-        session.interner = interner;
-        ModuleResolver::process(&mut session, &tree);
+        let (mut session, tree) = ast_from_str("fn lol<T>(t: T) { let u = wot; }", |p| p.parse_module()); // unresolved name wot
+        Resolver::resolve(&mut session, &tree);
     }
 
     #[test]
     #[should_fail]
     fn unresolved_type() {
-        let (interner, tree) = ast_from_str("fn welp<T>(t: U) { let u = t; }", |p| p.parse_module()); // unresolved name U
-        let mut session = Session::new();
-        session.interner = interner;
-        ModuleResolver::process(&mut session, &tree);
+        let (mut session, tree) = ast_from_str("fn welp<T>(t: U) { let u = t; }", |p| p.parse_module()); // unresolved name U
+        Resolver::resolve(&mut session, &tree);
     }
 }

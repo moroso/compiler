@@ -161,12 +161,11 @@ mod tests {
         let buffer = io::BufferedReader::new(io::MemReader::new(
             Vec::from_slice(t.as_bytes())
                 ));
-        let mut parser = Parser::new();
-        let mut interner = Interner::new();
         let lexer = new_mb_lexer("<stdin>", buffer);
 
-        let ast = parser.parse_with(lexer, &mut interner, |p| p.parse_type());
-        let session = Session::new();
+        let mut session = Session::new();
+        let ast = Parser::parse_with(&mut session, lexer, |p| p.parse_type());
+
         let mut typeck = Typechecker::new(&session);
         let ty = typeck.type_to_ty(&ast);
         assert_eq!(size_of_ty(&session, &ty), expected_size);

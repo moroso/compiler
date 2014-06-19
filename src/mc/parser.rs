@@ -20,7 +20,7 @@
 use span::{SourcePos, Span, mk_sp};
 use util::Name;
 
-use super::session::Interner;
+use super::session::Session;
 
 use std::{io, mem, num, vec};
 use std::collections::{HashMap, TreeMap};
@@ -55,10 +55,8 @@ pub struct StreamParser<'a, T> {
     name: Name,
     /// The span corresponding to the last token we consumed from the stream.
     last_span: Span,
-    /// The parser that is parsing this stream
-    parser: &'a mut Parser,
-    /// Reference to the session's interner
-    interner: &'a mut Interner,
+    /// The session in which we're parsing this stream
+    session: &'a mut Session,
     /// Any parsing restriction in the current context
     restriction: Restriction,
     /// Path to current source file
@@ -156,11 +154,10 @@ fn binop_token(op: BinOpNode) -> Token {
 }
 
 // Convenience function for testing
-pub fn ast_from_str<U>(s: &str, f: |&mut StreamParser<io::BufferedReader<io::MemReader>>| -> U) -> (Interner, U) {
-    let mut parser = Parser::new();
-    let mut interner = Interner::new();
-    let tree = parser.parse_with(lexer_from_str(s), &mut interner, f);
-    (interner, tree)
+pub fn ast_from_str<U>(s: &str, f: |&mut StreamParser<io::BufferedReader<io::MemReader>>| -> U) -> (Session, U) {
+    let mut session = Session::new();
+    let tree = Parser::parse_with(&mut session, lexer_from_str(s), f);
+    (session, tree)
 }
 
 impl Parser {
@@ -188,16 +185,14 @@ impl Parser {
         NodeId(id)
     }
 
-    pub fn parse<T: Buffer>(&mut self, lexer: Lexer<T, Token>,
-                            interner: &mut Interner) -> Module {
-        self.parse_with(lexer, interner, |p| p.parse_module())
+    pub fn parse<T: Buffer>(session: &mut Session, lexer: Lexer<T, Token>) -> Module {
+        Parser::parse_with(session, lexer, |p| p.parse_module())
     }
 
-    pub fn parse_with<T: Buffer, U>(&mut self,
+    pub fn parse_with<T: Buffer, U>(session: &mut Session,
                                     lexer: Lexer<T, Token>,
-                                    interner: &mut Interner,
                                     f: |&mut StreamParser<T>| -> U) -> U {
-        let mut tokp = StreamParser::new(lexer, interner, self);
+        let mut tokp = StreamParser::new(session, lexer);
         f(&mut tokp)
     }
 }
@@ -221,16 +216,14 @@ impl OpTable {
 }
 
 impl<'a, T: Buffer> StreamParser<'a, T> {
-    fn new(lexer: Lexer<T, Token>, interner: &'a mut Interner,
-           parser: &'a mut Parser) -> StreamParser<'a, T> {
-        let name = interner.intern(lexer.get_name());
+    fn new(session: &'a mut Session, lexer: Lexer<T, Token>) -> StreamParser<'a, T> {
+        let name = session.interner.intern(lexer.get_name());
         let tokens = lexer.peekable();
 
         StreamParser {
             name: name,
             tokens: tokens,
-            parser: parser,
-            interner: interner,
+            session: session,
             last_span: mk_sp(SourcePos::new(), 0),
             restriction: NoRestriction,
             source: FilePath::new("."),
@@ -296,9 +289,9 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     fn add_id_and_span<T>(&mut self, val: T, sp: Span) -> WithId<T> {
-        let id = self.parser.new_id();
-        self.parser.spanmap.insert(id, sp);
-        self.parser.filemap.insert(id, self.name);
+        let id = self.session.parser.new_id();
+        self.session.parser.spanmap.insert(id, sp);
+        self.session.parser.filemap.insert(id, self.name);
         WithId { val: val, id: id }
     }
 
@@ -341,7 +334,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
 
     fn parse_name(&mut self) -> Name {
         match self.eat() {
-            IdentTok(name) => self.interner.intern(name),
+            IdentTok(name) => self.session.interner.intern(name),
             tok => self.error(format!("Expected ident, found {}", tok),
                               self.last_span.get_begin())
         }
@@ -414,7 +407,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             let id = path.elems.last().unwrap().id;
 
             let end_span = self.cur_span();
-            self.parser.spanmap.insert(id, start_span.to(end_span));
+            self.session.parser.spanmap.insert(id, start_span.to(end_span));
         }
 
         let end_span = self.cur_span();

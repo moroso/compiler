@@ -13,7 +13,6 @@ use mc::ast::{NodeId, DUMMY_NODEID};
 use super::ast::Module;
 use super::ast::defmap::DefMap;
 use super::resolver::Resolver;
-use super::resolver::ModuleResolver;
 use super::parser::Parser;
 use super::lexer::new_mb_lexer;
 use super::ast::visit::Visitor;
@@ -123,17 +122,17 @@ impl Session {
         let bytes = Vec::from_slice(s.as_bytes());
         let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
         let lexer = new_mb_lexer("<prelude>", buffer);
-        let mut temp = self.parser.parse(lexer, &mut self.interner);
+        let mut temp = Parser::parse(self, lexer);
         swap(&mut module.val.items, &mut temp.val.items);
         module.val.items.push_all_move(temp.val.items);
     }
 
     pub fn parse_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
         let lexer = new_mb_lexer(name, buffer);
-        let mut module = self.parser.parse(lexer, &mut self.interner);
+        let mut module = Parser::parse(self, lexer);
         self.inject_prelude(&mut module);
-        self.defmap.read_module(&module);
-        ModuleResolver::process(self, &module);
+        DefMap::record(self, &module);
+        Resolver::resolve(self, &module);
         module
     }
 
