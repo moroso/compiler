@@ -636,23 +636,26 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                 self.expect(Else);
                 match *self.peek() {
                     If => {
-                        Block {
+                        let start_span = self.cur_span();
+                        let node = BlockNode {
                             items: vec!(),
                             stmts: vec!(),
                             expr: Some(self.parse_if_expr()),
-                        }
+                        };
+                        let end_span = self.cur_span();
+                        self.add_id_and_span(node, start_span.to(end_span))
                     },
                     _ => self.parse_block()
                 }
             }
             _ => {
                 let fake_span = self.cur_span();
-
-                Block {
+                let node = BlockNode {
                     items: vec!(),
                     stmts: vec!(),
                     expr: Some(self.add_id_and_span(UnitExpr, fake_span)),
-                }
+                };
+                self.add_id_and_span(node, fake_span)
             }
         };
 
@@ -1039,10 +1042,12 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         /* Parse a "block" (compound expression), such as
            `{ 1+1; f(x); 2 }`.
         */
+        let start_span = self.cur_span();
         self.expect(LBrace);
         let mut statements = vec!();
         let items = self.parse_items_until(RBrace, |me| statements.push(me.parse_stmt()));
         self.expect(RBrace);
+        let end_span = self.cur_span();
 
         let expr = statements.pop().and_then(|stmt| {
             match stmt.val {
@@ -1056,11 +1061,12 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             }
         });
 
-        return Block {
+        let node = BlockNode {
             items: items,
             stmts: statements,
             expr: expr,
-        }
+        };
+        self.add_id_and_span(node, start_span.to(end_span))
     }
 
     fn parse_func_arg(&mut self) -> FuncArg {

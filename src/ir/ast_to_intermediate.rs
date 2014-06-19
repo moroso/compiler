@@ -68,11 +68,10 @@ impl<'a> ASTToIntermediate<'a> {
                         match ty {
                             None => fail!("No type available."),
                             Some(ref t) => {
-                                // TODO: eliminate this.
-                                let mut typeck = Typechecker::new(self.session);
-                                match typeck.type_to_ty(t).ty {
+                                match *self.typemap.types.get(&t.id.to_uint()) {
                                     StructTy(ref id, _) => {
                                         let size = size_of_def(self.session,
+                                                               self.typemap,
                                                                id);
                                         print!("Allocate {}\n", size);
                                         (vec!(Assign(VarLValue(v),
@@ -90,11 +89,11 @@ impl<'a> ASTToIntermediate<'a> {
 
     pub fn convert_block(&mut self, block: &Block) -> (Vec<Op>, Var) {
         let mut ops = vec!();
-        for stmt in block.stmts.iter() {
+        for stmt in block.val.stmts.iter() {
             let (new_ops, _) = self.convert_stmt(stmt);
             ops.push_all_move(new_ops);
         }
-        match block.expr {
+        match block.val.expr {
             Some(ref e) => {
                 let (new_ops, new_var) = self.convert_expr(e);
                 ops.push_all_move(new_ops);
@@ -334,14 +333,14 @@ impl<'a> ASTToIntermediate<'a> {
     // of the structure given by the expression `e`.
     fn struct_helper(&mut self, e: &Expr, name: &Name) -> (Vec<Op>, Var) {
         let (mut ops, var) = self.convert_expr(e);
-        let ty = self.typemap.types.get(&e.id.to_uint()).clone();
-        let id = match ty.ty {
-            StructTy(ref id, _) => id,
+        let id = match *self.typemap.types.get(&e.id.to_uint()) {
+            StructTy(id, _) => id,
             _ => fail!("ICE: struct doesn't have struct type. Typechecker should have caught this.")
         };
         let offs = offset_of_struct_field(
             self.session,
-            id,
+            self.typemap,
+            &id,
             name);
 
         let added_addr_var = self.gen_temp();

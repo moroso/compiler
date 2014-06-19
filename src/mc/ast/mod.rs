@@ -36,6 +36,7 @@ with_id! {
     Lit      => LitNode,
     Pat      => PatNode,
     Expr     => ExprNode,
+    Block    => BlockNode,
     Stmt     => StmtNode,
     Item     => ItemNode,
     Ident    => IdentNode,
@@ -339,13 +340,13 @@ impl Show for StmtNode {
 }
 
 #[deriving(Eq, PartialEq, Clone)]
-pub struct Block {
+pub struct BlockNode {
     pub items: Vec<Item>,
     pub stmts: Vec<Stmt>,
     pub expr:  Option<Expr>,
 }
 
-impl Show for Block {
+impl Show for BlockNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         try!(write!(f, "{}\n", "{"));
         for item in self.items.iter() {

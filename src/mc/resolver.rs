@@ -309,7 +309,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
 
     fn visit_block(&mut self, block: &Block) {
         // Seed the new scope with this block's items
-        self.descend(Some(&block.items), |me| walk_block(me, block));
+        self.descend(Some(&block.val.items), |me| walk_block(me, block));
     }
 
     fn visit_item(&mut self, item: &Item) {

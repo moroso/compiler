@@ -119,9 +119,9 @@ pub fn walk_func_arg<T: Visitor>(visitor: &mut T, arg: &FuncArg) {
 }
 
 pub fn walk_block<T: Visitor>(visitor: &mut T, block: &Block) {
-    for item in block.items.iter() { visitor.visit_item(item); }
-    for stmt in block.stmts.iter() { visitor.visit_stmt(stmt); }
-    for expr in block.expr.iter()  { visitor.visit_expr(expr); }
+    for item in block.val.items.iter() { visitor.visit_item(item); }
+    for stmt in block.val.stmts.iter() { visitor.visit_stmt(stmt); }
+    for expr in block.val.expr.iter()  { visitor.visit_expr(expr); }
 }
 
 pub fn walk_stmt<T: Visitor>(visitor: &mut T, stmt: &Stmt) {

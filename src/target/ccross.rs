@@ -149,9 +149,9 @@ impl CCrossCompiler {
     }
 
     fn visit_block(&self, block: &Block, tail: |Option<String>| -> String) -> String {
-        let items = self.visit_list(&block.items, |t| self.visit_item(t), "; ");
-        let stmts = self.visit_list(&block.stmts, |t| self.visit_stmt(t), "; ");
-        let expr = match block.expr {
+        let items = self.visit_list(&block.val.items, |t| self.visit_item(t), "; ");
+        let stmts = self.visit_list(&block.val.stmts, |t| self.visit_stmt(t), "; ");
+        let expr = match block.val.expr {
             Some(ref x) => {
                 match x.val {
                     WhileExpr(..) | ForExpr(..) => self.visit_expr(x),
@@ -270,14 +270,14 @@ impl CCrossCompiler {
     }
 
     fn visit_ty(&self, t: &Ty) -> String {
-        match t.ty {
+        match *t {
             BoolTy => String::from_str("int"),
             UnitTy => String::from_str("void"),
             GenericIntTy => String::from_str("int"),
             IntTy(w) => format!("int{}_t", w),
             UintTy(w) => format!("uint{}_t", w),
             PtrTy(ref t) | ArrayTy(ref t, _) => {
-                format!("{}*", self.visit_ty(*t))
+                format!("{}*", self.visit_ty(&t.val))
             },
             BoundTy(ref bound_id) => {
                 match *self.typemap.bounds.get(&bound_id.to_uint()) {
@@ -452,7 +452,7 @@ impl CCrossCompiler {
             MatchExpr(ref e, ref arms) => {
                 // TODO: allow types other than ints.
                 let overall_type = self.typemap.types.get(&expr.id.to_uint());
-                let is_void = overall_type.ty == UnitTy;
+                let is_void = *overall_type == UnitTy;
                 let overall_type_name = self.visit_ty(overall_type);
 
                 let expr = self.visit_expr(*e);
