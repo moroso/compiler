@@ -6,7 +6,8 @@
 
 use span::Span;
 use util::Name;
-use mc::ast::NodeId;
+use mc::ast::{NodeId, DUMMY_NODEID};
+
 
 
 use super::ast::Module;
@@ -71,9 +72,28 @@ impl Session {
         }
     }
 
+    pub fn errors_fatal<T: Str>(&self, errors: &[(NodeId, T)]) -> ! {
+        let mut full_msg = String::new();
+        for &(nid, ref msg) in errors.iter() {
+            full_msg.push_str(msg.as_slice());
+            full_msg.push_char('\n');
+            if nid != DUMMY_NODEID {
+                let fname = self.interner.name_to_str(&self.parser.filename_of(&nid));
+                full_msg.push_str(
+                    format!("   {}: {}\n", fname, self.parser.span_of(&nid)).as_slice());
+            };
+
+
+        }
+
+        fail!("\n{}", full_msg)
+    }
+
+
     pub fn error_fatal<T: Str>(&self, nid: NodeId, msg: T) -> ! {
-        let sp = self.parser.span_of(&nid);
-        fail!("\n{}\nat: {}\n", msg.as_slice(), sp);
+//        let sp = self.parser.span_of(&nid);
+//        fail!("\n{}\nat: {}\n", msg.as_slice(), sp);
+        self.errors_fatal([(nid, msg)]);
     }
     pub fn error<T: Str>(&self, nid: NodeId, msg: T) {
         // For now everything is fatal.

@@ -272,7 +272,8 @@ impl<'a> Typechecker<'a> {
         self.typemap
     }
 
-    fn tps_to_tys(&mut self, tps: &Vec<NodeId>, ts: &Option<Vec<Type>>, infer: bool) -> Vec<Ty> {
+    fn tps_to_tys(&mut self, nid: NodeId,
+                  tps: &Vec<NodeId>, ts: &Option<Vec<Type>>, infer: bool) -> Vec<Ty> {
         match *ts {
             Some(ref ts) if ts.len() == tps.len() =>
                 ts.iter().map(|t| self.type_to_ty(t)).collect(),
@@ -281,7 +282,10 @@ impl<'a> Typechecker<'a> {
             None if tps.len() == 0 =>
                 vec!(),
             _ =>
-                fail!("Expected {} type parameters, but found {}", tps.len(), ts.as_ref().map_or(0, |ts| ts.len())),
+                self.error_fatal(
+                    nid,
+                    format!("Expected {} type parameters, but found {}",
+                            tps.len(), ts.as_ref().map_or(0, |ts| ts.len()))),
         }
     }
 
@@ -346,11 +350,13 @@ impl<'a> Typechecker<'a> {
                 let nid = self.session.resolver.def_from_path(path);
                 match *self.session.defmap.find(&nid).take_unwrap() {
                     StructDef(_, _, ref tps) => {
-                        let tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, false);
+                        let tys = self.tps_to_tys(
+                            t.id, tps, &path.val.elems.last().unwrap().val.tps, false);
                         StructTy(nid, tys)
                     }
                     EnumDef(_, _, ref tps) => {
-                        let tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, false);
+                        let tys = self.tps_to_tys(
+                            t.id, tps, &path.val.elems.last().unwrap().val.tps, false);
                         EnumTy(nid, tys)
                     }
                     GenericDef => self.generic_to_ty(nid).ty,
@@ -407,7 +413,8 @@ impl<'a> Typechecker<'a> {
                             _ => self.error_fatal(nid, "Nonsensical enum id for variant"),
                         };
 
-                        let tp_tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, true);
+                        let tp_tys = self.tps_to_tys(
+                            pat.id, tps, &path.val.elems.last().unwrap().val.tps, true);
 
                         let mut gs = TreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
@@ -431,7 +438,8 @@ impl<'a> Typechecker<'a> {
                 let nid = self.session.resolver.def_from_path(path);
                 match *self.session.defmap.find(&nid).take_unwrap() {
                     StructDef(_, ref fields, ref tps) => {
-                        let tp_tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, true);
+                        let tp_tys = self.tps_to_tys(
+                            pat.id, tps, &path.val.elems.last().unwrap().val.tps, true);
 
                         let mut gs = TreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
@@ -469,7 +477,7 @@ impl<'a> Typechecker<'a> {
         let arg_tys = arg_ids.iter().map(|arg_id| {
             match *self.session.defmap.find(arg_id).take_unwrap() {
                 FuncArgDef(ref t) => self.type_to_ty(t),
-                _ => fail!("Nonsensical arg id for func def"),
+                _ => self.session.bug_span(*arg_id, "Nonsensical arg id for func def"),
             }
         }).collect();
         /* XXX: this is a bad nodeid to use */
@@ -491,7 +499,8 @@ impl<'a> Typechecker<'a> {
                 let nid = self.session.resolver.def_from_path(path);
                 match *self.session.defmap.find(&nid).take_unwrap() {
                     FuncDef(ref args, ref t, ref tps) => {
-                        let tp_tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, true);
+                        let tp_tys = self.tps_to_tys(
+                            expr.id, tps, &path.val.elems.last().unwrap().val.tps, true);
                         let mut gs = TreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                             gs.insert(*tp, tp_ty.clone());
@@ -508,7 +517,8 @@ impl<'a> Typechecker<'a> {
                             _ => self.error_fatal(expr.id, "Nonsensical enum id for variant"),
                         };
 
-                        let tp_tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, true);
+                        let tp_tys = self.tps_to_tys(
+                            expr.id, tps, &path.val.elems.last().unwrap().val.tps, true);
 
                         let ctor = |tp_tys| EnumTy(*enum_nid, tp_tys);
                         if args.len() == 0 {
@@ -546,7 +556,8 @@ impl<'a> Typechecker<'a> {
                                           format!("{} does not name a struct", path)),
                 };
 
-                let tp_tys = self.tps_to_tys(tps, &path.val.elems.last().unwrap().val.tps, true);
+                let tp_tys = self.tps_to_tys(
+                    expr.id, tps, &path.val.elems.last().unwrap().val.tps, true);
 
                 let mut gs = TreeMap::new();
                 for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
@@ -904,7 +915,9 @@ impl<'a> Typechecker<'a> {
                     self.mismatch(id1, id2, &StructTy(d1, ts1), &StructTy(d2, ts2));
                 } else {
                     if ts1.len() != ts2.len() {
-                        fail!("Inconsistent number of type parameters for struct {}", d1);
+                        self.error(
+                            id1,
+                            format!("Inconsistent number of type parameters for struct {}", d1));
                     }
 
                     let ts = ts1.move_iter().zip(ts2.move_iter()).map(|(t1, t2)| self.unify(t1, t2)).collect();
@@ -916,7 +929,9 @@ impl<'a> Typechecker<'a> {
                     self.mismatch(id1, id2, &EnumTy(d1, ts1), &EnumTy(d2, ts2));
                 } else {
                     if ts1.len() != ts2.len() {
-                        fail!("Inconsistent number of type parameters for enum {}", d1);
+                        self.error(
+                            id1,
+                            format!("Inconsistent number of type parameters for enum {}", d1));
                     }
 
                     let ts = ts1.move_iter().zip(ts2.move_iter()).map(|(t1, t2)| self.unify(t1, t2)).collect();
@@ -927,8 +942,11 @@ impl<'a> Typechecker<'a> {
         }
     }
 
-    fn mismatch(&self, _id1: NodeId, _id2: NodeId, t1: &Ty_, t2: &Ty_) -> ! {
-        fail!("Expected type {} but found type {}", t1, t2)
+    fn mismatch(&self, id1: NodeId, id2: NodeId, t1: &Ty_, t2: &Ty_) -> ! {
+        self.session.errors_fatal([
+            (id1, format!("Expected type: {}", t1)),
+            (id2, format!("but got type: {}", t2))
+        ]);
     }
 }
 
@@ -969,7 +987,7 @@ impl<'a> Visitor for Typechecker<'a> {
             FuncItem(_, _, ref t, ref b, ref tps) => {
                 for b in b.iter() {
                     let tp_ids = tps.iter().map(|tp| tp.id).collect();
-                    let tp_tys = self.tps_to_tys(&tp_ids, &None, true);
+                    let tp_tys = self.tps_to_tys(item.id, &tp_ids, &None, true);
                     let mut gs = TreeMap::new();
                     for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                         gs.insert(tp.id, tp_ty.clone());
