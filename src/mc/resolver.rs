@@ -1,4 +1,5 @@
 use mc::session::Interner;
+use mc::session::Session;
 use util::Name;
 
 use std::collections::{SmallIntMap, TreeMap};
@@ -88,9 +89,8 @@ struct ModuleCollector {
     tree: TreeMap<NodeId, ModuleScope>,
 }
 
-struct ModuleResolver<'a> {
-    resolver: &'a mut Resolver,
-    interner: &'a Interner,
+pub struct ModuleResolver<'a> {
+    session: &'a mut Session,
     scope: Vec<Subscope>,
     tree: TreeMap<NodeId, ModuleScope>,
     root: ModuleScope,
@@ -107,11 +107,6 @@ impl Resolver {
     pub fn def_from_path(&self, path: &Path) -> NodeId {
         *self.table.find(&path.id).unwrap()
     }
-
-    /// The entry point for the resolver
-    pub fn resolve_module(&mut self, interner: &Interner, module: &Module) {
-        ModuleResolver::process(self, interner, module);
-    }
 }
 
 impl ModuleCollector {
@@ -125,12 +120,13 @@ impl ModuleCollector {
 }
 
 impl<'a> ModuleResolver<'a> {
-    fn process(resolver: &'a mut Resolver, interner: &'a Interner, module: &Module) {
+    // The entry point for the resolver
+    pub fn process(session: &'a mut Session,
+                   module: &Module) {
         let (root, tree) = ModuleCollector::collect(module);
 
         let mut modres = ModuleResolver {
-            resolver: resolver,
-            interner: interner,
+            session: session,
             scope: vec!(root),
             tree: tree,
             root: OnBranch(0),
@@ -187,12 +183,17 @@ impl<'a> ModuleResolver<'a> {
     fn resolve_path(&mut self, ns: NS, path: &Path) -> NodeId {
         match self.try_resolve_path(ns, path) {
             Some(node_id) => {
-                self.resolver.table.insert(path.id, node_id);
+                self.session.resolver.table.insert(path.id, node_id);
                 node_id
             }
             None => {
-                let elems: Vec<&str> = path.val.elems.iter().map(|e| self.interner.name_to_str(&e.val.name)).collect();
-                fail!("Unresolved name `{}`", elems.connect("::"))
+                let elems: Vec<String> =
+                    path.val.elems.iter().map(|e|
+                       String::from_str(
+                           self.session.interner.name_to_str(&e.val.name))).collect();
+                self.session.error(path.id,
+                                   format!("Unresolved name `{}`", elems.connect("::")));
+                DUMMY_NODEID
             }
         }
     }
@@ -383,7 +384,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
 
                 // Swap the new scope with our current scope (since scope doesn't leak across modules)
                 mem::swap(&mut self.scope, &mut scope);
-                
+
                 // Update our root scope pointer
                 let old_root_idx = match self.root {
                     OnBranch(idx) => {
@@ -403,7 +404,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
                     Some(idx) => {
                         let mut root = OnBranch(idx);
                         mem::swap(&mut root, &mut self.root);
-                            
+
                         match root {
                             OffBranch(mut root) => {
                                 // Swap the old root subscope back into the old scope

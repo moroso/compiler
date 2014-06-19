@@ -13,6 +13,7 @@ use mc::ast::{NodeId, DUMMY_NODEID};
 use super::ast::Module;
 use super::ast::defmap::DefMap;
 use super::resolver::Resolver;
+use super::resolver::ModuleResolver;
 use super::parser::Parser;
 use super::lexer::new_mb_lexer;
 use super::ast::visit::Visitor;
@@ -132,7 +133,7 @@ impl Session {
         let mut module = self.parser.parse(lexer, &mut self.interner);
         self.inject_prelude(&mut module);
         self.defmap.read_module(&module);
-        self.resolver.resolve_module(&self.interner, &module);
+        ModuleResolver::process(self, &module);
         module
     }
 
