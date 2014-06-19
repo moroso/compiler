@@ -238,15 +238,9 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     /// Get the current cursor position as a zero-width span
-    fn last_span(&self) -> Span {
-        let last_end = self.last_span.get_end();
-        mk_sp(last_end, 0)
-    }
-
-    /// Get the current cursor position as a zero-width span
-    /// I don't believe the old behavior - last_span - is ever what we want??
-    fn cur_span(&mut self) -> Span {
-        self.peek_span()
+    fn cur_span(&self) -> Span {
+        let peek_begin = self.peek_span().get_begin();
+        mk_sp(peek_begin, 0)
     }
 
     /// Peek at the Span of the next token.
