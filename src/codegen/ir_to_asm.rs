@@ -67,7 +67,7 @@ fn convert_binoprvalue<'a>(
             };
 
             result.push(
-                ALU2RegInst(
+                InstNode::alu2reg(
                     Pred { inverted: false,
                            reg: 3 },
                     binop_to_aluop(op, swapped),
@@ -84,7 +84,7 @@ fn convert_binoprvalue<'a>(
             match packed {
                 Some((val, rot)) =>
                     result.push(
-                        ALU2ShortInst(
+                        InstNode::alu2short(
                             Pred {
                                 inverted: false,
                                 reg: 3 },
@@ -95,7 +95,7 @@ fn convert_binoprvalue<'a>(
                             rot)),
                 None => {
                     result.push(
-                        ALU2LongInst(
+                        InstNode::alu2long(
                             Pred {
                                 inverted: false,
                                 reg: 3 },
@@ -104,7 +104,7 @@ fn convert_binoprvalue<'a>(
                             reg_l)
                             );
                     result.push(
-                        LongInst(num));
+                        InstNode::long(num));
                 }
             }
         }
@@ -131,7 +131,7 @@ fn convert_directrvalue(
             // Don't output redundant moves.
             if dest != rhs_reg {
                 result.push(
-                    ALU1RegInst(
+                    InstNode::alu1reg(
                         Pred { inverted: false,
                                reg: 3 },
                         MovAluOp,
@@ -149,7 +149,7 @@ fn convert_directrvalue(
             match packed {
                 Some((val, rot)) =>
                     result.push(
-                        ALU1ShortInst(
+                        InstNode::alu1short(
                             Pred { inverted: false,
                                    reg: 3 },
                             MovAluOp,
@@ -158,13 +158,13 @@ fn convert_directrvalue(
                             rot)),
                 None => {
                     result.push(
-                        ALU1LongInst(
+                        InstNode::alu1long(
                             Pred { inverted: false,
                                    reg: 3 },
                             MovAluOp,
                             dest));
                     result.push(
-                        LongInst(num));
+                        InstNode::long(num));
                 }
             }
         }

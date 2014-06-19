@@ -25,3 +25,7 @@ pub fn pack_int(n: u32, width: u8) -> Option<(u32, u8)> {
     None
 }
 
+pub fn fits_in_bits(num: u32, size: u8) -> bool {
+    let mask: u32 = (-1 as u32) << size;
+    (num & mask) == 0
+}

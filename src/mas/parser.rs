@@ -2,7 +2,7 @@
 
 use mas::lexer::*;
 use mas::ast::*;
-use mas::util::pack_int;
+use mas::util::{pack_int, fits_in_bits};
 use util::lexer::{Lexer, SourceToken};
 use std::iter::Peekable;
 use std::num::from_int;
@@ -130,8 +130,7 @@ impl<T: Buffer> AsmParser<T> {
 
     /// Assert that `num` fits into `size` bits.
     fn assert_num_size(&self, num: u32, size: u8) {
-        let mask: u32 = (-1 as u32) << size;
-        if (num & mask) != 0 {
+        if !fits_in_bits(num, size) {
             self.error(format!("Number {} (0b{:t}) has more than {} bits.",
                                num, num, size))
         }
@@ -211,7 +210,7 @@ impl<T: Buffer> AsmParser<T> {
         match op {
             // If an op had been given, there can't be a binop later.
             Some(o) => {
-                ALU1RegInst(
+                InstNode::alu1reg(
                     pred,
                     o,
                     rd,
@@ -234,7 +233,7 @@ impl<T: Buffer> AsmParser<T> {
                                 let (rs,
                                      (shifttype, shiftamt)
                                      ) = self.parse_reg_maybe_shift();
-                                ALU2RegInst(
+                                InstNode::alu2reg(
                                     pred,
                                     op,
                                     rd,
@@ -246,7 +245,7 @@ impl<T: Buffer> AsmParser<T> {
                             NumLit(num) => {
                                 self.eat();
                                 let (val, rot) = self.pack_int_unwrap(num, 10);
-                                ALU2ShortInst(
+                                InstNode::alu2short(
                                     pred,
                                     op,
                                     rd,
@@ -256,7 +255,7 @@ impl<T: Buffer> AsmParser<T> {
                             },
                             Long => {
                                 self.eat();
-                                ALU2LongInst(
+                                InstNode::alu2long(
                                     pred,
                                     op,
                                     rd,
@@ -275,7 +274,7 @@ impl<T: Buffer> AsmParser<T> {
                                 self.eat();
                                 match self.eat() {
                                     Reg(reg2) =>
-                                        ALU1RegShInst(
+                                        InstNode::alu1regsh(
                                             pred,
                                             rd,
                                             reg,
@@ -286,7 +285,7 @@ impl<T: Buffer> AsmParser<T> {
                             },
                             _ => {
                                 // Just the register. So it's just a move.
-                                ALU1RegInst(
+                                InstNode::alu1reg(
                                     pred,
                                     MovAluOp,
                                     rd,
@@ -324,7 +323,7 @@ impl<T: Buffer> AsmParser<T> {
                 // We're just storing a number.
                 self.eat();
                 let (val, rot) = self.pack_int_unwrap(n, 15);
-                ALU1ShortInst(
+                InstNode::alu1short(
                     pred,
                     op.unwrap_or(MovAluOp),
                     rd,
@@ -340,7 +339,7 @@ impl<T: Buffer> AsmParser<T> {
             },
             Long => {
                 self.eat();
-                ALU1LongInst(
+                InstNode::alu1long(
                     pred,
                     op.unwrap_or(MovAluOp),
                     rd)
@@ -349,7 +348,7 @@ impl<T: Buffer> AsmParser<T> {
                 // The only option left is that we're applying a unary op
                 // to a *shifted* register.
                 let (reg, (shifttype, shiftamt)) = self.parse_reg_maybe_shift();
-                ALU1RegInst(
+                InstNode::alu1reg(
                     pred,
                     op.unwrap_or(MovAluOp),
                     rd,
@@ -407,14 +406,14 @@ impl<T: Buffer> AsmParser<T> {
 
         let (reg, offs) = self.parse_deref_common();
 
-        LoadInst(pred,
-                 LsuOp {
-                     store: false, // it's a load.
-                     width: width,
-                 },
-                 rd,
-                 reg,
-                 offs)
+        InstNode::load(pred,
+                       LsuOp {
+                           store: false, // it's a load.
+                           width: width,
+                       },
+                       rd,
+                       reg,
+                       offs)
     }
 
     /// Parse the actual op/literal part of an instruction; that is,
@@ -444,7 +443,7 @@ impl<T: Buffer> AsmParser<T> {
     // Assumes the "long" keyword has already been consumed.
     pub fn parse_long(&mut self) -> InstNode {
         match self.eat() {
-            NumLit(n) => LongInst(n),
+            NumLit(n) => InstNode::long(n),
             _ => self.error("Must have a numeric literal for long."),
         }
     }
@@ -459,14 +458,14 @@ impl<T: Buffer> AsmParser<T> {
             _ => self.error("Expected a register."),
         };
 
-        StoreInst(pred,
-                  LsuOp {
-                      store: false, // it's a load.
-                      width: width,
-                  },
-                  reg,
-                  offs,
-                  rhsreg)
+        InstNode::store(pred,
+                        LsuOp {
+                            store: false, // it's a load.
+                            width: width,
+                        },
+                        reg,
+                        offs,
+                        rhsreg)
     }
 
     /// Parse a conditional. We've already parsed the predicate register,
@@ -491,7 +490,7 @@ impl<T: Buffer> AsmParser<T> {
             NumLit(n) => {
                 self.eat();
                 let (val, rot) = self.pack_int_unwrap(n, 10);
-                CompareShortInst(
+                InstNode::compareshort(
                     pred,
                     dest_pred,
                     reg,
@@ -502,7 +501,7 @@ impl<T: Buffer> AsmParser<T> {
             _ => {
                 let (reg_rt,
                      (shifttype, shiftamt)) = self.parse_reg_maybe_shift();
-                CompareRegInst(
+                InstNode::comparereg(
                     pred,
                     dest_pred,
                     reg,
