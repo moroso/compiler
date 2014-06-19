@@ -132,7 +132,7 @@ pub struct LsuOp {
 
 impl Show for ShiftType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "r{}",
+        write!(f, "{}",
                match *self {
                    SllShift => "<<",
                    SraShift => ">>s",
