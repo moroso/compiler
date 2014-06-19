@@ -428,7 +428,8 @@ impl<'a> Visitor for ModuleResolver<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::Resolver;
+    use super::ModuleResolver;
+    use super::super::session::Session;
     use super::super::ast::NodeId;
     use super::super::ast::visit::Visitor;
     use super::super::parser::ast_from_str;
@@ -436,24 +437,27 @@ mod tests {
 
     #[test]
     fn basic_resolver_test() {
-        let (mut interner, tree) = ast_from_str("fn wot<T>(t: T) -> T { let u = t; }", |p| p.parse_module());
-        let mut resolver = Resolver::new();
-        resolver.resolve_module(&mut interner, &tree);
+        let (interner, tree) = ast_from_str("fn wot<T>(t: T) -> T { let u = t; }", |p| p.parse_module());
+        let mut session = Session::new();
+        session.interner = interner;
+        ModuleResolver::process(&mut session, &tree);
     }
 
     #[test]
     #[should_fail]
     fn unresolved_name() {
-        let (mut interner, tree) = ast_from_str("fn lol<T>(t: T) { let u = wot; }", |p| p.parse_module()); // unresolved name wot
-        let mut resolver = Resolver::new();
-        resolver.resolve_module(&mut interner, &tree);
+        let (interner, tree) = ast_from_str("fn lol<T>(t: T) { let u = wot; }", |p| p.parse_module()); // unresolved name wot
+        let mut session = Session::new();
+        session.interner = interner;
+        ModuleResolver::process(&mut session, &tree);
     }
 
     #[test]
     #[should_fail]
     fn unresolved_type() {
-        let (mut interner, tree) = ast_from_str("fn welp<T>(t: U) { let u = t; }", |p| p.parse_module()); // unresolved name U
-        let mut resolver = Resolver::new();
-        resolver.resolve_module(&mut interner, &tree);
+        let (interner, tree) = ast_from_str("fn welp<T>(t: U) { let u = t; }", |p| p.parse_module()); // unresolved name U
+        let mut session = Session::new();
+        session.interner = interner;
+        ModuleResolver::process(&mut session, &tree);
     }
 }

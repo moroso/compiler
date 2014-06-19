@@ -238,7 +238,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     /// Get the current cursor position as a zero-width span
-    fn cur_span(&self) -> Span {
+    fn cur_span(&mut self) -> Span {
         let peek_begin = self.peek_span().get_begin();
         mk_sp(peek_begin, 0)
     }
