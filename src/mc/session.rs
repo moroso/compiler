@@ -87,7 +87,7 @@ impl Session {
 
         }
 
-        print!("{}", full_msg);
+        let _ = io::stderr().write_str(full_msg.as_slice());
     }
 
     pub fn message<T: Str>(&self, nid: NodeId, msg: T) {
@@ -96,7 +96,7 @@ impl Session {
 
     pub fn errors_fatal<T: Str>(&self, errors: &[(NodeId, T)]) -> ! {
         self.messages(errors);
-        println!("");
+        let _ = io::stderr().write_str("\n");
         fail!("Aborting")
     }
     pub fn error_fatal<T: Str>(&self, nid: NodeId, msg: T) -> ! {
