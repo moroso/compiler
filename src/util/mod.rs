@@ -7,8 +7,24 @@ pub mod lexer;
 
 // This represents an interned string/name/identifier. The mapping from strings
 // to Names and Names to strings is in the Interner (session.rs).
-#[deriving(Eq, Ord, PartialOrd, PartialEq, Clone, Show)]
+#[deriving(Eq, Ord, PartialOrd, PartialEq, Clone)]
 pub struct Name(pub uint);
+
+impl Show for Name {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        use mc::session::interner;
+
+        match interner.get() {
+            None => {
+                let Name(n) = *self;
+                write!(f, "<name #{}>", n)
+            }
+            Some(real_interner) => {
+                write!(f, "{}", real_interner.name_to_str(self))
+            }
+        }
+    }
+}
 
 #[deriving(Eq, Ord, PartialOrd, PartialEq, Clone)]
 pub enum Width {

@@ -15,6 +15,7 @@ use super::Target;
 
 use std::collections::{TreeMap, SmallIntMap, TreeSet};
 use std::io::stdio;
+use std::local_data::Ref;
 
 use std::io;
 
@@ -23,7 +24,7 @@ use ir::*;
 
 pub struct IRTarget;
 
-fn print_var(interner: &Interner, v: &Var) -> String {
+fn print_var(interner: &Ref<Interner>, v: &Var) -> String {
     format!("{}{}",
             interner.name_to_str(&v.name),
             match v.generation {
@@ -33,14 +34,14 @@ fn print_var(interner: &Interner, v: &Var) -> String {
             )
 }
 
-fn print_lvalue(interner: &Interner, lv: &LValue) -> String {
+fn print_lvalue(interner: &Ref<Interner>, lv: &LValue) -> String {
     match *lv {
         VarLValue(ref v) => print_var(interner, v),
         PtrLValue(ref v) => format!("*(int*){}", print_var(interner, v)),
     }
 }
 
-fn print_rvalelem(interner: &Interner, rve: &RValueElem) -> String {
+fn print_rvalelem(interner: &Ref<Interner>, rve: &RValueElem) -> String {
     match *rve {
         Variable(ref v) => print_var(interner, v),
         Constant(ref l) => {
@@ -52,7 +53,7 @@ fn print_rvalelem(interner: &Interner, rve: &RValueElem) -> String {
     }
 }
 
-fn print_rvalue(interner: &Interner, rv: &RValue) -> String {
+fn print_rvalue(interner: &Ref<Interner>, rv: &RValue) -> String {
     match *rv {
         BinOpRValue(ref op, ref v1, ref v2) => {
             format!("{} {} {}",
@@ -90,7 +91,7 @@ fn print_rvalue(interner: &Interner, rv: &RValue) -> String {
     }
 }
 
-fn assign_vars(interner: &Interner,
+fn assign_vars(interner: &Ref<Interner>,
                label: &TreeMap<Name, uint>,
                vars: &TreeSet<Var>) -> String {
     let mut s = "".to_string();
@@ -107,7 +108,7 @@ fn assign_vars(interner: &Interner,
 }
 
 impl IRTarget {
-    fn convert_function(&self, interner: &Interner, ops: &Vec<Op>) -> String {
+    fn convert_function(&self, interner: &Ref<Interner>, ops: &Vec<Op>) -> String {
         let mut s = "".to_string();
         let mut vars = TreeSet::new();
         let mut labels: SmallIntMap<TreeMap<Name, uint>> = SmallIntMap::new();

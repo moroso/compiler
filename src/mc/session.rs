@@ -8,8 +8,6 @@ use span::Span;
 use util::Name;
 use mc::ast::{NodeId, DUMMY_NODEID};
 
-
-
 use super::ast::Module;
 use super::ast::defmap::DefMap;
 use super::resolver::Resolver;
@@ -18,37 +16,45 @@ use super::lexer::new_mb_lexer;
 use super::ast::visit::Visitor;
 
 use std::collections::{HashMap, TreeMap};
+use std::cell::RefCell;
 
 use std::io;
+use std::local_data;
+
+local_data_key!(pub interner: Interner)
 
 pub struct Session {
     pub defmap: DefMap,
     pub resolver: Resolver,
     pub parser: Parser,
-    pub interner: Interner,
+    pub interner: local_data::Ref<Interner>,
 }
 
 pub struct Interner {
-    strings: HashMap<String, Name>,
+    strings: RefCell<HashMap<String, Name>>,
 }
 
 impl Interner {
     pub fn new() -> Interner {
-        Interner { strings: HashMap::new() }
+        Interner { strings: RefCell::new(HashMap::new()) }
     }
 
     pub fn name_to_str<'a>(&'a self, name: &Name) -> &'a str {
         // A BiMap would be nice here
-        for x in self.strings.iter() {
+        let strings = self.strings.borrow();
+        for x in strings.iter() {
             if x.val1() == name {
-                return x.val0().as_slice();
+                unsafe {
+                    use std::mem::copy_lifetime;
+                    return copy_lifetime(self, x.val0()).as_slice();
+                }
             }
         }
 
         fail!()
     }
 
-    pub fn intern(&mut self, s: String) -> Name {
+    pub fn intern(&self, s: String) -> Name {
         //match self.strings.find_equiv(&s) {
         //    Some(name) => *name,
         //    None => {
@@ -57,18 +63,26 @@ impl Interner {
         //        name
         //    }
         //}
-        let name = Name(self.strings.len());
-        *self.strings.find_or_insert(s, name)
+        let mut strings = self.strings.borrow_mut();
+        let name = Name(strings.len());
+        *strings.find_or_insert(s, name)
     }
 }
 
 impl Session {
     pub fn new() -> Session {
+        // XXX this is such a massive hack omg
+        if interner.get().is_none() {
+            interner.replace(Some(Interner::new()));
+        }
+
+        let interner_ref = interner.get().unwrap();
+
         Session {
             defmap: DefMap::new(),
             resolver: Resolver::new(),
             parser: Parser::new(),
-            interner: Interner::new(),
+            interner: interner_ref,
         }
     }
 
