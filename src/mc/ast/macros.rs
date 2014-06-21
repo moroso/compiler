@@ -24,9 +24,12 @@ impl Fn<ExpanderArgs, Vec<Token>> for Expander {
     }
 }
 
-pub struct MacroExpander<'a> {
-    session: &'a mut Session,
+pub struct MacroExpander {
     macros: TreeMap<Name, Expander>,
+}
+
+struct MacroExpanderVisitor<'a> {
+    session: &'a mut Session,
 }
 
 fn expand_concat(args: ExpanderArgs) -> Vec<Token> {
@@ -135,38 +138,49 @@ impl MacroCollector {
 
 impl MutVisitor for MacroCollector {
     fn visit_block(&mut self, block: &mut Block) {
-        self.filter_items(&mut block.val.items)
+        self.filter_items(&mut block.val.items);
+        walk_block(self, block);
     }
 
     fn visit_module(&mut self, module: &mut Module) {
-        self.filter_items(&mut module.val.items)
+        self.filter_items(&mut module.val.items);
+        walk_module(self, module);
     }
 }
 
-impl<'a> MacroExpander<'a> {
-    pub fn expand_macros(session: &'a mut Session, module: &mut Module) {
+impl MacroExpander {
+    pub fn new() -> MacroExpander {
+        use tls_interner = mc::session::interner;
+
+        let interner = tls_interner.get().unwrap();
         let mut macros = TreeMap::new();
+
         for &(s, e) in builtin_macros.iter() {
-            let name = session.interner.intern(String::from_str(s));
+            let name = interner.intern(String::from_str(s));
             macros.insert(name, Expander(box FnWrapper(e)));
         }
 
+        MacroExpander {
+            macros: macros
+        }
+    }
+
+    pub fn expand_macros(session: &mut Session, module: &mut Module) {
         let user_macros = MacroCollector::collect(module);
         for def in user_macros.move_iter() {
             let name = def.val.name;
-            macros.insert(name, Expander(box def));
+            session.expander.macros.insert(name, Expander(box def));
         }
 
-        let mut expander = MacroExpander {
+        let mut visitor = MacroExpanderVisitor {
             session: session,
-            macros: macros,
         };
 
-        expander.visit_module(module);
+        visitor.visit_module(module);
     }
 }
 
-impl<'a> MutVisitor for MacroExpander<'a> {
+impl<'a> MutVisitor for MacroExpanderVisitor<'a> {
     fn visit_expr(&mut self, expr: &mut Expr) {
         use util::lexer::SourceToken;
         use mc::parser::{Parser, StreamParser};
@@ -175,17 +189,22 @@ impl<'a> MutVisitor for MacroExpander<'a> {
             MacroExpr(name, ref mut args) => {
                 let mut my_args = vec!();
                 swap(&mut my_args, args);
-                let expand = self.macros.find(&name).expect(format!("Macro {}! is undefined", name).as_slice());
 
                 let span = self.session.parser.span_of(&expr.id);
                 let filename = self.session.parser.filename_of(&expr.id);
-                let toks = expand.call((my_args,)); // TODO use the call operator instead of the method
+
+                let toks = {
+                    let expand = self.session.expander.macros.find(&name).expect(format!("Macro {}! is undefined", name).as_slice());
+                    expand.call((my_args,)) // TODO use the call operator instead of the method
+                };
+
                 let stream = toks.move_iter().map(|t| SourceToken { sp: span, tok: t });
                 Parser::parse_stream(self.session, filename, stream, |p| p.parse_expr())
             }
-            _ => return,
+            _ => return walk_expr(self, expr),
         };
 
+        self.visit_expr(&mut new_expr);
         ::std::mem::swap(&mut new_expr, expr);
     }
 }

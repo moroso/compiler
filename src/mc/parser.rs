@@ -296,7 +296,13 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn error<'a, T: Str>(&self, message: T, pos: SourcePos) -> ! {
-        fail!("\n{}\nat {}", message.as_slice(), pos)
+        let path = {
+            let base = self.session.interner.name_to_str(&self.name);
+            ::std::os::make_absolute(&::std::path::Path::new(base))
+        };
+
+        println!("Parse error: {}\n    at {} {}", message.as_slice(), path.display(), pos);
+        fail!()
     }
 
     /// A convenience function to generate an error message when we've
@@ -972,6 +978,38 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         tokens
     }
 
+    fn eat_macro_token_tree(&mut self, args: &TreeSet<Name>) -> Vec<MacroToken> {
+        let mut tokens = vec!();
+
+        macro_rules! get_token_tree {
+            ($l:expr, $r:expr) => ({
+                tokens.push(MacroTok($l));
+                while *self.peek() != $r {
+                    tokens.push_all_move(self.eat_macro_token_tree(args));
+                }
+                self.expect($r);
+                tokens.push(MacroTok($r));
+            })
+        }
+
+        match self.eat() {
+            LParen   => get_token_tree!(LParen, RParen),
+            LBrace   => get_token_tree!(LBrace, RBrace),
+            LBracket => get_token_tree!(LBracket, RBracket),
+            Dollar => {
+                let name = self.parse_name();
+                if args.contains(&name) {
+                    tokens.push(MacroVar(name));
+                } else {
+                    fail!("No such argument `${}`", name);
+                }
+            }
+            t => tokens.push(MacroTok(t)),
+        }
+
+        tokens
+    }
+
     fn parse_macro_expr_arg(&mut self) -> Vec<Token> {
         let mut tokens = vec!();
         while match *self.peek() { Comma | RParen => false, _ => true } {
@@ -1319,7 +1357,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     fn parse_mod_item(&mut self) -> Item {
         let start_span = self.cur_span();
         self.expect(Mod);
-        let name = self.parse_ident();
+        let ident = self.parse_ident();
         let module = match *self.peek() {
             LBrace => {
                 self.expect(LBrace);
@@ -1328,12 +1366,35 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                 module
             }
             Semicolon => {
-                fail!("not ready yet")
+                self.expect(Semicolon);
+                let file = {
+                    let name = self.session.interner.name_to_str(&ident.val.name);
+
+                    let filename1 = ::std::path::Path::new(format!("{}.mb", name));
+                    let filename2 = ::std::path::Path::new(format!("{}/mod.mb", name));
+
+                    let filename = match (filename1.exists(), filename2.exists()) {
+                        (true,  true)  => self.error(format!("ambiguous module name: both {} and {} exist.",
+                                                             filename1.display(), filename2.display()),
+                                                     start_span.get_begin()),
+                        (false, false) => self.error(format!("no such module: neither {} nor {} exist.",
+                                                             filename1.display(), filename2.display()),
+                                                     start_span.get_begin()),
+                        (true,  false) => filename1,
+                        (false, true)  => filename2,
+                    };
+
+                    ::std::io::File::open(&filename).unwrap_or_else(|e| {
+                        self.error(format!("failed to open {}: {}", filename.display(), e), start_span.get_begin())
+                    })
+                };
+
+                self.session.parse_file(file)
             }
             _ => self.peek_error("Expected opening brace or semicolon"),
         };
         let end_span = self.cur_span();
-        self.add_id_and_span(ModItem(name, module), start_span.to(end_span))
+        self.add_id_and_span(ModItem(ident, module), start_span.to(end_span))
     }
 
     fn parse_static_decl(&mut self) -> StaticDecl {
@@ -1384,18 +1445,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
         let mut body = vec!();
         while *self.peek() != RBrace {
-            match *self.peek() {
-                Dollar => {
-                    self.expect(Dollar);
-                    let name = self.parse_name();
-                    if args_map.contains(&name) {
-                        body.push(MacroVar(name));
-                    } else {
-                        fail!("No such argument `${}`", name);
-                    }
-                }
-                _ => body.push(MacroTok(self.eat())),
-            }
+            body.push_all_move(self.eat_macro_token_tree(&args_map));
         }
 
         self.expect(RBrace);

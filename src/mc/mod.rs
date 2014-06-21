@@ -26,7 +26,7 @@ impl Target for NullTarget {
 }
 
 fn package_from_stdin() -> Package {
-    Package::new("<stdin>", stdio::stdin())
+    Package::from_buffer("<stdin>", stdio::stdin())
 }
 
 fn new_target<T: Target>(args: Vec<String>) -> T {
@@ -103,8 +103,7 @@ pub fn main() {
     } else {
         let path = Path::new(name);
         let file = File::open(&path).unwrap_or_else(|e| fail!("{}", e));
-        let buffer = BufferedReader::new(file);
-        Package::new(name, buffer)
+        Package::from_file(file)
     };
 
     target.compile(package);
@@ -121,7 +120,7 @@ mod tests {
         use std::io;
         let bytes = Vec::from_slice(s.as_bytes());
         let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
-        Package::new("<input>", buffer)
+        Package::from_buffer("<input>", buffer)
     }
 
     #[test]

@@ -1,45 +1,141 @@
-#include "list.mh"
+// Modeled after Linux's list.h
+// Needs the C preprocessor. container_of is pretty necessary for
+// the whole scheme. The other macros are just convenient.
 
-///////////////// Testing
-
-fn print_newline() { print_char(10); }
-
-struct nobe {
-    n: u32,
-    link: list_node
+// Generic defines
+macro offset_of!(st, m) {
+    (&(null as *$st)->$m) as u32
 }
 
-fn print_list(head: *list_head) {
-    let p: *nobe;
-    list_foreach_entry(p, head, nobe, link) {
-        print_uint(p->n);
+macro container_of!(ptr, ty, member) {
+    (($ptr as u32) - offset_of!($ty, $member)) as *$ty
+}
+
+// Now our actual code
+
+macro list_entry!(ptr, ty, member) {
+    container_of!($ptr, $ty, $member)
+}
+
+fn list_insert_head(n: *list_node, n1: *list_node) {
+    list_insert_after(n, n1)
+}
+
+fn list_insert_tail(n: *list_node, n1: *list_node) {
+    list_insert_before(n, n1)
+}
+
+// These functions should only be used if the results are known to be
+// well defined.
+macro list_head_entry_!(head, typ, link) {
+    container_of!(($head)->next, $typ, $link)
+}
+
+macro list_tail_entry_!(head, typ, link) {
+    container_of!(($head)->prev, $typ, $link)
+}
+
+macro list_next_entry_!(node, typ, link) {
+    container_of!(($node)->$link.next, $typ, $link)
+}
+
+macro list_prev_entry_!(node, typ, link) {
+    container_of!(($node)->$link.prev, $typ, $link)
+}
+
+// Versions that return NULL when needed
+macro list_head_entry!(head, typ, link) {
+    if list_is_empty($head) {
+        null
+    } else {
+        list_head_entry_!($head, $typ, $link)
     }
-    print_newline();
 }
 
-fn main() -> i32 {
-    let head: list_head;
-    let x1: nobe; let x2: nobe; let x3: nobe; let x4: nobe;
-    x1.n = 1; x2.n = 2; x3.n = 3; x4.n = 4;
-
-    list_init_head(&head);
-
-    // Build a simple list.
-    list_insert_tail(&x1.link, &head);
-    list_insert_tail(&x2.link, &head);
-    list_insert_tail(&x3.link, &head);
-    list_insert_tail(&x4.link, &head);
-
-    print_list(&head);
-
-    // Modify it some.
-    list_del(&x3.link);
-    list_insert_head(&x3.link, &head);
-
-    print_list(&head);
-
-    let p: *nobe = list_head_entry(&head, nobe, link);
-    let p1: *nobe = list_next_entry(&head, p, nobe, link);
-
-    0
+macro list_tail_entry!(head, typ, link) {
+    if list_is_empty($head) {
+        null
+    } else {
+        list_tail_entry_!($head, $typ, $link)
+    }
 }
+
+macro list_next_entry!(head, node, typ, link) {
+    if ($node)->$link.next == ($head) {
+        null
+    } else {
+        list_next_entry_!($node, $typ, $link)
+    }
+}
+
+macro list_prev_entry!(head, node, typ, link) {
+    if ($node)->$link.prev == ($head) {
+        null
+    } else {
+        list_prev_entry_!($node, $typ, $link)
+    }
+}
+
+// If we had typeof we could drop the typ argument.
+macro list_foreach_entry!(cur, head, typ, link, body) {
+    for ($cur = list_head_entry_!($head, $typ, $link);
+         &$cur->$link != $head;
+         $cur = list_next_entry_!($cur, $typ, $link)) {
+        $body
+    }
+}
+
+macro LIST_HEAD_INIT!(name) {
+    list_node { next: &$name, prev: &$name }
+}
+
+// ???
+macro LIST_NODE!(name) {
+    list_node { next: null, prev: null }
+}
+
+struct list_node {
+    next: *list_node,
+    prev: *list_node
+}
+
+fn list_init_head(head: *list_node) {
+    head->next = head;
+    head->prev = head;
+}
+fn list_init_node(head: *list_node) {
+    head->next = null;
+    head->prev = null;
+}
+
+fn __list_insert_between(n: *list_node, n1: *list_node, n2: *list_node) {
+    n->prev = n1;
+    n->next = n2;
+    n1->next = n;
+    n2->prev = n;
+}
+
+fn list_insert_after(n: *list_node, n1: *list_node) {
+    __list_insert_between(n, n1, n1->next);
+}
+fn list_insert_before(n: *list_node, n1: *list_node) {
+    __list_insert_between(n, n1->prev, n1);
+}
+
+fn list_del(n: *list_node) {
+    n->next->prev = n->prev;
+    n->prev->next = n->next;
+    // To help catch bugs.
+    n->next = null as *list_node;
+    n->prev = null as *list_node;
+}
+
+fn list_is_empty(n: *list_node) -> bool {
+    n->next == n
+}
+fn list_is_singleton(n: *list_node) -> bool {
+    n->next == n->prev && n != n->next
+}
+
+
+#endif

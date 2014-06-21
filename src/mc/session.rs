@@ -28,6 +28,7 @@ pub struct Session {
     pub defmap: DefMap,
     pub resolver: Resolver,
     pub parser: Parser,
+    pub expander: MacroExpander,
     pub interner: local_data::Ref<Interner>,
 }
 
@@ -83,6 +84,7 @@ impl Session {
             defmap: DefMap::new(),
             resolver: Resolver::new(),
             parser: Parser::new(),
+            expander: MacroExpander::new(),
             interner: interner_ref,
         }
     }
@@ -151,7 +153,12 @@ impl Session {
 
     pub fn parse_file(&mut self, file: io::File) -> Module {
         let filename = format!("{}", file.path().display());
-        self.parse_buffer(filename, io::BufferedReader::new(file))
+        let cwd = ::std::os::getcwd();
+        let new_wd = ::std::os::make_absolute(file.path()).dir_path();
+        ::std::os::change_dir(&new_wd);
+        let module = self.parse_buffer(filename, io::BufferedReader::new(file));
+        ::std::os::change_dir(&cwd);
+        module
     }
 
     pub fn parse_str(&mut self, s: &str) -> Module {

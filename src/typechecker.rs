@@ -810,7 +810,7 @@ impl<'a> Typechecker<'a> {
                 }
                 ty
             }
-            MacroExpr(..) => unreachable!(),
+            MacroExpr(..) => fail!(),
         })
     }
 
