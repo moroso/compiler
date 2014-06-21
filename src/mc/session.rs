@@ -6,7 +6,7 @@
 
 use span::Span;
 use util::Name;
-use mc::ast::{NodeId, DUMMY_NODEID};
+use mc::ast::NodeId;
 
 use super::ast::Module;
 use super::ast::defmap::DefMap;
@@ -91,13 +91,9 @@ impl Session {
         for &(nid, ref msg) in errors.iter() {
             full_msg.push_str(msg.as_slice());
             full_msg.push_char('\n');
-            if nid != DUMMY_NODEID {
-                let fname = self.interner.name_to_str(&self.parser.filename_of(&nid));
-                full_msg.push_str(
-                    format!("   {}: {}\n", fname, self.parser.span_of(&nid)).as_slice());
-            };
-
-
+            let fname = self.interner.name_to_str(&self.parser.filename_of(&nid));
+            full_msg.push_str(
+                format!("   {}: {}\n", fname, self.parser.span_of(&nid)).as_slice());
         }
 
         let _ = io::stderr().write_str(full_msg.as_slice());
@@ -115,8 +111,9 @@ impl Session {
     pub fn error_fatal<T: Str>(&self, nid: NodeId, msg: T) -> ! {
         self.errors_fatal([(nid, msg)]);
     }
-    pub fn error<T: Str>(&self, nid: NodeId, msg: T) {
-        // For now everything is fatal.
+
+    // For now everything is fatal.
+    pub fn error<T: Str>(&self, nid: NodeId, msg: T) -> ! {
         self.error_fatal(nid, msg);
     }
 

@@ -54,8 +54,6 @@ impl NodeId {
     }
 }
 
-pub static DUMMY_NODEID: NodeId = NodeId(0);
-
 // This is a fully-type-applied reference to an identifier.
 // e.g. "foo::<int,int*>"
 #[deriving(Eq, PartialEq, Clone)]

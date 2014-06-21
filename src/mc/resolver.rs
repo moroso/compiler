@@ -193,7 +193,6 @@ impl<'a> ModuleResolver<'a> {
                            self.session.interner.name_to_str(&e.val.name))).collect();
                 self.session.error(path.id,
                                    format!("Unresolved name `{}`", elems.connect("::")));
-                DUMMY_NODEID
             }
         }
     }
