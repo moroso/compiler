@@ -23,7 +23,7 @@ use util::Name;
 use super::session::Session;
 
 use std::{io, mem, num, vec};
-use std::collections::{HashMap, TreeMap};
+use std::collections::{HashMap, TreeMap, TreeSet};
 use std::iter::Peekable;
 
 use super::ast::*;
@@ -50,7 +50,9 @@ pub struct Parser {
 /// The state for parsing a stream of tokens into an AST node
 pub struct StreamParser<'a, T> {
     /// The token stream.
-    tokens: Peekable<SourceToken<Token>, Lexer<T, Token>>,
+    tokens: T,
+    /// The next token in the stream
+    next: Option<SourceToken<Token>>,
     /// The name of the current stream being parsed.
     name: Name,
     /// The span corresponding to the last token we consumed from the stream.
@@ -154,7 +156,7 @@ fn binop_token(op: BinOpNode) -> Token {
 }
 
 // Convenience function for testing
-pub fn ast_from_str<U>(s: &str, f: |&mut StreamParser<io::BufferedReader<io::MemReader>>| -> U) -> (Session, U) {
+pub fn ast_from_str<U>(s: &str, f: |&mut StreamParser<Lexer<::std::io::BufferedReader<::std::io::MemReader>, Token>>| -> U) -> (Session, U) {
     let mut session = Session::new();
     let tree = Parser::parse_with(&mut session, lexer_from_str(s), f);
     (session, tree)
@@ -191,15 +193,24 @@ impl Parser {
 
     pub fn parse_with<T: Buffer, U>(session: &mut Session,
                                     lexer: Lexer<T, Token>,
-                                    f: |&mut StreamParser<T>| -> U) -> U {
-        let mut tokp = StreamParser::new(session, lexer);
+                                    f: |&mut StreamParser<Lexer<T, Token>>| -> U) -> U {
+        let name = session.interner.intern(lexer.get_name());
+        let mut tokp = StreamParser::new(session, name, lexer);
+        f(&mut tokp)
+    }
+
+    pub fn parse_stream<T: Iterator<SourceToken<Token>>, U>(session: &mut Session,
+                                                            name: Name,
+                                                            tokens: T,
+                                                            f: |&mut StreamParser<T>| -> U) -> U {
+        let mut tokp = StreamParser::new(session, name, tokens);
         f(&mut tokp)
     }
 }
 
 impl OpTable {
-    fn parse_expr<'a, T: Buffer>(&self, parser: &mut StreamParser<'a, T>) -> Expr {
-        fn parse_row<'a, T: Buffer>(r: uint, rows: &[OpTableRow], parser: &mut StreamParser<'a, T>) -> Expr {
+    fn parse_expr<'a, T: Iterator<SourceToken<Token>>>(&self, parser: &mut StreamParser<'a, T>) -> Expr {
+        fn parse_row<'a, T: Iterator<SourceToken<Token>>>(r: uint, rows: &[OpTableRow], parser: &mut StreamParser<'a, T>) -> Expr {
             if r == 0 {
                 parser.parse_unop_expr_maybe_cast()
             } else {
@@ -215,13 +226,11 @@ impl OpTable {
     }
 }
 
-impl<'a, T: Buffer> StreamParser<'a, T> {
-    fn new(session: &'a mut Session, lexer: Lexer<T, Token>) -> StreamParser<'a, T> {
-        let name = session.interner.intern(lexer.get_name());
-        let tokens = lexer.peekable();
-
+impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
+    fn new(session: &'a mut Session, name: Name, tokens: T) -> StreamParser<'a, T> {
         StreamParser {
             name: name,
+            next: None,
             tokens: tokens,
             session: session,
             last_span: mk_sp(SourcePos::new(), 0),
@@ -236,32 +245,42 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         mk_sp(peek_begin, 0)
     }
 
-    /// Peek at the Span of the next token.
-    fn peek_span(&mut self) -> Span {
-        match self.tokens.peek() {
-            Some(st) => st.sp,
-            None => fail!("At EOF."),
+    fn advance(&mut self) {
+        self.next = self.tokens.next();
+
+        if self.next.is_none() {
+            fail!("Tried to advance past EOF")
         }
     }
 
     /// "Peek" at the next token, returning the token, without consuming
     /// it from the stream.
     fn peek<'a>(&'a mut self) -> &'a Token {
-        match self.tokens.peek() {
-            Some(st) => &st.tok,
-            None => fail!("Tried to peek past EOF"),
+        if self.next.is_none() {
+            self.advance();
         }
+
+        self.next.as_ref().map(|st| &st.tok).unwrap()
+    }
+
+    /// Peek at the Span of the next token.
+    fn peek_span(&mut self) -> Span {
+        if self.next.is_none() {
+            self.advance();
+        }
+
+        self.next.as_ref().map(|st| st.sp).unwrap()
     }
 
     /// Consume the next token from the stream, returning it.
     fn eat(&mut self) -> Token {
-        match self.tokens.next() {
-            Some(st) => {
-                self.last_span = st.sp;
-                st.tok
-            }
-            None => fail!("Tried to read past EOF"),
+        if self.next.is_none() {
+            self.advance();
         }
+
+        let st = self.next.take_unwrap();
+        self.last_span = st.sp;
+        st.tok
     }
 
     /// Consume one token from the stream, erroring if it's not
@@ -741,7 +760,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
     }
 
     fn parse_unop_expr_maybe_cast(&mut self) -> Expr {
-        fn maybe_parse_cast<'a, T: Buffer>(p: &mut StreamParser<'a, T>, expr: Expr, start_span: Span) -> Expr {
+        fn maybe_parse_cast<'a, T: Iterator<SourceToken<Token>>>(p: &mut StreamParser<'a, T>, expr: Expr, start_span: Span) -> Expr {
             match *p.peek() {
                 As => {
                     p.expect(As);
@@ -929,6 +948,54 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
         self.add_id_and_span(ContinueExpr, span)
     }
 
+    fn eat_token_tree(&mut self) -> Vec<Token> {
+        let mut tokens = vec!();
+
+        macro_rules! get_token_tree {
+            ($l:expr, $r:expr) => ({
+                tokens.push($l);
+                while *self.peek() != $r {
+                    tokens.push_all_move(self.eat_token_tree());
+                }
+                self.expect($r);
+                tokens.push($r);
+            })
+        }
+
+        match self.eat() {
+            LParen   => get_token_tree!(LParen, RParen),
+            LBrace   => get_token_tree!(LBrace, RBrace),
+            LBracket => get_token_tree!(LBracket, RBracket),
+            t => tokens.push(t),
+        }
+
+        tokens
+    }
+
+    fn parse_macro_expr_arg(&mut self) -> Vec<Token> {
+        let mut tokens = vec!();
+        while match *self.peek() { Comma | RParen => false, _ => true } {
+            tokens.push_all_move(self.eat_token_tree())
+        }
+
+        tokens
+    }
+
+    fn parse_macro_expr(&mut self) -> Expr {
+        let start_span = self.cur_span(); 
+        let name = match self.eat() {
+            IdentBangTok(name) => self.session.interner.intern(name),
+            _ => unreachable!(),
+        };
+
+        self.expect(LParen);
+        let args = self.parse_list(|p| p.parse_macro_expr_arg(), RParen, false);
+        self.expect(RParen);
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(MacroExpr(name, args), start_span.to(end_span))
+    }
+
     fn parse_simple_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
         let peek_next_expr_parser = |p: &mut StreamParser<'a, T>| match *p.peek() {
@@ -948,6 +1015,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                     let end_span = p.cur_span();
                     p.add_id_and_span(node, start_span.to(end_span))
                 }),
+                IdentBangTok(..) => Some(|p: &mut StreamParser<'a, T>| p.parse_macro_expr()),
                 _ => None,
             };
 
@@ -1226,7 +1294,8 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                         use_items.push(self.parse_use_item())
                     }
                 }
-                Fn | Static | Enum | Struct | Mod | Extern => items.push(self.parse_item()),
+                Fn | Static | Extern |
+                Enum | Struct | Mod | Macro => items.push(self.parse_item()),
                 _ => {
                     unmatched(self);
                 }
@@ -1292,6 +1361,55 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
                              start_span.to(end_span))
     }
 
+    fn parse_macro_item(&mut self) -> Item {
+        let start_span = self.cur_span();
+        self.expect(Macro);
+        let name = match self.eat() {
+            IdentBangTok(name) => self.session.interner.intern(name),
+            tok => self.error(format!("Expected macro identifier, found {}", tok),
+                              self.last_span.get_begin())
+        };
+
+        self.expect(LParen);
+
+        let args = self.parse_list(|me| me.parse_name(), RParen, false);
+
+        let mut args_map = TreeSet::new();
+        for arg in args.iter() {
+            args_map.insert(*arg);
+        }
+
+        self.expect(RParen);
+        self.expect(LBrace);
+
+        let mut body = vec!();
+        while *self.peek() != RBrace {
+            match *self.peek() {
+                Dollar => {
+                    self.expect(Dollar);
+                    let name = self.parse_name();
+                    if args_map.contains(&name) {
+                        body.push(MacroVar(name));
+                    } else {
+                        fail!("No such argument `${}`", name);
+                    }
+                }
+                _ => body.push(MacroTok(self.eat())),
+            }
+        }
+
+        self.expect(RBrace);
+        let end_span = self.cur_span();
+
+        let def = MacroDef {
+            name: name,
+            args: args,
+            body: body,
+        };
+
+        self.add_id_and_span(MacroDefItem(def), start_span.to(end_span))
+    }
+
     fn parse_item(&mut self) -> Item {
         match *self.peek() {
             Fn => self.parse_func_item(),
@@ -1300,6 +1418,7 @@ impl<'a, T: Buffer> StreamParser<'a, T> {
             Mod => self.parse_mod_item(),
             Static => self.parse_static_item(),
             Extern => self.parse_extern_item(),
+            Macro => self.parse_macro_item(),
             _ => self.peek_error("Expected an item definition (fn, struct, enum, mod)"),
         }
     }

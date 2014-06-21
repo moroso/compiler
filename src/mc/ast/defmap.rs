@@ -5,7 +5,7 @@ use std::fmt;
 use std::fmt::{Formatter, Show};
 use std::collections::TreeMap;
 
-use super::visit::*;
+use super::visitor::*;
 use super::*;
 
 /// DefMap maps a NodeId to a Def, where a Def is anything that can be defined
@@ -196,6 +196,7 @@ impl<'a> Visitor for DefMapVisitor<'a> {
                 let path_qn = path.val.elems.iter().map(|e| e.val.name).collect();
                 self.session.defmap.table.insert(ident.id, UseDef(qn, path_qn));
             }
+            _ => {}
         }
     }
 }
@@ -204,7 +205,7 @@ impl<'a> Visitor for DefMapVisitor<'a> {
 mod tests {
     use super::DefMap;
     use mc::ast::NodeId;
-    use mc::ast::visit::Visitor;
+    use mc::ast::visitor::Visitor;
     use mc::parser::ast_from_str;
     use std::collections::TreeMap;
 

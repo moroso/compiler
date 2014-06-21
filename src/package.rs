@@ -1,5 +1,5 @@
 use mc::ast::Module;
-use mc::ast::visit::Visitor;
+use mc::ast::visitor::Visitor;
 use mc::session::Session;
 use typechecker::{Typechecker, Typemap};
 

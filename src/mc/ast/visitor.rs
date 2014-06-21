@@ -48,6 +48,7 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
         UseItem(ref path) => {
             visitor.visit_path(path);
         }
+        MacroDefItem(..) => {}
     }
 }
 
@@ -218,6 +219,7 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
                 visitor.visit_match_arm(arm);
             }
         }
+        MacroExpr(..) => {}
     }
 }
 

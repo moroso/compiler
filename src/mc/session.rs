@@ -13,7 +13,8 @@ use super::ast::defmap::DefMap;
 use super::resolver::Resolver;
 use super::parser::Parser;
 use super::lexer::new_mb_lexer;
-use super::ast::visit::Visitor;
+use super::ast::visitor::Visitor;
+use super::ast::macros::MacroExpander;
 
 use std::collections::{HashMap, TreeMap};
 use std::cell::RefCell;
@@ -142,6 +143,7 @@ impl Session {
         let lexer = new_mb_lexer(name, buffer);
         let mut module = Parser::parse(self, lexer);
         self.inject_prelude(&mut module);
+        MacroExpander::expand_macros(self, &mut module);
         DefMap::record(self, &module);
         Resolver::resolve(self, &module);
         module

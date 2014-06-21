@@ -1,4 +1,4 @@
-#![feature(globs,phase,macro_rules)]
+#![feature(globs,phase,macro_rules,overloaded_calls)]
 #![allow(dead_code,unused_imports)]
 
 #[phase(plugin)]

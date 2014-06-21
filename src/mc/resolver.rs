@@ -5,7 +5,7 @@ use util::Name;
 use std::collections::{SmallIntMap, TreeMap};
 
 use mc::ast::*;
-use mc::ast::visit::*;
+use mc::ast::visitor::*;
 
 //#[allow(non_camel_case_types)] leaving the warning so we remember to patch rust later
 pub enum NS {
@@ -68,7 +68,7 @@ impl Subscope {
                 StaticItem(ref ident, _, _) => {
                     self.insert_ident(ValNS, ident);
                 }
-                UseItem(..) => {}
+                _ => {}
             }
         }
     }
@@ -421,6 +421,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
                 // Put the child module's scope back in the tree
                 self.tree.swap(ident.id, OffBranch(scope.pop().unwrap()));
             }
+            _ => {}
         }
     }
 }
@@ -430,7 +431,7 @@ mod tests {
     use super::Resolver;
     use super::super::session::Session;
     use super::super::ast::NodeId;
-    use super::super::ast::visit::Visitor;
+    use super::super::ast::visitor::Visitor;
     use super::super::parser::ast_from_str;
     use std::collections::TreeMap;
 

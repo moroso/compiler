@@ -140,7 +140,7 @@ pub fn offset_of(sizes: &Vec<u64>, item: uint) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use mc::ast::visit::Visitor;
+    use mc::ast::visitor::Visitor;
     use mc::ast::NodeId;
     use mc::lexer::{Lexer, new_mb_lexer};
     use mc::parser::Parser;

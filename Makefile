@@ -25,8 +25,10 @@ MC_FILES := \
 	mas/parser.rs \
 	mas/util.rs \
 	mc/ast/defmap.rs \
+	mc/ast/macros.rs \
 	mc/ast/mod.rs \
-	mc/ast/visit.rs \
+	mc/ast/mut_visitor.rs \
+	mc/ast/visitor.rs \
 	mc/mod.rs \
 	mc/lexer.rs \
 	mc/parser.rs \

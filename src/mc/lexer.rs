@@ -35,6 +35,7 @@ pub enum Token {
     Static,
     Extern,
     Use,
+    Macro,
 
     // Symbols
     LParen,
@@ -83,9 +84,11 @@ pub enum Token {
     LshEq,
     RshEq,
     PercentEq,
+    Dollar,
 
     // Literals
     IdentTok(String),
+    IdentBangTok(String),
     NumberTok(u64, IntKind),
     StringTok(String),
 
@@ -184,6 +187,21 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
     }
 }
 
+// Rule to match a name followed by a Bang and strip off the trailing Bang
+struct IdentBangRule;
+impl RuleMatcher<String> for IdentBangRule {
+    fn find(&self, s: &str) -> Option<(uint, String)> {
+        let matcher = matcher!(r"([a-zA-Z_]\w*)!");
+        match matcher.captures(s) {
+           Some(groups) => {
+                let t = groups.at(0);
+                Some((t.len(), String::from_str(groups.at(1))))
+           },
+            _ => None
+        }
+    }
+}
+
 // Rule to match a string literal and strip off the surrounding quotes
 struct StringRule;
 impl RuleMatcher<String> for StringRule {
@@ -238,6 +256,7 @@ pub fn new_mb_lexer<S: StrAllocating, B: Buffer>(name: S, buffer: B) -> Lexer<B,
             Static       => "static",
             Extern       => "extern",
             Use          => "use",
+            Macro        => "macro",
 
             // Basic types; TODO: add more.
             IntTypeTok   => IntTypeRule,
@@ -290,9 +309,11 @@ pub fn new_mb_lexer<S: StrAllocating, B: Buffer>(name: S, buffer: B) -> Lexer<B,
             LshEq        => "<<=",
             RshEq        => ">>=",
             PercentEq    => "%=",
+            Dollar       => "$",
 
             // Literals
             IdentTok     => matcher!(r"[a-zA-Z_]\w*"),
+            IdentBangTok => IdentBangRule,
             NumberTok    => NumberRule,
             StringTok    => StringRule
         },

@@ -1,6 +1,6 @@
 use mc::lexer::Lexer;
 use mc::parser::Parser;
-use mc::ast::visit::{Visitor, walk_module};
+use mc::ast::visitor::Visitor;
 use mc::resolver::Resolver;
 use mc::session::Session;
 
@@ -218,6 +218,7 @@ impl CCrossCompiler {
                 }
             }
             ModItem(..) => fail!("ModItem not supported yet"),
+            MacroDefItem(..) => unreachable!(),
         }
     }
 
@@ -497,6 +498,7 @@ impl CCrossCompiler {
                             overall_type_name, expr, arms)
                 }
             }
+            MacroExpr(..) => unreachable!(),
         }
     }
 

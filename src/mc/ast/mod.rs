@@ -1,10 +1,13 @@
 use util::{IntKind, Name, Width};
+use super::lexer::Token;
 
 use std::fmt;
 use std::fmt::{Formatter, Show};
 
-pub mod visit;
+pub mod visitor;
+pub mod mut_visitor;
 pub mod defmap;
+pub mod macros;
 
 #[deriving(Clone, Eq)]
 pub struct WithId<T> {
@@ -276,6 +279,7 @@ pub enum ExprNode {
     WhileExpr(Box<Expr>, Box<Block>),
     ForExpr(Box<Expr>, Box<Expr>, Box<Expr>, Box<Block>),
     MatchExpr(Box<Expr>, Vec<MatchArm>),
+    MacroExpr(Name, Vec<Vec<Token>>),
 }
 
 impl Show for ExprNode {
@@ -309,6 +313,7 @@ impl Show for ExprNode {
                 }
                 write!(f, "{}", "}")
             }
+            MacroExpr(n, ref args) => write!(f, "{}!({})", n, args),
         }
     }
 }
@@ -409,6 +414,25 @@ impl Show for Field {
     }
 }
 
+#[deriving(Clone, Show, Eq, PartialEq)]
+pub enum MacroToken {
+    MacroTok(Token),
+    MacroVar(Name),
+}
+
+#[deriving(Clone, Show, Eq, PartialEq)]
+pub struct MacroDef {
+    pub name: Name,
+    pub args: Vec<Name>,
+    pub body: Vec<MacroToken>,
+}
+
+impl MacroDef {
+    pub fn with_id(self, nid: NodeId) -> WithId<MacroDef> {
+        WithId { id: nid, val: self }
+    }
+}
+
 #[deriving(Eq, PartialEq, Clone)]
 pub enum ItemNode {
     FuncItem(Ident, Vec<FuncArg>, Type, Option<Block>, Vec<Ident>),
@@ -417,6 +441,7 @@ pub enum ItemNode {
     ModItem(Ident, Module),
     StaticItem(Ident, Type, Option<Expr>),
     UseItem(Path),
+    MacroDefItem(MacroDef),
 }
 
 impl Show for ItemNode {
@@ -468,6 +493,7 @@ impl Show for ItemNode {
             UseItem(ref path) => {
                 write!(f, "use {};", path)
             }
+            MacroDefItem(ref def) => write!(f, "macro {}", def),
         }
     }
 }

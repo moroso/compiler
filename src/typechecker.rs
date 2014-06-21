@@ -11,7 +11,7 @@ use std::fmt;
 
 use mc::ast::*;
 use mc::ast::defmap::*;
-use mc::ast::visit::*;
+use mc::ast::visitor::*;
 
 #[deriving(Eq, PartialEq, Show, Clone)]
 struct BoundsId(uint);
@@ -810,6 +810,7 @@ impl<'a> Typechecker<'a> {
                 }
                 ty
             }
+            MacroExpr(..) => unreachable!(),
         })
     }
 
@@ -1217,6 +1218,7 @@ impl<'a> Visitor for Typechecker<'a> {
                     }
                 })
             }
+            MacroDefItem(..) => unreachable!(),
         }
     }
 }
@@ -1224,7 +1226,7 @@ impl<'a> Visitor for Typechecker<'a> {
 #[cfg(test)]
 mod tests {
     use mc::ast::NodeId;
-    use mc::ast::visit::Visitor;
+    use mc::ast::visitor::Visitor;
     use mc::parser::ast_from_str;
     use mc::session::Session;
 
