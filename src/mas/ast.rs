@@ -264,6 +264,13 @@ pub enum InstNode {
             Reg, // Rd
             CoReg
             ),
+    EretInst(Pred),
+    MthiInst(Pred,
+             Reg // Rs
+             ),
+    MfhiInst(Pred,
+             Reg // Rd
+             ),
 }
 
 fn assert_pred(pred: Pred) {
@@ -544,6 +551,25 @@ impl InstNode {
         MfcInst(pred,
                 rd,
                 coreg)
+    }
+    pub fn eret(pred: Pred
+                ) -> InstNode {
+        assert_pred(pred);
+        EretInst(pred)
+    }
+    pub fn mfhi(pred: Pred,
+                rd: Reg
+                ) -> InstNode {
+        assert_pred(pred);
+        assert_reg(rd);
+        MfhiInst(pred, rd)
+    }
+    pub fn mthi(pred: Pred,
+                rs: Reg
+                ) -> InstNode {
+        assert_pred(pred);
+        assert_reg(rs);
+        MthiInst(pred, rs)
     }
 }
 

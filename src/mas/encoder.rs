@@ -252,5 +252,21 @@ pub fn encode(inst: &InstNode) -> u32 {
             (coreg as u32 << 5) |
             encode_rd(&rd)
         }
+        EretInst(pred) => {
+            (0b100010100 << 20) |
+            encode_pred(&pred)
+        }
+        MfhiInst(pred,
+                 rd) => {
+            (0b100011010 << 20) |
+            encode_pred(&pred) |
+            encode_rd(&rd)
+        }
+        MthiInst(pred,
+                 rs) => {
+            (0b100011011 << 20) |
+            encode_pred(&pred) |
+            encode_rs(&rs)
+        }
     }
 }

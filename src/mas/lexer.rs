@@ -56,6 +56,8 @@ pub enum Token {
     Bl,
     Break,
     Syscall,
+    Eret,
+    Ovf,
 
     Gets,
     Predicates,
@@ -305,6 +307,8 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         Bl         => matcher!(r"(?i:bl)"),
         Break      => matcher!(r"(?i:break)"),
         Syscall    => matcher!(r"(?i:syscall)"),
+        Eret       => matcher!(r"(?i:eret)"),
+        Ovf        => matcher!(r"(?i:ovf)"),
 
         // TODO: the other ops we need.
 

@@ -80,7 +80,10 @@ fn classify_inst(inst: &InstNode) -> InstType {
         BreakInst(..) |
         SyscallInst(..) |
         MtcInst(..) |
-        MfcInst(..) => ControlType,
+        MfcInst(..) |
+        EretInst(..) |
+        MthiInst(..) |
+        MfhiInst(..) => ControlType,
     }
 }
 
@@ -442,6 +445,7 @@ impl<T: Buffer> AsmParser<T> {
                 LParen => self.parse_expr(pred, rd, None),
                 LoadStore(..) => self.parse_load(pred, rd),
                 CoReg(..) => self.parse_mfc(pred, rd),
+                Ovf => self.parse_mfhi(pred, rd),
                 _ => self.error("Unexpected token."),
             }
         }
@@ -595,6 +599,19 @@ impl<T: Buffer> AsmParser<T> {
         }
     }
 
+    fn parse_mthi(&mut self, pred: Pred) -> InstNode {
+        self.expect(Gets);
+        match self.eat() {
+            Reg(reg) => InstNode::mthi(pred, reg),
+            _ => self.error("Expected register.")
+        }
+    }
+
+    fn parse_mfhi(&mut self, pred: Pred, rd: Reg) -> InstNode {
+        self.expect(Ovf);
+        InstNode::mfhi(pred, rd)
+    }
+
     /// Parse an entire instruction.
     pub fn parse_inst(&mut self) -> InstNode {
         // Begin by parsing the predicate register for this instruction.
@@ -638,12 +655,14 @@ impl<T: Buffer> AsmParser<T> {
             Syscall => self.parse_break_or_syscall(pred.unwrap_or(true_pred),
                                                    InstNode::syscall),
             CoReg(cr) => self.parse_mtc(pred.unwrap_or(true_pred), cr),
+            Eret => InstNode::eret(pred.unwrap_or(true_pred)),
+            Ovf => self.parse_mthi(pred.unwrap_or(true_pred)),
             Nop => {
                 if pred != None {
                     self.error("Cannot have a predicate for a nop.");
                 }
 
-                NopInst
+                InstNode::nop()
             },
             Long => {
                 if pred != None {
@@ -1511,4 +1530,42 @@ mod tests {
                            Reg { index: 6 },
                            EA0));
     }
+
+    #[test]
+    fn test_parse_inst_eret() {
+        assert_eq!(inst_from_str("eRet"),
+                   EretInst(Pred { inverted: false,
+                                   reg: 3 }));
+
+        assert_eq!(inst_from_str("!p0 -> eret"),
+                   EretInst(Pred { inverted: true,
+                                   reg: 0 }));
+    }
+
+    #[test]
+    fn test_parse_inst_mthi() {
+        assert_eq!(inst_from_str("oVf <- r6"),
+                   MthiInst(Pred { inverted: false,
+                                   reg: 3 },
+                            Reg { index: 6 }));
+
+        assert_eq!(inst_from_str("!p0 -> OVF <- r6"),
+                   MthiInst(Pred { inverted: true,
+                                   reg: 0 },
+                            Reg { index: 6 }));
+    }
+
+    #[test]
+    fn test_parse_inst_mfhi() {
+        assert_eq!(inst_from_str("r6 <- OVF"),
+                   MfhiInst(Pred { inverted: false,
+                                   reg: 3 },
+                            Reg { index: 6 }));
+
+        assert_eq!(inst_from_str("!p0 -> r6 <- oVf"),
+                   MfhiInst(Pred { inverted: true,
+                                   reg: 0 },
+                            Reg { index: 6 }));
+    }
+
 }
