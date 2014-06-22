@@ -7,6 +7,7 @@ use util::lexer::{Lexer, SourceToken};
 use std::iter::Peekable;
 use std::num::from_int;
 use span::{SourcePos, Span, mk_sp};
+use std::collections::TreeMap;
 
 pub struct AsmParser<T> {
     tokens: Peekable<SourceToken<Token>, Lexer<T, Token>>,
@@ -751,6 +752,35 @@ impl<T: Buffer> AsmParser<T> {
         self.expect(RBrace);
 
         insts
+    }
+
+    pub fn parse_toplevel(&mut self) -> (Vec<InstPacket>,
+                                         TreeMap<String, uint>) {
+        let mut labels = TreeMap::new();
+        let mut packets = vec!();
+        let mut instnum = 0;
+
+        loop {
+            match *self.peek() {
+                IdentTok(..) => {
+                    let name = match self.eat() {
+                        IdentTok(name) => name,
+                        _ => fail!()
+                    };
+                    self.expect(Colon);
+                    if !labels.insert(name.clone(), instnum) {
+                        self.error(format!("Label '{}' redefined.", name));
+                    }
+                },
+                Eof => {
+                    return (packets, labels)
+                },
+                _ => {
+                    packets.push(self.parse_inst_packet());
+                    instnum += 1;
+                }
+            }
+        }
     }
 }
 

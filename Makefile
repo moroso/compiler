@@ -20,6 +20,7 @@ MC_FILES := \
 	ir/util.rs \
 	mas/ast.rs \
 	mas/encoder.rs \
+	mas/labels.rs \
 	mas/lexer.rs \
 	mas/mod.rs \
 	mas/parser.rs \
