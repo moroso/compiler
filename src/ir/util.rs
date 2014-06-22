@@ -77,12 +77,38 @@ pub fn subst(ops: &mut Vec<Op>,
              new_rvelem: &RValueElem) {
     let wrapped_var = Variable(orig_var.clone());
 
+    let is_constant = match *new_rvelem {
+        Constant(..) => true,
+        _ => false,
+    };
+
+    // TODO: this is pretty terrible.
+    let var_opt = match *new_rvelem {
+        Variable(ref v) => Some(v.clone()),
+        _ => None,
+    };
+
     for op in ops.mut_iter() {
         let temp = match *op {
             Assign(ref x, ref rv) =>
                 match *x {
-                    VarLValue(ref v) if v == orig_var =>
-                        Nop,
+                    // This case behaves differenly if we're substituting a
+                    // variable or a constant. We'll probably at some point
+                    // want a separate function for variable substitutions.
+                    VarLValue(ref v) if v == orig_var => {
+                        if is_constant ||
+                            *rv == DirectRValue(new_rvelem.clone()) {
+                            Nop
+                        } else {
+                            Assign(match var_opt {
+                                Some(ref v) => VarLValue(v.clone()),
+                                _ => x.clone()
+                            },
+                                   substituted_rvalue(rv,
+                                                  wrapped_var.clone(),
+                                                  new_rvelem))
+                        }
+                    },
                     _ =>
                         Assign(x.clone(),
                                substituted_rvalue(rv,

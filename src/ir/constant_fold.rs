@@ -39,7 +39,10 @@ fn fold(op: &BinOpNode, e1: &RValueElem, e2: &RValueElem) ->
 }
 
 fn constant_fold_once(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>) -> bool {
+    // Variables to replace with constants.
     let mut changes = vec!();
+    // Variables to replace with other variables.
+    let mut var_changes = vec!();
 
     for op in ops.iter() {
         match *op {
@@ -48,19 +51,28 @@ fn constant_fold_once(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>) -> bool {
                     VarLValue(ref v) =>
                         match *rv {
                             DirectRValue(ref r) => {
+                                // Note: instead of matching on r, we could
+                                // just do
+                                // changes.push(v.clone(), r.clone()).
+                                // This would be just as efficient and just
+                                // as correct, but also more likely to
+                                // replace a named variable with a temp
+                                // variable. So we do it this way to make the
+                                // IR a bit more readable.
                                 match *r {
-                                    Constant(ref c) => {
+                                    Constant(ref c) =>
                                         changes.push((v.clone(),
-                                                      c.clone()));
-                                    },
-                                    _ => {},
+                                                      Constant(c.clone()))),
+                                    Variable(ref v2) =>
+                                        var_changes.push(
+                                            (v2.clone(), v.clone())),
                                 }
                             },
                             BinOpRValue(ref op, ref v1, ref v2) => {
                                 match fold(op, v1, v2) {
                                     Some(ref c) => {
                                         changes.push((v.clone(),
-                                                      c.clone()));
+                                                      Constant(c.clone())));
                                     },
                                     _ => {}
                                 }
@@ -80,12 +92,40 @@ fn constant_fold_once(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>) -> bool {
     }
 
     let mut changed = false;
+    let mut new_vars_to_avoid = TreeSet::new();
+
+    for (a, b) in var_changes.move_iter() {
+        let (a, b) = if vars_to_avoid.contains(&a)
+            || new_vars_to_avoid.contains(&b) {
+            (b, a)
+        } else {
+            (a, b)
+        };
+
+        // Either we're prohibited from changing this variable, or we've
+        // already done a substitution of b. We'll punt on this; if we can
+        // still do a substitution with it, we'll still do it in a later
+        // iteration.
+        if vars_to_avoid.contains(&a) || new_vars_to_avoid.contains(&b) {
+            continue;
+        }
+
+        print!("Applying(var) {}->{}\n", a, b);
+        subst(ops, &a, &Variable(b));
+        print!("{}\n", ops);
+        changed = true;
+        new_vars_to_avoid.insert(a);
+    }
+
     for (a, b) in changes.move_iter() {
-        if !vars_to_avoid.contains(&a) {
-            subst(ops, &a, &Constant(b));
+        if !vars_to_avoid.contains(&a){
+            print!("Applying {}->{}\n", a, b);
+            subst(ops, &a, &b);
+            print!("{}\n", ops);
             changed = true;
         }
     }
+
     changed
 }
 
@@ -114,6 +154,11 @@ impl ConstantFolder {
                         _ => {},
                     }
                 },
+                Func(_, ref vars) => {
+                    for var in vars.iter() {
+                        vars_to_avoid.insert(var.clone());
+                    }
+                }
                 _ => {},
             }
         }
