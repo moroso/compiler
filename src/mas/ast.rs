@@ -46,6 +46,24 @@ impl Show for Reg {
     }
 }
 
+#[deriving(Show, Clone, PartialEq, Eq)]
+pub enum CoReg {
+    PFLAGS,
+    PTB,
+    EHA,
+    EPC,
+    EC0,
+    EC1,
+    EC2,
+    EC3,
+    EA0,
+    EA1,
+    SP0 = 16,
+    SP1,
+    SP2,
+    SP3,
+}
+
 // Opcodes for the ALU.
 #[deriving(Show, Eq, PartialEq)]
 pub enum AluOp {
@@ -231,7 +249,21 @@ pub enum InstNode {
                   bool, // link,
                   Reg, // Rs,
                   i32 // Offset
-                  )
+                  ),
+    BreakInst(Pred,
+              u32 // "Don't care" fields.
+              ),
+    SyscallInst(Pred,
+                u32 // "Don't care" fields.
+                ),
+    MtcInst(Pred,
+            CoReg,
+            Reg // Rs
+            ),
+    MfcInst(Pred,
+            Reg, // Rd
+            CoReg
+            ),
 }
 
 fn assert_pred(pred: Pred) {
@@ -476,6 +508,42 @@ impl InstNode {
                       link,
                       rs,
                       offs)
+    }
+    pub fn breaknum(pred: Pred,
+                    val: u32
+                    ) -> InstNode {
+        assert_pred(pred);
+        assert!(fits_in_bits(val as u32, 20));
+        BreakInst(pred,
+                  val)
+    }
+    pub fn syscall(pred: Pred,
+                   val: u32
+                   ) -> InstNode {
+        assert_pred(pred);
+        assert!(fits_in_bits(val as u32, 20));
+        SyscallInst(pred,
+                    val)
+    }
+    pub fn mtc(pred: Pred,
+               coreg: CoReg,
+               rs: Reg // Rs
+               ) -> InstNode {
+        assert_pred(pred);
+        assert_reg(rs);
+        MtcInst(pred,
+                coreg,
+                rs)
+    }
+    pub fn mfc(pred: Pred,
+               rd: Reg, // Rs
+               coreg: CoReg
+               ) -> InstNode {
+        assert_pred(pred);
+        assert_reg(rd);
+        MfcInst(pred,
+                rd,
+                coreg)
     }
 }
 

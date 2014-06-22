@@ -76,7 +76,11 @@ fn classify_inst(inst: &InstNode) -> InstType {
         LoadInst(..) |
         StoreInst(..) => MemoryType,
         BranchImmInst(..) |
-        BranchRegInst(..) => ControlType,
+        BranchRegInst(..) |
+        BreakInst(..) |
+        SyscallInst(..) |
+        MtcInst(..) |
+        MfcInst(..) => ControlType,
     }
 }
 
@@ -437,6 +441,7 @@ impl<T: Buffer> AsmParser<T> {
                 Long |
                 LParen => self.parse_expr(pred, rd, None),
                 LoadStore(..) => self.parse_load(pred, rd),
+                CoReg(..) => self.parse_mfc(pred, rd),
                 _ => self.error("Unexpected token."),
             }
         }
@@ -563,6 +568,33 @@ impl<T: Buffer> AsmParser<T> {
         }
     }
 
+    fn parse_break_or_syscall(&mut self, pred: Pred,
+                              cons: |Pred, u32| -> InstNode) -> InstNode {
+        match *self.peek() {
+            NumLit(num) => {
+                self.eat();
+                self.assert_num_size(num, 20);
+                cons(pred, num)
+            },
+            _ => cons(pred, 0),
+        }
+    }
+
+    fn parse_mtc(&mut self, pred: Pred, coreg: CoReg) -> InstNode {
+        self.expect(Gets);
+        match self.eat() {
+            Reg(reg) => InstNode::mtc(pred, coreg, reg),
+            _ => self.error("Expected register.")
+        }
+    }
+
+    fn parse_mfc(&mut self, pred: Pred, rd: Reg) -> InstNode {
+        match self.eat() {
+            CoReg(coreg) => InstNode::mfc(pred, rd, coreg),
+            _ => self.error("Expected coprocessor register.")
+        }
+    }
+
     /// Parse an entire instruction.
     pub fn parse_inst(&mut self) -> InstNode {
         // Begin by parsing the predicate register for this instruction.
@@ -601,6 +633,11 @@ impl<T: Buffer> AsmParser<T> {
                 self.parse_store(pred.unwrap_or(true_pred), width),
             B => self.parse_branch(pred.unwrap_or(true_pred), false),
             Bl => self.parse_branch(pred.unwrap_or(true_pred), true),
+            Break => self.parse_break_or_syscall(pred.unwrap_or(true_pred),
+                                                 InstNode::breaknum),
+            Syscall => self.parse_break_or_syscall(pred.unwrap_or(true_pred),
+                                                   InstNode::syscall),
+            CoReg(cr) => self.parse_mtc(pred.unwrap_or(true_pred), cr),
             Nop => {
                 if pred != None {
                     self.error("Cannot have a predicate for a nop.");
@@ -1419,5 +1456,59 @@ mod tests {
     #[should_fail]
     fn test_branchreg_bad_negative_offs() {
         inst_from_str("bl r6 - 0x1000001");
+    }
+
+    #[test]
+    fn test_parse_inst_break() {
+        assert_eq!(inst_from_str("break"),
+                   BreakInst(Pred { inverted: false,
+                                    reg: 3 },
+                             0));
+        assert_eq!(inst_from_str("break 3"),
+                   BreakInst(Pred { inverted: false,
+                                    reg: 3 },
+                             3));
+    }
+
+    #[test]
+    fn test_parse_inst_syscall() {
+        assert_eq!(inst_from_str("syscall"),
+                   SyscallInst(Pred { inverted: false,
+                                      reg: 3 },
+                               0));
+        assert_eq!(inst_from_str("syscall 3"),
+                   SyscallInst(Pred { inverted: false,
+                                      reg: 3 },
+                               3));
+    }
+
+    #[test]
+    fn test_parse_inst_mtc() {
+        assert_eq!(inst_from_str("EA0 <- r6"),
+                   MtcInst(Pred { inverted: false,
+                                  reg: 3 },
+                           EA0,
+                           Reg { index: 6 }));
+
+        assert_eq!(inst_from_str("!p0 -> eA0 <- r6"),
+                   MtcInst(Pred { inverted: true,
+                                  reg: 0 },
+                           EA0,
+                           Reg { index: 6 }));
+    }
+
+    #[test]
+    fn test_parse_inst_mfc() {
+        assert_eq!(inst_from_str("r6 <- EA0"),
+                   MfcInst(Pred { inverted: false,
+                                  reg: 3 },
+                           Reg { index: 6 },
+                           EA0));
+
+        assert_eq!(inst_from_str("!p0 -> r6 <- eA0"),
+                   MfcInst(Pred { inverted: true,
+                                  reg: 0 },
+                           Reg { index: 6 },
+                           EA0));
     }
 }

@@ -1,6 +1,7 @@
 use std::io;
 use util::lexer::*;
 use super::ast::*;
+use std::ascii::StrAsciiExt;
 
 #[deriving(Eq, PartialEq, Clone, Show)]
 pub enum Token {
@@ -10,6 +11,7 @@ pub enum Token {
     DotGlobl,
 
     Reg(Reg),
+    CoReg(CoReg),
     PredReg(Pred),
     NumLit(u32),
     IdentTok(String),
@@ -52,6 +54,8 @@ pub enum Token {
     Nop,
     B,
     Bl,
+    Break,
+    Syscall,
 
     Gets,
     Predicates,
@@ -221,6 +225,36 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         }
     }
 
+    struct CoRegRule;
+    impl RuleMatcher<CoReg> for CoRegRule {
+        fn find(&self, s: &str) -> Option<(uint, CoReg)> {
+            let matcher = matcher!(r"(?i:(PFLAGS|PTB|EHA|EPC|EC0|EC1|EC2|EC3|EA0|EA1|SP0|SP1|SP2|SP3))");
+            match matcher.captures(s) {
+                Some(groups) =>
+                    Some((groups.at(0).len(),
+                          match groups.at(1).to_ascii_upper().as_slice() {
+                              "PFLAGS" => PFLAGS,
+                              "PTB" => PTB,
+                              "EHA" => EHA,
+                              "EPC" => EPC,
+                              "EC0" => EC0,
+                              "EC1" => EC1,
+                              "EC2" => EC2,
+                              "EC3" => EC3,
+                              "EA0" => EA0,
+                              "EA1" => EA1,
+                              "SP0" => SP0,
+                              "SP1" => SP1,
+                              "SP2" => SP2,
+                              "SP3" => SP3,
+                              _ => fail!(),
+                          })),
+                _ => None,
+            }
+        }
+    }
+
+
     let rules = lexer_rules! {
         // Whitespace, including C-style comments
         WS         => matcher!(r"//.*|\s"),
@@ -269,6 +303,8 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         Nop        => matcher!(r"(?i:nop)"),
         B          => matcher!(r"(?i:b)"),
         Bl         => matcher!(r"(?i:bl)"),
+        Break      => matcher!(r"(?i:break)"),
+        Syscall    => matcher!(r"(?i:syscall)"),
 
         // TODO: the other ops we need.
 
@@ -281,6 +317,7 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         NumLit     => NumberLiteralRule,
 
         Reg        => RegisterRule,
+        CoReg      => CoRegRule,
         PredReg    => PredicateRule,
         Shift      => ShiftRule,
         LoadStore  => LoadStoreRule,

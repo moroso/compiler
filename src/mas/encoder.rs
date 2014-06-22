@@ -223,6 +223,34 @@ pub fn encode(inst: &InstNode) -> u32 {
             encode_rs(&rs) |
             (offs as u32 & ((1<<25)-1)) |
             (if link { 1 << 25 } else { 0 })
+        },
+        BreakInst(pred,
+                  val) => {
+            (0b100010001 << 20) |
+            encode_pred(&pred) |
+            val
+        },
+        SyscallInst(pred,
+                    val) => {
+            (0b100010010 << 20) |
+            encode_pred(&pred) |
+            val
         }
-   }
+        MtcInst(pred,
+                coreg,
+                rs) => {
+            (0b100010111 << 20) |
+            encode_pred(&pred) |
+            (coreg as u32 << 5) |
+            encode_rs(&rs)
+        }
+        MfcInst(pred,
+                rd,
+                coreg) => {
+            (0b100010110 << 20) |
+            encode_pred(&pred) |
+            (coreg as u32 << 5) |
+            encode_rd(&rd)
+        }
+    }
 }
