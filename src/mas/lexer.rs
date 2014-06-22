@@ -50,6 +50,8 @@ pub enum Token {
     Or,
     And,
     Nop,
+    B,
+    Bl,
 
     Gets,
     Predicates,
@@ -265,6 +267,8 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         Mov        => matcher!(r"(?i:mov)"),
         Mvn        => matcher!(r"(?i:mvn)"),
         Nop        => matcher!(r"(?i:nop)"),
+        B          => matcher!(r"(?i:b)"),
+        Bl         => matcher!(r"(?i:bl)"),
 
         // TODO: the other ops we need.
 

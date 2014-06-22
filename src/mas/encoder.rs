@@ -199,6 +199,30 @@ pub fn encode(inst: &InstNode) -> u32 {
             encode_shift_type(&shifttype) |
             (destpred.reg as u32 << 5) |
             (shiftamt as u32 << 21)  
-        }      
+        },
+        BranchImmInst(pred,
+                      link,
+                      ref target) => {
+            // TODO: adjust this once we have an object format to allow
+            // unresolved symbols...
+            let offs = match *target {
+                JumpOffs(offs) => offs,
+                JumpLabel(ref s) => fail!("Unresolved label {}", s),
+            };
+            (0b110 << 26) |
+            encode_pred(&pred) |
+            (offs as u32 & ((1<<25)-1)) |
+            (if link { 1 << 25 } else { 0 })
+        },
+        BranchRegInst(pred,
+                      link,
+                      rs,
+                      offs) => {
+            (0b111 << 26) |
+            encode_pred(&pred) |
+            encode_rs(&rs) |
+            (offs as u32 & ((1<<25)-1)) |
+            (if link { 1 << 25 } else { 0 })
+        }
    }
 }

@@ -56,7 +56,7 @@ unittest: $(addprefix src/,$(MC_FILES))
 all: mc mas unittest
 
 run-tests: unittest
-	./unittest
+	./unittest 2>/dev/null
 
 check: run-tests test
 

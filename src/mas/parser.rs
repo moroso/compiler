@@ -75,6 +75,8 @@ fn classify_inst(inst: &InstNode) -> InstType {
         LongInst(..) => LongType,
         LoadInst(..) |
         StoreInst(..) => MemoryType,
+        BranchImmInst(..) |
+        BranchRegInst(..) => ControlType,
     }
 }
 
@@ -513,6 +515,54 @@ impl<T: Buffer> AsmParser<T> {
         }
     }
 
+    pub fn parse_branch(&mut self, pred: Pred, linked: bool) -> InstNode {
+        let cur_tok = self.eat();
+        match cur_tok {
+            IdentTok(name) =>
+                InstNode::branchimm(
+                    pred,
+                    linked,
+                    JumpLabel(name)),
+            NumLit(n) => {
+                let n = n as i32;
+                self.assert_signed_num_size(n, 25);
+                InstNode::branchimm(
+                    pred,
+                    linked,
+                    JumpOffs(n as i32))
+            },
+            Reg(reg) => {
+                match *self.peek() {
+                    Plus |
+                    Dash => {
+                        let subtracted = self.eat() == Dash;
+                        match self.eat() {
+                            NumLit(n) => {
+                                let mut n = n as i32;
+                                if subtracted {
+                                    n = -n;
+                                }
+                                self.assert_signed_num_size(n, 25);
+                                InstNode::branchreg(
+                                    pred,
+                                    linked,
+                                    reg,
+                                    n)
+                            },
+                            _ => self.error("Expected a number."),
+                        }
+                    },
+                    _ => InstNode::branchreg(
+                        pred,
+                        linked,
+                        reg,
+                        0)
+                }
+            },
+            _ => self.error("Expected a jump target.")
+        }
+    }
+
     /// Parse an entire instruction.
     pub fn parse_inst(&mut self) -> InstNode {
         // Begin by parsing the predicate register for this instruction.
@@ -549,6 +599,8 @@ impl<T: Buffer> AsmParser<T> {
             },
             LoadStore(width) =>
                 self.parse_store(pred.unwrap_or(true_pred), width),
+            B => self.parse_branch(pred.unwrap_or(true_pred), false),
+            Bl => self.parse_branch(pred.unwrap_or(true_pred), true),
             Nop => {
                 if pred != None {
                     self.error("Cannot have a predicate for a nop.");
@@ -607,7 +659,9 @@ impl<T: Buffer> AsmParser<T> {
 // Convenience function for testing
 pub fn inst_from_str(s: &str) -> InstNode {
     let mut parser = AsmParser::new(asm_lexer_from_str(s).peekable());
-    parser.parse_inst()
+    let result = parser.parse_inst();
+    assert_eq!(parser.tokens.peek().unwrap().tok, Eof);
+    result
 }
 
 
@@ -1252,5 +1306,118 @@ mod tests {
                                   Reg { index: 4 },
                                   SllShift,
                                   5));
+    }
+
+    #[test]
+    fn test_parse_inst_branchimm() {
+        assert_eq!(inst_from_str("b 0"),
+                   BranchImmInst(Pred { inverted: false,
+                                        reg: 3 },
+                                 false,
+                                 JumpOffs(0),
+                                 ));
+
+        assert_eq!(inst_from_str("!p0 -> b 1"),
+                   BranchImmInst(Pred { inverted: true,
+                                        reg: 0 },
+                                 false,
+                                 JumpOffs(1),
+                                 ));
+
+        assert_eq!(inst_from_str("bl -1"),
+                   BranchImmInst(Pred { inverted: false,
+                                        reg: 3 },
+                                 true,
+                                 JumpOffs(-1),
+                                 ));
+
+        assert_eq!(inst_from_str("bl 0xffffff"),
+                   BranchImmInst(Pred { inverted: false,
+                                        reg: 3 },
+                                 true,
+                                 JumpOffs(0xffffff),
+                                 ));
+
+        assert_eq!(inst_from_str("bl -0x1000000"),
+                   BranchImmInst(Pred { inverted: false,
+                                        reg: 3 },
+                                 true,
+                                 JumpOffs(-0x1000000),
+                                 ));
+    }
+
+    #[test]
+    #[should_fail]
+    fn test_branchimm_bad_offs() {
+        inst_from_str("bl 0x1000000");
+    }
+
+    #[test]
+    #[should_fail]
+    fn test_branchimm_bad_negative_offs() {
+        inst_from_str("bl -0x1000001");
+    }
+
+    #[test]
+    fn test_parse_inst_branchreg() {
+        assert_eq!(inst_from_str("b r6"),
+                   BranchRegInst(Pred { inverted: false,
+                                        reg: 3 },
+                                 false,
+                                 Reg { index: 6 },
+                                 0,
+                                 ));
+
+        assert_eq!(inst_from_str("!p0 -> b r6"),
+                   BranchRegInst(Pred { inverted: true,
+                                        reg: 0 },
+                                 false,
+                                 Reg { index: 6 },
+                                 0,
+                                 ));
+
+        assert_eq!(inst_from_str("b r6 + 1"),
+                   BranchRegInst(Pred { inverted: false,
+                                        reg: 3 },
+                                 false,
+                                 Reg { index: 6 },
+                                 1,
+                                 ));
+
+        assert_eq!(inst_from_str("b r6 - 1"),
+                   BranchRegInst(Pred { inverted: false,
+                                        reg: 3 },
+                                 false,
+                                 Reg { index: 6 },
+                                 -1,
+                                 ));
+
+        assert_eq!(inst_from_str("b r6 + 0xffffff"),
+                   BranchRegInst(Pred { inverted: false,
+                                        reg: 3 },
+                                 false,
+                                 Reg { index: 6 },
+                                 0xffffff,
+                                 ));
+
+        assert_eq!(inst_from_str("b r6 + -0x1000000"),
+                   BranchRegInst(Pred { inverted: false,
+                                        reg: 3 },
+                                 false,
+                                 Reg { index: 6 },
+                                 -0x1000000,
+                                 ));
+    }
+
+    #[test]
+    #[should_fail]
+    fn test_branchreg_bad_offs() {
+        inst_from_str("bl r6 + 0x1000000");
+    }
+
+    #[test]
+    #[should_fail]
+    fn test_branchreg_bad_negative_offs() {
+        inst_from_str("bl r6 - 0x1000001");
     }
 }

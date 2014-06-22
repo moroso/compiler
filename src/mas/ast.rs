@@ -143,6 +143,13 @@ impl Show for ShiftType {
     }
 }
 
+#[deriving(Clone, Eq, PartialEq, Show)]
+pub enum JumpTarget {
+    JumpOffs(i32),
+    // TODO: allow arithmetic on labels.
+    JumpLabel(String),
+}
+
 #[deriving(Show, Eq, PartialEq)]
 pub enum InstNode {
     ALU1ShortInst(Pred, // Instruction predicate
@@ -217,6 +224,14 @@ pub enum InstNode {
                    ShiftType,
                    u8 // Shift amount
                    ),
+    BranchImmInst(Pred,
+                  bool, // link
+                  JumpTarget),
+    BranchRegInst(Pred,
+                  bool, // link,
+                  Reg, // Rs,
+                  i32 // Offset
+                  )
 }
 
 fn assert_pred(pred: Pred) {
@@ -437,7 +452,31 @@ impl InstNode {
                        shifttype,
                        amt)
     }
-
+    pub fn branchimm(pred: Pred,
+                     link: bool, // link
+                     target: JumpTarget) -> InstNode {
+        assert_pred(pred);
+        match target {
+            JumpOffs(offs) => assert_offs(offs, 25),
+            _ => {},
+        }
+        BranchImmInst(pred,
+                      link,
+                      target)
+    }
+    pub fn branchreg(pred: Pred,
+                     link: bool, // link,
+                     rs: Reg, // Rs,
+                     offs: i32 // Offset
+                     ) -> InstNode {
+        assert_pred(pred);
+        assert_reg(rs);
+        assert_offs(offs, 25);
+        BranchRegInst(pred,
+                      link,
+                      rs,
+                      offs)
+    }
 }
 
 pub type InstPacket = [InstNode, ..4];
