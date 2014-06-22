@@ -1,5 +1,5 @@
 // Modeled after Linux's list.h
-// Needs the C preprocessor. container_of is pretty necessary for
+// container_of is pretty necessary for
 // the whole scheme. The other macros are just convenient.
 
 // Generic defines
@@ -136,6 +136,3 @@ fn list_is_empty(n: *list_node) -> bool {
 fn list_is_singleton(n: *list_node) -> bool {
     n->next == n->prev && n != n->next
 }
-
-
-#endif
