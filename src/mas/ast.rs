@@ -142,6 +142,15 @@ pub enum LsuWidth {
     LsuLLSC, // Not really a width, but...
 }
 
+// Flush types
+#[deriving(Clone, Eq, PartialEq, Show)]
+pub enum FlushType {
+    DataFlush,
+    InstFlush,
+    DtlbFlush,
+    ItlbFlush,
+}
+
 #[deriving(Clone, Eq, PartialEq, Show)]
 pub struct LsuOp {
     pub store: bool,
@@ -265,12 +274,29 @@ pub enum InstNode {
             CoReg
             ),
     EretInst(Pred),
+    FenceInst(Pred),
     MthiInst(Pred,
              Reg // Rs
              ),
     MfhiInst(Pred,
              Reg // Rd
              ),
+    MultInst(Pred,
+             bool, // signed?
+             Reg, // Rd
+             Reg, // Rs
+             Reg // Rt
+             ),
+    DivInst(Pred,
+            bool, // signed?
+            Reg, // Rd
+            Reg, // Rs
+            Reg // Rt
+            ),
+    FlushInst(Pred,
+              FlushType,
+              Reg // Rs
+              )
 }
 
 fn assert_pred(pred: Pred) {
@@ -557,6 +583,12 @@ impl InstNode {
         assert_pred(pred);
         EretInst(pred)
     }
+
+    pub fn fence(pred: Pred
+                 ) -> InstNode {
+        assert_pred(pred);
+        FenceInst(pred)
+    }
     pub fn mfhi(pred: Pred,
                 rd: Reg
                 ) -> InstNode {
@@ -570,6 +602,48 @@ impl InstNode {
         assert_pred(pred);
         assert_reg(rs);
         MthiInst(pred, rs)
+    }
+    pub fn mult(pred: Pred,
+                signed: bool, // signed?
+                rd: Reg, // Rd
+                rs: Reg, // Rs
+                rt: Reg // Rt
+                ) -> InstNode {
+        assert_pred(pred);
+        assert_reg(rd);
+        assert_reg(rs);
+        assert_reg(rt);
+        MultInst(pred,
+                 signed,
+                 rd,
+                 rs,
+                 rt)
+    }
+    pub fn div(pred: Pred,
+               signed: bool, // signed?
+               rd: Reg, // Rd
+               rs: Reg, // Rs
+               rt: Reg // Rt
+               ) -> InstNode {
+        assert_pred(pred);
+        assert_reg(rd);
+        assert_reg(rs);
+        assert_reg(rt);
+        DivInst(pred,
+                signed,
+                rd,
+                rs,
+                rt)
+    }
+    pub fn flush(pred: Pred,
+                 flushtype: FlushType,
+                 rs: Reg // Rs
+                 ) -> InstNode {
+        assert_pred(pred);
+        assert_reg(rs);
+        FlushInst(pred,
+                  flushtype,
+                  rs)
     }
 }
 

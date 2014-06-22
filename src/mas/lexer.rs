@@ -17,6 +17,7 @@ pub enum Token {
     IdentTok(String),
     Shift(ShiftType),
     LoadStore(LsuWidth),
+    Flush(FlushType),
 
     Colon,
     LBrace,
@@ -31,7 +32,6 @@ pub enum Token {
     Les,
     Bs,
     Bc,
-    Star,
     LParen,
     RParen,
     Eq,
@@ -48,6 +48,12 @@ pub enum Token {
     Mvn,
     Sub,
     Rsb,
+    Star,
+    StarS,
+    StarU,
+    Slash,
+    SlashS,
+    SlashU,
     Xor,
     Or,
     And,
@@ -58,6 +64,7 @@ pub enum Token {
     Syscall,
     Eret,
     Ovf,
+    Fence,
 
     Gets,
     Predicates,
@@ -256,6 +263,24 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         }
     }
 
+    struct FlushRule;
+    impl RuleMatcher<FlushType> for FlushRule {
+        fn find(&self, s: &str) -> Option<(uint, FlushType)> {
+            let matcher = matcher!(r"(?i:flush\.(data|inst|dtlb|itlb))");
+            match matcher.captures(s) {
+                Some(groups) =>
+                    Some((groups.at(0).len(),
+                          match groups.at(1).to_ascii_upper().as_slice() {
+                              "DATA" => DataFlush,
+                              "INST" => InstFlush,
+                              "DTLB" => DtlbFlush,
+                              "ITLB" => ItlbFlush,
+                              _ => fail!(),
+                          })),
+                _ => None,
+            }
+        }
+    }
 
     let rules = lexer_rules! {
         // Whitespace, including C-style comments
@@ -272,6 +297,12 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         Sub        => matcher!(r"(?i:sub)"),
         DashColon  => "-:",
         Rsb        => matcher!(r"(?i:rsb)"),
+        Star       => "*",
+        StarU      => matcher!(r"(?i:\*u)"),
+        StarS      => matcher!(r"(?i:\*s)"),
+        Slash      => "/",
+        SlashU     => matcher!(r"(?i:/u)"),
+        SlashS     => matcher!(r"(?i:/s)"),
         Lt         => "<",
         Lt         => "<u",
         Lt         => matcher!(r"(?i:ltu)"),
@@ -284,7 +315,6 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         Les        => matcher!(r"(?i:les)"),
         Bs         => matcher!(r"(?i:bs)"),
         Bc         => matcher!(r"(?i:bc)"),
-        Star       => "*",
         LParen     => "(",
         RParen     => ")",
         Eq         => "=",
@@ -308,6 +338,7 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         Break      => matcher!(r"(?i:break)"),
         Syscall    => matcher!(r"(?i:syscall)"),
         Eret       => matcher!(r"(?i:eret)"),
+        Fence      => matcher!(r"(?i:fence)"),
         Ovf        => matcher!(r"(?i:ovf)"),
 
         // TODO: the other ops we need.
@@ -325,6 +356,7 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         PredReg    => PredicateRule,
         Shift      => ShiftRule,
         LoadStore  => LoadStoreRule,
+        Flush      => FlushRule,
         IdentTok   => matcher!(r"[a-zA-Z_]\w*"),
         // TODO: a specific matcher for this.
         IdentTok   => matcher!(r"\.[0-9]+(a|b)?")

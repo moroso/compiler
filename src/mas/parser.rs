@@ -82,8 +82,12 @@ fn classify_inst(inst: &InstNode) -> InstType {
         MtcInst(..) |
         MfcInst(..) |
         EretInst(..) |
+        FenceInst(..) |
         MthiInst(..) |
-        MfhiInst(..) => ControlType,
+        MfhiInst(..) |
+        DivInst(..) |
+        MultInst(..) |
+        FlushInst(..) => ControlType,
     }
 }
 
@@ -202,6 +206,26 @@ impl<T: Buffer> AsmParser<T> {
         }
     }
 
+    fn parse_mul_or_div(&mut self, pred: Pred, rd: Reg, rs: Reg) -> InstNode {
+        let cons;
+        let is_signed;
+
+        match self.eat() {
+            Star |
+            StarU => { cons = InstNode::mult; is_signed = false; }
+            StarS => { cons = InstNode::mult; is_signed = true; }
+            Slash |
+            SlashU => { cons = InstNode::div; is_signed = false; }
+            SlashS => { cons = InstNode::div; is_signed = true; }
+            _ => self.error("ICE: should have a mult/div here.")
+        }
+
+        match self.eat() {
+            Reg(rt) => cons(pred, is_signed, rd, rs, rt),
+            _ => self.error("Expected register.")
+        }
+    }
+
     /// This function assumes we've parsed the destination register
     /// and the "gets" arrow, and possibly a (unary) op before it.
     /// All of these things are passed in as parameters; it does the
@@ -275,7 +299,7 @@ impl<T: Buffer> AsmParser<T> {
                     },
                     None => {
                         // There was no binary ALU operator. Either there's a
-                        // shift operator instead, or we're done.
+                        // shift operator instead, or a mult/div, or we're done.
                         match *self.peek() {
                             Shift(shift) => {
                                 // It's a shift. There's should be a reg
@@ -292,6 +316,14 @@ impl<T: Buffer> AsmParser<T> {
                                     _ => self.error("Unexpected token."),
                                 }
                             },
+                            Star |
+                            StarS |
+                            StarU |
+                            Slash |
+                            SlashS |
+                            SlashU => {
+                                self.parse_mul_or_div(pred, rd, reg)
+                            }
                             _ => {
                                 // Just the register. So it's just a move.
                                 InstNode::alu1reg(
@@ -612,6 +644,13 @@ impl<T: Buffer> AsmParser<T> {
         InstNode::mfhi(pred, rd)
     }
 
+    fn parse_flush(&mut self, pred: Pred, flushtype: FlushType) -> InstNode {
+        match self.eat() {
+            Reg(reg) => InstNode::flush(pred, flushtype, reg),
+            _ => self.error("Expected register.")
+        }
+    }
+
     /// Parse an entire instruction.
     pub fn parse_inst(&mut self) -> InstNode {
         // Begin by parsing the predicate register for this instruction.
@@ -656,6 +695,9 @@ impl<T: Buffer> AsmParser<T> {
                                                    InstNode::syscall),
             CoReg(cr) => self.parse_mtc(pred.unwrap_or(true_pred), cr),
             Eret => InstNode::eret(pred.unwrap_or(true_pred)),
+            Fence => InstNode::fence(pred.unwrap_or(true_pred)),
+            Flush(flushtype) => self.parse_flush(pred.unwrap_or(true_pred),
+                                                 flushtype),
             Ovf => self.parse_mthi(pred.unwrap_or(true_pred)),
             Nop => {
                 if pred != None {
@@ -1543,6 +1585,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_inst_fence() {
+        assert_eq!(inst_from_str("fenCe"),
+                   FenceInst(Pred { inverted: false,
+                                    reg: 3 }));
+
+        assert_eq!(inst_from_str("!p0 -> fence"),
+                   FenceInst(Pred { inverted: true,
+                                    reg: 0 }));
+    }
+
+    #[test]
     fn test_parse_inst_mthi() {
         assert_eq!(inst_from_str("oVf <- r6"),
                    MthiInst(Pred { inverted: false,
@@ -1568,4 +1621,89 @@ mod tests {
                             Reg { index: 6 }));
     }
 
+    #[test]
+    fn test_parse_inst_mult() {
+        assert_eq!(inst_from_str("r6 <- r1 * r2"),
+                   MultInst(Pred { inverted: false,
+                                   reg: 3 },
+                            false,
+                            Reg { index: 6 },
+                            Reg { index: 1 },
+                            Reg { index: 2 }));
+
+        assert_eq!(inst_from_str("r6 <- r1 *s r2"),
+                   MultInst(Pred { inverted: false,
+                                   reg: 3 },
+                            true,
+                            Reg { index: 6 },
+                            Reg { index: 1 },
+                            Reg { index: 2 }));
+
+        assert_eq!(inst_from_str("r6 <- r1 *u r2"),
+                   MultInst(Pred { inverted: false,
+                                   reg: 3 },
+                            false,
+                            Reg { index: 6 },
+                            Reg { index: 1 },
+                            Reg { index: 2 }));
+
+        assert_eq!(inst_from_str("!p0 -> r6 <- r1 * r2"),
+                   MultInst(Pred { inverted: true,
+                                   reg: 0 },
+                            false,
+                            Reg { index: 6 },
+                            Reg { index: 1 },
+                            Reg { index: 2 }));
+    }
+
+    #[test]
+    fn test_parse_inst_div() {
+        assert_eq!(inst_from_str("r6 <- r1 / r2"),
+                   DivInst(Pred { inverted: false,
+                                  reg: 3 },
+                           false,
+                           Reg { index: 6 },
+                           Reg { index: 1 },
+                           Reg { index: 2 }));
+
+        assert_eq!(inst_from_str("r6 <- r1 /s r2"),
+                   DivInst(Pred { inverted: false,
+                                  reg: 3 },
+                           true,
+                           Reg { index: 6 },
+                           Reg { index: 1 },
+                           Reg { index: 2 }));
+
+        assert_eq!(inst_from_str("r6 <- r1 /u r2"),
+                   DivInst(Pred { inverted: false,
+                                  reg: 3 },
+                           false,
+                           Reg { index: 6 },
+                           Reg { index: 1 },
+                           Reg { index: 2 }));
+
+        assert_eq!(inst_from_str("!p0 -> r6 <- r1 / r2"),
+                   DivInst(Pred { inverted: true,
+                                  reg: 0 },
+                           false,
+                           Reg { index: 6 },
+                           Reg { index: 1 },
+                           Reg { index: 2 }));
+    }
+
+    #[test]
+    fn test_parse_inst_flush() {
+        assert_eq!(inst_from_str("flush.Data r6"),
+                   FlushInst(Pred { inverted: false,
+                                    reg: 3 },
+                             DataFlush,
+                             Reg { index: 6 }));
+
+
+        assert_eq!(inst_from_str("!p0 -> fluSh.ItLb r6"),
+                   FlushInst(Pred { inverted: true,
+                                    reg: 0 },
+                             ItlbFlush,
+                             Reg { index: 6 }));
+    }
 }

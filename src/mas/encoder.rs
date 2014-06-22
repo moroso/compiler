@@ -256,6 +256,10 @@ pub fn encode(inst: &InstNode) -> u32 {
             (0b100010100 << 20) |
             encode_pred(&pred)
         }
+        FenceInst(pred) => {
+            (0b100010011 << 20) |
+            encode_pred(&pred)
+        }
         MfhiInst(pred,
                  rd) => {
             (0b100011010 << 20) |
@@ -266,6 +270,38 @@ pub fn encode(inst: &InstNode) -> u32 {
                  rs) => {
             (0b100011011 << 20) |
             encode_pred(&pred) |
+            encode_rs(&rs)
+        }
+        MultInst(pred,
+                 signed,
+                 rd,
+                 rs,
+                 rt) => {
+            (0b100011000 << 20) |
+            encode_pred(&pred) |
+            (if signed { 1<<19 } else { 0 }) |
+            encode_rd(&rd) |
+            encode_rs(&rs) |
+            encode_rt(&rt)
+        }
+        DivInst(pred,
+                signed,
+                rd,
+                rs,
+                rt) => {
+            (0b100011001 << 20) |
+            encode_pred(&pred) |
+            (if signed { 1<<19 } else { 0 }) |
+            encode_rd(&rd) |
+            encode_rs(&rs) |
+            encode_rt(&rt)
+        }
+        FlushInst(pred,
+                  flushtype,
+                  rs) => {
+            (0b100010101 << 20) |
+            encode_pred(&pred) |
+            (flushtype as u32 << 10) |
             encode_rs(&rs)
         }
     }
