@@ -109,9 +109,32 @@ impl IRTarget {
                             op,
                             print_rvalelem(interner, rv2))
                 },
-                UnOp(..) |
-                Alloca(..) |
-                Call(..) |
+                UnOp(ref v, ref op, ref rv) => {
+                    format!("  {} = (long)({} ({}));\n",
+                            print_var(interner, v),
+                            op,
+                            print_rvalelem(interner, rv))
+                },
+                Alloca(ref v, ref size) => {
+                    format!("  {} = (long)(alloca({}));\n",
+                            print_var(interner, v), size)
+                },
+                Call(ref v, ref fname, ref args) => {
+                    // TODO: fix this. Right now, as a hack, we just leave
+                    // off the generation.
+                    let mut s = match *fname {
+                        Variable(ref fnv) =>
+                            format!("  {} = ((int (*)()){})(",
+                                    print_var(interner, v),
+                                    fnv.name),
+                        _=> unimplemented!(),
+                    };
+                    let list: Vec<String> = args.iter()
+                        .map(|arg| print_rvalelem(interner, arg)).collect();
+                    s = s.append(list.connect(", ").as_slice());
+                    s = s.append(");\n");
+                    s
+                }
                 Load(..) |
                 Store(..) => unimplemented!(),
                 Nop => format!(""),

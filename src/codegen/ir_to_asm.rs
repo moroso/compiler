@@ -28,7 +28,7 @@ fn binop_to_aluop(op: &BinOpNode, swapped: bool) -> AluOp {
         BitXorOp => XorAluOp,
         // Shifts are also special.
 
-        _ => unimplemented!(),
+        _ => fail!("Unimplemented op: {}", op),
     }
 }
 
