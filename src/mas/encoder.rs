@@ -249,7 +249,7 @@ pub fn encode(inst: &InstNode) -> u32 {
                 coreg) => {
             (0b100010110 << 20) |
             encode_pred(&pred) |
-            (coreg as u32 << 5) |
+            (coreg as u32) |
             encode_rd(&rd)
         }
         EretInst(pred) => {
