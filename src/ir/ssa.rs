@@ -28,27 +28,6 @@ fn ssa_rvalelem(generations: &mut TreeMap<Name, uint>,
     }
 }
 
-// Fill in the generations in an RValue.
-fn ssa_rvalue(generations: &mut TreeMap<Name, uint>, rv: &mut RValue) {
-    match *rv {
-        DirectRValue(ref mut rv_elem) => ssa_rvalelem(generations, rv_elem),
-        BinOpRValue(_, ref mut lhs, ref mut rhs) => {
-            ssa_rvalelem(generations, lhs);
-            ssa_rvalelem(generations, rhs);
-        },
-        UnOpRValue(_, ref mut rhs) => {
-            ssa_rvalelem(generations, rhs);
-        },
-        CallRValue(ref mut rv_elem, ref mut args) => {
-            ssa_rvalelem(generations, rv_elem);
-            for arg in args.mut_iter() {
-                ssa_rvalelem(generations, arg);
-            }
-        },
-        AllocaRValue(..) => {}
-    }
-}
-
 // Fill in the generations of variables in the given TreeSet, using the given
 // gen_of function.
 fn ssa_vars(generations: &mut TreeMap<Name, uint>, vars: &mut TreeSet<Var>,
@@ -290,14 +269,26 @@ impl ToSSA {
 
         for op in ops.mut_iter() {
             match *op {
-                Assign(ref mut lv, ref mut rv) => {
-                    ssa_rvalue(gens, rv);
-                    match *lv {
-                        VarLValue(ref mut var) =>
-                            var.generation = next_gen(gens, var.name),
-                        PtrLValue(ref mut var) =>
-                            var.generation = gen_of(gens, var.name),
+                UnOp(ref mut v, _, ref mut rve) => {
+                    ssa_rvalelem(gens, rve);
+                    v.generation = next_gen(gens, v.name);
+                },
+                BinOp(ref mut v, _, ref mut rve1, ref mut rve2) => {
+                    ssa_rvalelem(gens, rve1);
+                    ssa_rvalelem(gens, rve2);
+                    v.generation = next_gen(gens, v.name);
+                },
+                Call(ref mut v, ref mut f, ref mut args) => {
+                    ssa_rvalelem(gens, f);
+                    for arg in args.mut_iter() {
+                        ssa_rvalelem(gens, arg);
                     }
+                    v.generation = next_gen(gens, v.name);
+                },
+                Store(ref mut v, ref mut other_v, _) |
+                Load(ref mut other_v, ref mut v, _) => {
+                    other_v.generation = gen_of(gens, other_v.name);
+                    v.generation = next_gen(gens, v.name);
                 },
                 Label(_, ref mut vars) => {
                     ssa_vars(gens, vars, |x, y| next_gen(x, y));

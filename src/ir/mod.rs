@@ -3,7 +3,7 @@ use mc::ast::{LitNode, BinOpNode, UnOpNode};
 use std::fmt::{Formatter, Result, Show};
 use std::collections::TreeSet;
 
-use util::Name;
+use util::{Name, Width};
 
 pub mod ast_to_intermediate;
 pub mod liveness;
@@ -71,55 +71,18 @@ impl Show for RValueElem {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
-pub enum RValue {
-    // A binary operation applied to two RValueElems
-    BinOpRValue(BinOpNode, RValueElem, RValueElem),
-    // A unary operation applied to an RValueElem
-    UnOpRValue(UnOpNode, RValueElem),
-    // An RValueElem (variable or constant) itself.
-    DirectRValue(RValueElem),
-    // Function call
-    CallRValue(RValueElem, Vec<RValueElem>),
-    // Allocate space on the stack. Used for structures and enums.
-    AllocaRValue(u64),
-}
-
-impl Show for RValue {
-    fn fmt(&self, f: &mut Formatter) -> Result { 
-        match *self {
-            BinOpRValue(ref op, ref v1, ref v2) =>
-                write!(f, 
-                       "{: >12} {} {: <12}",
-                       format!("{}", v1),
-                       op,
-                       format!("{}", v2)),
-            UnOpRValue(ref op, ref v1) =>
-                write!(f,
-                       "{} {: >12}",
-                       op,
-                       format!("{}", v1)),
-            DirectRValue(ref d) => write!(f, "{: >12}",
-                                         format!("{}", d)),
-            CallRValue(ref rve, ref args) => {
-                try!(write!(f, "call {}(", rve));
-                for arg in args.iter() {
-                    try!(write!(f, "{},", arg));
-                }
-                try!(write!(f, ")"));
-                Ok(())
-            },
-            AllocaRValue(ref size) => {
-                write!(f, "alloca {}", size)
-            }
-        }
-    }
-}
-
 #[deriving(Clone)]
 pub enum Op {
-    // A basic assignment.
-    Assign(LValue, RValue),
+    // Apply a unary operator
+    UnOp(Var, UnOpNode, RValueElem),
+    // Apply a binary operator
+    BinOp(Var, BinOpNode, RValueElem, RValueElem),
+    Alloca(Var, u64),
+    Call(Var, RValueElem, Vec<RValueElem>),
+    // Store to memory address pointed to by first Var.
+    Store(Var, Var, Width),
+    // Load from the address pointed to by the second Var.
+    Load(Var, Var, Width),
     // A label. The set of variables is ones that are active at that point.
     // TODO: make this a map from name -> gen.
     Label(uint, TreeSet<Var>),
@@ -138,8 +101,24 @@ pub enum Op {
 impl Show for Op {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
-            Assign(ref lv, ref rv) =>
-                write!(f, "{: >12} := {}\n", format!("{}", lv), rv),
+            UnOp(ref lv, ref op, ref rve) =>
+                write!(f, "{: >12} := {}({})\n",
+                       format!("{}", lv), op, rve),
+            BinOp(ref lv, ref op, ref rve1, ref rve2) =>
+                write!(f, "{: >12} := {} {} {}\n",
+                       format!("{}", lv), rve1, op, rve2),
+            Store(ref lv, ref rv, ref size) =>
+                write!(f, "{: >12} :={} {}\n",
+                       format!("*{}", lv), size, rv),
+            Load(ref lv, ref rv, ref size) =>
+                write!(f, "{: >12} :={} *{}\n",
+                       format!("{}", lv), size, rv),
+            Call(ref lv, ref fname, ref args) =>
+                write!(f, "{: >12} := {}({})\n",
+                       format!("{}", lv), fname, args),
+            Alloca(ref v, ref size) =>
+                write!(f, "{: >12} := alloca({})",
+                       format!("{}", v), size),
             Label(ref l, ref vars) => write!(f, "{}({}):\n", l, vars),
             Goto(ref l, ref vars) => write!(f, "goto {}({})\n", l, vars),
             CondGoto(ref e, ref l, ref vars) => write!(f, "if {} goto {}({})\n",

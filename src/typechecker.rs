@@ -653,7 +653,8 @@ impl<'a> Typechecker<'a> {
                     Deref => match ty.val {
                         PtrTy(p_ty) => p_ty.val,
                         _ => unreachable!(),
-                    }
+                    },
+                    Identity => ty.val,
                 };
 
                 expr_ty

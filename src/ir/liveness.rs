@@ -10,73 +10,76 @@ use values::*;
 
 pub struct LivenessAnalyzer;
 
+fn seed_rve(opinfo: &mut OpInfo, rve: &RValueElem) {
+    match *rve {
+        Variable(ref v) => { opinfo.used.insert(v.clone()); },
+        _ => {}
+    }
+}
+
 fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
     let len = ops.len();
 
     for u in range(0, len) {
+        let opinfo = opinfo.get_mut(u);
         match *ops.get(u) {
-            Assign(ref lv, ref rv) => {
-                let opinfo = opinfo.get_mut(u);
-                match *lv {
-                    VarLValue(ref v) =>
-                    { opinfo.def.insert(v.clone()); },
-                    _ => {},
-                };
-                match *rv {
-                    BinOpRValue(_, ref v1, ref v2) => {
-                        match *v1 {
-                            Variable(ref w1) =>
-                            { opinfo.used.insert(w1.clone()); },
-                            _ => {},
-                        };
-                        match *v2 {
-                            Variable(ref w2) =>
-                            { opinfo.used.insert(w2.clone()); },
-                            _ => {},
-                        };
-                    },
-                    UnOpRValue(_, ref v1) => {
-                        match *v1 {
-                            Variable(ref w1) =>
-                            { opinfo.used.insert(w1.clone()); },
-                            _ => {},
-                        };
-                    },
-                    DirectRValue(ref v) =>
-                        match *v {
-                            Variable(ref v2) =>
-                            { opinfo.used.insert(v2.clone()); },
-                            _ => {},
-                        },
-                    CallRValue(ref v, ref args) => {
-                        match *v {
-                            Variable(ref v2) =>
-                            { opinfo.used.insert(v2.clone()); },
-                            _ => {},
-                        };
-                        for arg in args.iter() {
-                            match *arg {
-                                Variable(ref v2) =>
-                                { opinfo.used.insert(v2.clone()); },
-                                _ => {},
-                            }
-                        }
-                    },
-                    AllocaRValue(..) => { }
-                };
-                // TODO: this needs to handle jumps.
+            BinOp(ref lv, _, ref rve1, ref rve2) => {
+                opinfo.def.insert(lv.clone());
+                seed_rve(opinfo, rve1);
+                seed_rve(opinfo, rve2);
+
+                if u + 1 < len {
+                    opinfo.succ.insert(u + 1);
+                }
+            },
+            UnOp(ref lv, _, ref rve) => {
+                opinfo.def.insert(lv.clone());
+                seed_rve(opinfo, rve);
+
+                if u + 1 < len {
+                    opinfo.succ.insert(u + 1);
+                }
+            },
+            Load(ref lv, ref rv, _) => {
+                opinfo.def.insert(lv.clone());
+                opinfo.used.insert(rv.clone());
+
+                if u + 1 < len {
+                    opinfo.succ.insert(u + 1);
+                }
+            },
+            Store(ref v1, ref v2, _) => {
+                opinfo.used.insert(v1.clone());
+                opinfo.used.insert(v2.clone());
+
+                if u + 1 < len {
+                    opinfo.succ.insert(u + 1);
+                }
+            },
+            Call(ref lv, ref f, ref args) => {
+                opinfo.def.insert(lv.clone());
+                seed_rve(opinfo, f);
+                for arg in args.iter() {
+                    seed_rve(opinfo, arg);
+                }
+
+                if u + 1 < len {
+                    opinfo.succ.insert(u + 1);
+                }
+            },
+            Alloca(lv, _) => {
+                opinfo.def.insert(lv.clone());
+
                 if u + 1 < len {
                     opinfo.succ.insert(u + 1);
                 }
             },
             Nop => {
                 if u + 1 < len {
-                    let opinfo = opinfo.get_mut(u);
                     opinfo.succ.insert(u + 1);
                 }
             }
             Label(_, ref vars) => {
-                let opinfo = opinfo.get_mut(u);
                 if u + 1 < len {
                     opinfo.succ.insert(u + 1);
                 }
@@ -85,7 +88,6 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                 }
             },
             Goto(ref l, ref vars) => {
-                let opinfo = opinfo.get_mut(u);
                 for u2 in range(0, len) {
                     match *ops.get(u2) {
                         Label(l2, _) if *l == l2 => {
@@ -101,7 +103,6 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
             },
             // TODO: get rid of redundant code.
             CondGoto(_, ref l, ref vars) => {
-                let opinfo = opinfo.get_mut(u);
                 for u2 in range(0, len) {
                     match *ops.get(u2) {
                         Label(l2, _) if *l == l2 => {
@@ -119,14 +120,12 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                 }
             },
             Return(ref v) => {
-                let opinfo = opinfo.get_mut(u);
                 match *v {
                     Variable(ref w1) => { opinfo.used.insert(w1.clone()); },
                     _ => {},
                 }
             },
             Func(_, ref vars) => {
-                let opinfo = opinfo.get_mut(u);
                 for v in vars.iter() {
                     opinfo.def.insert(v.clone());
                 }

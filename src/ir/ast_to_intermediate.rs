@@ -60,8 +60,7 @@ impl<'a> ASTToIntermediate<'a> {
                 match *e_opt {
                     Some(ref e) => {
                         let (mut ops, other_v) = self.convert_expr(e);
-                        ops.push(Assign(VarLValue(v),
-                                        DirectRValue(Variable(other_v))));
+                        ops.push(UnOp(v, Identity, Variable(other_v)));
                         (ops, v)
                     },
                     None => {
@@ -74,8 +73,7 @@ impl<'a> ASTToIntermediate<'a> {
                                                                self.typemap,
                                                                id);
                                         print!("Allocate {}\n", size);
-                                        (vec!(Assign(VarLValue(v),
-                                                     AllocaRValue(size))), v)
+                                        (vec!(Alloca(v, size)), v)
                                     },
                                     _ => (vec!(), v)
                                 }
@@ -136,8 +134,7 @@ impl<'a> ASTToIntermediate<'a> {
             LitExpr(ref lit) => {
                 let res_var = self.gen_temp();
                 let insts = vec!(
-                    Assign(VarLValue(res_var.clone()),
-                           DirectRValue(Constant(lit.val.clone())))
+                    UnOp(res_var.clone(), Identity, Constant(lit.val.clone()))
                     );
                 (insts, res_var)
             }
@@ -147,10 +144,10 @@ impl<'a> ASTToIntermediate<'a> {
                 insts1.push_all_move(insts2);
                 let new_res = self.gen_temp();
                 insts1.push(
-                    Assign(VarLValue(new_res.clone()),
-                           BinOpRValue(op.val.clone(),
-                                       Variable(var1),
-                                       Variable(var2))));
+                    BinOp(new_res.clone(),
+                          op.val.clone(),
+                          Variable(var1),
+                          Variable(var2)));
                 (insts1, new_res)
             },
             PathExpr(ref path) => {
@@ -180,8 +177,9 @@ impl<'a> ASTToIntermediate<'a> {
                 //     the value of a.
                 // binop_insts are the instructions necessary to put the
                 //     right value into binop_var.
-                // dest is the LValue where everything is ultimately stored.
-                let (binop_var, binop_insts, dest) = match e1val {
+                // finalize does the assignment to the variable; lhs_var
+                //     is passed into it.
+                let (binop_var, binop_insts, lhs_var, finalize) = match e1val {
                     PathExpr(ref path) => {
                         let lhs_var = Var {
                             name: path.val.elems.last().unwrap().val.name,
@@ -189,7 +187,8 @@ impl<'a> ASTToIntermediate<'a> {
                         };
                         (lhs_var.clone(),
                          vec!(),
-                         VarLValue(lhs_var.clone()))
+                         lhs_var,
+                         |lv, v| UnOp(lv, Identity, Variable(v)))
                     },
                     UnOpExpr(ref lhs_op, ref e) => {
                         let (insts, var) = self.convert_expr(*e);
@@ -198,13 +197,15 @@ impl<'a> ASTToIntermediate<'a> {
                         match lhs_op.val {
                             Deref => {
                                 (res_var.clone(),
-                                 vec!(Assign(VarLValue(res_var.clone()),
-                                             UnOpRValue(Deref,
-                                                        Variable(var.clone())
-                                                        )
-                                             )
+                                 vec!(Load(res_var.clone(),
+                                           var.clone(),
+                                           Width32 // TODO!!!! Determine width
+                                           )
                                       ),
-                                 PtrLValue(var.clone()))
+                                 var.clone(),
+                                 |lv, v| Store(lv, v,
+                                           Width32 // TODO!!!! Determine width
+                                           ))
                             },
                             _ => fail!(),
                         }
@@ -217,13 +218,15 @@ impl<'a> ASTToIntermediate<'a> {
 
                         let binop_var = self.gen_temp();
                         (binop_var,
-                         vec!(Assign(VarLValue(binop_var.clone()),
-                                     UnOpRValue(Deref,
-                                                Variable(added_addr_var.clone())
-                                                )
-                                     )
+                         vec!(Load(binop_var.clone(),
+                                   added_addr_var.clone(),
+                                   Width32 // TODO!!!! Determine width
+                                   )
                               ),
-                        PtrLValue(added_addr_var))
+                         added_addr_var,
+                         |lv, v| Store(lv, v,
+                                   Width32 // TODO!!!! Determine width
+                                   ))
                     }
                     _ => fail!("Got {}", e1.val),
                 };
@@ -237,11 +240,10 @@ impl<'a> ASTToIntermediate<'a> {
                             // necessary to give us the value of 'a'.
                             res.push_all_move(binop_insts);
                             let binop_result_var = self.gen_temp();
-                            res.push(Assign(
-                                VarLValue(binop_result_var),
-                                BinOpRValue(inner_op.val.clone(),
-                                            Variable(binop_var),
-                                            Variable(var2))));
+                            res.push(BinOp(binop_result_var,
+                                           inner_op.val.clone(),
+                                           Variable(binop_var),
+                                           Variable(var2)));
                             binop_result_var
                         },
                         // No binop. We can just assign the result of
@@ -250,7 +252,7 @@ impl<'a> ASTToIntermediate<'a> {
                     };
                 // This generates a redundant store in some cases, but
                 // the optimizer will eliminate them.
-                res.push(Assign(dest, DirectRValue(Variable(final_var))));
+                res.push(finalize(lhs_var, final_var));
 
                 (res, final_var)
             }
@@ -265,13 +267,11 @@ impl<'a> ASTToIntermediate<'a> {
                                     b1_label,
                                     TreeSet::new()));
                 insts.push_all_move(b2_insts);
-                insts.push(Assign(VarLValue(end_var),
-                                  DirectRValue(Variable(b2_var))));
+                insts.push(UnOp(end_var, Identity, Variable(b2_var)));
                 insts.push(Goto(b1_label, TreeSet::new()));
                 insts.push(Label(b1_label, TreeSet::new()));
                 insts.push_all_move(b1_insts);
-                insts.push(Assign(VarLValue(end_var),
-                                  DirectRValue(Variable(b1_var))));
+                insts.push(UnOp(end_var, Identity, Variable(b1_var)));
                 (insts, end_var)
             },
             WhileExpr(ref e, ref b) => {
@@ -309,19 +309,19 @@ impl<'a> ASTToIntermediate<'a> {
                 let (new_ops, new_var) = self.convert_expr(*f);
                 ops.push_all_move(new_ops);
                 let result_var = self.gen_temp();
-                ops.push(Assign(
-                    VarLValue(result_var.clone()),
-                    CallRValue(Variable(new_var),
-                               vars.move_iter().map(
-                                   |v| Variable(v)).collect())));
+                ops.push(Call(result_var.clone(),
+                              Variable(new_var),
+                              vars.move_iter().map(
+                                  |v| Variable(v)).collect()));
                 (ops, result_var)
             },
             DotExpr(ref e, ref name) => {
                 let (mut ops, added_addr_var) = self.struct_helper(*e, name);
 
                 let res_var = self.gen_temp();
-                ops.push(Assign(VarLValue(res_var),
-                                UnOpRValue(Deref, Variable(added_addr_var))));
+                ops.push(Load(res_var, added_addr_var,
+                              Width32 // TODO!!!! Determine width
+                              ));
                 (ops, res_var)
             },
             _ => (vec!(), self.gen_temp()),
@@ -345,12 +345,11 @@ impl<'a> ASTToIntermediate<'a> {
 
         let added_addr_var = self.gen_temp();
 
-        ops.push(Assign(
-            VarLValue(added_addr_var),
-            BinOpRValue(PlusOp,
-                        Variable(var),
-                        Constant(NumLit(offs,
-                                        UnsignedInt(Width32))))));
+        ops.push(BinOp(
+            added_addr_var,
+            PlusOp,
+            Variable(var),
+            Constant(NumLit(offs, UnsignedInt(Width32)))));
 
         (ops, added_addr_var)
     }

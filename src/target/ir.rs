@@ -53,44 +53,6 @@ fn print_rvalelem(interner: &Ref<Interner>, rve: &RValueElem) -> String {
     }
 }
 
-fn print_rvalue(interner: &Ref<Interner>, rv: &RValue) -> String {
-    match *rv {
-        BinOpRValue(ref op, ref v1, ref v2) => {
-            format!("{} {} {}",
-                    print_rvalelem(interner, v1),
-                    op,
-                    print_rvalelem(interner, v2)
-                    )
-        },
-        UnOpRValue(ref op, ref v) => {
-            match *op {
-                Deref => {
-                    format!("*((int*){})",
-                            print_rvalelem(interner, v))
-                },
-                _ => {
-                    format!("{} {}",
-                            op,
-                            print_rvalelem(interner, v)
-                            )
-                }
-            }
-        },
-        DirectRValue(ref v) => print_rvalelem(interner, v),
-        CallRValue(ref v, ref args) => {
-            let mut s = format!("((int (*)()){})(", print_rvalelem(interner, v));
-            let list: Vec<String> = args.iter()
-                .map(|arg| print_rvalelem(interner, arg)).collect();
-            s = s.append(list.connect(", ").as_slice());
-            s = s.append(")");
-            s
-        }
-        AllocaRValue(ref size) => {
-            format!("alloca({})", size)
-        }
-    }
-}
-
 fn assign_vars(interner: &Ref<Interner>,
                label: &TreeMap<Name, uint>,
                vars: &TreeSet<Var>) -> String {
@@ -140,11 +102,19 @@ impl IRTarget {
         // Do the actual conversion.
         for op in ops.iter() {
             s = s.append(match *op {
-                Assign(ref lv, ref rv) => {
-                    format!("  {} = (long)({});\n",
-                            print_lvalue(interner, lv),
-                            print_rvalue(interner, rv))
+                BinOp(ref v, ref op, ref rv1, ref rv2) => {
+                    format!("  {} = (long)(({}) {} ({}));\n",
+                            print_var(interner, v),
+                            print_rvalelem(interner, rv1),
+                            op,
+                            print_rvalelem(interner, rv2))
                 },
+                UnOp(..) |
+                Alloca(..) |
+                Call(..) |
+                Load(..) |
+                Store(..) => unimplemented!(),
+                Nop => format!(""),
                 Label(ref l, _) => {
                     // TODO: correct assignments of variables in labels and
                     // gotos.
@@ -182,7 +152,7 @@ impl IRTarget {
                             mapped_args.connect(", "),
                             s)
                 }
-                _ => format!(""),
+                //_ => format!(""),
             }.as_slice());
         }
         s.append("}\n")

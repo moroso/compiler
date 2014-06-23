@@ -129,6 +129,7 @@ fn unop_token(op: UnOpNode) -> Token {
         Negate => Dash,
         LogNot => Bang,
         BitNot => Tilde,
+        Identity => fail!(), // This should never come up in the language.
     }
 }
 

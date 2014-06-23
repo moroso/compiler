@@ -6,52 +6,9 @@ use mc::ast::*;
 use ir::*;
 use values::*;
 
-fn substituted_rvalue(rv: &RValue,
-                      wrapped_var: RValueElem,
-                      new: &RValueElem) -> RValue {
-    // TODO: rewrite this in a way that doesn't require as much cloning.
-    match *rv {
-        BinOpRValue(ref op, ref r1, ref r2) =>
-            BinOpRValue(
-                *op,
-                if wrapped_var == *r1 { new.clone() }
-                else { r1.clone() },
-                if wrapped_var == *r2 { new.clone() }
-                else { r2.clone() },
-                ),
-        UnOpRValue(ref op, ref r1) =>
-            UnOpRValue(
-                *op,
-                if wrapped_var == *r1 { new.clone() }
-                else { r1.clone() }
-                ),
-        DirectRValue(ref r) =>
-            DirectRValue(if wrapped_var == *r
-                         { new.clone() }
-                         else { (*r).clone() }),
-        CallRValue(ref r, ref args) => {
-            CallRValue(
-                if wrapped_var == *r {
-                    new.clone()
-                } else {
-                    (*r).clone()
-                },
-                args.iter().map(|arg|
-                         if wrapped_var == *arg {
-                             new.clone()
-                         } else {
-                             (*arg).clone()
-                         }
-                ).collect()
-            )
-        },
-        AllocaRValue(ref size) => AllocaRValue(size.clone()),
-    }
-}
-
 fn sub_vars(vars: &TreeSet<Var>, orig_var: &Var,
             new_rvelem: &RValueElem) -> TreeSet<Var> {
-    // Substitute any variables appearing in the Goto.
+    // Substitute any variables appearing in the Goto or call.
     let mut new_vars = TreeSet::new();
     for var in vars.iter() {
         if var == orig_var {
@@ -77,43 +34,37 @@ pub fn subst(ops: &mut Vec<Op>,
              new_rvelem: &RValueElem) {
     let wrapped_var = Variable(orig_var.clone());
 
-    let is_constant = match *new_rvelem {
-        Constant(..) => true,
-        _ => false,
-    };
-
-    // TODO: this is pretty terrible.
-    let var_opt = match *new_rvelem {
-        Variable(ref v) => Some(v.clone()),
-        _ => None,
-    };
-
     for op in ops.mut_iter() {
         let temp = match *op {
-            Assign(ref x, ref rv) =>
-                match *x {
-                    // This case behaves differenly if we're substituting a
-                    // variable or a constant. We'll probably at some point
-                    // want a separate function for variable substitutions.
-                    VarLValue(ref v) if v == orig_var => {
-                        if is_constant ||
-                            *rv == DirectRValue(new_rvelem.clone()) {
-                            Nop
-                        } else {
-                            Assign(match var_opt {
-                                Some(ref v) => VarLValue(v.clone()),
-                                _ => x.clone()
-                            },
-                                   substituted_rvalue(rv,
-                                                  wrapped_var.clone(),
-                                                  new_rvelem))
-                        }
-                    },
-                    _ =>
-                        Assign(x.clone(),
-                               substituted_rvalue(rv,
-                                                  wrapped_var.clone(),
-                                                  new_rvelem)),
+            UnOp(ref v, ref op, ref rv) =>
+                if v == orig_var {
+                    Nop
+                } else {
+                    UnOp(v.clone(),
+                         op.clone(),
+                         if *rv == wrapped_var.clone() {
+                             new_rvelem
+                         } else {
+                             rv
+                         }.clone())
+
+                },
+            BinOp(ref v, ref op, ref rv1, ref rv2) =>
+                if v == orig_var {
+                    Nop
+                } else {
+                    BinOp(v.clone(),
+                          op.clone(),
+                          if *rv1 == wrapped_var.clone() {
+                              new_rvelem
+                          } else {
+                              rv1
+                          }.clone(),
+                          if *rv2 == wrapped_var.clone() {
+                              new_rvelem
+                          } else {
+                              rv2
+                          }.clone())
                 },
             Goto(ref u, ref vars) => {
                 Goto(u.clone(), sub_vars(vars, orig_var, new_rvelem))

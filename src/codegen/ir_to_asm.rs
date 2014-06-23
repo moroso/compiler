@@ -182,27 +182,15 @@ impl IrToAsm {
         let mut result = vec!();
         for op in ops.iter() {
             match *op {
-                Assign(ref lv, ref rv) => {
-                    let var = match *lv {
-                        VarLValue(var) => var,
-                        _ => unimplemented!(),
-                    };
-
-                    let lhs_reg = match *regmap.find(&var).unwrap() {
+                BinOp(ref var, ref op, ref rve1, ref rve2) => {
+                    let lhs_reg = match *regmap.find(var).unwrap() {
                         RegColor(reg) => reg,
                         // TODO: implement spilling.
                         _ => unimplemented!(),
                     };
 
-                    let insts = match *rv {
-                        DirectRValue(ref rve) =>
-                            convert_directrvalue(&regmap, lhs_reg, rve),
-                        BinOpRValue(ref op, ref rve1, ref rve2) =>
-                            convert_binoprvalue(&regmap, lhs_reg,
-                                                op, rve1, rve2),
-                        _ => vec!(),
-                    };
-                    result.push_all_move(insts);
+                    result.push_all_move(
+                        convert_binoprvalue(&regmap, lhs_reg, op, rve1, rve2));
                 },
                 _ => {},
             }

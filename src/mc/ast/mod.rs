@@ -210,6 +210,7 @@ pub enum UnOpNode {
     Negate,
     LogNot,
     BitNot,
+    Identity,
 }
 
 impl Show for UnOpNode {
@@ -220,6 +221,7 @@ impl Show for UnOpNode {
             Negate => "-",
             LogNot => "!",
             BitNot => "~",
+            Identity => "",
         })
     }
 }
