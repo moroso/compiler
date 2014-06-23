@@ -359,7 +359,9 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
         Flush      => FlushRule,
         IdentTok   => matcher!(r"[a-zA-Z_]\w*"),
         // TODO: a specific matcher for this.
-        IdentTok   => matcher!(r"\.[0-9]+(a|b)?")
+        IdentTok   => matcher!(r"\.[0-9]+(a|b)?"),
+
+        BeginComment => matcher!(r"/\*")
     };
 
     // A special set of rules, just for when we're within a multi-line

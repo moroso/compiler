@@ -133,7 +133,8 @@ impl<B: Buffer, T: Eq> Iterator<SourceToken<T>> for Lexer<B, T> {
                         self.pos.col += longest;
 
                         match best {
-                            None => fail!("Unexpected input"),
+                            None => fail!("Unexpected input at {}",
+                                          line.slice_from(self.pos.col)),
                             Some((_, ref x)) if x == &self.ws
                                 => {} // Skip whitespace.
                             Some((_, ref x)) if x == &self.begincomment

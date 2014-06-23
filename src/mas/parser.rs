@@ -714,7 +714,7 @@ impl<T: Buffer> AsmParser<T> {
 
                 self.parse_long()
             },
-            _ => unimplemented!()
+            _ => self.error(format!("Unknown token {}\n", cur_tok)),
         }
     }
 
