@@ -711,11 +711,23 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let start_span = self.cur_span();
         self.expect(For);
         self.expect(LParen);
-        let init = self.parse_expr();
+        let this_span = self.cur_span();
+        let init = match *self.peek() {
+            Semicolon => self.add_id_and_span(UnitExpr, this_span),
+            _ => self.parse_expr(),
+        };
         self.expect(Semicolon);
-        let cond = self.parse_expr();
+        let this_span = self.cur_span();
+        let cond = match *self.peek() {
+            Semicolon => self.add_id_and_span(UnitExpr, this_span),
+            _ => self.parse_expr(),
+        };
         self.expect(Semicolon);
-        let iter = self.parse_expr();
+        let this_span = self.cur_span();
+        let iter = match *self.peek() {
+            RParen => self.add_id_and_span(UnitExpr, this_span),
+            _ => self.parse_expr(),
+        };
         self.expect(RParen);
         let body = self.parse_block();
         let end_span = self.cur_span();
