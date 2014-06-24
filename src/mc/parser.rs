@@ -87,6 +87,30 @@ struct OpTableRow {
     ops: uint,
 }
 
+fn can_start_item(t: &Token) -> bool {
+    match *t {
+        Fn | Static | Extern |
+        Enum | Struct | Mod |
+        Macro | Const
+            => true,
+        _   => false
+    }
+}
+
+fn can_start_expr(t: &Token) -> bool {
+    match *t {
+        If | Return | Break | Continue |
+        Match | For | While |
+        True | False | Null |
+        LBrace | LParen |
+        ColonColon | IdentTok(..) |
+        NumberTok(..) | StringTok(..) |
+        IdentBangTok(..)
+            => true,
+        _   => false
+    }
+}
+
 fn unop_from_token(t: &Token) -> Option<UnOpNode> {
     match *t {
         Dash => Some(Negate),
@@ -610,9 +634,9 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             node = match *self.peek() {
                 LBracket => {
                     self.expect(LBracket);
-                    let len = self.expect_number();
+                    let d = self.parse_expr();
                     self.expect(RBracket);
-                    ArrayType(box result, len)
+                    ArrayType(box result, box d)
                 }
                 _ => return result
             }
@@ -1049,34 +1073,29 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_simple_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
-        let peek_next_expr_parser = |p: &mut StreamParser<'a, T>| match *p.peek() {
-                If     => Some(|p: &mut StreamParser<'a, T>| p.parse_if_expr()),
-                Return => Some(|p: &mut StreamParser<'a, T>| p.parse_return_expr()),
-                Break  => Some(|p: &mut StreamParser<'a, T>| p.parse_break_expr()),
-                Continue => Some(|p: &mut StreamParser<'a, T>| p.parse_continue_expr()),
-                Match  => Some(|p: &mut StreamParser<'a, T>| p.parse_match_expr()),
-                For    => Some(|p: &mut StreamParser<'a, T>| p.parse_for_expr()),
-                While  => Some(|p: &mut StreamParser<'a, T>| p.parse_while_expr()),
-                LBrace => Some(|p: &mut StreamParser<'a, T>| p.parse_block_expr()),
-                LParen => Some(|p: &mut StreamParser<'a, T>| p.parse_paren_expr()),
-                ColonColon | IdentTok(..) => Some(|p: &mut StreamParser<'a, T>| p.parse_path_or_struct_expr()),
-                NumberTok(..) | StringTok(..) | True | False | Null => Some(|p: &mut StreamParser<'a, T>| {
-                    let start_span = p.cur_span();
-                    let node = LitExpr(p.parse_lit());
-                    let end_span = p.cur_span();
-                    p.add_id_and_span(node, start_span.to(end_span))
-                }),
-                IdentBangTok(..) => Some(|p: &mut StreamParser<'a, T>| p.parse_macro_expr()),
-                _ => None,
-            };
-
-        let mut expr = match peek_next_expr_parser(self) {
-            Some(expr_parser) => expr_parser(self),
-            None    => self.peek_error("Expected expression")
+        let mut expr = match *self.peek() {
+            If                        => self.parse_if_expr(),
+            Return                    => self.parse_return_expr(),
+            Break                     => self.parse_break_expr(),
+            Continue                  => self.parse_continue_expr(),
+            Match                     => self.parse_match_expr(),
+            For                       => self.parse_for_expr(),
+            While                     => self.parse_while_expr(),
+            LBrace                    => self.parse_block_expr(),
+            LParen                    => self.parse_paren_expr(),
+            ColonColon | IdentTok(..) => self.parse_path_or_struct_expr(),
+            IdentBangTok(..)          => self.parse_macro_expr(),
+            NumberTok(..) | StringTok(..) | True | False | Null => {
+                let start_span = self.cur_span();
+                let node = LitExpr(self.parse_lit());
+                let end_span = self.cur_span();
+                self.add_id_and_span(node, start_span.to(end_span))
+            },
+            _ => self.peek_error("Expected expression"),
         };
 
         // While the next token cannot start an expression and expr is not complete
-        while !(peek_next_expr_parser(self).is_some() && self.expr_is_complete(&expr)) {
+        while !(can_start_expr(self.peek()) && self.expr_is_complete(&expr)) {
             let node = match *self.peek() {
                 Period => {
                     self.expect(Period);
@@ -1345,10 +1364,12 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                         use_items.push(self.parse_use_item())
                     }
                 }
-                Fn | Static | Extern |
-                Enum | Struct | Mod | Macro => items.push(self.parse_item()),
                 _ => {
-                    unmatched(self);
+                    if can_start_item(self.peek()) {
+                        items.push(self.parse_item())
+                    } else {
+                        unmatched(self);
+                    }
                 }
             }
 
@@ -1473,6 +1494,19 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         self.add_id_and_span(MacroDefItem(def), start_span.to(end_span))
     }
 
+    fn parse_const_item(&mut self) -> Item {
+        let start_span = self.cur_span();
+        self.expect(Const);
+        let name = self.parse_ident();
+        self.expect(Colon);
+        let ty = self.parse_type();
+        self.expect(Eq);
+        let expr = self.parse_expr();
+        self.expect(Semicolon);
+        let end_span = self.cur_span();
+        self.add_id_and_span(ConstItem(name, ty, expr), start_span.to(end_span))
+    }
+
     fn parse_item(&mut self) -> Item {
         match *self.peek() {
             Fn => self.parse_func_item(),
@@ -1482,6 +1516,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             Static => self.parse_static_item(),
             Extern => self.parse_extern_item(),
             Macro => self.parse_macro_item(),
+            Const => self.parse_const_item(),
             _ => self.peek_error("Expected an item definition (fn, struct, enum, mod)"),
         }
     }

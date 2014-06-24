@@ -47,6 +47,9 @@ pub enum Def {
 
     /// Variable definition bound by a pattern (let statements, match arms)
     PatDef(Option<Type>),
+
+    /// Constant definition
+    ConstDef(Type),
 }
 
 pub struct DefMap {
@@ -189,6 +192,11 @@ impl<'a> Visitor for DefMapVisitor<'a> {
                 for e in expr.iter() {
                     self.visit_expr(e);
                 }
+            }
+            ConstItem(ref ident, ref ty, ref expr) => {
+                self.session.defmap.table.insert(ident.id, ConstDef(ty.clone()));
+                self.visit_type(ty);
+                self.visit_expr(expr);
             }
             UseItem(ref path) => {
                 let ident = path.val.elems.last().unwrap();

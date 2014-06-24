@@ -36,6 +36,7 @@ pub enum Token {
     Extern,
     Use,
     Macro,
+    Const,
 
     // Symbols
     LParen,
@@ -257,6 +258,7 @@ pub fn new_mb_lexer<S: StrAllocating, B: Buffer>(name: S, buffer: B) -> Lexer<B,
             Extern       => "extern",
             Use          => "use",
             Macro        => "macro",
+            Const        => "const",
 
             // Basic types; TODO: add more.
             IntTypeTok   => IntTypeRule,

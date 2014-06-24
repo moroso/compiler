@@ -136,7 +136,7 @@ pub enum TypeNode {
     PtrType(Box<Type>),
     NamedType(Path),
     FuncType(Vec<Type>, Box<Type>),
-    ArrayType(Box<Type>, u64),
+    ArrayType(Box<Type>, Box<Expr>),
     TupleType(Vec<Type>),
 }
 
@@ -150,7 +150,7 @@ impl Show for TypeNode {
             PtrType(ref t)            => write!(f, "*({})", t),
             NamedType(ref p)          => write!(f, "{}", p),
             FuncType(ref d, ref r)    => write!(f, "({} -> {})", d, r),
-            ArrayType(ref t, d)       => write!(f, "({})[{}]", t, d),
+            ArrayType(ref t, ref d)   => write!(f, "({})[{}]", t, d),
             TupleType(ref ts)         => write!(f, "({})", ts),
         }
     }
@@ -444,6 +444,7 @@ pub enum ItemNode {
     StaticItem(Ident, Type, Option<Expr>),
     UseItem(Path),
     MacroDefItem(MacroDef),
+    ConstItem(Ident, Type, Expr),
 }
 
 impl Show for ItemNode {
@@ -487,10 +488,13 @@ impl Show for ItemNode {
                 write!(f, "{}", "}")
             }
             StaticItem(ref name, ref ty, ref expr) => {
-                write!(f, "let {}: {}{};", name,
+                write!(f, "static {}: {}{};", name,
                        ty,
                        expr.as_ref().map(|e| format!(" = {}", e))
                        .unwrap_or_default())
+            }
+            ConstItem(ref name, ref ty, ref expr) => {
+                write!(f, "const {}: {} = {};", name, ty, expr)
             }
             UseItem(ref path) => {
                 write!(f, "use {};", path)

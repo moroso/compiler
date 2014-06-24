@@ -68,6 +68,9 @@ impl Subscope {
                 StaticItem(ref ident, _, _) => {
                     self.insert_ident(ValNS, ident);
                 }
+                ConstItem(ref ident, _, _) => {
+                    self.insert_ident(ValNS, ident);
+                }
                 _ => {}
             }
         }
@@ -348,6 +351,11 @@ impl<'a> Visitor for ModuleResolver<'a> {
                 for e in expr.iter() {
                     self.visit_expr(e);
                 }
+            }
+            ConstItem(ref ident, ref ty, ref expr) => {
+                self.visit_ident(ident);
+                self.visit_type(ty);
+                self.visit_expr(expr);
             }
             StructItem(_, ref fields, ref tps) => {
                 self.descend(None, |me| {

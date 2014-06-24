@@ -4,7 +4,7 @@ use util::{IntKind, GenericInt, SignedInt, UnsignedInt};
 use util::{Width, AnyWidth, Width8, Width16, Width32};
 use span::Span;
 
-use std::collections::{SmallIntMap, TreeMap, EnumSet};
+use std::collections::{SmallIntMap, TreeMap, EnumSet, TreeSet};
 use std::collections::enum_set::CLike;
 
 use std::fmt;
@@ -38,6 +38,159 @@ pub enum Ty {
     EnumTy(NodeId, Vec<WithId<Ty>>),
     BoundTy(BoundsId),
     BottomTy,
+}
+
+#[deriving(Show)]
+enum Constant<'a> {
+    StringConstant(&'a str),
+    IntConstant(i64),
+    UintConstant(u64),
+    BoolConstant(bool),
+}
+
+struct ConstCollector<'a> {
+    nodes: TreeMap<NodeId, &'a Expr>,
+    edges: TreeMap<NodeId, TreeSet<NodeId>>,
+    deps: TreeMap<NodeId, u64>,
+    session: &'a Session,
+}
+
+type ConstantResult<'a> = Result<Constant<'a>, (NodeId, &'static str)>;
+type ConstantMap<'a> = TreeMap<NodeId, ConstantResult<'a>>;
+
+fn constant_fold<'a>(session: &'a Session, map: &ConstantMap<'a>, expr: &Expr)
+                  -> ConstantResult<'a> {
+    match expr.val {
+        LitExpr(ref lit) => {
+            use std::mem::copy_lifetime;
+            match lit.val {
+                NumLit(n, SignedInt(_)) => Ok(IntConstant(n as i64)),
+                NumLit(n, _)            => Ok(UintConstant(n)),
+                StringLit(ref s)        => Ok(StringConstant(unsafe { copy_lifetime(session, s).as_slice() })),
+                BoolLit(b)              => Ok(BoolConstant(b)),
+                NullLit                 => Err((lit.id, "`null` is not valid here")),
+            }
+        }
+        GroupExpr(ref e) => constant_fold(session, map, *e),
+        PathExpr(ref path) => {
+            let nid = session.resolver.def_from_path(path);
+            match map.find(&nid) {
+                Some(c) => *c,
+                None => Err((path.id, "Non-constant name where constant expected")),
+            }
+        }
+        _ => Err((expr.id, "Non-constant expression where constant expected")),
+    }
+}
+
+impl<'a> ConstCollector<'a> {
+    fn new(session: &'a Session) -> ConstCollector<'a> {
+        ConstCollector {
+            nodes: TreeMap::new(),
+            edges: TreeMap::new(),
+            deps: TreeMap::new(),
+            session: session,
+        }
+    }
+
+    fn insert_edge(&mut self, srcid: NodeId, expr: &Expr) {
+        match expr.val {
+            PathExpr(ref path) => {
+                let destid = self.session.resolver.def_from_path(path);
+                if !self.edges.contains_key(&destid) {
+                    self.edges.insert(destid, TreeSet::new());
+                }
+
+                let set = self.edges.find_mut(&destid).unwrap();
+                set.insert(srcid);
+
+                if !self.deps.contains_key(&srcid) {
+                    self.deps.insert(srcid, 0);
+                }
+
+                let count = self.deps.find_mut(&srcid).unwrap();
+                *count += 1;
+            }
+            _ => {}
+        }
+    }
+
+    fn get_order(&mut self) -> Vec<NodeId> {
+        // topo sort from wikipedia, welp
+        let mut list = vec!();
+        let mut set = TreeSet::new();
+        let mut nonconst = vec!();
+
+        for edge in self.edges.iter() {
+            let nid = edge.val0();
+            if !self.nodes.contains_key(nid) {
+                nonconst.push(*edge.val0());
+            }
+        }
+
+        for nid in nonconst.iter() {
+            self.edges.pop(nid).map(|srcs| {
+                for src in srcs.move_iter() {
+                    let count = self.deps.find_mut(&src).unwrap();
+                    *count -= 1;
+                }
+            });
+        }
+
+        for node in self.nodes.iter() {
+            if self.deps.find(node.val0()).map(|count| *count).unwrap_or(0) == 0 {
+                set.insert(*node.val0());
+            }
+        }
+
+        while !set.is_empty() {
+            let n = *set.iter().next().unwrap();
+            set.remove(&n);
+            list.push(n);
+
+            self.edges.pop(&n).map(|srcs| {
+                for src in srcs.move_iter() {
+                    let count = self.deps.find_mut(&src).unwrap();
+                    *count -= 1;
+                    if *count == 0 {
+                        set.insert(src);
+                    }
+                }
+            });
+        }
+
+        for edge in self.edges.iter() {
+            let nid = edge.val0();
+            if self.nodes.contains_key(nid) {
+                self.session.error_fatal(*nid, "Recursive constant");
+            }
+        }
+
+        return list;
+    }
+
+    fn map_constants(mut self, map: &mut ConstantMap<'a>, module: &'a Module) {
+        self.visit_module(module);
+        let order = self.get_order();
+        for nid in order.iter() {
+            let e = *self.nodes.find(nid).unwrap();
+            let c = constant_fold(self.session, map, e);
+            map.insert(*nid, c);
+        }
+    }
+}
+
+impl<'a> Visitor for ConstCollector<'a> {
+    fn visit_item(&mut self, item: &Item) {
+        match item.val {
+            ConstItem(ref ident, _, ref e) => {
+                use std::mem::copy_lifetime;
+                self.nodes.insert(ident.id, unsafe { copy_lifetime(self.session, e) });
+                self.insert_edge(ident.id, e);
+            }
+            _ => walk_item(self, item)
+        }
+    }
 }
 
 impl Ty {
@@ -117,6 +270,7 @@ enum ErrorCause {
     InvalidUnop,
     InvalidBinop,
     InvalidField,
+    InvalidDimension,
     InvalidCond,
     InvalidIfBranches,
     InvalidCall,
@@ -136,6 +290,7 @@ impl fmt::Show for ErrorCause {
             InvalidUnop => "invalid argument type to unary op",
             InvalidBinop => "invalid arguments to binary op",
             InvalidField => "invalid struct field in literal/pattern",
+            InvalidDimension => "non-uint used as dimension for array type",
             InvalidCond => "non-bool used as predicate for conditional",
             InvalidIfBranches => "types of if branches don't match",
             // This needs to be broken up badly.
@@ -237,6 +392,7 @@ pub struct Typechecker<'a> {
     next_bounds_id: uint,
     exits: Vec<WithId<Ty>>,
     typemap: Typemap,
+    consts: ConstantMap<'a>,
     // This is hacky but it cuts down on plumbing
     current_cause: Option<(NodeId, ErrorCause)>,
     current_unify: Option<(WithId<Ty>, WithId<Ty>)>,
@@ -296,8 +452,30 @@ impl<'a> Typechecker<'a> {
                 types: SmallIntMap::new(),
                 bounds: SmallIntMap::new(),
             },
+            consts: TreeMap::new(),
             current_cause: None,
             current_unify: None,
+        }
+    }
+
+    fn expr_to_const(&self, e: &Expr) -> Constant<'a> {
+        let c = constant_fold(self.session, &self.consts, e);
+        self.unwrap_const(c)
+    }
+
+    fn unwrap_const(&self, c: ConstantResult<'a>) -> Constant<'a> {
+        match c {
+            Ok(c) => c,
+            Err((nid, e)) => self.session.error_fatal(nid, e),
+        }
+    }
+
+    pub fn typecheck(&mut self, module: &'a Module) {
+        let cc = ConstCollector::new(self.session);
+        cc.map_constants(&mut self.consts, module);
+        self.visit_module(module);
+        for c in self.consts.iter() {
+            self.unwrap_const(*c.val1());
         }
     }
 
@@ -438,8 +616,15 @@ impl<'a> Typechecker<'a> {
 
                FuncTy(arg_tys, box ret_ty)
             },
-            ArrayType(ref t, len) => {
+            ArrayType(ref t, ref d) => {
                 let ty = self.type_to_ty(*t);
+                let d_ty = self.expr_to_ty(*d);
+                self.check_ty_bounds_w(d.id, InvalidDimension, d_ty, Concrete(UintTy(AnyWidth)));
+                let c = self.expr_to_const(*d);
+                let len = match c {
+                    UintConstant(u) => u,
+                    _ => unreachable!(),
+                };
                 ArrayTy(box ty, Some(len))
             }
             TupleType(ref ts) => {
@@ -602,6 +787,9 @@ impl<'a> Typechecker<'a> {
                             Some(ref t) => self.type_to_ty(t).val,
                             None => self.get_bound_ty(nid),
                         }
+                    }
+                    ConstDef(ref t) => {
+                        self.type_to_ty(t).val
                     }
                     _ => self.error_fatal(expr.id,
                                           format!("{} does not name a value", path)),
@@ -1193,6 +1381,11 @@ impl<'a> Visitor for Typechecker<'a> {
                     None => {}
                 }
             }
+            ConstItem(_, ref t, ref e) => {
+                let ty = self.type_to_ty(t);
+                let e_ty = self.expr_to_ty(e);
+                self.unify_with_cause(item.id, InvalidPatBinding, ty, e_ty);
+            }
             EnumItem(_, ref vs, ref tps) => {
                 for v in vs.iter() {
                     let mut gs = TreeMap::new();
@@ -1271,6 +1464,6 @@ fn test_match<T>(flags: bool[3], o: Option<T>, f: fn(T) -> ()) -> Option<bool> {
 
 
         let mut tyck = Typechecker::new(&session);
-        tyck.visit_module(&tree);
+        tyck.typecheck(&tree);
     }
 }

@@ -1,6 +1,5 @@
 use package::Package;
 use target::{Target, CTarget, IRTarget, AsmTarget};
-use typechecker::Typechecker;
 
 use self::ast::visitor::Visitor;
 use self::session::Session;

@@ -167,6 +167,10 @@ impl CCrossCompiler {
     fn visit_item(&self, item: &Item) -> String {
         match item.val {
             UseItem(..) => String::new(),
+            ConstItem(ref id, ref t, ref expr) => {
+                let name_and_type = self.visit_name_and_type(id.val.name, t);
+                format!("const {} = {};", name_and_type, self.visit_expr(expr))
+            }
             FuncItem(ref name, ref args, ref t, ref block, _) => {
                 match *block {
                     Some(ref block) => {

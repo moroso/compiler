@@ -1,6 +1,5 @@
 use mc::ast::{Module, NodeId};
 use mc::ast::Type;
-use typechecker::Typechecker;
 
 use std::iter::AdditiveIterator;
 use std::vec::unzip;

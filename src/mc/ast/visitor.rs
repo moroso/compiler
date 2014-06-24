@@ -45,6 +45,11 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
             visitor.visit_type(ty);
             for e in expr.iter() { visitor.visit_expr(e); }
         }
+        ConstItem(ref ident, ref ty, ref expr) => {
+            visitor.visit_ident(ident);
+            visitor.visit_type(ty);
+            visitor.visit_expr(expr);
+        }
         UseItem(ref path) => {
             visitor.visit_path(path);
         }
@@ -64,8 +69,9 @@ pub fn walk_type<T: Visitor>(visitor: &mut T, t: &Type) {
             for a in d.iter() { visitor.visit_type(a); }
             visitor.visit_type(*r);
         }
-        ArrayType(ref a, _) => {
+        ArrayType(ref a, ref d) => {
             visitor.visit_type(*a);
+            visitor.visit_expr(*d);
         }
         TupleType(ref ts) => {
             for t in ts.iter() { visitor.visit_type(t); }

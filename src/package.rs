@@ -49,7 +49,7 @@ impl Package {
         let module = parsable.parse(&mut session);
         let typemap = {
             let mut typeck = Typechecker::new(&session);
-            typeck.visit_module(&module);
+            typeck.typecheck(&module);
             typeck.get_typemap()
         };
 
