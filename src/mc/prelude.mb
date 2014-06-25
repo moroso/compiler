@@ -1,5 +1,5 @@
-extern fn print_int(x: i32);
-extern fn print_char(x: u32);
+extern fn print_int(x: i32) -> i32;
+extern fn print_char(x: i32) -> i32;
 extern fn malloc<T>(i: u32) -> *T;
 extern fn calloc<T>(i: u32) -> *T;
 extern fn assert(pred: bool);

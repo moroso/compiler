@@ -82,7 +82,6 @@ fn find_enum_names(module: &Module) -> TreeMap<NodeId, Name> {
     enum_map
 }
 
-
 impl CCrossCompiler {
     fn visit_list<T>(&self, list: &Vec<T>,
                             visit: |&T| -> String,
@@ -508,9 +507,43 @@ impl CCrossCompiler {
     }
 
     fn visit_module(&self, module: &Module) -> String {
-        self.visit_list(&module.val.items, |item| {
+        let mut results = vec!();
+
+        // Start with function and struct prototypes.
+        for item in module.val.items.iter() {
+            match item.val {
+                FuncItem(ref name, ref args, ref t, ref b, _) => {
+                    let ty = self.visit_type(t);
+                    let name = self.visit_ident(name);
+                    // This is a terrible hack.
+                    if name.as_slice() == "malloc" ||
+                        name.as_slice() == "calloc" ||
+                        name.as_slice() == "assert" {
+                            continue;
+                        }
+                    let args = self.visit_list(args, |x| self.visit_func_arg(x), ", ");
+
+                    match *b {
+                        Some(_) =>
+                            results.push(format!("{} {}({});\n", ty, name, args)),
+                        None =>
+                            results.push(format!("extern {} {}({});\n", ty, name, args))
+                    }
+                },
+                StructItem(ref id, _, _) |
+                EnumItem(ref id, _, _) => {
+                    let name = self.visit_ident(id);
+                    results.push(format!("struct {};\n", name));
+                },
+                _ => {}
+            }
+        }
+
+        results.push(self.visit_list(&module.val.items, |item| {
             self.visit_item(item)
-        }, "\n")
+        }, "\n"));
+
+        results.connect("")
     }
 }
 

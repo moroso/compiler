@@ -1,0 +1,13 @@
+fn a(x: i8) -> i8 { if x == 0 { 0 } else { b(x) } }
+
+fn b(x: i8) -> i8 { let z: *bar; x + 7 + a(0) }
+
+struct bar {
+    x: u32,
+}
+
+fn main() -> u32 {
+    print_int(a(3) as i32);
+
+    0
+}
