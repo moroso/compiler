@@ -129,6 +129,25 @@ impl<'a> ASTToIntermediate<'a> {
         }
     }
 
+    fn while_helper(&mut self,
+                    e: &Expr,
+                    block_insts: Vec<Op>) -> (Vec<Op>, Var) {
+        let begin_label = self.gen_label();
+        let end_label = self.gen_label();
+        let mut res = vec!(
+            Goto(begin_label, TreeSet::new()),
+            Label(begin_label, TreeSet::new()));
+        let (cond_insts, cond_var) = self.convert_expr(e);
+        res.push_all_move(cond_insts);
+        res.push(CondGoto(true,
+                          Variable(cond_var),
+                          end_label, TreeSet::new()));
+        res.push_all_move(block_insts);
+        res.push(Goto(begin_label, TreeSet::new()));
+        res.push(Label(end_label, TreeSet::new()));
+        (res, self.gen_temp())
+    }
+
     pub fn convert_expr(&mut self, expr: &Expr) -> (Vec<Op>, Var) {
         match expr.val {
             LitExpr(ref lit) => {
@@ -155,6 +174,7 @@ impl<'a> ASTToIntermediate<'a> {
                         insts1.push(UnOp(var1,
                                          Identity,
                                          Variable(var2)));
+                        insts1.push(Goto(end_label, TreeSet::new()));
                         insts1.push(Label(end_label, TreeSet::new()));
                         (insts1, var1)
                     },
@@ -296,29 +316,18 @@ impl<'a> ASTToIntermediate<'a> {
                 (insts, end_var)
             },
             WhileExpr(ref e, ref b) => {
-                let begin_label = self.gen_label();
-                let middle_label = self.gen_label();
-                let end_label = self.gen_label();
-                let mut res = vec!(
-                    Goto(begin_label, TreeSet::new()),
-                    Label(begin_label, TreeSet::new()));
-                let (cond_insts, cond_var) = self.convert_expr(*e);
-                res.push_all_move(cond_insts);
-                res.push(CondGoto(false,
-                                  Variable(cond_var),
-                                  middle_label, TreeSet::new()));
-                res.push(Goto(end_label, TreeSet::new()));
-                res.push(Label(middle_label, TreeSet::new()));
                 let (block_insts, _) = self.convert_block(*b);
-                res.push_all_move(block_insts);
-                res.push(Goto(begin_label, TreeSet::new()));
-                res.push(Label(end_label, TreeSet::new()));
-                (res, self.gen_temp())
+                self.while_helper(*e, block_insts)
             },
-            //ForExpr(ref init, ref cond, ref iter, ref body) => {
-            //    let (mut insts, _) = self.convert_expr(*init);
-            //
-            //}
+            ForExpr(ref init, ref cond, ref iter, ref body) => {
+                let (mut init_insts, _) = self.convert_expr(*init);
+                let (mut block_insts, _) = self.convert_block(*body);
+                let (iter_insts, _) = self.convert_expr(*iter);
+                block_insts.push_all_move(iter_insts);
+                let (loop_insts, var) = self.while_helper(*cond, block_insts);
+                init_insts.push_all_move(loop_insts);
+                (init_insts, var)
+            }
             GroupExpr(ref e) => self.convert_expr(*e),
             CallExpr(ref f, ref args) => {
                 let mut ops = vec!();
@@ -346,7 +355,23 @@ impl<'a> ASTToIntermediate<'a> {
                               ));
                 (ops, res_var)
             },
-            _ => (vec!(), self.gen_temp()),
+            CastExpr(ref e, _) => {
+                self.convert_expr(*e)
+            },
+            UnitExpr => (vec!(), self.gen_temp()),
+            SizeofExpr(ref t) => {
+                let v = self.gen_temp();
+                let ty = self.typemap.types.get(&t.id.to_uint());
+
+                (vec!(UnOp(v,
+                           Identity,
+                           Constant(NumLit(size_of_ty(self.session,
+                                                      self.typemap,
+                                                      ty),
+                                           UnsignedInt(Width32))))),
+                 v)
+            },
+            _ => unimplemented!()
         }
     }
 

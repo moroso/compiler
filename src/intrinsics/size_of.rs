@@ -22,7 +22,9 @@ fn struct_field_sizes(session: &Session,
                       typemap: &Typemap,
                       fields: &Vec<(Name, Type)>) -> Vec<(Name, u64)> {
     fields.iter()
-        .map(|&(n, ref t)| (n, size_of_ty(session, typemap.types.get(&t.id.to_uint()))))
+        .map(|&(n, ref t)| (n, size_of_ty(session,
+                                          typemap,
+                                          typemap.types.get(&t.id.to_uint()))))
         .collect()
 }
 
@@ -70,7 +72,9 @@ pub fn size_of_def(session: &Session, typemap: &Typemap, node: &NodeId) -> u64 {
         },
         VariantDef(_, _, ref types) => {
             let sizes = types.iter()
-                .map(|t| size_of_ty(session, typemap.types.get(&t.id.to_uint())))
+                .map(|t| size_of_ty(session,
+                                    typemap,
+                                    typemap.types.get(&t.id.to_uint())))
                 .collect();
             packed_size(&sizes)
         }
@@ -78,7 +82,7 @@ pub fn size_of_def(session: &Session, typemap: &Typemap, node: &NodeId) -> u64 {
     }
 }
 
-pub fn size_of_ty(session: &Session, ty: &Ty) -> u64 {
+pub fn size_of_ty(session: &Session, typemap: &Typemap, ty: &Ty) -> u64 {
     match *ty {
         BoolTy => 1,
         IntTy(ref w) |
@@ -92,12 +96,21 @@ pub fn size_of_ty(session: &Session, ty: &Ty) -> u64 {
         PtrTy(..) |
         FuncTy(..) => 4,
         UnitTy => 0,
-        ArrayTy(ref t, ref l) => size_of_ty(session, &t.val) * l.unwrap(),
+        ArrayTy(ref t, ref l) => size_of_ty(session,
+                                            typemap,
+                                            &t.val) * l.unwrap(),
         TupleTy(ref tys) =>
             packed_size(
-                &tys.iter().map(|t| size_of_ty(session, &t.val)).collect()),
+                &tys.iter().map(|t| size_of_ty(session,
+                                               typemap,
+                                               &t.val)).collect()),
         BoundTy(..) |
         BottomTy => fail!("Type {} should not be appearing here.", ty),
+        StructTy(ref id, _) => {
+            size_of_def(session,
+                        typemap,
+                        id)
+        }
         _ => fail!("Unimplemented: {}", ty),
     }
 }
