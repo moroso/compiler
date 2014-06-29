@@ -522,7 +522,7 @@ impl CCrossCompiler {
             }
         }
 
-        // Start with struct prototypes.
+        // Now print function prototypes.
         for item in module.val.items.iter() {
             match item.val {
                 FuncItem(ref name, ref args, ref t, ref b, _) => {
