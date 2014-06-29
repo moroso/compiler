@@ -1,0 +1,11 @@
+struct a {
+    x: u32,
+    y: u8,
+    z: u32,
+}
+
+fn main() -> u32 {
+    print_uint(sizeof(a));
+
+    0
+}
