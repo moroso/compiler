@@ -65,7 +65,7 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
     for op in ops.mut_iter() {
         match *op {
             Goto(ref i, ref mut vars) |
-            CondGoto(_, ref i, ref mut vars) => {
+            CondGoto(_, _, ref i, ref mut vars) => {
                 let ref live_vars = *label_vars.get(i);
                 vars.extend(live_vars.iter().map(|x| (*x).clone()));
             },
@@ -89,7 +89,7 @@ fn minimize_once(ops: &mut Vec<Op>) -> bool {
     for op in ops.iter() {
         match *op {
             Goto(ref label, ref vars) |
-            CondGoto(_, ref label, ref vars) => {
+            CondGoto(_, _, ref label, ref vars) => {
                 let mut map = TreeMap::new();
                 for var in vars.iter() {
                     map.insert(var.name, var.generation.unwrap());
@@ -233,7 +233,7 @@ fn minimize_once(ops: &mut Vec<Op>) -> bool {
     for op in ops.mut_iter() {
         match *op {
             Goto(ref label, ref mut vars) |
-            CondGoto(_, ref label, ref mut vars) |
+            CondGoto(_, _, ref label, ref mut vars) |
             Label(ref label, ref mut vars) => {
                 let vars_to_clear_opt = vars_at_labels_to_clear.find(label);
                 match vars_to_clear_opt {
@@ -293,7 +293,7 @@ impl ToSSA {
                 Label(_, ref mut vars) => {
                     ssa_vars(gens, vars, |x, y| next_gen(x, y));
                 }
-                CondGoto(ref mut rv, _, ref mut vars) => {
+                CondGoto(_, ref mut rv, _, ref mut vars) => {
                     ssa_rvalelem(gens, rv);
                     ssa_vars(gens, vars, |x, y| gen_of(x, y));
                 },

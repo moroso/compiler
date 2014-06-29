@@ -88,8 +88,8 @@ pub enum Op {
     Label(uint, TreeSet<Var>),
     // A goto. The set must specify generations for all variables in the label.
     Goto(uint, TreeSet<Var>),
-    // Conditional goto.
-    CondGoto(RValueElem, uint, TreeSet<Var>),
+    // Conditional goto. Optionally negated.
+    CondGoto(bool, RValueElem, uint, TreeSet<Var>),
     // Return statement.
     Return(RValueElem),
     // Function definition. A special op, that can only appear once, at
@@ -121,8 +121,9 @@ impl Show for Op {
                        format!("{}", v), size),
             Label(ref l, ref vars) => write!(f, "{}({}):\n", l, vars),
             Goto(ref l, ref vars) => write!(f, "goto {}({})\n", l, vars),
-            CondGoto(ref e, ref l, ref vars) => write!(f, "if {} goto {}({})\n",
-                                                       e, l, vars),
+            CondGoto(ref neg, ref e, ref l, ref vars) =>
+                write!(f, "if {}{} goto {}({})\n",
+                       if *neg { "!" } else { "" }, e, l, vars),
             Return(ref v) => write!(f, "return {}\n", v),
             Func(ref name, ref vars) => write!(f, "fn {}({})\n", name, vars),
             Nop => write!(f, "{: >16}\n", "nop"),

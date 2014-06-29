@@ -141,14 +141,34 @@ impl<'a> ASTToIntermediate<'a> {
             BinOpExpr(ref op, ref e1, ref e2) => {
                 let (mut insts1, var1) = self.convert_expr(*e1);
                 let (insts2, var2) = self.convert_expr(*e2);
-                insts1.push_all_move(insts2);
-                let new_res = self.gen_temp();
-                insts1.push(
-                    BinOp(new_res.clone(),
-                          op.val.clone(),
-                          Variable(var1),
-                          Variable(var2)));
-                (insts1, new_res)
+                match op.val {
+                    AndAlsoOp |
+                    OrElseOp => {
+                        let is_and = op.val == AndAlsoOp;
+                        let end_label = self.gen_label();
+                        insts1.push(CondGoto(is_and, // cond is negated for
+                                                     // ands, not for ors.
+                                             Variable(var1),
+                                             end_label,
+                                             TreeSet::new()));
+                        insts1.push_all_move(insts2);
+                        insts1.push(UnOp(var1,
+                                         Identity,
+                                         Variable(var2)));
+                        insts1.push(Label(end_label, TreeSet::new()));
+                        (insts1, var1)
+                    },
+                    _ => {
+                        let new_res = self.gen_temp();
+                        insts1.push_all_move(insts2);
+                        insts1.push(
+                            BinOp(new_res.clone(),
+                                  op.val.clone(),
+                                  Variable(var1),
+                                  Variable(var2)));
+                        (insts1, new_res)
+                    }
+                }
             },
             PathExpr(ref path) => {
                 //fail!("Need to do paths properly")
@@ -263,7 +283,8 @@ impl<'a> ASTToIntermediate<'a> {
                 let (b2_insts, b2_var) = self.convert_block(*b2);
                 let b1_label = self.gen_label();
                 let end_var = self.gen_temp();
-                insts.push(CondGoto(Variable(if_var),
+                insts.push(CondGoto(false,
+                                    Variable(if_var),
                                     b1_label,
                                     TreeSet::new()));
                 insts.push_all_move(b2_insts);
@@ -283,7 +304,8 @@ impl<'a> ASTToIntermediate<'a> {
                     Label(begin_label, TreeSet::new()));
                 let (cond_insts, cond_var) = self.convert_expr(*e);
                 res.push_all_move(cond_insts);
-                res.push(CondGoto(Variable(cond_var),
+                res.push(CondGoto(false,
+                                  Variable(cond_var),
                                   middle_label, TreeSet::new()));
                 res.push(Goto(end_label, TreeSet::new()));
                 res.push(Label(middle_label, TreeSet::new()));

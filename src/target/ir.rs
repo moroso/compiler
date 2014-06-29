@@ -150,8 +150,9 @@ impl IRTarget {
                                         vars),
                             l)
                 },
-                CondGoto(ref rve, ref l, _) => {
-                    format!("  if ({}) goto LABEL{};\n",
+                CondGoto(ref negated, ref rve, ref l, _) => {
+                    format!("  if ({}({})) goto LABEL{};\n",
+                            if *negated { "!" } else { "" },
                             print_rvalelem(interner, rve),
                             l)
                 },
@@ -212,6 +213,7 @@ impl Target for IRTarget {
 
         for insts in result.mut_iter() {
             ToSSA::to_ssa(insts);
+            print!("{}\n", insts);
             ConstantFolder::fold(insts);
             print!("{}\n", insts);
             for a in LivenessAnalyzer::analyze(insts).iter() {

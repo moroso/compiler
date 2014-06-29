@@ -102,7 +102,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                 }
             },
             // TODO: get rid of redundant code.
-            CondGoto(_, ref l, ref vars) => {
+            CondGoto(_, _, ref l, ref vars) => {
                 for u2 in range(0, len) {
                     match *ops.get(u2) {
                         Label(l2, _) if *l == l2 => {

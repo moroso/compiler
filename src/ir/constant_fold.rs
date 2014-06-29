@@ -105,7 +105,7 @@ impl ConstantFolder {
             match *op {
                 Label(_, ref vars) |
                 Goto(_, ref vars) |
-                CondGoto(_, _, ref vars) => {
+                CondGoto(_, _, _, ref vars) => {
                     for var in vars.iter() {
                         vars_to_avoid.insert(var.clone());
                     }

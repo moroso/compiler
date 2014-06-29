@@ -69,18 +69,19 @@ pub fn subst(ops: &mut Vec<Op>,
             Goto(ref u, ref vars) => {
                 Goto(u.clone(), sub_vars(vars, orig_var, new_rvelem))
             }
-            CondGoto(ref rve, ref u, ref vars) => {
+            CondGoto(ref negated, ref rve, ref u, ref vars) => {
                 let new_vars = sub_vars(vars, orig_var, new_rvelem);
                 if wrapped_var == *rve {
                     // TODO: give a warning that conditional is always
                     // true or always false.
-                    if *new_rvelem == Constant(BoolLit(true)) {
+                    if (*new_rvelem == Constant(BoolLit(true))) != *negated {
                         Goto(u.clone(), new_vars)
                     } else {
                         Nop
                     }
                 } else {
                     CondGoto(
+                        negated.clone(),
                         (*rve).clone(),
                         u.clone(),
                         new_vars
@@ -99,22 +100,18 @@ pub fn subst(ops: &mut Vec<Op>,
                     Constant(ref c) => Return(Constant(c.clone())),
                 }
             },
-            Func(ref x, ref vars) => {
-                let new_vars = vars.iter().map(
-                    |var|
-                    if var == orig_var {
-                        match *new_rvelem {
-                            Variable(ref rv_var) if var.name == rv_var.name => {
-                                rv_var.clone()
-                            },
-                            _ => fail!("Invalid substitution"),
-                        }
-                    } else {
-                        var.clone()
+            Call(ref lv, ref x, ref params) => {
+                let new_vars = params.iter().map(
+                    |param|
+                    match *param {
+                        Variable(ref v) if v == orig_var => {
+                            new_rvelem.clone()
+                        },
+                        _ => param.clone()
                     }).collect();
 
-                Func(x.clone(), new_vars)
-            }
+                Call(lv.clone(), x.clone(), new_vars)
+            },
             ref x => x.clone()
         };
         *op = temp;
