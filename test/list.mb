@@ -13,26 +13,27 @@ macro container_of!(ptr, ty, member) {
 
 // Now our actual code
 
+struct list_node {
+    next: *list_node,
+    prev: *list_node
+}
+struct list_head {
+    node: list_node,
+}
+
+
 macro list_entry!(ptr, ty, member) {
     container_of!($ptr, $ty, $member)
-}
-
-fn list_insert_head(n: *list_node, n1: *list_node) {
-    list_insert_after(n, n1)
-}
-
-fn list_insert_tail(n: *list_node, n1: *list_node) {
-    list_insert_before(n, n1)
 }
 
 // These functions should only be used if the results are known to be
 // well defined.
 macro list_head_entry_!(head, typ, link) {
-    container_of!(($head)->next, $typ, $link)
+    container_of!(($head)->node.next, $typ, $link)
 }
 
 macro list_tail_entry_!(head, typ, link) {
-    container_of!(($head)->prev, $typ, $link)
+    container_of!(($head).node->prev, $typ, $link)
 }
 
 macro list_next_entry_!(node, typ, link) {
@@ -61,7 +62,7 @@ macro list_tail_entry!(head, typ, link) {
 }
 
 macro list_next_entry!(head, node, typ, link) {
-    if ($node)->$link.next == ($head) {
+    if ($node)->$link.next == $head {
         null
     } else {
         list_next_entry_!($node, $typ, $link)
@@ -69,7 +70,7 @@ macro list_next_entry!(head, node, typ, link) {
 }
 
 macro list_prev_entry!(head, node, typ, link) {
-    if ($node)->$link.prev == ($head) {
+    if ($node)->$link.prev == $head {
         null
     } else {
         list_prev_entry_!($node, $typ, $link)
@@ -85,24 +86,24 @@ macro list_foreach_entry!(cur, head, typ, link, body) {
     }
 }
 
-macro LIST_HEAD_INIT!(name) {
+macro __LIST_HEAD_INIT!(name) {
     list_node { next: &$name, prev: &$name }
 }
+macro LIST_HEAD_INIT!(name) {
+    list_head { node: __LIST_HEAD_INIT!($name.node) }
+}
 
-// ???
-macro LIST_NODE!(name) {
+macro LIST_NODE!() {
     list_node { next: null, prev: null }
 }
 
-struct list_node {
-    next: *list_node,
-    prev: *list_node
-}
 
-fn list_init_head(head: *list_node) {
+fn __list_init_head(head: *list_node) {
     head->next = head;
     head->prev = head;
 }
+fn list_init_head(head: *list_head) { __list_init_head(&head->node) }
+
 fn list_init_node(head: *list_node) {
     head->next = null;
     head->prev = null;
@@ -115,12 +116,20 @@ fn __list_insert_between(n: *list_node, n1: *list_node, n2: *list_node) {
     n2->prev = n;
 }
 
-fn list_insert_after(n: *list_node, n1: *list_node) {
-    __list_insert_between(n, n1, n1->next);
+fn list_insert_after(n_new: *list_node, n_old: *list_node) {
+    __list_insert_between(n_new, n_old, n_old->next);
 }
-fn list_insert_before(n: *list_node, n1: *list_node) {
-    __list_insert_between(n, n1->prev, n1);
+fn list_insert_before(n_new: *list_node, n_old: *list_node) {
+    __list_insert_between(n_new, n_old->prev, n_old);
 }
+
+fn list_insert_head(node: *list_node, head: *list_head) {
+    list_insert_after(node, &head->node)
+}
+fn list_insert_tail(node: *list_node, head: *list_head) {
+    list_insert_before(node, &head->node)
+}
+
 
 fn list_del(n: *list_node) {
     n->next->prev = n->prev;
@@ -130,9 +139,11 @@ fn list_del(n: *list_node) {
     n->prev = null as *list_node;
 }
 
-fn list_is_empty(n: *list_node) -> bool {
+fn __list_is_empty(n: *list_node) -> bool {
     n->next == n
 }
-fn list_is_singleton(n: *list_node) -> bool {
+fn __list_is_singleton(n: *list_node) -> bool {
     n->next == n->prev && n != n->next
 }
+fn list_is_empty(h: *list_head) -> bool { __list_is_empty(&h->node) }
+fn list_is_singleton(h: *list_head) -> bool { __list_is_singleton(&h->node) }
