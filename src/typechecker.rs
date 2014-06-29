@@ -949,7 +949,7 @@ impl<'a> Typechecker<'a> {
                                     e.id,
                                     format!("The field {} is not a member of struct {}",
                                             fld,
-                                            name.last()))
+                                            name.last().unwrap()))
                             };
                         self.with_generics(gs, |me| me.type_to_ty(field).val)
                     }
@@ -978,7 +978,7 @@ impl<'a> Typechecker<'a> {
                                     e.id,
                                     format!("The field {} is not a member of struct {}",
                                             fld,
-                                            name.last()))
+                                            name.last().unwrap()))
                             };
                         self.with_generics(gs, |me| me.type_to_ty(field).val)
                     }
