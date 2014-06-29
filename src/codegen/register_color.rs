@@ -64,7 +64,7 @@ mod tests {
     use util::Name;
     use mas::ast::Reg;
 
-    fn var(n: int) -> Var {
+    fn var(n: u32) -> Var {
         Var { name: Name(n as uint), generation: Some(1) }
     }
 
@@ -73,7 +73,7 @@ mod tests {
         let conflicts: TreeMap<Var, TreeSet<Var>> = TreeMap::new();
         let mut frequencies: TreeMap<Var, u32> = TreeMap::new();
 
-        for n in range(0, 10) {
+        for n in range(0u32, 10) {
             frequencies.insert(var(n), 1);
         }
 
@@ -88,11 +88,11 @@ mod tests {
         let mut conflicts: TreeMap<Var, TreeSet<Var>> = TreeMap::new();
         let mut frequencies: TreeMap<Var, u32> = TreeMap::new();
 
-        for n in range(0, 20) {
+        for n in range(0u32, 20) {
             frequencies.insert(var(n), (25 - n) as u32);
 
             let mut conflict_set = TreeSet::<Var>::new();
-            for m in range(0, 20) {
+            for m in range(0u32, 20) {
                 if n != m {
                     conflict_set.insert(var(m));
                 }
@@ -101,12 +101,12 @@ mod tests {
         }
 
         let coloring = RegisterColorer::color(conflicts, frequencies, 10);
-        for i in range(0, 10) {
+        for i in range(0u32, 10) {
             let color = *coloring.find(&var(i)).unwrap();
             assert_eq!(color, RegColor(Reg { index: i as u8 } ));
         }
 
-        for i in range(10, 20) {
+        for i in range(10u32, 20) {
             let color = *coloring.find(&var(i)).unwrap();
             assert_eq!(color, Spilled);
         }
@@ -117,12 +117,12 @@ mod tests {
         let mut conflicts: TreeMap<Var, TreeSet<Var>> = TreeMap::new();
         let mut frequencies: TreeMap<Var, u32> = TreeMap::new();
 
-        for n in range(0, 20) {
+        for n in range(0u32, 20) {
             frequencies.insert(var(n), (25 - n) as u32);
 
             let mut conflict_set = TreeSet::<Var>::new();
             // Each variable conflicts with the adjacent ones.
-            for m in range(0, 20) {
+            for m in range(0u32, 20) {
                 if n - m == 1 || m - n == 1 {
                     conflict_set.insert(var(m));
                 }
@@ -131,7 +131,7 @@ mod tests {
         }
 
         let coloring = RegisterColorer::color(conflicts, frequencies, 10);
-        for i in range(0, 20) {
+        for i in range(0u32, 20) {
             let color = *coloring.find(&var(i)).unwrap();
             assert_eq!(color, RegColor(Reg { index: (i%2) as u8 } ));
         }

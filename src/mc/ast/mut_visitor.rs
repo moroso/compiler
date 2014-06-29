@@ -60,18 +60,18 @@ pub fn walk_item<T: MutVisitor>(visitor: &mut T, item: &mut Item) {
 pub fn walk_type<T: MutVisitor>(visitor: &mut T, t: &mut Type) {
     match t.val {
         PtrType(ref mut p) => {
-            visitor.visit_type(*p);
+            visitor.visit_type(&mut **p);
         }
         NamedType(ref mut p) => {
             visitor.visit_path(p);
         }
         FuncType(ref mut d, ref mut r) => {
             for a in d.mut_iter() { visitor.visit_type(a); }
-            visitor.visit_type(*r);
+            visitor.visit_type(&mut **r);
         }
         ArrayType(ref mut a, ref mut d) => {
-            visitor.visit_type(*a);
-            visitor.visit_expr(*d);
+            visitor.visit_type(&mut **a);
+            visitor.visit_expr(&mut **d);
         }
         TupleType(ref mut ts) => {
             for t in ts.mut_iter() { visitor.visit_type(t); }
@@ -156,7 +156,7 @@ pub fn walk_expr<T: MutVisitor>(visitor: &mut T, expr: &mut Expr) {
             for e in es.mut_iter() { visitor.visit_expr(e); }
         }
         GroupExpr(ref mut e) => {
-            visitor.visit_expr(*e);
+            visitor.visit_expr(&mut **e);
         }
         PathExpr(ref mut p) => {
             visitor.visit_path(p);
@@ -168,59 +168,59 @@ pub fn walk_expr<T: MutVisitor>(visitor: &mut T, expr: &mut Expr) {
             }
         }
         BinOpExpr(_, ref mut l, ref mut r) => {
-            visitor.visit_expr(*l);
-            visitor.visit_expr(*r);
+            visitor.visit_expr(&mut **l);
+            visitor.visit_expr(&mut **r);
         }
         UnOpExpr(_, ref mut e) => {
-            visitor.visit_expr(*e);
+            visitor.visit_expr(&mut **e);
         }
         IndexExpr(ref mut a, ref mut i) => {
-            visitor.visit_expr(*a);
-            visitor.visit_expr(*i);
+            visitor.visit_expr(&mut **a);
+            visitor.visit_expr(&mut **i);
         }
         DotExpr(ref mut e, _) => {
-            visitor.visit_expr(*e);
+            visitor.visit_expr(&mut **e);
         }
         ArrowExpr(ref mut e, _) => {
-            visitor.visit_expr(*e);
+            visitor.visit_expr(&mut **e);
         }
         AssignExpr(_, ref mut lv, ref mut rv) => {
-            visitor.visit_expr(*lv);
-            visitor.visit_expr(*rv);
+            visitor.visit_expr(&mut **lv);
+            visitor.visit_expr(&mut **rv);
         }
         CallExpr(ref mut f, ref mut args) => {
-            visitor.visit_expr(*f);
+            visitor.visit_expr(&mut **f);
             for arg in args.mut_iter() { visitor.visit_expr(arg); }
         }
         CastExpr(ref mut e, ref mut t) => {
-            visitor.visit_expr(*e);
+            visitor.visit_expr(&mut **e);
             visitor.visit_type(t);
         }
         IfExpr(ref mut c, ref mut tb, ref mut fb) => {
-            visitor.visit_expr(*c);
-            visitor.visit_block(*tb);
-            visitor.visit_block(*fb);
+            visitor.visit_expr(&mut **c);
+            visitor.visit_block(&mut **tb);
+            visitor.visit_block(&mut **fb);
         }
         BlockExpr(ref mut b) => {
-            visitor.visit_block(*b);
+            visitor.visit_block(&mut **b);
         }
         ReturnExpr(ref mut e) => {
-            visitor.visit_expr(*e);
+            visitor.visit_expr(&mut **e);
         }
         BreakExpr => {}
         ContinueExpr => {}
         WhileExpr(ref mut e, ref mut b) => {
-            visitor.visit_expr(*e);
-            visitor.visit_block(*b);
+            visitor.visit_expr(&mut **e);
+            visitor.visit_block(&mut **b);
         }
         ForExpr(ref mut e1, ref mut e2, ref mut e3, ref mut b) => {
-            visitor.visit_expr(*e1);
-            visitor.visit_expr(*e2);
-            visitor.visit_expr(*e3);
-            visitor.visit_block(*b);
+            visitor.visit_expr(&mut **e1);
+            visitor.visit_expr(&mut **e2);
+            visitor.visit_expr(&mut **e3);
+            visitor.visit_block(&mut **b);
         }
         MatchExpr(ref mut e, ref mut arms) => {
-            visitor.visit_expr(*e);
+            visitor.visit_expr(&mut **e);
             for arm in arms.mut_iter() {
                 visitor.visit_match_arm(arm);
             }

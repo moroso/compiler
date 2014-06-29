@@ -156,7 +156,7 @@ impl<T: Buffer> AsmParser<T> {
         // But we also have to make sure the sign bit is okay.
         // This checks that the sign bit is cleared if n is
         // nonnegative, and set if it's negative.
-        if (num >= 0) != (num & (1<<(size-1)) == 0) {
+        if (num >= 0) != (num & (1<<((size-1) as uint)) == 0) {
             self.error(format!(
                 "Signed number {} (0b{:t}) needs more than {} bits.",
                 num, num, size));

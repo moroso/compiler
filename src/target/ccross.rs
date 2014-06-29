@@ -199,7 +199,7 @@ impl CCrossCompiler {
             EnumItem(ref id, ref variants, _) => {
                 let name = self.visit_ident(id);
                 let variants = self.visit_list(variants, |variant| {
-                    let mut n = 0;
+                    let mut n: u32 = 0;
                     let fields = self.visit_list(&variant.args,
                                                  |t| { n += 1; format!("{} field{};", self.visit_type(t), n - 1) },
                                                  "\n        ");
@@ -259,7 +259,7 @@ impl CCrossCompiler {
                 format!("{}(*)({})", ty, args)
             }
             TupleType(ref ts) => {
-                let mut n = 0;
+                let mut n: u32 = 0;
                 let fields = self.visit_list(ts,
                                              |t| { n += 1; format!("{} field{};", self.visit_type(t), n - 1) },
                                              "; ");
@@ -337,7 +337,7 @@ impl CCrossCompiler {
         match lit.val {
             NumLit(ref n, _) => format!("{}", n),
             StringLit(ref s) => format!("\"{}\"", s),
-            BoolLit(ref b) => format!("{}", if *b { 1 } else { 0 }),
+            BoolLit(ref b) => format!("{}", if *b { 1u8 } else { 0 }),
             NullLit => String::from_str("NULL"),
         }
     }
@@ -402,7 +402,7 @@ impl CCrossCompiler {
 
                         match self.enumitemnames.find(&path.val.elems.last().unwrap().val.name) {
                             Some(&(_, _, pos)) => {
-                                let mut n = 0;
+                                let mut n: u32 = 0;
                                 let args = self.visit_list(args, |arg| {
                                     n += 1;
                                     let expr = self.visit_expr(arg);

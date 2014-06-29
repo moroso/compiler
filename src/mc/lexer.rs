@@ -132,7 +132,7 @@ impl RuleMatcher<IntKind> for IntTypeRule {
                     _ => fail!(),
                 };
 
-                let w = match from_str_radix(groups.at(1), 10) {
+                let w = match from_str_radix::<u8>(groups.at(1), 10) {
                     Some(32) => Width32,
                     Some(16) => Width16,
                     Some(8)  => Width8,
@@ -168,7 +168,7 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
                         _ => fail!(),
                     };
 
-                    let w = match from_str_radix(groups.at(4), 10) {
+                    let w = match from_str_radix::<u8>(groups.at(4), 10) {
                         None     => AnyWidth,
                         Some(32) => Width32,
                         Some(16) => Width16,
