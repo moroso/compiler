@@ -336,7 +336,8 @@ impl CCrossCompiler {
     fn visit_lit(&self, lit: &Lit) -> String {
         match lit.val {
             NumLit(ref n, _) => format!("{}", n),
-            StringLit(ref s) => format!("\"{}\"", s),
+            // I'm sorry about the cast in the following.
+            StringLit(ref s) => format!("(uint8_t*)\"{}\"", s),
             BoolLit(ref b) => format!("{}", if *b { 1u8 } else { 0 }),
             NullLit => String::from_str("NULL"),
         }
@@ -620,12 +621,12 @@ impl Target for CTarget {
         println!("{}", "typedef unsigned int uint_t;");
         println!("{}", "typedef int int_t;");
 
-        println!("{}", "int printf0_(uint8_t *s) { return printf(\"%s\", (char *)s); }");
-        println!("{}", "int printf1_(uint8_t *s, uint32_t a) { return printf((char *)s, a); }");
-        println!("{}", "int printf2_(uint8_t *s, uint32_t a, uint32_t b) { return printf((char *)s, a, b); }");
-        println!("{}", "int printf3_(uint8_t *s, uint32_t a, uint32_t b, uint32_t c) { return printf((char *)s, a, b, c); }");
-        println!("{}", "int print_int(int x) { printf(\"%d\\n\", x); return x; }");
-        println!("{}", "int print_char(int x) { printf(\"%c\", x); return x; }");
+        println!("{}", "int32_t printf0_(uint8_t *s) { return printf(\"%s\", (char *)s); }");
+        println!("{}", "int32_t printf1_(uint8_t *s, uint32_t a) { return printf((char *)s, a); }");
+        println!("{}", "int32_t printf2_(uint8_t *s, uint32_t a, uint32_t b) { return printf((char *)s, a, b); }");
+        println!("{}", "int32_t printf3_(uint8_t *s, uint32_t a, uint32_t b, uint32_t c) { return printf((char *)s, a, b, c); }");
+        println!("{}", "int32_t print_int(int32_t x) { printf(\"%d\\n\", (int)x); return x; }");
+        println!("{}", "int32_t print_char(int32_t x) { printf(\"%c\", (int)x); return x; }");
         println!("{}", cc.visit_module(&module));
     }
 }
