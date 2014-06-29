@@ -346,6 +346,7 @@ impl CCrossCompiler {
         match expr.val {
             UnitExpr => String::from_str("({})"),
             LitExpr(ref l) => self.visit_lit(l),
+            SizeofExpr(ref t) => format!("sizeof({})", self.visit_type(t)),
             TupleExpr(..) => fail!("Tuples not yet supported."),
             GroupExpr(ref e) => format!("({})", self.visit_expr(*e)),
             PathExpr(ref p) => self.visit_path(p),

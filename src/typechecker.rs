@@ -738,6 +738,7 @@ impl<'a> Typechecker<'a> {
         save_ty!(expr, match expr.val {
             UnitExpr => UnitTy,
             LitExpr(ref l) => self.lit_to_ty(l).val,
+            SizeofExpr(_) => UintTy(Width32),
             TupleExpr(ref es) => TupleTy(es.iter().map(|e| self.expr_to_ty(e)).collect()),
             GroupExpr(ref e) => self.expr_to_ty(*e).val,
             PathExpr(ref path) => {

@@ -152,6 +152,9 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
         LitExpr(ref l) => {
             visitor.visit_lit(l);
         }
+        SizeofExpr(ref t) => {
+            visitor.visit_type(t);
+        }
         TupleExpr(ref es) => {
             for e in es.iter() { visitor.visit_expr(e); }
         }

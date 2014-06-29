@@ -261,6 +261,7 @@ impl Show for MatchArm {
 pub enum ExprNode {
     UnitExpr,
     LitExpr(Lit),
+    SizeofExpr(Type),
     GroupExpr(Box<Expr>),
     TupleExpr(Vec<Expr>),
     PathExpr(Path),
@@ -289,6 +290,7 @@ impl Show for ExprNode {
         match *self {
             UnitExpr                            => write!(f, "()"),
             LitExpr(ref l)                      => write!(f, "{}", l),
+            SizeofExpr(ref t)                   => write!(f, "{}", t),
             GroupExpr(ref e)                    => write!(f, "({})", e),
             TupleExpr(ref vs)                   => write!(f, "({})", vs),
             PathExpr(ref p)                     => write!(f, "{}", p),

@@ -37,6 +37,7 @@ pub enum Token {
     Use,
     Macro,
     Const,
+    Sizeof,
 
     // Symbols
     LParen,
@@ -259,6 +260,7 @@ pub fn new_mb_lexer<S: StrAllocating, B: Buffer>(name: S, buffer: B) -> Lexer<B,
             Use          => "use",
             Macro        => "macro",
             Const        => "const",
+            Sizeof       => "sizeof",
 
             // Basic types; TODO: add more.
             IntTypeTok   => IntTypeRule,
