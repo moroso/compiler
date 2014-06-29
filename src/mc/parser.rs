@@ -326,7 +326,8 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             ::std::os::make_absolute(&::std::path::Path::new(base))
         };
 
-        println!("Parse error: {}\n    at {} {}", message.as_slice(), path.display(), pos);
+        let s = format!("Parse error: {}\n    at {} {}", message.as_slice(), path.display(), pos);
+        let _ = io::stderr().write_str(s.as_slice());
         fail!()
     }
 
@@ -1057,7 +1058,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn parse_macro_expr(&mut self) -> Expr {
-        let start_span = self.cur_span(); 
+        let start_span = self.cur_span();
         let name = match self.eat() {
             IdentBangTok(name) => self.session.interner.intern(name),
             _ => unreachable!(),
