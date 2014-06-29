@@ -198,7 +198,7 @@ impl<'a> MutVisitor for MacroExpanderVisitor<'a> {
                     expand.call((my_args,)) // TODO use the call operator instead of the method
                 };
 
-                let stream = toks.move_iter().map(|t| SourceToken { sp: span, tok: t });
+                let stream = toks.move_iter().map(|t| SourceToken { sp: span, tok: t, filename: format!("{}", filename) });
                 Parser::parse_stream(self.session, filename, stream, |p| p.parse_expr())
             }
             _ => return walk_expr(self, expr),
