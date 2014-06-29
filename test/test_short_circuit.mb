@@ -1,0 +1,6 @@
+fn main() -> u32 {
+    print_int(0) == 1 && print_int(3) == 2;
+    print_int(6) == 6 || print_int(2) == 3;
+
+    0
+}
