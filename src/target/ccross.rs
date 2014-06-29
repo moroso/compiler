@@ -509,7 +509,19 @@ impl CCrossCompiler {
     fn visit_module(&self, module: &Module) -> String {
         let mut results = vec!();
 
-        // Start with function and struct prototypes.
+        // Start with struct prototypes.
+        for item in module.val.items.iter() {
+            match item.val {
+                StructItem(ref id, _, _) |
+                EnumItem(ref id, _, _) => {
+                    let name = self.visit_ident(id);
+                    results.push(format!("struct {};\n", name));
+                },
+                _ => {}
+            }
+        }
+
+        // Start with struct prototypes.
         for item in module.val.items.iter() {
             match item.val {
                 FuncItem(ref name, ref args, ref t, ref b, _) => {
@@ -530,17 +542,31 @@ impl CCrossCompiler {
                             results.push(format!("extern {} {}({});\n", ty, name, args))
                     }
                 },
-                StructItem(ref id, _, _) |
-                EnumItem(ref id, _, _) => {
-                    let name = self.visit_ident(id);
-                    results.push(format!("struct {};\n", name));
-                },
-                _ => {}
+                _ => {},
             }
         }
 
         results.push(self.visit_list(&module.val.items, |item| {
-            self.visit_item(item)
+            match item.val {
+                StructItem(..) |
+                EnumItem(..) => self.visit_item(item),
+                _ => String::from_str(""),
+            }
+        }, "\n"));
+
+        results.push(self.visit_list(&module.val.items, |item| {
+            match item.val {
+                StaticItem(..) |
+                ConstItem(..) => self.visit_item(item),
+                _ => String::from_str(""),
+            }
+        }, "\n"));
+
+        results.push(self.visit_list(&module.val.items, |item| {
+            match item.val {
+                FuncItem(..) => self.visit_item(item),
+                _ => String::from_str(""),
+            }
         }, "\n"));
 
         results.connect("")
