@@ -936,14 +936,21 @@ impl<'a> Typechecker<'a> {
                 };
 
                 match *self.session.defmap.find(&nid).take_unwrap() {
-                    StructDef(_, ref fields, ref tps) => {
+                    StructDef(ref name, ref fields, ref tps) => {
                         let mut gs = TreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                             gs.insert(*tp, tp_ty.clone());
                         }
 
-                        let (_, ref field) = *fields.iter().find(
-                            |&&(ref a, _)| a == fld).unwrap();
+                        let &(_, ref field) =
+                            match fields.iter().find(|&&(ref a, _)| a == fld) {
+                                Some(x) => x,
+                                None => self.error_fatal(
+                                    e.id,
+                                    format!("The field {} is not a member of struct {}",
+                                            fld,
+                                            name.last()))
+                            };
                         self.with_generics(gs, |me| me.type_to_ty(field).val)
                     }
                     _ => unreachable!(),
@@ -956,15 +963,23 @@ impl<'a> Typechecker<'a> {
                     _ => self.error_fatal(e.id, "Expression is not a pointer to a structure"),
                 };
 
+                // FIXME: code duplication with above
                 match *self.session.defmap.find(&nid).take_unwrap() {
-                    StructDef(_, ref fields, ref tps) => {
+                    StructDef(ref name, ref fields, ref tps) => {
                         let mut gs = TreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                             gs.insert(*tp, tp_ty.clone());
                         }
 
-                        let (_, ref field) = *fields.iter().find(
-                            |&&(ref a, _)| a == fld).unwrap();
+                        let &(_, ref field) =
+                            match fields.iter().find(|&&(ref a, _)| a == fld) {
+                                Some(x) => x,
+                                None => self.error_fatal(
+                                    e.id,
+                                    format!("The field {} is not a member of struct {}",
+                                            fld,
+                                            name.last()))
+                            };
                         self.with_generics(gs, |me| me.type_to_ty(field).val)
                     }
                     _ => unreachable!(),
