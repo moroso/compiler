@@ -182,7 +182,7 @@ mod tests {
         let typemap = typeck.get_typemap();
 
         let ty = typemap.types.get(&ast.id.to_uint());
-        assert_eq!(size_of_ty(&session, ty), expected_size);
+        assert_eq!(size_of_ty(&session, &typemap, ty), expected_size);
     }
 
     #[test]
