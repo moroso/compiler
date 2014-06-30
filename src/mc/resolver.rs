@@ -111,6 +111,14 @@ impl Resolver {
         *self.table.find(&path.id).unwrap()
     }
 
+    /// Get the NodeId of the item that defines the given path
+    pub fn maybe_def_from_path(&self, path: &Path) -> Option<NodeId> {
+        match self.table.find(&path.id) {
+            Some(ref v) => Some(*v.clone()),
+            None => None,
+        }
+    }
+
     // The entry point for the resolver
     pub fn resolve(session: &mut Session,
                    module: &Module) {

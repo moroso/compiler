@@ -1,0 +1,11 @@
+mod inner_module;
+
+fn g() -> u32 {
+    5
+}
+
+fn main() -> u32 {
+    print_uint(inner_module::f(0));
+
+    0
+}
