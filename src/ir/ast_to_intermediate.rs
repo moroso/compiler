@@ -346,7 +346,8 @@ impl<'a> ASTToIntermediate<'a> {
                                   |v| Variable(v)).collect()));
                 (ops, result_var)
             },
-            DotExpr(ref e, ref name) => {
+            DotExpr(ref e, ref name) |
+            ArrowExpr(ref e, ref name) => {
                 let (mut ops, added_addr_var) = self.struct_helper(*e, name);
 
                 let res_var = self.gen_temp();
@@ -371,7 +372,26 @@ impl<'a> ASTToIntermediate<'a> {
                                            UnsignedInt(Width32))))),
                  v)
             },
-            _ => unimplemented!()
+            UnOpExpr(ref op, ref e) => {
+                let (mut insts, v) = self.convert_expr(*e);
+                let res_v = self.gen_temp();
+                insts.push(UnOp(res_v,
+                                op.val.clone(),
+                                Variable(v)));
+                (insts, res_v)
+            },
+            ReturnExpr(ref e) => {
+                let (mut insts, v) = self.convert_expr(*e);
+                insts.push(Return(Variable(v)));
+                (insts, self.gen_temp())
+            }
+            TupleExpr(..) => unimplemented!(),
+            StructExpr(..) => unimplemented!(),
+            IndexExpr(..) => unimplemented!(),
+            BreakExpr(..) => unimplemented!(),
+            ContinueExpr(..) => unimplemented!(),
+            MatchExpr(..) => unimplemented!(),
+            MacroExpr(..) => fail!("ICE: macros should have been expanded by now"),
         }
     }
 
@@ -382,6 +402,10 @@ impl<'a> ASTToIntermediate<'a> {
         let (mut ops, var) = self.convert_expr(e);
         let id = match *self.typemap.types.get(&e.id.to_uint()) {
             StructTy(id, _) => id,
+            PtrTy(ref p) => match p.val {
+                StructTy(id, _) => id,
+                _ => fail!("ICE: struct pointer doesn't have struct pointer type. Typechecker should have caught this.")
+            },
             _ => fail!("ICE: struct doesn't have struct type. Typechecker should have caught this.")
         };
         let offs = offset_of_struct_field(
