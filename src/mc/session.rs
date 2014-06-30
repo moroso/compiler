@@ -146,25 +146,38 @@ impl Session {
         let mut module = Parser::parse(self, lexer);
         self.inject_prelude(&mut module);
         MacroExpander::expand_macros(self, &mut module);
+        module
+    }
+
+    pub fn parse_package_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
+        let module = self.parse_buffer(name, buffer);
         DefMap::record(self, &module);
         Resolver::resolve(self, &module);
         module
     }
 
-    pub fn parse_file(&mut self, file: io::File) -> Module {
+    pub fn parse_file_common(&mut self, file: io::File, f: |&mut Session, String, io::BufferedReader<io::File>| -> Module) -> Module {
         let filename = format!("{}", file.path().display());
         let cwd = ::std::os::getcwd();
         let new_wd = ::std::os::make_absolute(file.path()).dir_path();
         ::std::os::change_dir(&new_wd);
-        let module = self.parse_buffer(filename, io::BufferedReader::new(file));
+        let module = f(self, filename, io::BufferedReader::new(file));
         ::std::os::change_dir(&cwd);
         module
     }
 
-    pub fn parse_str(&mut self, s: &str) -> Module {
+    pub fn parse_file(&mut self, file: io::File) -> Module {
+        self.parse_file_common(file, |me, filename, buf| me.parse_buffer(filename, buf))
+    }
+
+    pub fn parse_package_file(&mut self, file: io::File) -> Module {
+        self.parse_file_common(file, |me, filename, buf| me.parse_package_buffer(filename, buf))
+    }
+
+    pub fn parse_package_str(&mut self, s: &str) -> Module {
         use std::str::StrSlice;
         let bytes = Vec::from_slice(s.as_bytes());
         let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
-        self.parse_buffer("<input>", buffer)
+        self.parse_package_buffer("<input>", buffer)
     }
 }

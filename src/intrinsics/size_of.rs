@@ -238,7 +238,7 @@ mod tests {
     // Asserts that the structure described by `t` has size `expected_size`.
     fn test_sizeof_structure_helper(t: &str, expected_size: u64) {
         let mut session = Session::new();
-        let module = session.parse_str(t);
+        let module = session.parse_package_str(t);
 
         let mut typeck = Typechecker::new(&session);
         typeck.visit_module(&module);

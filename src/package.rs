@@ -20,13 +20,13 @@ trait Parsable {
 
 impl Parsable for ::std::io::File {
     fn parse(self, session: &mut Session) -> Module {
-        session.parse_file(self)
+        session.parse_package_file(self)
     }
 }
 
 impl<'a, T: Buffer> Parsable for NamedBuffer<'a, T> {
     fn parse(self, session: &mut Session) -> Module {
-        session.parse_buffer(self.name, self.buffer)
+        session.parse_package_buffer(self.name, self.buffer)
     }
 }
 

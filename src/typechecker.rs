@@ -1450,7 +1450,7 @@ mod tests {
     #[test]
     fn basic_tyck_test() {
         let mut session = Session::new();
-        let tree = session.parse_str(r"
+        let tree = session.parse_package_str(r"
 enum Option<T> {
     Some(T),
     None,
