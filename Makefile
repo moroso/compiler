@@ -45,7 +45,7 @@ MC_FILES := \
 
 TEST_FILES := $(patsubst test/%,%,$(wildcard test/test_*.mb))
 
-mc: $(addprefix src/,$(MC_FILES))
+mbc: $(addprefix src/,$(MC_FILES))
 	rustc $(RUST_FLAGS) $< --cfg mc -o $@ -g
 
 mas: $(addprefix src/,$(MC_FILES))
@@ -74,9 +74,9 @@ test/c-bin: $(addprefix test/,$(patsubst %.mb,c-bin/%,$(TEST_FILES)))
 
 test/c-results: $(addprefix test/,$(patsubst %.mb,c-results/%.txt,$(TEST_FILES)))
 
-test/c/%.c: test/%.mb mc
+test/c/%.c: test/%.mb mbc
 	@mkdir -p $(dir $@)
-	@./mc --target c $< > $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
+	@./mbc --target c $< > $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
 
 test/c-bin/%: test/c/%.c test/%.txt
 	@echo Running $(patsubst test/c/%.c,%,$<)...
@@ -90,4 +90,4 @@ test/c-results/%.txt: test/c-bin/%
 
 .PHONY: all docs clean run-tests run-ir-tests check
 clean:
-	rm -rf *~ doc mc mas unittest test/c test/c-bin test/c-results/*.txt
+	rm -rf *~ doc mc mbc mas unittest test/c test/c-bin test/c-results/*.txt
