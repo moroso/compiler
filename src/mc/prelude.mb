@@ -1,14 +1,14 @@
-extern fn print_int(x: i32) -> i32;
-extern fn print_char(x: i32) -> i32;
-extern fn malloc<T>(i: u32) -> *T;
-extern fn calloc<T>(i: u32) -> *T;
-extern fn assert(pred: bool);
-extern fn abort() -> !;
+use prelude::print_int;
+use prelude::print_char;
+use prelude::malloc;
+use prelude::calloc;
+use prelude::assert;
+use prelude::abort;
 
-extern fn printf0_(s: *u8) -> i32;
-extern fn printf1_(s: *u8, a: u32) -> i32;
-extern fn printf2_(s: *u8, a: u32, b: u32) -> i32;
-extern fn printf3_(s: *u8, a: u32, b: u32, c: u32) -> i32;
+use prelude::printf0_;
+use prelude::printf1_;
+use prelude::printf2_;
+use prelude::printf3_;
 
-fn print_uint(x: u32) { print_int(x as i32); }
-fn print_newline() { print_char(10); }
+use prelude::print_uint;
+use prelude::print_newline;

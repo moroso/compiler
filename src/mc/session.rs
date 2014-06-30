@@ -127,6 +127,18 @@ impl Session {
               at: {}\n", msg.as_slice(), sp);
     }
 
+    fn inject_std(&mut self, module: &mut Module) {
+        use std::str::StrSlice;
+        use std::mem::swap;
+
+        let s = include_str!("std.mb");
+        let bytes = Vec::from_slice(s.as_bytes());
+        let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
+        let lexer = new_mb_lexer("<prelude>", buffer);
+        let mut temp = Parser::parse(self, lexer);
+        swap(&mut module.val.items, &mut temp.val.items);
+        module.val.items.push_all_move(temp.val.items);
+    }
 
     fn inject_prelude(&mut self, module: &mut Module) {
         use std::str::StrSlice;
@@ -150,7 +162,8 @@ impl Session {
     }
 
     pub fn parse_package_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
-        let module = self.parse_buffer(name, buffer);
+        let mut module = self.parse_buffer(name, buffer);
+        self.inject_std(&mut module);
         DefMap::record(self, &module);
         Resolver::resolve(self, &module);
         module

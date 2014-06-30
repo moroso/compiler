@@ -125,7 +125,7 @@ mod tests {
     #[test]
     fn exercise() {
         let src = r"
-mod prelude {
+mod option {
     enum Option<T> {
         Some(T),
         None,
@@ -138,9 +138,9 @@ struct Foo<T> {
 
 fn main() {
     let wot = Foo { foo: 42 };
-    let more_wot = prelude::Some(wot);
+    let more_wot = option::Some(wot);
     let foo: u32 = match more_wot {
-        ::prelude::Some(wot) => {
+        ::option::Some(wot) => {
             match wot {
                 Foo{ foo: foo } => foo,
             }
