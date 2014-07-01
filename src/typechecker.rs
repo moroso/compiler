@@ -77,17 +77,15 @@ fn constant_fold(session: &Session, map: &ConstantMap, expr: &Expr)
             let r1 = try!(constant_fold(session, map, &**e1));
             let r2 = try!(constant_fold(session, map, &**e2));
 
-            match values::eval_binop(op.val, r1, r2) {
-                Some(l) => Ok(l),
-                None => Err((expr.id, "Non-constant expression where constant expected"))
-            }
+            Ok(values::eval_binop(op.val, r1, r2))
         }
         UnOpExpr(op, ref e) => {
             let r = try!(constant_fold(session, map, &**e));
 
+            // Unlike binops, some unops can't be folded
             match values::eval_unop(op.val, r) {
                 Some(l) => Ok(l),
-                None => Err((expr.id, "Non-constant expression where constant expected"))
+                None => Err((expr.id, "Non-constant expression where constant expected")),
             }
         }
         _ => Err((expr.id, "Non-constant expression where constant expected")),

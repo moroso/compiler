@@ -132,7 +132,7 @@ impl CCrossCompiler {
             },
             ArrayType(ref t, ref size) => {
                 let ty = self.visit_type(*t);
-                format!("{} {}[{}]", ty, name, *size)
+                format!("{} {}[{}]", ty, name, self.visit_expr(*size))
             },
             NamedType(ref p) => {
                 let resolved_node = self.session.resolver.def_from_path(p);
@@ -190,13 +190,13 @@ impl CCrossCompiler {
     fn visit_item(&mut self, item: &Item) -> String {
         match item.val {
             UseItem(..) => String::new(),
-            ConstItem(ref id, ref t, _) => {
-                let name_and_type = self.visit_name_and_type(id.val.name, t);
+            ConstItem(ref id, _, _) => {
+                let name = self.visit_ident(id);
                 let lit = self.typemap.consts.find(&id.id)
                     .expect("finding const in map")
                     .clone().ok().expect("getting const value"); // wee
                 let lit = WithId { id: id.id, val: lit };
-                format!("const {} = {};", name_and_type, self.visit_lit(&lit))
+                format!("#define {} {}\n", name, self.visit_lit(&lit))
             }
             FuncItem(ref name, ref args, ref t, ref block, _) => {
                 match *block {
@@ -556,12 +556,23 @@ impl CCrossCompiler {
     fn visit_module_protos(&mut self, module: &Module) -> String {
         let mut results = vec!();
 
+        // XXX: I don't think this quite works:
+        // functions in submodules might depend on struct types in this module
         results.push(self.mut_visit_list(&module.val.items, |me, item| {
             match item.val {
                 ModItem(_, ref module) => me.visit_module_protos(module),
                 _ => String::from_str(""),
             }
         }, "\n"));
+
+        // Constants
+        results.push(self.mut_visit_list(&module.val.items, |me, item| {
+            match item.val {
+                ConstItem(..) => me.visit_item(item),
+                _ => String::from_str(""),
+            }
+        }, "\n"));
+
 
         // Now print struct prototypes.
         for item in module.val.items.iter() {
@@ -628,8 +639,7 @@ impl CCrossCompiler {
 
         results.push(self.mut_visit_list(&module.val.items, |me, item| {
             match item.val {
-                StaticItem(..) |
-                ConstItem(..) => me.visit_item(item),
+                StaticItem(..) => me.visit_item(item),
                 _ => String::from_str(""),
             }
         }, "\n"));

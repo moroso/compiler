@@ -23,7 +23,7 @@ fn fold(op: &BinOpNode, e1: &RValueElem, e2: &RValueElem) ->
         _ => return None,
     };
 
-    eval_binop(*op, lit1, lit2)
+    Some(eval_binop(*op, lit1, lit2))
 }
 
 fn fold_unary(op: &UnOpNode, e: &RValueElem) -> Option<LitNode> {

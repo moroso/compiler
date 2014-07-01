@@ -1,6 +1,9 @@
 use mc::ast::*;
 use util::{IntKind, Width};
 
+// FIXME: we don't handle signedness properly!
+// We bogusly treat everything as unsigned
+
 fn num_op_helper(kind1: &IntKind, rhs: &LitNode, f: |u64| -> u64) -> LitNode {
     match *rhs {
         NumLit(n2, kind2) => {
@@ -30,6 +33,16 @@ pub fn generic_op(lhs: &LitNode, rhs: &LitNode,
     }
 }
 
+pub fn generic_unop(l: &LitNode,
+                    intfunc: |u64| -> u64,
+                    boolfunc: |bool| -> bool) -> LitNode {
+    match *l {
+        NumLit(n1, kind1) => NumLit(intfunc(n1), kind1),
+        BoolLit(b) => BoolLit(boolfunc(b)),
+        _ => fail!("Unimplemented.")
+    }
+}
+
 /// An operator that takes ints and returns a bool.
 pub fn relation_op(lhs: &LitNode, rhs: &LitNode,
                    f: |u64, u64| -> bool) -> LitNode {
@@ -45,29 +58,40 @@ pub fn relation_op(lhs: &LitNode, rhs: &LitNode,
 }
 
 pub fn eval_binop(op: BinOpNode,
-                  lit1: LitNode, lit2: LitNode) -> Option<LitNode> {
+                  lit1: LitNode, lit2: LitNode) -> LitNode {
     match op {
-        PlusOp => Some(lit1+lit2),
-        TimesOp => Some(lit1*lit2),
-        DivideOp => Some(lit1/lit2),
-        OrElseOp => Some(generic_op(&lit1, &lit2, |_,_| fail!(),
-                                    |x, y| x||y)),
-        LessOp => Some(relation_op(&lit1, &lit2, |x, y| x < y)),
-        LessEqOp => Some(relation_op(&lit1, &lit2, |x, y| x <= y)),
-        GreaterOp => Some(relation_op(&lit1, &lit2, |x, y| x > y)),
-        GreaterEqOp => Some(relation_op(&lit1, &lit2, |x, y| x >= y)),
-        // TODO: the rest of the ops.
-        _ => None,
+        PlusOp => lit1+lit2,
+        MinusOp => lit1-lit2,
+        TimesOp => lit1*lit2,
+        DivideOp => lit1/lit2,
+        ModOp => lit1%lit2,
+        BitAndOp => lit1&lit2,
+        BitOrOp => lit1|lit2,
+        BitXorOp => lit1^lit2,
+        LeftShiftOp => lit1<<lit2,
+        RightShiftOp => lit1>>lit2,
+        OrElseOp => generic_op(&lit1, &lit2, |_,_| fail!(),
+                                    |x, y| x||y),
+        AndAlsoOp => generic_op(&lit1, &lit2, |_,_| fail!(),
+                                     |x, y| x&&y),
+        LessOp => relation_op(&lit1, &lit2, |x, y| x < y),
+        LessEqOp => relation_op(&lit1, &lit2, |x, y| x <= y),
+        GreaterOp => relation_op(&lit1, &lit2, |x, y| x > y),
+        GreaterEqOp => relation_op(&lit1, &lit2, |x, y| x >= y),
+        EqualsOp => BoolLit(lit1 == lit2),
+        NotEqualsOp => BoolLit(lit1 != lit2),
     }
 }
 
 pub fn eval_unop(op: UnOpNode, lit: LitNode) -> Option<LitNode> {
     match op {
         Identity => Some(lit),
-        _ => unimplemented!(),
+        Negate => Some(generic_unop(&lit, |x| -(x as i64) as u64, |_| fail!())),
+        BitNot => Some(generic_unop(&lit, |x| !x, |_| fail!())),
+        LogNot => Some(generic_unop(&lit, |_| fail!(), |x| !x)),
+        Deref | AddrOf => None,
     }
 }
-
 
 
 impl Add<LitNode, LitNode> for LitNode {
@@ -115,5 +139,16 @@ impl BitXor<LitNode, LitNode> for LitNode {
 impl Rem<LitNode, LitNode> for LitNode {
     fn rem(&self, rhs: &LitNode) -> LitNode {
         generic_op(self, rhs, |x, y| x%y, |_,_| fail!())
+    }
+}
+
+impl Shl<LitNode, LitNode> for LitNode {
+    fn shl(&self, rhs: &LitNode) -> LitNode {
+        generic_op(self, rhs, |x, y| x << y as uint, |_,_| fail!())
+    }
+}
+impl Shr<LitNode, LitNode> for LitNode {
+    fn shr(&self, rhs: &LitNode) -> LitNode {
+        generic_op(self, rhs, |x, y| x >> y as uint, |_,_| fail!())
     }
 }
