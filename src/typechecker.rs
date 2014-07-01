@@ -40,14 +40,6 @@ pub enum Ty {
     BottomTy,
 }
 
-#[deriving(Show)]
-enum Constant<'a> {
-    StringConstant(&'a str),
-    IntConstant(i64),
-    UintConstant(u64),
-    BoolConstant(bool),
-}
-
 struct ConstCollector<'a> {
     nodes: TreeMap<NodeId, &'a Expr>,
     edges: TreeMap<NodeId, TreeSet<NodeId>>,
@@ -55,27 +47,26 @@ struct ConstCollector<'a> {
     session: &'a Session,
 }
 
-type ConstantResult<'a> = Result<Constant<'a>, (NodeId, &'static str)>;
-type ConstantMap<'a> = TreeMap<NodeId, ConstantResult<'a>>;
 
-fn constant_fold<'a>(session: &'a Session, map: &ConstantMap<'a>, expr: &Expr)
-                  -> ConstantResult<'a> {
+type Constant = LitNode;
+type ConstantResult = Result<Constant, (NodeId, &'static str)>;
+type ConstantMap = TreeMap<NodeId, ConstantResult>;
+
+fn constant_fold(session: &Session, map: &ConstantMap, expr: &Expr)
+                  -> ConstantResult {
     match expr.val {
         LitExpr(ref lit) => {
             use std::mem::copy_lifetime;
             match lit.val {
-                NumLit(n, SignedInt(_)) => Ok(IntConstant(n as i64)),
-                NumLit(n, _)            => Ok(UintConstant(n)),
-                StringLit(ref s)        => Ok(StringConstant(unsafe { copy_lifetime(session, s).as_slice() })),
-                BoolLit(b)              => Ok(BoolConstant(b)),
                 NullLit                 => Err((lit.id, "`null` is not valid here")),
+                ref val                 => Ok(val.clone())
             }
         }
         GroupExpr(ref e) => constant_fold(session, map, *e),
         PathExpr(ref path) => {
             let nid = session.resolver.def_from_path(path);
             match map.find(&nid) {
-                Some(c) => *c,
+                Some(c) => c.clone(),
                 None => Err((path.id, "Non-constant name where constant expected")),
             }
         }
@@ -169,7 +160,7 @@ impl<'a> ConstCollector<'a> {
         return list;
     }
 
-    fn map_constants(mut self, map: &mut ConstantMap<'a>, module: &'a Module) {
+    fn map_constants(mut self, map: &mut ConstantMap, module: &'a Module) {
         self.visit_module(module);
         let order = self.get_order();
         for nid in order.iter() {
@@ -392,7 +383,7 @@ pub struct Typechecker<'a> {
     next_bounds_id: uint,
     exits: Vec<WithId<Ty>>,
     typemap: Typemap,
-    consts: ConstantMap<'a>,
+    consts: ConstantMap,
     // This is hacky but it cuts down on plumbing
     current_cause: Option<(NodeId, ErrorCause)>,
     current_unify: Option<(WithId<Ty>, WithId<Ty>)>,
@@ -458,12 +449,12 @@ impl<'a> Typechecker<'a> {
         }
     }
 
-    fn expr_to_const(&self, e: &Expr) -> Constant<'a> {
+    fn expr_to_const(&self, e: &Expr) -> Constant {
         let c = constant_fold(self.session, &self.consts, e);
         self.unwrap_const(c)
     }
 
-    fn unwrap_const(&self, c: ConstantResult<'a>) -> Constant<'a> {
+    fn unwrap_const(&self, c: ConstantResult) -> Constant {
         match c {
             Ok(c) => c,
             Err((nid, e)) => self.session.error_fatal(nid, e),
@@ -475,7 +466,7 @@ impl<'a> Typechecker<'a> {
         cc.map_constants(&mut self.consts, module);
         self.visit_module(module);
         for c in self.consts.iter() {
-            self.unwrap_const(*c.val1());
+            self.unwrap_const(c.val1().clone());
         }
     }
 
@@ -622,8 +613,8 @@ impl<'a> Typechecker<'a> {
                 self.check_ty_bounds_w(d.id, InvalidDimension, d_ty, Concrete(UintTy(AnyWidth)));
                 let c = self.expr_to_const(*d);
                 let len = match c {
-                    UintConstant(u) => u,
-                    _ => unreachable!(),
+                    NumLit(u, UnsignedInt(_)) | NumLit(u, GenericInt) => u,
+                    _ => self.error_fatal(t.id, "Array length must be a uint constant"),
                 };
                 ArrayTy(box ty, Some(len))
             }
@@ -885,7 +876,7 @@ impl<'a> Typechecker<'a> {
                         }
                     }
                     _ => {
-                        unreachable!()
+                        self.error_fatal(expr.id, "Cannot call non-function");
                     }
                 }
             }
@@ -1291,7 +1282,7 @@ impl<'a> Typechecker<'a> {
     fn mismatch(&mut self, ty1: &WithId<Ty>, ty2: &WithId<Ty>) -> ! {
         let current_unify = ::std::mem::replace(&mut self.current_unify, None);
         match current_unify {
-            Some((ref full_ty1, ref full_ty2)) if full_ty1 != ty1 && full_ty2 != ty2 => {
+            Some((ref full_ty1, ref full_ty2)) => {
                 self.type_error_with_notes(
                     format!("Expected type {} but found type {}", full_ty1.val, full_ty2.val), vec!(
                     (ty1.id, format!("note: expected type: {}", ty1.val)),
