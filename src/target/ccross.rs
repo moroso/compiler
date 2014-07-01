@@ -45,10 +45,8 @@ fn find_structs(module: &Module) -> TreeSet<NodeId> {
     struct_set
 }
 
-fn find_enum_item_names(module: &Module) -> TreeMap<Name,
-                                                    (Ident,
-                                                     Vec<Variant>,
-                                                     uint)> {
+fn find_enum_item_names(module: &Module)
+                        -> TreeMap<Name, (Ident, Vec<Variant>, uint)> {
     let mut enum_map = TreeMap::new();
 
     for item in module.val.items.iter() {
@@ -192,9 +190,13 @@ impl CCrossCompiler {
     fn visit_item(&mut self, item: &Item) -> String {
         match item.val {
             UseItem(..) => String::new(),
-            ConstItem(ref id, ref t, ref expr) => {
+            ConstItem(ref id, ref t, _) => {
                 let name_and_type = self.visit_name_and_type(id.val.name, t);
-                format!("const {} = {};", name_and_type, self.visit_expr(expr))
+                let lit = self.typemap.consts.find(&id.id)
+                    .expect("finding const in map")
+                    .clone().ok().expect("getting const value"); // wee
+                let lit = WithId { id: id.id, val: lit };
+                format!("const {} = {};", name_and_type, self.visit_lit(&lit))
             }
             FuncItem(ref name, ref args, ref t, ref block, _) => {
                 match *block {

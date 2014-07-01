@@ -7,7 +7,7 @@ use std::collections::TreeSet;
 use mc::ast::*;
 
 use ir::*;
-use values::*;
+use values::{eval_binop, eval_unop};
 
 pub struct ConstantFolder;
 
@@ -23,19 +23,7 @@ fn fold(op: &BinOpNode, e1: &RValueElem, e2: &RValueElem) ->
         _ => return None,
     };
 
-    match *op {
-        PlusOp => Some(lit1+lit2),
-        TimesOp => Some(lit1*lit2),
-        DivideOp => Some(lit1/lit2),
-        OrElseOp => Some(generic_op(&lit1, &lit2, |_,_| fail!(),
-                                    |x, y| x||y)),
-        LessOp => Some(relation_op(&lit1, &lit2, |x, y| x < y)),
-        LessEqOp => Some(relation_op(&lit1, &lit2, |x, y| x <= y)),
-        GreaterOp => Some(relation_op(&lit1, &lit2, |x, y| x > y)),
-        GreaterEqOp => Some(relation_op(&lit1, &lit2, |x, y| x >= y)),
-        // TODO: the rest of the ops.
-        _ => None,
-    }
+    eval_binop(*op, lit1, lit2)
 }
 
 fn fold_unary(op: &UnOpNode, e: &RValueElem) -> Option<LitNode> {
@@ -44,10 +32,7 @@ fn fold_unary(op: &UnOpNode, e: &RValueElem) -> Option<LitNode> {
         _ => return None,
     };
 
-    match *op {
-        Identity => Some(lit),
-        _ => unimplemented!(),
-    }
+    eval_unop(*op, lit)
 }
 
 fn constant_fold_once(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>) -> bool {

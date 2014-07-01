@@ -1,4 +1,4 @@
-use mc::ast::{BoolLit, LitNode, NumLit};
+use mc::ast::*;
 use util::{IntKind, Width};
 
 fn num_op_helper(kind1: &IntKind, rhs: &LitNode, f: |u64| -> u64) -> LitNode {
@@ -43,6 +43,32 @@ pub fn relation_op(lhs: &LitNode, rhs: &LitNode,
         _ => fail!(),
     }
 }
+
+pub fn eval_binop(op: BinOpNode,
+                  lit1: LitNode, lit2: LitNode) -> Option<LitNode> {
+    match op {
+        PlusOp => Some(lit1+lit2),
+        TimesOp => Some(lit1*lit2),
+        DivideOp => Some(lit1/lit2),
+        OrElseOp => Some(generic_op(&lit1, &lit2, |_,_| fail!(),
+                                    |x, y| x||y)),
+        LessOp => Some(relation_op(&lit1, &lit2, |x, y| x < y)),
+        LessEqOp => Some(relation_op(&lit1, &lit2, |x, y| x <= y)),
+        GreaterOp => Some(relation_op(&lit1, &lit2, |x, y| x > y)),
+        GreaterEqOp => Some(relation_op(&lit1, &lit2, |x, y| x >= y)),
+        // TODO: the rest of the ops.
+        _ => None,
+    }
+}
+
+pub fn eval_unop(op: UnOpNode, lit: LitNode) -> Option<LitNode> {
+    match op {
+        Identity => Some(lit),
+        _ => unimplemented!(),
+    }
+}
+
+
 
 impl Add<LitNode, LitNode> for LitNode {
     fn add(&self, rhs: &LitNode) -> LitNode {

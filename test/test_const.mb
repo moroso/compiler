@@ -1,0 +1,8 @@
+const foo: i32 = 12;
+const bar: i32 = 12 + foo;
+
+fn main() -> u32 {
+    print_int(foo);
+    print_int(bar);
+    0
+}

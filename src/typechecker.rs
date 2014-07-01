@@ -8,10 +8,13 @@ use std::collections::{SmallIntMap, TreeMap, EnumSet, TreeSet};
 use std::collections::enum_set::CLike;
 
 use std::fmt;
+use values::eval_binop;
 
 use mc::ast::*;
 use mc::ast::defmap::*;
 use mc::ast::visitor::*;
+
+use values;
 
 #[deriving(Eq, PartialEq, Show, Clone)]
 struct BoundsId(uint);
@@ -50,7 +53,7 @@ struct ConstCollector<'a> {
 
 type Constant = LitNode;
 type ConstantResult = Result<Constant, (NodeId, &'static str)>;
-type ConstantMap = TreeMap<NodeId, ConstantResult>;
+pub type ConstantMap = TreeMap<NodeId, ConstantResult>;
 
 fn constant_fold(session: &Session, map: &ConstantMap, expr: &Expr)
                   -> ConstantResult {
@@ -68,6 +71,23 @@ fn constant_fold(session: &Session, map: &ConstantMap, expr: &Expr)
             match map.find(&nid) {
                 Some(c) => c.clone(),
                 None => Err((path.id, "Non-constant name where constant expected")),
+            }
+        }
+        BinOpExpr(op, ref e1, ref e2) => {
+            let r1 = try!(constant_fold(session, map, &**e1));
+            let r2 = try!(constant_fold(session, map, &**e2));
+
+            match values::eval_binop(op.val, r1, r2) {
+                Some(l) => Ok(l),
+                None => Err((expr.id, "Non-constant expression where constant expected"))
+            }
+        }
+        UnOpExpr(op, ref e) => {
+            let r = try!(constant_fold(session, map, &**e));
+
+            match values::eval_unop(op.val, r) {
+                Some(l) => Ok(l),
+                None => Err((expr.id, "Non-constant expression where constant expected"))
             }
         }
         _ => Err((expr.id, "Non-constant expression where constant expected")),
@@ -374,6 +394,7 @@ impl fmt::Show for TyBounds {
 pub struct Typemap {
     pub types: SmallIntMap<Ty>,
     pub bounds: SmallIntMap<TyBounds>,
+    pub consts: ConstantMap,
 }
 
 pub struct Typechecker<'a> {
@@ -383,7 +404,6 @@ pub struct Typechecker<'a> {
     next_bounds_id: uint,
     exits: Vec<WithId<Ty>>,
     typemap: Typemap,
-    consts: ConstantMap,
     // This is hacky but it cuts down on plumbing
     current_cause: Option<(NodeId, ErrorCause)>,
     current_unify: Option<(WithId<Ty>, WithId<Ty>)>,
@@ -442,15 +462,15 @@ impl<'a> Typechecker<'a> {
             typemap: Typemap {
                 types: SmallIntMap::new(),
                 bounds: SmallIntMap::new(),
+                consts: TreeMap::new(),
             },
-            consts: TreeMap::new(),
             current_cause: None,
             current_unify: None,
         }
     }
 
     fn expr_to_const(&self, e: &Expr) -> Constant {
-        let c = constant_fold(self.session, &self.consts, e);
+        let c = constant_fold(self.session, &self.typemap.consts, e);
         self.unwrap_const(c)
     }
 
@@ -463,9 +483,9 @@ impl<'a> Typechecker<'a> {
 
     pub fn typecheck(&mut self, module: &'a Module) {
         let cc = ConstCollector::new(self.session);
-        cc.map_constants(&mut self.consts, module);
+        cc.map_constants(&mut self.typemap.consts, module);
         self.visit_module(module);
-        for c in self.consts.iter() {
+        for c in self.typemap.consts.iter() {
             self.unwrap_const(c.val1().clone());
         }
     }
