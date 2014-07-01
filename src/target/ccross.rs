@@ -683,11 +683,11 @@ impl Visitor for NameMangler {
                 self.visit_module(body);
                 self.path.pop();
             },
-            StaticItem(ref id, _, _) |
+            StaticItem(ref id, _, Some(_)) |
             StructItem(ref id, _, _) |
             EnumItem(ref id, _, _) |
             ConstItem(ref id, _, _) |
-            FuncItem(ref id, _, _, _, _) => {
+            FuncItem(ref id, _, _, Some(_), _) => {
                 let name = String::from_str(
                     self.session.interner.name_to_str(&id.val.name));
                 self.path.push(name.clone());
@@ -704,6 +704,13 @@ impl Visitor for NameMangler {
                 self.path.pop();
                 self.names.insert(id.id, mangled_name);
                 walk_item(self, item);
+            },
+            // Extern things don't get managled.
+            StaticItem(ref id, _, None) |
+            FuncItem(ref id, _, _, None, _) => {
+                let name = String::from_str(
+                    self.session.interner.name_to_str(&id.val.name));
+                self.names.insert(id.id, name);
             },
             _ => walk_item(self, item),
         }
@@ -757,12 +764,12 @@ impl Target for CTarget {
         println!("{}", "typedef unsigned int uint_t;");
         println!("{}", "typedef int int_t;");
 
-        println!("{}", "int32_t MANGLEDprelude_printf0_(uint8_t *s) { return printf(\"%s\", (char *)s); }");
-        println!("{}", "int32_t MANGLEDprelude_printf1_(uint8_t *s, uint32_t a) { return printf((char *)s, a); }");
-        println!("{}", "int32_t MANGLEDprelude_printf2_(uint8_t *s, uint32_t a, uint32_t b) { return printf((char *)s, a, b); }");
-        println!("{}", "int32_t MANGLEDprelude_printf3_(uint8_t *s, uint32_t a, uint32_t b, uint32_t c) { return printf((char *)s, a, b, c); }");
-        println!("{}", "int32_t MANGLEDprelude_print_int(int32_t x) { printf(\"%d\\n\", (int)x); return x; }");
-        println!("{}", "int32_t MANGLEDprelude_print_char(int32_t x) { printf(\"%c\", (int)x); return x; }");
+        println!("{}", "int32_t printf0_(uint8_t *s) { return printf(\"%s\", (char *)s); }");
+        println!("{}", "int32_t printf1_(uint8_t *s, uint32_t a) { return printf((char *)s, a); }");
+        println!("{}", "int32_t printf2_(uint8_t *s, uint32_t a, uint32_t b) { return printf((char *)s, a, b); }");
+        println!("{}", "int32_t printf3_(uint8_t *s, uint32_t a, uint32_t b, uint32_t c) { return printf((char *)s, a, b, c); }");
+        println!("{}", "int32_t print_int(int32_t x) { printf(\"%d\\n\", (int)x); return x; }");
+        println!("{}", "int32_t print_char(int32_t x) { printf(\"%c\", (int)x); return x; }");
         println!("{}", cc.visit_module(&module));
     }
 }
