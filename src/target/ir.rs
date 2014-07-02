@@ -188,7 +188,8 @@ impl Target for IRTarget {
         IRTarget
     }
 
-    fn compile(&self, p: Package) {
+    #[allow(unused_must_use)]
+    fn compile(&self, p: Package, f: &mut io::Writer) {
         let Package {
             module:  module,
             session: mut session,
@@ -203,9 +204,9 @@ impl Target for IRTarget {
             let mut result = vec!();
 
             for item in module.val.items.iter() {
-                print!("{}\n", item);
+                write!(f, "{}\n", item);
                 let (insts, _) = converter.convert_item(item);
-                print!("{}\n\n", insts);
+                write!(f, "{}\n\n", insts);
                 result.push(insts);
             }
             result
@@ -213,13 +214,13 @@ impl Target for IRTarget {
 
         for insts in result.mut_iter() {
             ToSSA::to_ssa(insts);
-            print!("{}\n", insts);
+            write!(f, "{}\n", insts);
             ConstantFolder::fold(insts);
-            print!("{}\n", insts);
+            write!(f, "{}\n", insts);
             for a in LivenessAnalyzer::analyze(insts).iter() {
-                print!("{}\n", a);
+                write!(f, "{}\n", a);
             }
-            print!("{}\n", self.convert_function(&session.interner, insts));
+            write!(f, "{}\n", self.convert_function(&session.interner, insts));
         }
     }
 }

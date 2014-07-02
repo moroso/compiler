@@ -16,6 +16,8 @@ use codegen::register_color::RegisterColorer;
 use codegen::num_usable_vars;
 use codegen::IrToAsm;
 
+use std::io::Writer;
+
 pub struct AsmTarget;
 
 impl Target for AsmTarget {
@@ -23,7 +25,8 @@ impl Target for AsmTarget {
         AsmTarget
     }
 
-    fn compile(&self, p: Package) {
+    #[allow(unused_must_use)]
+    fn compile(&self, p: Package, f: &mut Writer) {
         let Package {
             module:  module,
             session: mut session,
@@ -38,9 +41,9 @@ impl Target for AsmTarget {
             let mut result = vec!();
 
             for item in module.val.items.iter() {
-                print!("{}\n", item);
+                write!(f, "{}\n", item);
                 let (insts, _) = converter.convert_item(item);
-                print!("{}\n\n", insts);
+                write!(f, "{}\n\n", insts);
                 result.push(insts);
             }
             result
@@ -50,17 +53,17 @@ impl Target for AsmTarget {
             ToSSA::to_ssa(insts);
             ConstantFolder::fold(insts);
             for a in LivenessAnalyzer::analyze(insts).iter() {
-                print!("{}\n", a);
+                write!(f, "{}\n", a);
             }
-            print!("{}\n", insts);
+            write!(f, "{}\n", insts);
             let (conflict_map, counts) = ConflictAnalyzer::conflicts(insts);
-            print!("conflicts: {}\ncounts: {}\n", conflict_map, counts);
-            print!("{}\n",
+            write!(f, "conflicts: {}\ncounts: {}\n", conflict_map, counts);
+            write!(f, "{}\n",
                    RegisterColorer::color(conflict_map, counts,
                                           num_usable_vars as uint));
 
             for inst in IrToAsm::ir_to_asm(insts).iter() {
-                print!("   {}\n", inst);
+                write!(f, "   {}\n", inst);
             }
         }
     }

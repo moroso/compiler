@@ -8,7 +8,7 @@ use getopts;
 use getopts::{getopts, reqopt, optopt, optflag};
 use getopts::OptionMissing;
 use std::ascii::StrAsciiExt;
-use std::io::{BufferedReader, File, stdio};
+use std::io::{BufferedReader, File, Writer, stdio};
 
 use std::os;
 
@@ -21,7 +21,7 @@ pub mod resolver;
 struct NullTarget;
 impl Target for NullTarget {
     fn new(_: Vec<String>) -> NullTarget { NullTarget }
-    fn compile(&self, _: Package) { }
+    fn compile(&self, _: Package, _: &mut Writer) { }
 }
 
 fn package_from_stdin() -> Package {
@@ -44,7 +44,8 @@ pub fn main() {
     let arg0 = args.get(0);
 
     let opts = [
-        optopt("", "target", "Set the output target.", "[c|null]"),
+        optopt("", "target", "Set the output target format.", "[c|null]"),
+        optopt("o", "output", "Output file", "<filename>"),
         optflag("h", "help", "Show this help message."),
     ];
 
@@ -105,7 +106,20 @@ pub fn main() {
         Package::from_file(file)
     };
 
-    target.compile(package);
+    // FIXME: Hm, maybe should use a MemWriter, gather the buffer,
+    // then print it all at once and properly error check. Then we
+    // don't truncate the file if it fails, either. (We *shouldn't*
+    // fail during compile, but...)
+    let mut writer = match matches.opt_str("output") {
+        None => box stdio::stdout() as Box<Writer>,
+        Some(name) => {
+            let path = Path::new(name);
+            let file = File::create(&path).unwrap_or_else(|e| fail!("{}", e));
+            box file as Box<Writer>
+        }
+    };
+
+    target.compile(package, writer);
 }
 
 #[cfg(test)]
