@@ -87,7 +87,7 @@ impl CCrossCompiler {
                             delimiter: &str) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
             .filter(|x| *x != String::from_str("")).collect();
-        list.connect(delimiter)
+        list.connect(format!("{}\n", delimiter).as_slice())
     }
 
     fn mut_visit_list<T>(&mut self, list: &Vec<T>,
@@ -95,7 +95,7 @@ impl CCrossCompiler {
                                     delimiter: &str) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
             .filter(|x| *x != String::from_str("")).collect();
-        list.connect(delimiter)
+        list.connect(format!("{}\n", delimiter).as_slice())
     }
 
     fn visit_binop(&self, op: &BinOp) -> String {
