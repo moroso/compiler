@@ -135,6 +135,7 @@ mod tests {
     use package::Package;
     use super::NullTarget;
     use target::Target;
+    use std::io::stdio;
 
     fn package_from_str(s: &str) -> Package {
         use std::str::StrSlice;
@@ -171,6 +172,6 @@ fn main() {
 }
 ";
         let package = package_from_str(src);
-        NullTarget.compile(package);
+        NullTarget.compile(package, box stdio::stdout() as Box<Writer>);
     }
 }
