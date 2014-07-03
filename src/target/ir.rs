@@ -22,7 +22,9 @@ use std::io;
 use mc::ast::*;
 use ir::*;
 
-pub struct IRTarget;
+pub struct IRTarget {
+    verbose: bool,
+}
 
 fn print_var(interner: &Ref<Interner>, v: &Var) -> String {
     format!("{}{}",
@@ -70,7 +72,10 @@ fn assign_vars(interner: &Ref<Interner>,
 }
 
 impl IRTarget {
-    fn convert_function(&self, interner: &Ref<Interner>, ops: &Vec<Op>) -> String {
+    fn convert_function(&self, interner: &Ref<Interner>,
+                        ops: &Vec<Op>) -> String {
+        if ops.len() == 0 { return String::from_str("") }
+
         let mut s = "".to_string();
         let mut vars = TreeSet::new();
         let mut labels: SmallIntMap<TreeMap<Name, uint>> = SmallIntMap::new();
@@ -184,8 +189,15 @@ impl IRTarget {
 }
 
 impl Target for IRTarget {
-    fn new(_args: Vec<String>) -> IRTarget {
-        IRTarget
+    fn new(args: Vec<String>) -> IRTarget {
+        let mut verbose = false;
+        for arg in args.iter() {
+            if *arg == String::from_str("verbose") {
+                print!("Enabling verbose mode.\n");
+                verbose = true;
+            }
+        }
+        IRTarget { verbose: verbose }
     }
 
     #[allow(unused_must_use)]
@@ -204,21 +216,45 @@ impl Target for IRTarget {
             let mut result = vec!();
 
             for item in module.val.items.iter() {
-                write!(f, "{}\n", item);
+                if self.verbose {
+                    write!(f, "{}\n", item);
+                }
                 let (insts, _) = converter.convert_item(item);
-                write!(f, "{}\n\n", insts);
+                if self.verbose {
+                    write!(f, "{}\n\n", insts);
+                }
                 result.push(insts);
             }
             result
         };
 
+        println!("{}", "#include <stdio.h>");
+        println!("{}", "#include <stdlib.h>");
+        println!("{}", "#include <stdint.h>");
+        println!("{}", "#include <assert.h>");
+        println!("{}", "typedef unsigned int uint_t;");
+        println!("{}", "typedef int int_t;");
+
+        println!("{}", "int32_t printf0_(uint8_t *s) { return printf(\"%s\", (char *)s); }");
+        println!("{}", "int32_t printf1_(uint8_t *s, uint32_t a) { return printf((char *)s, a); }");
+        println!("{}", "int32_t printf2_(uint8_t *s, uint32_t a, uint32_t b) { return printf((char *)s, a, b); }");
+        println!("{}", "int32_t printf3_(uint8_t *s, uint32_t a, uint32_t b, uint32_t c) { return printf((char *)s, a, b, c); }");
+        println!("{}", "int32_t print_int(int32_t x) { printf(\"%d\\n\", (int)x); return x; }");
+        // Temporary until IR supports modules.
+        println!("{}", "int32_t print_uint(int32_t x) { printf(\"%d\\n\", (int)x); return x; }");
+        println!("{}", "int32_t print_char(int32_t x) { printf(\"%c\", (int)x); return x; }");
+
         for insts in result.mut_iter() {
-            ToSSA::to_ssa(insts);
-            write!(f, "{}\n", insts);
-            ConstantFolder::fold(insts);
-            write!(f, "{}\n", insts);
-            for a in LivenessAnalyzer::analyze(insts).iter() {
-                write!(f, "{}\n", a);
+            ToSSA::to_ssa(insts, self.verbose);
+            if self.verbose {
+                write!(f, "{}\n", insts);
+            }
+            ConstantFolder::fold(insts, self.verbose);
+            if self.verbose {
+                write!(f, "{}\n", insts);
+                for a in LivenessAnalyzer::analyze(insts).iter() {
+                    write!(f, "{}\n", a);
+                }
             }
             write!(f, "{}\n", self.convert_function(&session.interner, insts));
         }

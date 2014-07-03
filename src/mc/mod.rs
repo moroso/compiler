@@ -44,8 +44,9 @@ pub fn main() {
     let arg0 = args.get(0);
 
     let opts = [
-        optopt("", "target", "Set the output target format.", "[c|null]"),
+        optopt("", "target", "Set the output target format.", "[c|null|asm|ir]"),
         optopt("o", "output", "Output file", "<filename>"),
+        optflag("v", "verbose", "Enable verbose output."),
         optflag("h", "help", "Show this help message."),
     ];
 
@@ -78,10 +79,17 @@ pub fn main() {
         "asm" => AsmTarget,
     };
 
+    let verbose = matches.opt_present("verbose");
+
     let target_arg = matches.opt_str("target").unwrap_or(String::from_str("null"));
     let target = match targets.move_iter()
                         .filter(|&(ref t, _)| t.eq_ignore_ascii_case(target_arg.as_slice()))
-                        .map(|(_, ctor)| ctor(vec!()))
+                        .map(|(_, ctor)| ctor(
+                            if verbose {
+                                vec!(String::from_str("verbose"))
+                            } else {
+                                vec!()
+                            }))
                         .next() {
         Some(t) => t,
         None => {

@@ -74,7 +74,7 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
     }
 }
 
-fn minimize_once(ops: &mut Vec<Op>) -> bool {
+fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
     // First, collect all jumps to a given label.
     // This maps the label to a vector of maps from variables to
     // generations.
@@ -186,12 +186,16 @@ fn minimize_once(ops: &mut Vec<Op>) -> bool {
             }
 
         }
-        print!("{}:{}\n", idx, item);
+        if verbose {
+            print!("{}:{}\n", idx, item);
+        }
     }
 
-    print!("subs: {}\n", substitutions);
-    for x in vars_at_labels_to_clear.iter() {
-        print!("labels_to_clear: {}\n", x);
+    if verbose {
+        print!("subs: {}\n", substitutions);
+        for x in vars_at_labels_to_clear.iter() {
+            print!("labels_to_clear: {}\n", x);
+        }
     }
 
     // Perform all the substitutions. We do a (really inefficient)
@@ -208,7 +212,9 @@ fn minimize_once(ops: &mut Vec<Op>) -> bool {
             if targets.contains(a) {
                 new_substitutions.insert((a.clone(), b.clone()));
             } else {
-                print!("{} -> {}\n", a, b);
+                if verbose {
+                    print!("{} -> {}\n", a, b);
+                }
                 subst(ops, a, &Variable(b.clone()));
             }
         }
@@ -257,12 +263,12 @@ fn minimize_once(ops: &mut Vec<Op>) -> bool {
     changed
 }
 
-fn minimize(ops: &mut Vec<Op>) {
-    while minimize_once(ops) {}
+fn minimize(ops: &mut Vec<Op>, verbose: bool) {
+    while minimize_once(ops, verbose) {}
 }
 
 impl ToSSA {
-    pub fn to_ssa(ops: &mut Vec<Op>) {
+    pub fn to_ssa(ops: &mut Vec<Op>, verbose: bool) {
         parameterize_labels(ops);
 
         let ref mut gens = TreeMap::<Name, uint>::new();
@@ -315,7 +321,7 @@ impl ToSSA {
             }
         }
 
-        minimize(ops);
+        minimize(ops, verbose);
     }
 
 }

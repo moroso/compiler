@@ -72,7 +72,6 @@ impl<'a> ASTToIntermediate<'a> {
                                         let size = size_of_def(self.session,
                                                                self.typemap,
                                                                id);
-                                        print!("Allocate {}\n", size);
                                         (vec!(Alloca(v, size)), v)
                                     },
                                     _ => (vec!(), v)
@@ -125,6 +124,8 @@ impl<'a> ASTToIntermediate<'a> {
                 (ops, v)
             },
             StructItem(..) => (vec!(), self.gen_temp()),
+            ModItem(..) => (vec!(), self.gen_temp()), // TODO
+            UseItem(..) => (vec!(), self.gen_temp()), // TODO
             _ => fail!("{}", item)//(vec!(), self.gen_temp())
         }
     }
@@ -302,6 +303,7 @@ impl<'a> ASTToIntermediate<'a> {
                 let (b1_insts, b1_var) = self.convert_block(*b1);
                 let (b2_insts, b2_var) = self.convert_block(*b2);
                 let b1_label = self.gen_label();
+                let end_label = self.gen_label();
                 let end_var = self.gen_temp();
                 insts.push(CondGoto(false,
                                     Variable(if_var),
@@ -309,10 +311,12 @@ impl<'a> ASTToIntermediate<'a> {
                                     TreeSet::new()));
                 insts.push_all_move(b2_insts);
                 insts.push(UnOp(end_var, Identity, Variable(b2_var)));
-                insts.push(Goto(b1_label, TreeSet::new()));
+                insts.push(Goto(end_label, TreeSet::new()));
                 insts.push(Label(b1_label, TreeSet::new()));
                 insts.push_all_move(b1_insts);
                 insts.push(UnOp(end_var, Identity, Variable(b1_var)));
+                insts.push(Goto(end_label, TreeSet::new()));
+                insts.push(Label(end_label, TreeSet::new()));
                 (insts, end_var)
             },
             WhileExpr(ref e, ref b) => {

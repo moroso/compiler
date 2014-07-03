@@ -6,3 +6,5 @@
 /test/c/
 /test/c-bin/
 /test/c-results/
+/test/ir-c/
+/test/ir-c-results/

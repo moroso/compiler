@@ -44,6 +44,13 @@ MC_FILES := \
 	util/mod.rs \
 
 TEST_FILES := $(patsubst test/%,%,$(wildcard test/test_*.mb))
+IR_TEST_FILES := \
+	test_casts.mb \
+	test_for_loop.mb \
+	test_pointer_arith.mb \
+	test_recursion.mb \
+	test_short_circuit.mb \
+	test_sizeof.mb
 
 mbc: $(addprefix src/,$(MC_FILES))
 	rustc $(RUST_FLAGS) $< --cfg mc -o $@ -g
@@ -66,20 +73,32 @@ docs: doc/regexp/index.html
 doc/%/index.html: %.rs
 	rustdoc $<
 
-test: test/c test/c-bin test/c-results
+test: test/c test/c-bin test/c-results test/ir-c-results
 
 test/c: $(addprefix test/,$(patsubst %.mb,c/%.c,$(TEST_FILES)))
+test/ir-c: $(addprefix test/,$(patsubst %.mb,c/%.c,$(IR_TEST_FILES)))
 
 test/c-bin: $(addprefix test/,$(patsubst %.mb,c-bin/%,$(TEST_FILES)))
+test/ir-c-bin: $(addprefix test/,$(patsubst %.mb,c-bin/%,$(IR_TEST_FILES)))
 
 test/c-results: $(addprefix test/,$(patsubst %.mb,c-results/%.txt,$(TEST_FILES)))
+test/ir-c-results: $(addprefix test/,$(patsubst %.mb,ir-c-results/%.txt,$(IR_TEST_FILES)))
 
 test/c/%.c: test/%.mb mbc
 	@mkdir -p $(dir $@)
 	@./mbc --target c $< > $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
 
+test/ir-c/%.c: test/%.mb mbc
+	@mkdir -p $(dir $@)
+	@./mbc --target ir $< > $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
+
 test/c-bin/%: test/c/%.c test/%.txt
 	@echo Running $(patsubst test/c/%.c,%,$<)...
+	@mkdir -p $(dir $@)
+	@gcc $< -o $@ || (cat $<; false)
+
+test/ir-c-bin/%: test/ir-c/%.c test/%.txt
+	@echo Running $(patsubst test/ir-c/%.c,%,$<)...
 	@mkdir -p $(dir $@)
 	@gcc $< -o $@ || (cat $<; false)
 
@@ -88,6 +107,11 @@ test/c-results/%.txt: test/c-bin/%
 	@./$< > $@
 	@diff $@ $(patsubst test/c-results/%.txt,test/%.txt,$@)
 
-.PHONY: all docs clean run-tests run-ir-tests check
+test/ir-c-results/%.txt: test/ir-c-bin/%
+	@mkdir -p $(dir $@)
+	@./$< > $@
+	@diff $@ $(patsubst test/ir-c-results/%.txt,test/%.txt,$@)
+
+.PHONY: all docs clean run-tests check
 clean:
 	rm -rf *~ doc mc mbc mas unittest test/c test/c-bin test/c-results/*.txt

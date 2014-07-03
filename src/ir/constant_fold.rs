@@ -35,7 +35,8 @@ fn fold_unary(op: &UnOpNode, e: &RValueElem) -> Option<LitNode> {
     eval_unop(*op, lit)
 }
 
-fn constant_fold_once(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>) -> bool {
+fn constant_fold_once(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>,
+                      verbose: bool) -> bool {
     // Variables to replace with constants.
     let mut changes = vec!();
 
@@ -68,9 +69,13 @@ fn constant_fold_once(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>) -> bool {
 
     for (a, b) in changes.move_iter() {
         if !vars_to_avoid.contains(&a){
-            print!("Applying {}->{}\n", a, b);
+            if verbose {
+                print!("Applying {}->{}\n", a, b);
+            }
             subst(ops, &a, &b);
-            print!("{}\n", ops);
+            if verbose {
+                print!("{}\n", ops);
+            }
             changed = true;
         }
     }
@@ -81,7 +86,7 @@ fn constant_fold_once(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>) -> bool {
 
 impl ConstantFolder {
 
-    pub fn fold(ops: &mut Vec<Op>) {
+    pub fn fold(ops: &mut Vec<Op>, verbose: bool) {
         // There are certain variables we are prohibited from substituting.
         // Those include any that appear in labels/gotos, as well as any
         // that is dereferenced as part of the left hand side of an assignment.
@@ -105,7 +110,9 @@ impl ConstantFolder {
                 _ => {},
             }
         }
-        print!("avoid: {}\n", vars_to_avoid);
-        while constant_fold_once(ops, &vars_to_avoid) {}
+        if verbose {
+            print!("avoid: {}\n", vars_to_avoid);
+        }
+        while constant_fold_once(ops, &vars_to_avoid, verbose) {}
     }
 }

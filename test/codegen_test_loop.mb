@@ -1,0 +1,11 @@
+fn main() -> u32 {
+    let i: u32 = 5;
+    let j = 0;
+
+    while (i-=1) >= 0 {
+        j += i;
+        print_uint(j);
+    }
+
+    0
+}

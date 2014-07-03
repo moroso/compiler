@@ -50,8 +50,8 @@ impl Target for AsmTarget {
         };
 
         for insts in result.mut_iter() {
-            ToSSA::to_ssa(insts);
-            ConstantFolder::fold(insts);
+            ToSSA::to_ssa(insts, true);
+            ConstantFolder::fold(insts, true);
             for a in LivenessAnalyzer::analyze(insts).iter() {
                 write!(f, "{}\n", a);
             }
