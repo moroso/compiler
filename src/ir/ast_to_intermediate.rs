@@ -15,6 +15,8 @@ pub struct ASTToIntermediate<'a> {
     label_count: uint,
     session: &'a mut Session,
     typemap: &'a mut Typemap,
+    continue_labels: Vec<uint>,
+    break_labels: Vec<uint>,
 }
 
 impl<'a> ASTToIntermediate<'a> {
@@ -24,6 +26,8 @@ impl<'a> ASTToIntermediate<'a> {
                             label_count: 0,
                             session: session,
                             typemap: typemap,
+                            continue_labels: vec!(),
+                            break_labels: vec!(),
         }
     }
 
@@ -43,7 +47,7 @@ impl<'a> ASTToIntermediate<'a> {
         res
     }
 
-    pub fn convert_stmt(&mut self, stmt: &Stmt) -> (Vec<Op>, Var) {
+    pub fn convert_stmt(&mut self, stmt: &Stmt) -> (Vec<Op>, Option<Var>) {
         match stmt.val {
             ExprStmt(ref e) => self.convert_expr(e),
             SemiStmt(ref e) => self.convert_expr(e),
@@ -60,8 +64,9 @@ impl<'a> ASTToIntermediate<'a> {
                 match *e_opt {
                     Some(ref e) => {
                         let (mut ops, other_v) = self.convert_expr(e);
+                        let other_v = other_v.unwrap();
                         ops.push(UnOp(v, Identity, Variable(other_v)));
-                        (ops, v)
+                        (ops, Some(v))
                     },
                     None => {
                         match ty {
@@ -72,9 +77,10 @@ impl<'a> ASTToIntermediate<'a> {
                                         let size = size_of_def(self.session,
                                                                self.typemap,
                                                                id);
-                                        (vec!(Alloca(v, size)), v)
+                                        (vec!(Alloca(v, size)), Some(v))
                                     },
-                                    _ => (vec!(), v)
+                                    // TODO: enums
+                                    _ => (vec!(), Some(v))
                                 }
                             }
                         }
@@ -84,7 +90,7 @@ impl<'a> ASTToIntermediate<'a> {
         }
     }
 
-    pub fn convert_block(&mut self, block: &Block) -> (Vec<Op>, Var) {
+    pub fn convert_block(&mut self, block: &Block) -> (Vec<Op>, Option<Var>) {
         let mut ops = vec!();
         for stmt in block.val.stmts.iter() {
             let (new_ops, _) = self.convert_stmt(stmt);
@@ -97,12 +103,12 @@ impl<'a> ASTToIntermediate<'a> {
                 (ops, new_var)
             },
             None => {
-                (ops, self.gen_temp())
+                (ops, None)
             }
         }
     }
 
-    pub fn convert_item(&mut self, item: &Item) -> (Vec<Op>, Var) {
+    pub fn convert_item(&mut self, item: &Item) -> (Vec<Op>, Option<Var>) {
         match item.val {
             FuncItem(ref id, ref args, _, ref block, _) => {
                 let mut ops = vec!(Func(id.val.name,
@@ -116,51 +122,87 @@ impl<'a> ASTToIntermediate<'a> {
 
                 let (new_ops, v) = match *block {
                     Some(ref block) => self.convert_block(block),
-                    None => (vec!(), self.gen_temp()),
+                    None => (vec!(), None),
                 };
 
                 ops.push_all_move(new_ops);
-                ops.push(Return(Variable(v)));
+                match v {
+                    Some(v) => ops.push(Return(Variable(v))),
+                    // TODO: Return should take an Option.
+                    None => ops.push(Return(Variable(self.gen_temp()))),
+                }
                 (ops, v)
             },
-            StructItem(..) => (vec!(), self.gen_temp()),
-            ModItem(..) => (vec!(), self.gen_temp()), // TODO
-            UseItem(..) => (vec!(), self.gen_temp()), // TODO
+            StructItem(..) => (vec!(), None),
+            ModItem(..) => (vec!(), None), // TODO
+            UseItem(..) => (vec!(), None), // TODO
             _ => fail!("{}", item)//(vec!(), self.gen_temp())
         }
     }
 
+    // Helper function for for and while loops.
+    // e is the expression in the while statement.
+    // block_insts is the block of the while loop.
+    // iter_insts, if present, is the iteration for the for loop (which
+    //   will go after block_insts).
+    // break_label and continue_label will be used as the labels that are
+    //   appropriate for a break statement or a continue statement within
+    //   the block.
     fn while_helper(&mut self,
                     e: &Expr,
-                    block_insts: Vec<Op>) -> (Vec<Op>, Var) {
-        let begin_label = self.gen_label();
-        let end_label = self.gen_label();
+                    block_insts: Vec<Op>,
+                    iter_insts: Option<Vec<Op>>,
+                    break_label: uint,
+                    continue_label: uint) -> (Vec<Op>, Option<Var>) {
+        // In the case of a while loop, a "continue" should go all the way
+        // back to the beginning. But in the case of a for loop, the beginning
+        // label will be different, and "continue" will jump to the end of
+        // block_insts, but the beginning of iter_insts.
+        let begin_label = match iter_insts {
+            Some(..) => self.gen_label(),
+            _ => continue_label,
+        };
+        // We always break to the very end of everything.
+        let end_label = break_label;
         let mut res = vec!(
             Goto(begin_label, TreeSet::new()),
             Label(begin_label, TreeSet::new()));
         let (cond_insts, cond_var) = self.convert_expr(e);
+        let cond_var = cond_var.unwrap();
         res.push_all_move(cond_insts);
         res.push(CondGoto(true,
                           Variable(cond_var),
                           end_label, TreeSet::new()));
         res.push_all_move(block_insts);
+        match iter_insts {
+            Some(insts) => {
+                // These are run in a for loop, where we need iter_insts.
+                res.push(Goto(continue_label, TreeSet::new()));
+                res.push(Label(continue_label, TreeSet::new()));
+                res.push_all_move(insts);
+            },
+            // In a while loop, there's nothing more to do here.
+            _ => {},
+        }
         res.push(Goto(begin_label, TreeSet::new()));
         res.push(Label(end_label, TreeSet::new()));
-        (res, self.gen_temp())
+        (res, None)
     }
 
-    pub fn convert_expr(&mut self, expr: &Expr) -> (Vec<Op>, Var) {
+    pub fn convert_expr(&mut self, expr: &Expr) -> (Vec<Op>, Option<Var>) {
         match expr.val {
             LitExpr(ref lit) => {
                 let res_var = self.gen_temp();
                 let insts = vec!(
                     UnOp(res_var.clone(), Identity, Constant(lit.val.clone()))
                     );
-                (insts, res_var)
+                (insts, Some(res_var))
             }
             BinOpExpr(ref op, ref e1, ref e2) => {
                 let (mut insts1, var1) = self.convert_expr(*e1);
                 let (insts2, var2) = self.convert_expr(*e2);
+                let var1 = var1.unwrap();
+                let var2 = var2.unwrap();
                 match op.val {
                     AndAlsoOp |
                     OrElseOp => {
@@ -177,7 +219,7 @@ impl<'a> ASTToIntermediate<'a> {
                                          Variable(var2)));
                         insts1.push(Goto(end_label, TreeSet::new()));
                         insts1.push(Label(end_label, TreeSet::new()));
-                        (insts1, var1)
+                        (insts1, Some(var1))
                     },
                     _ => {
                         let new_res = self.gen_temp();
@@ -187,19 +229,21 @@ impl<'a> ASTToIntermediate<'a> {
                                   op.val.clone(),
                                   Variable(var1),
                                   Variable(var2)));
-                        (insts1, new_res)
+                        (insts1, Some(new_res))
                     }
                 }
             },
             PathExpr(ref path) => {
                 //fail!("Need to do paths properly")
-                (vec!(), Var { name: path.val.elems.last().unwrap().val.name,
-                               generation: None })
+                (vec!(), Some(
+                    Var { name: path.val.elems.last().unwrap().val.name,
+                          generation: None }))
             },
             AssignExpr(ref op, ref e1, ref e2) => {
                 // TODO: this will break in the case of structs and enums.
 
                 let (mut res, var2) = self.convert_expr(*e2);
+                let var2 = var2.unwrap();
 
                 // The LHS might be wrapped in a GroupExpr.
                 // Unwrap it.
@@ -233,6 +277,7 @@ impl<'a> ASTToIntermediate<'a> {
                     },
                     UnOpExpr(ref lhs_op, ref e) => {
                         let (insts, var) = self.convert_expr(*e);
+                        let var = var.unwrap();
                         res.push_all_move(insts);
                         let res_var = self.gen_temp();
                         match lhs_op.val {
@@ -295,13 +340,17 @@ impl<'a> ASTToIntermediate<'a> {
                 // the optimizer will eliminate them.
                 res.push(finalize(lhs_var, final_var));
 
-                (res, final_var)
+                (res, Some(final_var))
             }
             BlockExpr(ref b) => self.convert_block(*b),
             IfExpr(ref e, ref b1, ref b2) => {
                 let (mut insts, if_var) = self.convert_expr(*e);
+                let if_var = if_var.unwrap();
                 let (b1_insts, b1_var) = self.convert_block(*b1);
                 let (b2_insts, b2_var) = self.convert_block(*b2);
+                assert!(
+                    b1_var.is_none() == b2_var.is_none(),
+                    "ICE: one branch of if statement is unit but other isn't");
                 let b1_label = self.gen_label();
                 let end_label = self.gen_label();
                 let end_var = self.gen_temp();
@@ -310,25 +359,55 @@ impl<'a> ASTToIntermediate<'a> {
                                     b1_label,
                                     TreeSet::new()));
                 insts.push_all_move(b2_insts);
-                insts.push(UnOp(end_var, Identity, Variable(b2_var)));
+                match b2_var {
+                    Some(b2_var) => 
+                        insts.push(UnOp(end_var, Identity, Variable(b2_var))),
+                    None => {},
+                }
                 insts.push(Goto(end_label, TreeSet::new()));
                 insts.push(Label(b1_label, TreeSet::new()));
                 insts.push_all_move(b1_insts);
-                insts.push(UnOp(end_var, Identity, Variable(b1_var)));
+                match b1_var {
+                    Some(b1_var) =>
+                        insts.push(UnOp(end_var, Identity, Variable(b1_var))),
+                    None => {},
+                }
                 insts.push(Goto(end_label, TreeSet::new()));
                 insts.push(Label(end_label, TreeSet::new()));
-                (insts, end_var)
+                match b1_var {
+                    Some(..) => (insts, Some(end_var)),
+                    None => (insts, None),
+                }
             },
             WhileExpr(ref e, ref b) => {
+                let break_label = self.gen_label();
+                let continue_label = self.gen_label();
+                self.break_labels.push(break_label);
+                self.continue_labels.push(continue_label);
                 let (block_insts, _) = self.convert_block(*b);
-                self.while_helper(*e, block_insts)
+                self.break_labels.pop();
+                self.continue_labels.pop();
+                self.while_helper(*e,
+                                  block_insts,
+                                  None,
+                                  break_label,
+                                  continue_label)
             },
             ForExpr(ref init, ref cond, ref iter, ref body) => {
                 let (mut init_insts, _) = self.convert_expr(*init);
-                let (mut block_insts, _) = self.convert_block(*body);
+                let break_label = self.gen_label();
+                let continue_label = self.gen_label();
+                self.break_labels.push(break_label);
+                self.continue_labels.push(continue_label);
+                let (block_insts, _) = self.convert_block(*body);
+                self.break_labels.pop();
+                self.continue_labels.pop();
                 let (iter_insts, _) = self.convert_expr(*iter);
-                block_insts.push_all_move(iter_insts);
-                let (loop_insts, var) = self.while_helper(*cond, block_insts);
+                let (loop_insts, var) = self.while_helper(*cond,
+                                                          block_insts,
+                                                          Some(iter_insts),
+                                                          break_label,
+                                                          continue_label);
                 init_insts.push_all_move(loop_insts);
                 (init_insts, var)
             }
@@ -339,16 +418,17 @@ impl<'a> ASTToIntermediate<'a> {
                 for arg in args.iter() {
                     let (new_ops, new_var) = self.convert_expr(arg);
                     ops.push_all_move(new_ops);
-                    vars.push(new_var);
+                    vars.push(new_var.unwrap());
                 }
                 let (new_ops, new_var) = self.convert_expr(*f);
+                let new_var = new_var.unwrap();
                 ops.push_all_move(new_ops);
                 let result_var = self.gen_temp();
                 ops.push(Call(result_var.clone(),
                               Variable(new_var),
                               vars.move_iter().map(
                                   |v| Variable(v)).collect()));
-                (ops, result_var)
+                (ops, Some(result_var))
             },
             DotExpr(ref e, ref name) |
             ArrowExpr(ref e, ref name) => {
@@ -358,12 +438,12 @@ impl<'a> ASTToIntermediate<'a> {
                 ops.push(Load(res_var, added_addr_var,
                               Width32 // TODO!!!! Determine width
                               ));
-                (ops, res_var)
+                (ops, Some(res_var))
             },
             CastExpr(ref e, _) => {
                 self.convert_expr(*e)
             },
-            UnitExpr => (vec!(), self.gen_temp()),
+            UnitExpr => (vec!(), None),
             SizeofExpr(ref t) => {
                 let v = self.gen_temp();
                 let ty = self.typemap.types.get(&t.id.to_uint());
@@ -374,26 +454,36 @@ impl<'a> ASTToIntermediate<'a> {
                                                       self.typemap,
                                                       ty),
                                            UnsignedInt(Width32))))),
-                 v)
+                 Some(v))
             },
             UnOpExpr(ref op, ref e) => {
                 let (mut insts, v) = self.convert_expr(*e);
+                let v = v.unwrap();
                 let res_v = self.gen_temp();
                 insts.push(UnOp(res_v,
                                 op.val.clone(),
                                 Variable(v)));
-                (insts, res_v)
+                (insts, Some(res_v))
             },
             ReturnExpr(ref e) => {
                 let (mut insts, v) = self.convert_expr(*e);
+                let v = v.unwrap();
                 insts.push(Return(Variable(v)));
-                (insts, self.gen_temp())
+                (insts, None)
             }
             TupleExpr(..) => unimplemented!(),
             StructExpr(..) => unimplemented!(),
             IndexExpr(..) => unimplemented!(),
-            BreakExpr(..) => unimplemented!(),
-            ContinueExpr(..) => unimplemented!(),
+            BreakExpr(..) => {
+                (vec!(Goto(*self.break_labels.last().unwrap(),
+                           TreeSet::new())),
+                 None)
+            }
+            ContinueExpr(..) => {
+                (vec!(Goto(*self.continue_labels.last().unwrap(),
+                           TreeSet::new())),
+                 None)
+            }
             MatchExpr(..) => unimplemented!(),
             MacroExpr(..) => fail!("ICE: macros should have been expanded by now"),
         }
@@ -404,6 +494,7 @@ impl<'a> ASTToIntermediate<'a> {
     // of the structure given by the expression `e`.
     fn struct_helper(&mut self, e: &Expr, name: &Name) -> (Vec<Op>, Var) {
         let (mut ops, var) = self.convert_expr(e);
+        let var = var.unwrap();
         let id = match *self.typemap.types.get(&e.id.to_uint()) {
             StructTy(id, _) => id,
             PtrTy(ref p) => match p.val {
