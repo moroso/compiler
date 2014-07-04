@@ -117,10 +117,18 @@ impl IRTarget {
                             print_rvalelem(interner, rv2))
                 },
                 UnOp(ref v, ref op, ref rv) => {
-                    format!("  {} = (long)({} ({}));\n",
-                            print_var(interner, v),
-                            op,
-                            print_rvalelem(interner, rv))
+                    match *op {
+                        Deref => 
+                            format!("  {} = (long)({} (long*)({}));\n",
+                                    print_var(interner, v),
+                                    op,
+                                    print_rvalelem(interner, rv)),
+                        _ =>
+                            format!("  {} = (long)({} ({}));\n",
+                                    print_var(interner, v),
+                                    op,
+                                    print_rvalelem(interner, rv))
+                    }
                 },
                 Alloca(ref v, ref size) => {
                     format!("  {} = (long)(alloca({}));\n",

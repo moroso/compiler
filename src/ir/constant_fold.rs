@@ -100,6 +100,13 @@ impl ConstantFolder {
                         vars_to_avoid.insert(var.clone());
                     }
                 },
+                // We can't fold anything we take the address of.
+                UnOp(_, AddrOf, ref rv) => {
+                    match *rv {
+                        Variable(ref v) => { vars_to_avoid.insert(v.clone()); },
+                        _ => {},
+                    }
+                }
                 Store(ref v, _, _) |
                 Load(_, ref v, _) => { vars_to_avoid.insert(v.clone()); },
                 Func(_, ref vars) => {
