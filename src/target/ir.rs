@@ -104,6 +104,8 @@ impl IRTarget {
             }
         }
 
+        let mut in_func = false;
+
         // Do the actual conversion.
         for op in ops.iter() {
             s = s.append(match *op {
@@ -129,7 +131,7 @@ impl IRTarget {
                     // off the generation.
                     let mut s = match *fname {
                         Variable(ref fnv) =>
-                            format!("  {} = ((int (*)()){})(",
+                            format!("  {} = ((long (*)()){})(",
                                     print_var(interner, v),
                                     fnv.name),
                         _=> unimplemented!(),
@@ -175,8 +177,12 @@ impl IRTarget {
                                      .as_slice());
                     }
 
+                    let closer = if in_func { "}" } else { "" };
 
-                    format!("int {}({}) {{\n{}",
+                    in_func = true;
+
+                    format!("{}\nlong {}({}) {{\n{}",
+                            closer,
                             interner.name_to_str(name),
                             mapped_args.connect(", "),
                             s)
@@ -208,25 +214,18 @@ impl Target for IRTarget {
             typemap: mut typemap,
         } = p;
 
-        let mut result =
-        {
+        let mut result = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap);
 
-            let mut result = vec!();
-
-            for item in module.val.items.iter() {
-                if self.verbose {
-                    write!(f, "{}\n", item);
-                }
-                let (insts, _) = converter.convert_item(item);
-                if self.verbose {
-                    write!(f, "{}\n\n", insts);
-                }
-                result.push(insts);
-            }
-            result
+            converter.convert_module(&module)
         };
+
+        if self.verbose {
+            for res in result.iter() {
+                write!(f, "{}\n\n", res);
+            }
+        }
 
         println!("{}", "#include <stdio.h>");
         println!("{}", "#include <stdlib.h>");
@@ -235,14 +234,25 @@ impl Target for IRTarget {
         println!("{}", "typedef unsigned int uint_t;");
         println!("{}", "typedef int int_t;");
 
-        println!("{}", "int32_t printf0_(uint8_t *s) { return printf(\"%s\", (char *)s); }");
-        println!("{}", "int32_t printf1_(uint8_t *s, uint32_t a) { return printf((char *)s, a); }");
-        println!("{}", "int32_t printf2_(uint8_t *s, uint32_t a, uint32_t b) { return printf((char *)s, a, b); }");
-        println!("{}", "int32_t printf3_(uint8_t *s, uint32_t a, uint32_t b, uint32_t c) { return printf((char *)s, a, b, c); }");
-        println!("{}", "int32_t print_int(int32_t x) { printf(\"%d\\n\", (int)x); return x; }");
-        // Temporary until IR supports modules.
-        println!("{}", "int32_t print_uint(int32_t x) { printf(\"%d\\n\", (int)x); return x; }");
-        println!("{}", "int32_t print_char(int32_t x) { printf(\"%c\", (int)x); return x; }");
+        println!("{}", "long printf0_(uint8_t *s) { return printf(\"%s\", (char *)s); }");
+        println!("{}", "long printf1_(uint8_t *s, ulong a) { return printf((char *)s, a); }");
+        println!("{}", "long printf2_(uint8_t *s, ulong a, ulong b) { return printf((char *)s, a, b); }");
+        println!("{}", "long printf3_(uint8_t *s, ulong a, ulong b, ulong c) { return printf((char *)s, a, b, c); }");
+        println!("{}", "long print_int(long x) { printf(\"%d\\n\", (int)x); return x; }");
+        println!("{}", "long print_char(long x) { printf(\"%c\", (int)x); return x; }");
+
+        // Print function prototypes.
+        for insts in result.iter() {
+            for inst in insts.iter() {
+                match *inst {
+                    Func(ref name, _) => {
+                        write!(f, "long {}();\n",
+                               session.interner.name_to_str(name));
+                    },
+                    _ => {}
+                }
+            }
+        }
 
         for insts in result.mut_iter() {
             ToSSA::to_ssa(insts, self.verbose);

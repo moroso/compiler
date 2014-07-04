@@ -108,9 +108,14 @@ impl<'a> ASTToIntermediate<'a> {
         }
     }
 
-    pub fn convert_item(&mut self, item: &Item) -> (Vec<Op>, Option<Var>) {
+    pub fn convert_item(&mut self, item: &Item) -> Vec<Vec<Op>> {
         match item.val {
             FuncItem(ref id, ref args, _, ref block, _) => {
+                let (new_ops, v) = match *block {
+                    Some(ref block) => self.convert_block(block),
+                    None => return vec!(),
+                };
+
                 let mut ops = vec!(Func(id.val.name,
                                         args.iter()
                                         .map(
@@ -120,24 +125,35 @@ impl<'a> ASTToIntermediate<'a> {
                                             })
                                         .collect()));
 
-                let (new_ops, v) = match *block {
-                    Some(ref block) => self.convert_block(block),
-                    None => (vec!(), None),
-                };
-
                 ops.push_all_move(new_ops);
                 match v {
                     Some(v) => ops.push(Return(Variable(v))),
                     // TODO: Return should take an Option.
-                    None => ops.push(Return(Variable(self.gen_temp()))),
+                    None => {
+                        let v = self.gen_temp();
+                        ops.push(UnOp(v, Identity,
+                                      Constant(NumLit(5,
+                                                      UnsignedInt(Width32)))));
+                        ops.push(Return(Variable(v)));
+                    },
                 }
-                (ops, v)
+                vec!(ops)
             },
-            StructItem(..) => (vec!(), None),
-            ModItem(..) => (vec!(), None), // TODO
-            UseItem(..) => (vec!(), None), // TODO
-            _ => fail!("{}", item)//(vec!(), self.gen_temp())
+            ModItem(_, ref module) => self.convert_module(module),
+            StructItem(..) |
+            EnumItem(..) |
+            UseItem(..) => vec!(),
+            _ => fail!("{}", item)
         }
+    }
+
+    pub fn convert_module(&mut self, module: &Module) -> Vec<(Vec<Op>)> {
+        let mut res = vec!();
+        for item in module.val.items.iter() {
+            let converted_items = self.convert_item(item);
+            res.push_all_move(converted_items);
+        }
+        res
     }
 
     // Helper function for for and while loops.

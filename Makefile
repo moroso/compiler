@@ -52,7 +52,9 @@ IR_TEST_FILES := \
 	test_recursion.mb \
 	test_short_circuit.mb \
 	test_sizeof.mb \
-	test_break_continue.mb
+	test_break_continue.mb \
+	test_modules.mb \
+	test_func_prototypes.mb
 
 mbc: $(addprefix src/,$(MC_FILES))
 	rustc $(RUST_FLAGS) $< --cfg mc -o $@ -g

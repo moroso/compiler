@@ -33,20 +33,11 @@ impl Target for AsmTarget {
             typemap: mut typemap,
         } = p;
 
-        let mut result =
-        {
+        let mut result = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap);
 
-            let mut result = vec!();
-
-            for item in module.val.items.iter() {
-                write!(f, "{}\n", item);
-                let (insts, _) = converter.convert_item(item);
-                write!(f, "{}\n\n", insts);
-                result.push(insts);
-            }
-            result
+            converter.convert_module(&module)
         };
 
         for insts in result.mut_iter() {
