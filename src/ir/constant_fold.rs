@@ -107,8 +107,11 @@ impl ConstantFolder {
                         _ => {},
                     }
                 }
-                Store(ref v, _, _) |
-                Load(_, ref v, _) => { vars_to_avoid.insert(v.clone()); },
+                Store(ref v1, ref v2, _) |
+                Load(ref v1, ref v2, _) => {
+                    vars_to_avoid.insert(v1.clone());
+                    vars_to_avoid.insert(v2.clone());
+                },
                 Func(_, ref vars) => {
                     for var in vars.iter() {
                         vars_to_avoid.insert(var.clone());

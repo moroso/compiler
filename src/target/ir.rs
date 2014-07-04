@@ -4,7 +4,7 @@ use mc::lexer::Lexer;
 use mc::parser::Parser;
 use mc::session::Interner;
 
-use util::Name;
+use util::{Name, Width32, Width16, Width8, AnyWidth};
 
 use ir::liveness::LivenessAnalyzer;
 use ir::ast_to_intermediate::ASTToIntermediate;
@@ -149,9 +149,29 @@ impl IRTarget {
                     s = s.append(list.connect(", ").as_slice());
                     s = s.append(");\n");
                     s
-                }
-                Load(..) |
-                Store(..) => unimplemented!(),
+                },
+                Load(ref l, ref r, ref size) => {
+                    format!("  {} = (long)*({}*)({});\n",
+                            print_var(interner, l),
+                            match *size {
+                                AnyWidth |
+                                Width32 => "uint32_t",
+                                Width16 => "uint16_t",
+                                Width8 => "uint8_t",
+                            },
+                            print_var(interner, r))
+                },
+                Store(ref l, ref r, ref size) => {
+                    format!("  *({}*)({}) = {};\n",
+                            match *size {
+                                AnyWidth |
+                                Width32 => "uint32_t",
+                                Width16 => "uint16_t",
+                                Width8 => "uint8_t",
+                            },
+                            print_var(interner, l),
+                            print_var(interner, r))
+                },
                 Nop => format!(""),
                 Label(ref l, _) => {
                     // TODO: correct assignments of variables in labels and

@@ -291,8 +291,11 @@ impl ToSSA {
                     }
                     v.generation = next_gen(gens, v.name);
                 },
-                Store(ref mut v, ref mut other_v, _) |
-                Load(ref mut other_v, ref mut v, _) => {
+                Store(ref mut v, ref mut other_v, _) => {
+                    other_v.generation = gen_of(gens, other_v.name);
+                    v.generation = gen_of(gens, v.name);
+                },
+                Load(ref mut v, ref mut other_v, _) => {
                     other_v.generation = gen_of(gens, other_v.name);
                     v.generation = next_gen(gens, v.name);
                 },

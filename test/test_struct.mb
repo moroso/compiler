@@ -1,0 +1,17 @@
+struct foo {
+    x: u32,
+    y: u8,
+    z: u32,
+}
+
+fn main() -> u32 {
+    let a: foo;
+    a.x = 6;
+    a.y = 7;
+    a.z = 8;
+    print_uint(a.x);
+    print_uint(a.y as u32);
+    print_uint(a.z);
+
+    0
+}

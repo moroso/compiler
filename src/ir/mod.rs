@@ -117,7 +117,7 @@ impl Show for Op {
                 write!(f, "{: >12} := {}({})\n",
                        format!("{}", lv), fname, args),
             Alloca(ref v, ref size) =>
-                write!(f, "{: >12} := alloca({})",
+                write!(f, "{: >12} := alloca({})\n",
                        format!("{}", v), size),
             Label(ref l, ref vars) => write!(f, "{}({}):\n", l, vars),
             Goto(ref l, ref vars) => write!(f, "goto {}({})\n", l, vars),
