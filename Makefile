@@ -40,6 +40,7 @@ MC_FILES := \
 	target/ccross.rs \
 	target/ir.rs \
 	target/mod.rs \
+	target/util.rs \
 	util/lexer.rs \
 	util/mod.rs \
 
@@ -98,7 +99,7 @@ test/c-bin/%: test/c/%.c test/%.txt
 	@gcc $< -o $@ || (cat $<; false)
 
 test/ir-c-bin/%: test/ir-c/%.c test/%.txt
-	@echo Running $(patsubst test/ir-c/%.c,%,$<)...
+	@echo Running $(patsubst test/ir-c/%.c,%,$<) '(IR cross-compiler)'...
 	@mkdir -p $(dir $@)
 	@gcc $< -o $@ || (cat $<; false)
 
