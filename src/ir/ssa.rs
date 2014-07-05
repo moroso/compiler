@@ -320,6 +320,9 @@ impl ToSSA {
                         }
                     }
                 }
+                Alloca(ref mut v, _) => {
+                    v.generation = next_gen(gens, v.name);;
+                }
                 _ => {}
             }
         }

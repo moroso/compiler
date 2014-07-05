@@ -4,14 +4,23 @@ struct foo {
     z: u32,
 }
 
+struct bar {
+    x: u32,
+    y: u32,
+    z: u32,
+}
+
 fn main() -> u32 {
     let a: foo;
-    a.x = 6;
-    a.y = 7;
+    let b: *bar = &a as *bar;
+    b->x = 6;
+    b->y = 0xffffffff;
     a.z = 8;
     print_uint(a.x);
     print_uint(a.y as u32);
     print_uint(a.z);
+    a.y = 7;
+    print_uint(b->y);
 
     0
 }

@@ -1,6 +1,7 @@
-use util::{Width32, UnsignedInt, Name};
+use util::{Width32, Width16, Width8, AnyWidth, Width, UnsignedInt, Name};
 
 use mc::session::Session;
+use mc::ast::defmap::StructDef;
 
 use std::collections::TreeSet;
 
@@ -278,9 +279,11 @@ impl<'a> ASTToIntermediate<'a> {
                 //     the value of a.
                 // binop_insts are the instructions necessary to put the
                 //     right value into binop_var.
+                // width is the width of the assignment,
                 // finalize does the assignment to the variable; lhs_var
-                //     is passed into it.
-                let (binop_var, binop_insts, lhs_var, finalize) = match e1val {
+                //     and width are passed into it.
+                let (binop_var, binop_insts, lhs_var, width,
+                     finalize) = match e1val {
                     PathExpr(ref path) => {
                         let lhs_var = Var {
                             name: path.val.elems.last().unwrap().val.name,
@@ -289,9 +292,17 @@ impl<'a> ASTToIntermediate<'a> {
                         (lhs_var.clone(),
                          vec!(),
                          lhs_var,
-                         |lv, v| UnOp(lv, Identity, Variable(v)))
+                         AnyWidth,
+                         |lv, v, _| UnOp(lv, Identity, Variable(v)))
                     },
                     UnOpExpr(ref lhs_op, ref e) => {
+                        let width = match *self.typemap.types.get(
+                            &e2.id.to_uint()) {
+                            BoolTy => Width8,
+                            IntTy(w) |
+                            UintTy(w) => w.clone(),
+                            _ => Width32,
+                        };
                         let (insts, var) = self.convert_expr(*e);
                         let var = var.unwrap();
                         res.push_all_move(insts);
@@ -301,19 +312,19 @@ impl<'a> ASTToIntermediate<'a> {
                                 (res_var.clone(),
                                  vec!(Load(res_var.clone(),
                                            var.clone(),
-                                           Width32 // TODO!!!! Determine width
+                                           width
                                            )
                                       ),
                                  var.clone(),
-                                 |lv, v| Store(lv, v,
-                                           Width32 // TODO!!!! Determine width
-                                           ))
+                                 width,
+                                 |lv, v, w| Store(lv, v, w))
                             },
                             _ => fail!(),
                         }
                     },
+                    ArrowExpr(ref e, ref name) |
                     DotExpr(ref e, ref name) => {
-                        let (insts, added_addr_var) =
+                        let (insts, added_addr_var, width) =
                             self.struct_helper(*e, name);
 
                         res.push_all_move(insts);
@@ -322,13 +333,12 @@ impl<'a> ASTToIntermediate<'a> {
                         (binop_var,
                          vec!(Load(binop_var.clone(),
                                    added_addr_var.clone(),
-                                   Width32 // TODO!!!! Determine width
+                                   width.clone()
                                    )
                               ),
                          added_addr_var,
-                         |lv, v| Store(lv, v,
-                                   Width32 // TODO!!!! Determine width
-                                   ))
+                         width,
+                         |lv, v, w| Store(lv, v, w))
                     }
                     _ => fail!("Got {}", e1.val),
                 };
@@ -354,7 +364,7 @@ impl<'a> ASTToIntermediate<'a> {
                     };
                 // This generates a redundant store in some cases, but
                 // the optimizer will eliminate them.
-                res.push(finalize(lhs_var, final_var));
+                res.push(finalize(lhs_var, final_var, width));
 
                 (res, Some(final_var))
             }
@@ -448,12 +458,12 @@ impl<'a> ASTToIntermediate<'a> {
             },
             DotExpr(ref e, ref name) |
             ArrowExpr(ref e, ref name) => {
-                let (mut ops, added_addr_var) = self.struct_helper(*e, name);
+                let (mut ops,
+                     added_addr_var,
+                     width) = self.struct_helper(*e, name);
 
                 let res_var = self.gen_temp();
-                ops.push(Load(res_var, added_addr_var,
-                              Width32 // TODO!!!! Determine width
-                              ));
+                ops.push(Load(res_var, added_addr_var, width));
                 (ops, Some(res_var))
             },
             CastExpr(ref e, _) => {
@@ -476,8 +486,34 @@ impl<'a> ASTToIntermediate<'a> {
                 let (mut insts, v) = self.convert_expr(*e);
                 let v = v.unwrap();
                 let res_v = self.gen_temp();
+                let ty = self.typemap.types.get(&e.id.to_uint());
+                let actual_op = match op.val {
+                    AddrOf => {
+                        match *ty {
+                            // These types are stored by reference interally,
+                            // so taking the address once is a no-op in the IR.
+                            StructTy(..) |
+                            EnumTy(..) |
+                            ArrayTy(..) => Identity,
+                            _ => op.val,
+                        }
+                    },
+                    Deref => {
+                        match *ty {
+                            // See comment above.
+                            PtrTy(ref inner) => match inner.val {
+                                StructTy(..) |
+                                EnumTy(..) |
+                                ArrayTy(..) => Identity,
+                                _ => op.val,
+                            },
+                            _ => op.val,
+                        }
+                    }
+                    _ => op.val,
+                };
                 insts.push(UnOp(res_v,
-                                op.val.clone(),
+                                actual_op,
                                 Variable(v)));
                 (insts, Some(res_v))
             },
@@ -507,8 +543,11 @@ impl<'a> ASTToIntermediate<'a> {
 
     // Helper function for dealing with structs. Returns a list of ops and
     // a variable that, after the ops, will point to the field `name`
-    // of the structure given by the expression `e`.
-    fn struct_helper(&mut self, e: &Expr, name: &Name) -> (Vec<Op>, Var) {
+    // of the structure given by the expression `e`. Also returns the width
+    // that must be used for the assignment.
+    fn struct_helper(&mut self,
+                     e: &Expr,
+                     name: &Name) -> (Vec<Op>, Var, Width) {
         let (mut ops, var) = self.convert_expr(e);
         let var = var.unwrap();
         let id = match *self.typemap.types.get(&e.id.to_uint()) {
@@ -525,6 +564,28 @@ impl<'a> ASTToIntermediate<'a> {
             &id,
             name);
 
+        let width = {
+            let def = self.session.defmap.find(&id).unwrap();
+
+            match *def {
+                StructDef(_, ref fields, _) => {
+                    let &(_, ref t) =
+                        fields.iter()
+                        .find(|&&(a, _)| a == *name)
+                        .unwrap();
+                    let ty = self.typemap.types.get(&t.id.to_uint());
+                    match *ty {
+                        BoolTy => Width8,
+                        IntTy(w) |
+                        UintTy(w) => w.clone(),
+                        _ => Width32,
+                    }
+                },
+                _ => fail!("Looking up struct field offset in a non-struct.")
+            }
+        };
+
+
         let added_addr_var = self.gen_temp();
 
         ops.push(BinOp(
@@ -533,6 +594,6 @@ impl<'a> ASTToIntermediate<'a> {
             Variable(var),
             Constant(NumLit(offs, UnsignedInt(Width32)))));
 
-        (ops, added_addr_var)
+        (ops, added_addr_var, width)
     }
 }
