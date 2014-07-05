@@ -169,6 +169,7 @@ impl<'a> ASTToIntermediate<'a> {
             StructItem(..) |
             EnumItem(..) |
             UseItem(..) => vec!(),
+            StaticItem(..) => vec!(), // TODO
             _ => fail!("{}", item)
         }
     }
@@ -560,7 +561,53 @@ impl<'a> ASTToIntermediate<'a> {
                 (insts, None)
             }
             TupleExpr(..) => unimplemented!(),
-            StructExpr(..) => unimplemented!(),
+            StructExpr(ref p, ref fields) => {
+                // TODO: make this more efficient.
+                let defid = self.session.resolver.def_from_path(p);
+
+                let base_var = self.gen_temp();
+                let mut ops = vec!(Alloca(base_var,
+                                          size_of_def(
+                                              self.session,
+                                              self.typemap,
+                                              &defid)));
+
+                for &(ref name, ref expr) in fields.iter() {
+                    let offset_var = self.gen_temp();
+                    let (expr_insts, expr_var) = self.convert_expr(expr);
+                    ops.push_all_move(expr_insts);
+
+                    let offs = offset_of_struct_field(
+                        self.session,
+                        self.typemap,
+                        &defid,
+                        name);
+
+                    let ty = {
+                        let def = self.session.defmap.find(&defid).unwrap();
+                        match *def {
+                            StructDef(_, ref fields, _) => {
+                                let &(_, ref t) =
+                                    fields.iter()
+                                    .find(|&&(a, _)| a == *name)
+                                    .unwrap();
+                                self.typemap.types.get(&t.id.to_uint())
+                            },
+                            _ => fail!(),
+                        }
+                    };
+                    let width = ty_width(ty);
+
+                    ops.push(BinOp(
+                        offset_var,
+                        PlusOp,
+                        Variable(base_var),
+                        Constant(NumLit(offs, UnsignedInt(Width32)))));
+                    ops.push(Store(offset_var, expr_var.unwrap(), width));
+                }
+
+                (ops, Some(base_var))
+            }
             IndexExpr(..) => unimplemented!(),
             BreakExpr(..) => {
                 (vec!(Goto(*self.break_labels.last().unwrap(),
