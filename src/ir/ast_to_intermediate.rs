@@ -20,6 +20,31 @@ pub struct ASTToIntermediate<'a> {
     break_labels: Vec<uint>,
 }
 
+fn ty_is_reference(ty: &Ty) -> bool {
+    // Some types are never stored directly in registers; instead, we store
+    // references to them. These types behave differently than others (for
+    // example, dereferencing them, in the IR, is a no-op). This function
+    // tells us what types these are.
+
+    match *ty {
+        // These types are stored by reference interally,
+        // so taking the address once is a no-op in the IR.
+        StructTy(..) |
+        EnumTy(..) |
+        ArrayTy(..) => true,
+        _ => false,
+    }
+}
+
+fn ty_width(ty: &Ty) -> Width {
+    match *ty {
+        BoolTy => Width8,
+        IntTy(w) |
+        UintTy(w) => w.clone(),
+        _ => Width32,
+    }
+}
+
 impl<'a> ASTToIntermediate<'a> {
     pub fn new(session: &'a mut Session,
                typemap: &'a mut Typemap) -> ASTToIntermediate<'a> {
@@ -324,18 +349,26 @@ impl<'a> ASTToIntermediate<'a> {
                     },
                     ArrowExpr(ref e, ref name) |
                     DotExpr(ref e, ref name) => {
-                        let (insts, added_addr_var, width) =
+                        let (insts, added_addr_var, ty) =
                             self.struct_helper(*e, name);
+                        let width = ty_width(&ty);
+                        let is_ref = ty_is_reference(&ty);
 
                         res.push_all_move(insts);
 
                         let binop_var = self.gen_temp();
                         (binop_var,
-                         vec!(Load(binop_var.clone(),
-                                   added_addr_var.clone(),
-                                   width.clone()
-                                   )
-                              ),
+                         if is_ref {
+                             vec!(UnOp(binop_var.clone(),
+                                       Identity,
+                                       Variable(added_addr_var.clone())))
+                         } else {
+                             vec!(Load(binop_var.clone(),
+                                       added_addr_var.clone(),
+                                       width.clone()
+                                       )
+                                  )
+                         },
                          added_addr_var,
                          width,
                          |lv, v, w| Store(lv, v, w))
@@ -460,10 +493,16 @@ impl<'a> ASTToIntermediate<'a> {
             ArrowExpr(ref e, ref name) => {
                 let (mut ops,
                      added_addr_var,
-                     width) = self.struct_helper(*e, name);
+                     ty) = self.struct_helper(*e, name);
+                let width = ty_width(&ty);
+                let is_ref = ty_is_reference(&ty);
 
                 let res_var = self.gen_temp();
-                ops.push(Load(res_var, added_addr_var, width));
+                if is_ref {
+                    ops.push(UnOp(res_var, Identity, Variable(added_addr_var)));
+                } else {
+                    ops.push(Load(res_var, added_addr_var, width));
+                }
                 (ops, Some(res_var))
             },
             CastExpr(ref e, _) => {
@@ -488,25 +527,22 @@ impl<'a> ASTToIntermediate<'a> {
                 let res_v = self.gen_temp();
                 let ty = self.typemap.types.get(&e.id.to_uint());
                 let actual_op = match op.val {
-                    AddrOf => {
-                        match *ty {
+                    AddrOf =>
+                        if ty_is_reference(ty) {
                             // These types are stored by reference interally,
                             // so taking the address once is a no-op in the IR.
-                            StructTy(..) |
-                            EnumTy(..) |
-                            ArrayTy(..) => Identity,
-                            _ => op.val,
-                        }
-                    },
+                            Identity
+                        } else {
+                            op.val
+                        },
                     Deref => {
                         match *ty {
-                            // See comment above.
-                            PtrTy(ref inner) => match inner.val {
-                                StructTy(..) |
-                                EnumTy(..) |
-                                ArrayTy(..) => Identity,
-                                _ => op.val,
-                            },
+                            PtrTy(ref inner) =>
+                                if ty_is_reference(&inner.val) {
+                                    Identity
+                                } else {
+                                    op.val
+                                },
                             _ => op.val,
                         }
                     }
@@ -547,7 +583,7 @@ impl<'a> ASTToIntermediate<'a> {
     // that must be used for the assignment.
     fn struct_helper(&mut self,
                      e: &Expr,
-                     name: &Name) -> (Vec<Op>, Var, Width) {
+                     name: &Name) -> (Vec<Op>, Var, Ty) {
         let (mut ops, var) = self.convert_expr(e);
         let var = var.unwrap();
         let id = match *self.typemap.types.get(&e.id.to_uint()) {
@@ -564,7 +600,7 @@ impl<'a> ASTToIntermediate<'a> {
             &id,
             name);
 
-        let width = {
+        let ty = {
             let def = self.session.defmap.find(&id).unwrap();
 
             match *def {
@@ -573,17 +609,11 @@ impl<'a> ASTToIntermediate<'a> {
                         fields.iter()
                         .find(|&&(a, _)| a == *name)
                         .unwrap();
-                    let ty = self.typemap.types.get(&t.id.to_uint());
-                    match *ty {
-                        BoolTy => Width8,
-                        IntTy(w) |
-                        UintTy(w) => w.clone(),
-                        _ => Width32,
-                    }
+                    self.typemap.types.get(&t.id.to_uint())
                 },
                 _ => fail!("Looking up struct field offset in a non-struct.")
             }
-        };
+        }.clone();
 
 
         let added_addr_var = self.gen_temp();
@@ -594,6 +624,6 @@ impl<'a> ASTToIntermediate<'a> {
             Variable(var),
             Constant(NumLit(offs, UnsignedInt(Width32)))));
 
-        (ops, added_addr_var, width)
+        (ops, added_addr_var, ty)
     }
 }

@@ -1,0 +1,33 @@
+struct c {
+    x: u32,
+    y: u32,
+}
+
+struct b {
+    x: u32,
+    y: c,
+}
+
+struct a {
+    x: b,
+    y: b,
+}
+
+fn main() -> u32 {
+    let x: a;
+    x.x.x = 0;
+    x.y.x = 1;
+    x.x.y.x = 2;
+    x.x.y.y = 3;
+    x.y.y.x = 4;
+    x.y.y.y = 5;
+
+    print_uint(x.x.x);
+    print_uint(x.y.x);
+    print_uint(x.x.y.x);
+    print_uint(x.x.y.y);
+    print_uint(x.y.y.x);
+    print_uint(x.y.y.y);
+
+    0
+}

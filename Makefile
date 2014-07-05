@@ -56,7 +56,9 @@ IR_TEST_FILES := \
 	test_modules.mb \
 	test_func_prototypes.mb \
 	test_param_types.mb \
-	test_struct.mb
+	test_struct.mb \
+	test_recursive_types.mb \
+	test_nested_struct.mb
 
 mbc: $(addprefix src/,$(MC_FILES))
 	rustc $(RUST_FLAGS) $< --cfg mc -o $@ -g
