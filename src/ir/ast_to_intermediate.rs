@@ -106,6 +106,13 @@ impl<'a> ASTToIntermediate<'a> {
                                                                id);
                                         (vec!(Alloca(v, size)), Some(v))
                                     },
+                                    ArrayTy(ref ty, ref nelem_opt) => {
+                                        let size = size_of_ty(self.session,
+                                                              self.typemap,
+                                                              &ty.val);
+                                        let nelem = nelem_opt.unwrap();
+                                        (vec!(Alloca(v, size*nelem)), Some(v))
+                                    }
                                     // TODO: enums
                                     _ => (vec!(), Some(v))
                                 }
@@ -404,6 +411,29 @@ impl<'a> ASTToIntermediate<'a> {
                          added_addr_var,
                          width,
                          |lv, v, w| Store(lv, v, w))
+                    },
+                    IndexExpr(ref arr, ref idx) => {
+                        let ty = (*self.typemap.types.get(&e1.id.to_uint()))
+                            .clone();
+
+                        let (ops, ptr_var, width, is_ref) =
+                            self.array_helper(*arr, *idx, &ty);
+                        res.push_all_move(ops);
+
+                        let binop_var = self.gen_temp();
+                        (binop_var,
+                         if is_ref {
+                             vec!(UnOp(binop_var.clone(),
+                                       Identity,
+                                       Variable(ptr_var.clone())))
+                         } else {
+                             vec!(Load(binop_var.clone(),
+                                       ptr_var.clone(),
+                                       width))
+                         },
+                         ptr_var,
+                         width,
+                         |lv, v, w| Store(lv, v, w))
                     }
                     _ => fail!("Got {}", e1.val),
                 };
@@ -698,7 +728,20 @@ impl<'a> ASTToIntermediate<'a> {
 
                 (ops, Some(base_var))
             }
-            IndexExpr(..) => unimplemented!(),
+            IndexExpr(ref arr, ref idx) => {
+                let ty = (*self.typemap.types.get(&expr.id.to_uint())).clone();
+
+                let (mut ops, ptr_var, width, is_ref) =
+                    self.array_helper(*arr, *idx, &ty);
+
+                if is_ref {
+                    (ops, Some(ptr_var))
+                } else {
+                    let result_var = self.gen_temp();
+                    ops.push(Load(result_var, ptr_var, width));
+                    (ops, Some(result_var))
+                }
+            }
             BreakExpr(..) => {
                 (vec!(Goto(*self.break_labels.last().unwrap(),
                            TreeSet::new())),
@@ -895,5 +938,31 @@ impl<'a> ASTToIntermediate<'a> {
         }
 
         (insts, vars, widths)
+    }
+
+    fn array_helper(&mut self,
+                    arr: &Expr,
+                    idx: &Expr,
+                    ty: &Ty) -> (Vec<Op>, Var, Width, bool) {
+        let (mut ops, base_var) = self.convert_expr(arr);
+        let base_var = base_var.unwrap();
+        let (idx_ops, idx_var) = self.convert_expr(idx);
+        let idx_var = idx_var.unwrap();
+        ops.push_all_move(idx_ops);
+        let size = size_of_ty(self.session, self.typemap, ty);
+        let total_size = packed_size(&vec!(size));
+        let offs_var = self.gen_temp();
+        let ptr_var = self.gen_temp();
+        ops.push(BinOp(offs_var,
+                       TimesOp,
+                       Variable(idx_var),
+                       Constant(NumLit(total_size,
+                                       UnsignedInt(Width32)))));
+        ops.push(BinOp(ptr_var,
+                       PlusOp,
+                       Variable(base_var),
+                       Variable(offs_var)));
+
+        (ops, ptr_var, ty_width(ty), ty_is_reference(ty))
     }
 }

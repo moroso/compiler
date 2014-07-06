@@ -1,5 +1,5 @@
 use mc::ast::*;
-use util::{IntKind, Width};
+use util::{IntKind, Width, GenericInt};
 
 // FIXME: we don't handle signedness properly!
 // We bogusly treat everything as unsigned
@@ -7,8 +7,14 @@ use util::{IntKind, Width};
 fn num_op_helper(kind1: &IntKind, rhs: &LitNode, f: |u64| -> u64) -> LitNode {
     match *rhs {
         NumLit(n2, kind2) => {
-            assert_eq!(*kind1, kind2);
-            NumLit(f(n2), kind2)
+            if *kind1 == GenericInt {
+                NumLit(f(n2), kind2)
+            } else if kind2 == GenericInt {
+                NumLit(f(n2), *kind1)
+            } else {
+                assert_eq!(*kind1, kind2);
+                NumLit(f(n2), kind2)
+            }
         },
         _ => fail!("Incompatible types.")
     }
