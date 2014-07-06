@@ -58,7 +58,8 @@ IR_TEST_FILES := \
 	test_param_types.mb \
 	test_struct.mb \
 	test_recursive_types.mb \
-	test_nested_struct.mb
+	test_nested_struct.mb \
+	test_enums.mb
 
 mbc: $(addprefix src/,$(MC_FILES))
 	rustc $(RUST_FLAGS) $< --cfg mc -o $@ -g
@@ -108,7 +109,7 @@ test/c-bin/%: test/c/%.c test/%.txt
 test/ir-c-bin/%: test/ir-c/%.c test/%.txt
 	@echo Running $(patsubst test/ir-c/%.c,%,$<) '(IR cross-compiler)'...
 	@mkdir -p $(dir $@)
-	@gcc $< -o $@ || (cat $<; false)
+	@gcc -m32 $< -o $@ || (cat $<; false)
 
 test/c-results/%.txt: test/c-bin/%
 	@mkdir -p $(dir $@)

@@ -28,7 +28,7 @@ fn sub_vars(vars: &TreeSet<Var>, orig_var: &Var,
     new_vars
 }
 
-// TODO: we do a lot of cloning/replacing. Surely we can improve that?
+// TODO: a separate function to sub in variables.
 pub fn subst(ops: &mut Vec<Op>,
              orig_var: &Var,
              new_rvelem: &RValueElem) {
@@ -40,9 +40,9 @@ pub fn subst(ops: &mut Vec<Op>,
                 if v == orig_var {
                     Nop
                 } else {
-                    UnOp(v.clone(),
-                         op.clone(),
-                         if *rv == wrapped_var.clone() {
+                    UnOp(*v,
+                         *op,
+                         if *rv == wrapped_var {
                              new_rvelem
                          } else {
                              rv
@@ -53,14 +53,14 @@ pub fn subst(ops: &mut Vec<Op>,
                 if v == orig_var {
                     Nop
                 } else {
-                    BinOp(v.clone(),
-                          op.clone(),
-                          if *rv1 == wrapped_var.clone() {
+                    BinOp(*v,
+                          *op,
+                          if *rv1 == wrapped_var {
                               new_rvelem
                           } else {
                               rv1
                           }.clone(),
-                          if *rv2 == wrapped_var.clone() {
+                          if *rv2 == wrapped_var {
                               new_rvelem
                           } else {
                               rv2
@@ -75,15 +75,15 @@ pub fn subst(ops: &mut Vec<Op>,
                     // TODO: give a warning that conditional is always
                     // true or always false.
                     if (*new_rvelem == Constant(BoolLit(true))) != *negated {
-                        Goto(u.clone(), new_vars)
+                        Goto(*u, new_vars)
                     } else {
                         Nop
                     }
                 } else {
                     CondGoto(
-                        negated.clone(),
+                        *negated,
                         (*rve).clone(),
-                        u.clone(),
+                        *u,
                         new_vars
                     )
                 }
@@ -94,7 +94,7 @@ pub fn subst(ops: &mut Vec<Op>,
                         if v == orig_var {
                             Return(new_rvelem.clone())
                         } else {
-                            Return(Variable(v.clone()))
+                            Return(Variable(*v))
                         }
                     },
                     Constant(ref c) => Return(Constant(c.clone())),
@@ -112,6 +112,39 @@ pub fn subst(ops: &mut Vec<Op>,
 
                 Call(lv.clone(), x.clone(), new_vars)
             },
+            Load(ref lv, ref rv, ref width) => {
+                let new_rv = if rv == orig_var {
+                    match *new_rvelem {
+                        Variable(ref v) =>
+                            v.clone(),
+                        _ => fail!(),
+                    }
+                } else {
+                    rv.clone()
+                };
+                Load(*lv, new_rv, *width)
+            },
+            Store(ref lv, ref rv, ref width) => {
+                let new_rv = if rv == orig_var {
+                    match *new_rvelem {
+                        Variable(ref v) =>
+                            v.clone(),
+                        _ => fail!(),
+                    }
+                } else {
+                    rv.clone()
+                };
+                let new_lv = if lv == orig_var {
+                    match *new_rvelem {
+                        Variable(ref v) =>
+                            v.clone(),
+                        _ => fail!(),
+                    }
+                } else {
+                    lv.clone()
+                };
+                Store(new_lv, new_rv, *width)
+            }
             ref x => x.clone()
         };
         *op = temp;

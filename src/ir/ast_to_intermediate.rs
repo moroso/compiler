@@ -574,7 +574,11 @@ impl<'a> ASTToIntermediate<'a> {
                               Variable(new_var),
                               vars.move_iter().map(
                                   |v| Variable(v)).collect()));
-                (ops, Some(result_var))
+                let this_ty = self.typemap.types.get(&expr.id.to_uint());
+                match *this_ty {
+                    UnitTy => (ops, None),
+                    _ => (ops, Some(result_var))
+                }
             },
             DotExpr(ref e, ref name) |
             ArrowExpr(ref e, ref name) => {
@@ -705,7 +709,103 @@ impl<'a> ASTToIntermediate<'a> {
                            TreeSet::new())),
                  None)
             }
-            MatchExpr(..) => unimplemented!(),
+            MatchExpr(ref e, ref arms) => {
+                let (mut ops, base_var) = self.convert_expr(*e);
+                let base_var = base_var.unwrap();
+                let variant_var = self.gen_temp();
+                let end_label = self.gen_label();
+                let mut result_var = None;
+                ops.push(Load(variant_var, base_var, Width32));
+
+                // These are the labels for each pattern. The are off by one:
+                // we never need to jump to the beginning of the first variant.
+                let mut begin_labels = Vec::from_fn(arms.len() - 1,
+                                                    |_| self.gen_label());
+                // We do, however, need to jump to to the end of the last, and
+                // it's convenient to put the ending label at the end of this
+                // list.
+                begin_labels.push(end_label);
+
+                for (pos, arm) in arms.iter().enumerate() {
+                    // arm.pat, arm.body
+                    let (path, pats) = match arm.pat.val {
+                        VariantPat(ref path, ref pats) => (path, pats),
+                        _ => fail!(),
+                    };
+
+                    let patid = self.session.resolver.def_from_path(path);
+                    let def =
+                        (*self.session.defmap.find(&patid).unwrap()).clone();
+                    let (parent_id, types) = match def {
+                        VariantDef(_, ref parent_id, ref types) =>
+                            (parent_id, types),
+                        _ => fail!(),
+                    };
+
+                    let (variant_ops, vars, widths) =
+                        self.variant_helper(types, &base_var);
+                    let index = self.variant_index(&patid, parent_id);
+
+                    let compare_var = self.gen_temp();
+                    // Check if the variant is the right one.
+                    ops.push(BinOp(compare_var, EqualsOp,
+                                   Variable(variant_var),
+                                   Constant(NumLit(index,
+                                                   UnsignedInt(Width32)))));
+                    // If not, jump to the next one.
+                    ops.push(CondGoto(true,
+                                      Variable(compare_var),
+                                      *begin_labels.get(pos),
+                                      TreeSet::new()));
+                    // It is! Generate the code for this particular variant.
+                    ops.push_all_move(variant_ops);
+                    // Assign all the variables.
+                    for (((var, pat), this_type), width) in
+                        vars.iter().zip(pats.iter()).zip(types.iter())
+                        .zip(widths.iter())
+                    {
+                        let this_ty = self.typemap.types.get(
+                            &this_type.id.to_uint());
+                        match pat.val {
+                            IdentPat(ref ident, _) => {
+                                // TODO: a move or a load, depending.
+                                let this_var = Var { name: ident.val.name,
+                                                     generation: None };
+                                if ty_is_reference(this_ty) {
+                                    ops.push(
+                                        UnOp(this_var,
+                                             Identity,
+                                             Variable(*var)));
+                                } else {
+                                    ops.push(
+                                        Load(this_var, *var, *width));
+                                }
+                            },
+                            _ => fail!("Only ident patterns are supported right now.")
+                        }
+                    }
+                    // Emit the body of the arm.
+                    let (arm_insts, arm_var) = self.convert_expr(&arm.body);
+                    ops.push_all_move(arm_insts);
+
+                    // Assign the result, if necessary.
+                    if result_var.is_none() {
+                        result_var = arm_var;
+                    } else {
+                        ops.push(UnOp(result_var.unwrap(),
+                                      Identity,
+                                      Variable(arm_var.unwrap())));
+                    }
+
+                    // And skip to the end!
+                    ops.push(Goto(end_label, TreeSet::new()));
+                    // And finally, the label that goes before the next arm.
+                    ops.push(Label(begin_labels.get(pos).clone(),
+                                   TreeSet::new()));
+                }
+
+                (ops, result_var)
+            }
             MacroExpr(..) => fail!("ICE: macros should have been expanded by now"),
         }
     }
