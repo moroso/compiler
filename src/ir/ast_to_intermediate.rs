@@ -643,13 +643,29 @@ impl<'a> ASTToIntermediate<'a> {
                  Some(v))
             },
             UnOpExpr(ref op, ref e) => {
+                let ty = (*self.typemap.types.get(&e.id.to_uint())).clone();
+                match e.val {
+                    DotExpr(ref e, ref name) |
+                    ArrowExpr(ref e, ref name) => {
+                        let (ops,
+                             added_addr_var,
+                             _) = self.struct_helper(*e, name);
+                        return (ops, Some(added_addr_var));
+                    },
+                    IndexExpr(ref arr, ref idx) => {
+                        let (ops, ptr_var, _, _) =
+                            self.array_helper(*arr, *idx, &ty);
+                        return (ops, Some(ptr_var));
+                    },
+                    _ => {}
+                }
+
                 let (mut insts, v) = self.convert_expr(*e);
                 let v = v.unwrap();
                 let res_v = self.gen_temp();
-                let ty = self.typemap.types.get(&e.id.to_uint());
                 let actual_op = match op.val {
                     AddrOf =>
-                        if ty_is_reference(ty) {
+                        if ty_is_reference(&ty) {
                             // These types are stored by reference interally,
                             // so taking the address once is a no-op in the IR.
                             Identity
@@ -657,7 +673,7 @@ impl<'a> ASTToIntermediate<'a> {
                             op.val
                         },
                     Deref => {
-                        match *ty {
+                        match ty {
                             PtrTy(ref inner) =>
                                 if ty_is_reference(&inner.val) {
                                     Identity

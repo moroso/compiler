@@ -1,0 +1,16 @@
+struct a {
+    x: u32,
+    y: u8,
+    z: u8,
+}
+
+fn main() -> u32 {
+    let z: a;
+    // Note: in the IR-based cross-compiler, these casts aren't necessary.
+    // But they are for the old AST-based one.
+    print_uint((&z.x as u32) - (&z as u32));
+    print_uint((&z.y as u32) - (&z as u32));
+    print_uint((&z.z as u32) - (&z as u32));
+
+    0
+}
