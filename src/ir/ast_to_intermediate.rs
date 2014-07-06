@@ -1,9 +1,10 @@
 use util::{Width32, Width16, Width8, AnyWidth, Width, UnsignedInt, Name};
 
 use mc::session::Session;
-use mc::ast::defmap::StructDef;
+use mc::ast::defmap::{StructDef, EnumDef, VariantDef};
 
 use std::collections::TreeSet;
+use std::vec::unzip;
 
 use mc::ast::*;
 
@@ -277,7 +278,37 @@ impl<'a> ASTToIntermediate<'a> {
                 }
             },
             PathExpr(ref path) => {
-                //fail!("Need to do paths properly")
+                let defid = self.session.resolver.def_from_path(path);
+                // We do this to avoid borrowing self.
+                let def = {
+                    let d = self.session.defmap.find(&defid).unwrap();
+                    (*d).clone()
+                };
+                match def {
+                    // Handle the case that this is an num variant,
+                    // not a variable.
+                    VariantDef(_, ref parent_id, _) => {
+                        let idx_var = self.gen_temp();
+                        let base_var = self.gen_temp();
+
+                        let index = self.variant_index(&defid, parent_id);
+                        let insts = vec!(
+                            Alloca(base_var,
+                                   size_of_def(self.session,
+                                               self.typemap,
+                                               parent_id)),
+                            UnOp(idx_var, Identity,
+                                 Constant(
+                                     NumLit(index,
+                                            UnsignedInt(Width32)))),
+                            Store(base_var, idx_var, Width32)
+                                );
+
+                        return (insts, Some(base_var))
+                    },
+                    _ => {},
+                }
+                // TODO: mangling.
                 (vec!(), Some(
                     Var { name: path.val.elems.last().unwrap().val.name,
                           generation: None }))
@@ -473,6 +504,61 @@ impl<'a> ASTToIntermediate<'a> {
             }
             GroupExpr(ref e) => self.convert_expr(*e),
             CallExpr(ref f, ref args) => {
+                // We need to deal with actual function calls, as well as
+                // enum constructors.
+                match f.val {
+                    // TODO: split a bunch of this off into a helper function.
+                    PathExpr(ref path) => {
+                        let defid = self.session.resolver.def_from_path(path);
+                        // We do this to avoid borrowing self.
+                        let def = {
+                            let d = self.session.defmap.find(&defid).unwrap();
+                            (*d).clone()
+                        };
+                        match def {
+                            VariantDef(_, ref parent_id, ref types) => {
+                                let idx_var = self.gen_temp();
+                                let base_var = self.gen_temp();
+
+                                let index = self.variant_index(&defid,
+                                                               parent_id);
+                                let mut insts = vec!(
+                                    Alloca(base_var,
+                                           size_of_def(self.session,
+                                                       self.typemap,
+                                                       parent_id)),
+                                    UnOp(idx_var, Identity,
+                                         Constant(
+                                             NumLit(index,
+                                                    UnsignedInt(Width32)))),
+                                    Store(base_var, idx_var, Width32)
+                                        );
+
+                                let (ops, vars, widths) = self.variant_helper(
+                                    types, &base_var);
+
+                                insts.push_all_move(ops);
+
+                                for i in range(0, vars.len()) {
+                                    let var = vars.get(i);
+                                    let width = widths.get(i);
+                                    let (expr_insts, expr_var) =
+                                        self.convert_expr(args.get(i));
+                                    let expr_var = expr_var.unwrap();
+                                    insts.push_all_move(expr_insts);
+                                    insts.push(Store(*var,
+                                                     expr_var,
+                                                     width.clone()));
+                                }
+
+                                return (insts, Some(base_var))
+                            },
+                            _ => {},
+                        }
+                    },
+                    _ => {}
+                }
+
                 let mut ops = vec!();
                 let mut vars = vec!();
                 for arg in args.iter() {
@@ -672,5 +758,42 @@ impl<'a> ASTToIntermediate<'a> {
             Constant(NumLit(offs, UnsignedInt(Width32)))));
 
         (ops, added_addr_var, ty)
+    }
+
+    fn variant_index(&mut self, defid: &NodeId, parent_id: &NodeId) -> u64 {
+        (match *self.session.defmap.find(parent_id).unwrap() {
+            EnumDef(_, ref variants, _) =>
+                variants.iter().position(|&n| n == *defid).unwrap(),
+            _ => fail!(),
+        }) as u64
+    }
+
+    // Given the list of types in this enum, and a variable
+    // pointing to the start of the enum in memory, returns a list of ops,
+    // and list of Vars, and a list of Widths, where (after the ops are
+    // executed) the variables are pointers to each of the fields, and Width
+    // is the width of a load or store to/from the corresponding field.
+    fn variant_helper(&mut self,
+                      types: &Vec<Type>,
+                      base_var: &Var) -> (Vec<Op>, Vec<Var>, Vec<Width>) {
+        let mut insts = vec!();
+        let (widths, sizes) = unzip(types.iter()
+            .map(|t| self.typemap.types.get(&t.id.to_uint()))
+            .map(|ty| (ty_width(ty),
+                       size_of_ty(self.session, self.typemap, ty))));
+
+        let vars = Vec::from_fn(sizes.len(), |_| self.gen_temp());
+
+        for i in range(0, sizes.len()) {
+            let offs = enum_tag_size + offset_of(&sizes, i);
+
+            let new_offs_var = vars.get(i);
+            insts.push(BinOp(new_offs_var.clone(),
+                             PlusOp,
+                             Variable(base_var.clone()),
+                             Constant(NumLit(offs, UnsignedInt(Width32)))));
+        }
+
+        (insts, vars, widths)
     }
 }

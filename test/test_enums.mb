@@ -1,37 +1,40 @@
 enum TestEnum {
     Foo,
-    Bar(u32),
+    Bar(u8, u32),
     Baz,
     Quux(u32, *u32),
 }
 
 fn main() -> u32 {
     let x: TestEnum = Foo;
-    let y: TestEnum = Bar(5);
+    let y: TestEnum = Bar(1, 5);
     let i: u32 = 123;
     let z: TestEnum = Quux(4+5, &i);
 
     match x {
         Foo => print_uint(0),
-        Bar(fieldx) => print_uint(fieldx),
+        Bar(fieldx, fieldy) => { print_uint(fieldx as u32);
+                                 print_uint(fieldy) },
         Quux(fieldx, fieldy) => print_uint(fieldx),
     };
 
     match y {
         Foo => print_uint(0),
-        Bar(fieldx) => print_uint(fieldx),
+        Bar(fieldx, fieldy) => { print_uint(fieldx as u32);
+                                 print_uint(fieldy) },
         Quux(fieldx, fieldy) => print_uint(fieldx),
     };
 
     match z {
         Foo => print_uint(0),
-        Bar(fieldx) => print_uint(fieldx),
+        Bar(fieldx, fieldy) => { print_uint(fieldx as u32);
+                                 print_uint(fieldy) },
         Quux(fieldx, fieldy) => { print_uint(fieldx); print_uint(*fieldy); },
     };
 
     print_uint(match z {
         Foo => 0,
-        Bar(fieldx) => fieldx,
+        Bar(fieldx, fieldy) => fieldy,
         Quux(fieldx, fieldy) => *fieldy,
     });
 

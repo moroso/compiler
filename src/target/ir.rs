@@ -246,6 +246,10 @@ impl Target for IRTarget {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap);
 
+            if self.verbose {
+                print!("{}\n", module);
+            }
+
             converter.convert_module(&module)
         };
 

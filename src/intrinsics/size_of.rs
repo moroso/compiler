@@ -10,7 +10,7 @@ use typechecker::*;
 use util::*;
 
 /// The size of the tag for enums.
-static enum_tag_size: u64 = 4;
+pub static enum_tag_size: u64 = 4;
 
 /// Return the alignment for an object of a certain size.
 pub fn alignment(size: u64) -> u64 {
