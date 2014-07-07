@@ -5,9 +5,9 @@ use ir::conflicts::ConflictAnalyzer;
 use mas::ast::*;
 use mas::util::pack_int;
 use mc::ast::*;
-use util::{Width, Width32, Width16, Width8};
+use util::{Width, Width32, Width16, Width8, Name};
 use std::mem::swap;
-use std::collections::TreeMap;
+use std::collections::{TreeMap, TreeSet, SmallIntMap};
 
 pub struct IrToAsm;
 
@@ -18,18 +18,50 @@ fn lit_to_u32(lit: &LitNode) -> u32 {
     }
 }
 
-fn binop_to_aluop(op: &BinOpNode, swapped: bool) -> AluOp {
+// Convert an AST BinOpNode to a CompareType for the generated ASM.
+// The parameters are the op itself, whether the operands are swapped,
+// and whether this comparison is signed or not.
+// We return the new compare type, and a boolean which tells us if we should
+// treat the result as negated.
+fn binop_to_cmpop(op: &BinOpNode,
+                  signed: bool,
+                  swapped: bool) -> Option<(CompareType, bool)> {
     match *op {
-        PlusOp => AddAluOp,
-        MinusOp => if swapped { RsbAluOp } else { SubAluOp },
+        EqualsOp => Some((CmpEQ, false)),
+        NotEqualsOp => Some((CmpEQ, true)),
+        GreaterEqOp |
+        LessOp =>
+            if swapped {
+                Some((if signed { CmpLES } else { CmpLEU }, *op == LessOp ))
+            } else {
+                Some((if signed { CmpLTS } else { CmpLTU }, *op != LessOp ))
+            },
+        GreaterOp |
+        LessEqOp =>
+            if swapped {
+                Some((if signed { CmpLTS } else { CmpLTU }, *op == LessEqOp ))
+            } else {
+                Some((if signed { CmpLES } else { CmpLEU }, *op != LessEqOp ))
+            },
+        AndAlsoOp |
+        OrElseOp => fail!("AndAlso and OrElse should not appear in IR."),
+        _ => None,
+    }
+}
+
+// Convert an AST BinOpNode to an AluOp for the generated ASM.
+fn binop_to_aluop(op: &BinOpNode, swapped: bool) -> Option<AluOp> {
+    match *op {
+        PlusOp => Some(AddAluOp),
+        MinusOp => Some(if swapped { RsbAluOp } else { SubAluOp }),
+        BitAndOp => Some(AndAluOp),
+        BitOrOp => Some(OrAluOp),
+        BitXorOp => Some(XorAluOp),
         // times, divide, and mod are special, and won't be handled here.
         // comparison ops are also not handled here.
-        BitAndOp => AndAluOp,
-        BitOrOp => OrAluOp,
-        BitXorOp => XorAluOp,
         // Shifts are also special.
-
-        _ => fail!("Unimplemented op: {}", op),
+        _ => fail!("Unimplemented op: {}", op), // TODO: this should eventually
+                                                // return None.
     }
 }
 
@@ -57,51 +89,138 @@ fn convert_binop<'a>(
     let (reg_l, before_l, _) = var_to_reg(regmap, &var_l, 1);
     result.push_all_move(before_l);
 
+    // TODO: handle shifts, multiplication, division.
+
     match *op_r {
         Variable(ref var) => {
             let (reg_r, before_r, _) = var_to_reg(regmap, var, 2);
             result.push_all_move(before_r);
 
-            result.push(
-                InstNode::alu2reg(
-                    Pred { inverted: false,
-                           reg: 3 },
-                    binop_to_aluop(op, swapped),
-                    dest,
-                    reg_l,
-                    reg_r,
-                    SllShift,
-                    0));
+            // TODO: signedness needs to be part of the IR.
+            match binop_to_cmpop(op, false, swapped) {
+                Some((cmptype, negated)) => {
+                    result.push(
+                        InstNode::comparereg(
+                            Pred { inverted: false,
+                                   reg: 3 },
+                            Pred { inverted: false,
+                                   reg: 0 },
+                            reg_l,
+                            cmptype,
+                            reg_r,
+                            SllShift,
+                            0
+                        ));
+                    result.push(
+                        InstNode::alu1short(
+                            Pred { inverted: negated,
+                                   reg: 0 },
+                            MovAluOp,
+                            dest,
+                            1,
+                            0
+                        ));
+                    result.push(
+                        InstNode::alu1short(
+                            Pred { inverted: !negated,
+                                   reg: 0 },
+                            MovAluOp,
+                            dest,
+                            0,
+                            0
+                        ));
+                },
+                None =>
+                    result.push(
+                        InstNode::alu2reg(
+                            Pred { inverted: false,
+                                   reg: 3 },
+                            binop_to_aluop(op, swapped).unwrap(),
+                            dest,
+                            reg_l,
+                            reg_r,
+                            SllShift,
+                            0))
+            }
         },
         Constant(ref val) => {
             let num = lit_to_u32(val);
             let packed = pack_int(num,10);
 
-            match packed {
-                Some((val, rot)) =>
+            // TODO: signedness needs to be part of the IR.
+            match binop_to_cmpop(op, false, swapped) {
+                Some((cmptype, negated)) => {
+                    match packed {
+                        Some((val, rot)) =>
+                            result.push(
+                                InstNode::compareshort(
+                                    Pred { inverted: false,
+                                           reg: 3 },
+                                    Pred { inverted: false,
+                                           reg: 0 },
+                                    reg_l,
+                                    cmptype,
+                                    val,
+                                    rot)),
+                        None => {
+                            result.push(
+                                InstNode::comparelong(
+                                    Pred { inverted: false,
+                                           reg: 3 },
+                                    Pred { inverted: false,
+                                           reg: 0 },
+                                    reg_l,
+                                    cmptype));
+                            result.push(
+                                InstNode::long(num));
+                        }
+                    }
                     result.push(
-                        InstNode::alu2short(
-                            Pred {
-                                inverted: false,
-                                reg: 3 },
-                            binop_to_aluop(op, swapped),
+                        InstNode::alu1short(
+                            Pred { inverted: negated,
+                                   reg: 0 },
+                            MovAluOp,
                             dest,
-                            reg_l,
-                            val,
-                            rot)),
-                None => {
+                            1,
+                            0
+                                ));
                     result.push(
-                        InstNode::alu2long(
-                            Pred {
-                                inverted: false,
-                                reg: 3 },
-                            binop_to_aluop(op, swapped),
+                        InstNode::alu1short(
+                            Pred { inverted: !negated,
+                                   reg: 0 },
+                            MovAluOp,
                             dest,
-                            reg_l)
-                            );
-                    result.push(
-                        InstNode::long(num));
-                }
+                            0,
+                            0
+                        ));
+                },
+                None =>
+                    match packed {
+                        Some((val, rot)) =>
+                            result.push(
+                                InstNode::alu2short(
+                                    Pred {
+                                        inverted: false,
+                                        reg: 3 },
+                                    binop_to_aluop(op, swapped).unwrap(),
+                                    dest,
+                                    reg_l,
+                                    val,
+                                    rot)),
+                        None => {
+                            result.push(
+                                InstNode::alu2long(
+                                    Pred {
+                                        inverted: false,
+                                        reg: 3 },
+                                    binop_to_aluop(op, swapped).unwrap(),
+                                    dest,
+                                    reg_l)
+                                    );
+                            result.push(
+                                InstNode::long(num));
+                        }
+                    }
             }
         }
     }
@@ -192,9 +311,7 @@ fn convert_directrvalue(
                         dest,
                         rhs_reg,
                         SllShift,
-                        0
-                            )
-                        );
+                        0));
             }
         },
         Constant(ref val) => {
@@ -253,10 +370,56 @@ fn var_to_reg(regmap: &TreeMap<Var, RegisterColor>,
      vec!())
 }
 
+fn assign_vars(regmap: &TreeMap<Var, RegisterColor>,
+               pred: &Pred,
+               gens: &TreeMap<Name, uint>,
+               vars: &TreeSet<Var>) -> Vec<InstNode> {
+    let mut result = vec!();
+
+    for var in vars.iter() {
+        let new_var = Var {
+            name: var.name.clone(),
+            generation: Some(*gens.find(&var.name).unwrap())
+        };
+        let (src_reg, src_insts, _) = var_to_reg(regmap, var, 1);
+        let (dest_reg, _, dest_insts) = var_to_reg(regmap, &new_var, 1);
+        result.push_all_move(src_insts);
+        if src_reg != dest_reg {
+            result.push(
+                InstNode::alu1reg(
+                    pred.clone(),
+                    MovAluOp,
+                    dest_reg,
+                    src_reg,
+                    SllShift,
+                    0));
+        }
+        result.push_all_move(dest_insts);
+    }
+
+    result
+}
+
 impl IrToAsm {
     pub fn ir_to_asm(ops: &Vec<Op>) -> Vec<InstNode> {
         let (conflicts, counts) = ConflictAnalyzer::conflicts(ops);
         let regmap = RegisterColorer::color(conflicts, counts, num_usable_vars);
+
+        let mut labels: SmallIntMap<TreeMap<Name, uint>> = SmallIntMap::new();
+        // Find out which variables are used at each label.
+        for op in ops.iter() {
+            match *op {
+                Label(ref idx, ref vars) => {
+                    let mut varmap: TreeMap<Name, uint> = TreeMap::new();
+                    for var in vars.iter() {
+                        varmap.insert(var.name.clone(),
+                                      var.generation.unwrap());
+                    }
+                    labels.insert(*idx, varmap);
+                }
+                _ => {}
+            }
+        }
 
         let mut result = vec!();
         for op in ops.iter() {
@@ -302,7 +465,44 @@ impl IrToAsm {
                                      reg2,
                                      0)
                         });
-                }
+                },
+                CondGoto(ref negated, Variable(ref var), ref label,
+                         ref vars) => {
+                    let (reg, before, _) = var_to_reg(&regmap, var, 0);
+                    result.push_all_move(before);
+                    let pred = Pred { inverted: *negated,
+                                      reg: 0 };
+                    result.push(
+                        InstNode::compareshort(
+                            Pred { inverted: false,
+                                   reg: 3 },
+                            Pred { inverted: false,
+                                   reg: 0 },
+                            reg,
+                            CmpBS,
+                            1,
+                            0));
+                    result.push_all_move(assign_vars(&regmap, &pred,
+                                                     labels.get(label),
+                                                     vars));
+                    result.push(
+                        InstNode::branchimm(
+                            pred,
+                            false,
+                            JumpLabel(format!("LABEL{}", label))));
+                },
+                Goto(ref label, ref vars) => {
+                    let pred = Pred { inverted: false,
+                                      reg: 3 };
+                    result.push_all_move(assign_vars(&regmap, &pred,
+                                                     labels.get(label),
+                                                     vars));
+                    result.push(
+                        InstNode::branchimm(
+                            pred,
+                            false,
+                            JumpLabel(format!("LABEL{}", label))));
+                },
                 _ => {},
             }
         }
