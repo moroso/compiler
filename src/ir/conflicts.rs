@@ -14,8 +14,8 @@ impl ConflictAnalyzer {
         let mut counts = TreeMap::<Var, u32>::new();
 
         for info in opinfo.iter() {
-            for var1 in info.live.iter() {
-                for var2 in info.live.iter() {
+            for var1 in info.live.iter().chain(info.def.iter()) {
+                for var2 in info.live.iter().chain(info.def.iter()) {
                     if var1 != var2 {
                         if !conflict_map.contains_key(var1) {
                             conflict_map.insert(*var1, TreeSet::<Var>::new());
