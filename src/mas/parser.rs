@@ -72,6 +72,7 @@ fn classify_inst(inst: &InstNode) -> InstType {
         ALU1RegShInst(..) |
         CompareShortInst(..) |
         CompareRegInst(..) |
+        CompareLongInst(..) |
         NopInst => ALUInstType,
         LongInst(..) => LongType,
         LoadInst(..) |
@@ -541,6 +542,14 @@ impl<T: Buffer> AsmParser<T> {
                     op,
                     val,
                     rot)
+            },
+            Long => {
+                self.eat();
+                InstNode::comparelong(
+                    pred,
+                    dest_pred,
+                    reg,
+                    op)
             },
             _ => {
                 let (reg_rt,
@@ -1332,6 +1341,26 @@ mod tests {
                              -0b100000000000,
                              Reg { index: 9 }
                              ));
+    }
+
+    #[test]
+    fn test_parse_inst_comparelong() {
+        assert_eq!(inst_from_str("p1 <- r3 == long"),
+                   CompareLongInst(Pred { inverted: false,
+                                          reg: 3 },
+                                   Pred { inverted: false,
+                                          reg: 1 },
+                                   Reg { index: 3 },
+                                   CmpEQ));
+
+
+        assert_eq!(inst_from_str("!p1 -> p1 <- r3 == long"),
+                   CompareLongInst(Pred { inverted: true,
+                                          reg: 1 },
+                                   Pred { inverted: false,
+                                          reg: 1 },
+                                   Reg { index: 3 },
+                                   CmpEQ));
     }
 
     #[test]

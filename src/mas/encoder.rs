@@ -182,6 +182,18 @@ pub fn encode(inst: &InstNode) -> u32 {
             (((val&(0x1f << 10)) >> 10) << 0) |
             (rot as u32 << 14)
         },
+        CompareLongInst(pred,
+                        destpred, // Destination pred register
+                        rs, // Rs
+                        comparetype
+                        ) => {
+            (1 << 28) |
+            encode_pred(&pred) |
+            encode_aluop(&CompareAluOp) |
+            encode_comparetype(&comparetype) |
+            encode_rs(&rs) |
+            (destpred.reg as u32 << 5)
+        },
         CompareRegInst(pred,
                        destpred, // Destination pred register
                        rs, // Rs

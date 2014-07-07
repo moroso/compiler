@@ -251,6 +251,11 @@ pub enum InstNode {
                    ShiftType,
                    u8 // Shift amount
                    ),
+    CompareLongInst(Pred,
+                    Pred, // Destination pred register
+                    Reg, // Rs
+                    CompareType
+                    ),
     BranchImmInst(Pred,
                   bool, // link
                   JumpTarget),
@@ -494,6 +499,20 @@ impl InstNode {
                          comparetype,
                          val,
                          rot)
+    }
+    pub fn comparelong(pred: Pred,
+                       pred2: Pred, // Destination pred register
+                       rs: Reg, // Rs
+                       comparetype: CompareType) -> InstNode {
+        assert_pred(pred);
+        assert_pred(pred2);
+        assert_eq!(pred2.inverted, false);
+        assert_reg(rs);
+
+        CompareLongInst(pred,
+                        pred2,
+                        rs,
+                        comparetype)
     }
     pub fn comparereg(pred: Pred,
                       pred2: Pred, // Destination pred register
