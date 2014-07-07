@@ -61,7 +61,8 @@ IR_TEST_FILES := \
 	test_nested_struct.mb \
 	test_enums.mb \
 	test_indexing.mb \
-	test_struct_offs.mb
+	test_struct_offs.mb \
+	test_array.mb
 
 mbc: $(addprefix src/,$(MC_FILES))
 	rustc $(RUST_FLAGS) $< --cfg mc -o $@ -g

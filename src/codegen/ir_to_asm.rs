@@ -5,6 +5,7 @@ use ir::conflicts::ConflictAnalyzer;
 use mas::ast::*;
 use mas::util::pack_int;
 use mc::ast::*;
+use util::{Width, Width32, Width16, Width8};
 use std::mem::swap;
 use std::collections::TreeMap;
 
@@ -32,8 +33,8 @@ fn binop_to_aluop(op: &BinOpNode, swapped: bool) -> AluOp {
     }
 }
 
-/// Convert a binoprvalue into the internal asm representation.
-fn convert_binoprvalue<'a>(
+/// Convert a binop into the internal asm representation.
+fn convert_binop<'a>(
     regmap: &TreeMap<Var, RegisterColor>,
     dest: Reg,
     op: &BinOpNode,
@@ -53,18 +54,13 @@ fn convert_binoprvalue<'a>(
         _ => fail!("Trying to apply a binary operation to two constants. Did you remember to do the constant folding pass?"),
     };
 
-    let reg_l = match *regmap.find(&var_l).unwrap() {
-        RegColor(reg) => reg,
-        // TODO: implement spilling.
-        _ => unimplemented!(),
-    };
+    let (reg_l, before_l, _) = var_to_reg(regmap, &var_l, 1);
+    result.push_all_move(before_l);
 
     match *op_r {
         Variable(ref var) => {
-            let reg_r = match *regmap.find(var).unwrap() {
-                RegColor(reg) => reg,
-                _ => unimplemented!(),
-            };
+            let (reg_r, before_r, _) = var_to_reg(regmap, var, 2);
+            result.push_all_move(before_r);
 
             result.push(
                 InstNode::alu2reg(
@@ -111,6 +107,64 @@ fn convert_binoprvalue<'a>(
     }
 
     result
+}
+
+fn convert_unop<'a>(
+    regmap: &TreeMap<Var, RegisterColor>,
+    dest: Reg,
+    op: &UnOpNode,
+    rhs: &'a RValueElem) -> Vec<InstNode> {
+
+    let pred = Pred {
+        inverted: false,
+        reg: 3 };
+
+    let reg_op = match *op {
+        Deref |
+        AddrOf => fail!("Should not have & or * in IR."),
+        Negate => |x| vec!(InstNode::alu2short(pred, RsbAluOp, dest, x, 0, 0)),
+        LogNot => |x| vec!(InstNode::alu2short(pred, XorAluOp, dest, x, 1, 0)),
+        BitNot => |x| vec!(InstNode::alu1reg(pred, MvnAluOp, dest, x,
+                                             SllShift, 0)),
+        Identity => |x| if dest == x { vec!() } else {
+            vec!(InstNode::alu1reg(pred, MovAluOp, dest, x, SllShift, 0)) },
+    };
+
+    match *rhs {
+        Variable(ref var) => {
+            let (reg_r, mut before_r, _) = var_to_reg(regmap, var, 2);
+            before_r.push_all_move(reg_op(reg_r));
+            before_r
+        },
+        Constant(ref val) => {
+            if *op != Identity { fail!("Should have been constant folded.") };
+
+            let mut result = vec!();
+            let num = lit_to_u32(val);
+            let packed = pack_int(num, 15);
+            match packed {
+                Some((val, rot)) =>
+                    result.push(
+                        InstNode::alu1short(
+                            pred,
+                            MovAluOp,
+                            dest,
+                            val,
+                            rot)),
+                None => {
+                    result.push(
+                        InstNode::alu1long(
+                            pred,
+                            MovAluOp,
+                            dest)
+                            );
+                    result.push(
+                        InstNode::long(num));
+                }
+            }
+            result
+        }
+    }
 }
 
 fn convert_directrvalue(
@@ -173,6 +227,31 @@ fn convert_directrvalue(
     result
 }
 
+fn width_to_lsuwidth(width: &Width) -> LsuWidth {
+    match *width {
+        Width32 => LsuWidthL,
+        Width16 => LsuWidthH,
+        Width8  => LsuWidthB,
+        _ => fail!(),
+    }
+}
+
+// Given a variable, return the register corresponding to it.  Also
+// return instructions that must be run before (for reads) and
+// afterwards (for writes), for it to be valid (in the case of
+// spilling). spill_pos must be 0, 1, or 2, and should not be re-used
+// while another register with the same spill_pos is active.
+fn var_to_reg(regmap: &TreeMap<Var, RegisterColor>,
+              var: &Var,
+              spill_pos: u8) -> (Reg, Vec<InstNode>, Vec<InstNode>) {
+    (match *regmap.find(var).unwrap() {
+        RegColor(reg) => reg,
+        // TODO: implement spilling.
+        _ => unimplemented!(),
+    },
+     vec!(),
+     vec!())
+}
 
 impl IrToAsm {
     pub fn ir_to_asm(ops: &Vec<Op>) -> Vec<InstNode> {
@@ -183,15 +262,47 @@ impl IrToAsm {
         for op in ops.iter() {
             match *op {
                 BinOp(ref var, ref op, ref rve1, ref rve2) => {
-                    let lhs_reg = match *regmap.find(var).unwrap() {
-                        RegColor(reg) => reg,
-                        // TODO: implement spilling.
-                        _ => unimplemented!(),
-                    };
-
+                    let (lhs_reg, _, after) = var_to_reg(&regmap, var, 0);
                     result.push_all_move(
-                        convert_binoprvalue(&regmap, lhs_reg, op, rve1, rve2));
+                        convert_binop(&regmap, lhs_reg, op, rve1, rve2));
+                    result.push_all_move(after);
                 },
+                UnOp(ref var, ref op, ref rve1) => {
+                    let (lhs_reg, _, after) = var_to_reg(&regmap, var, 0);
+                    result.push_all_move(
+                        convert_unop(&regmap, lhs_reg, op, rve1));
+                    result.push_all_move(after);
+                }
+                Load(ref var1, ref var2, ref width) |
+                Store(ref var1, ref var2, ref width) => {
+                    let store = match *op {
+                        Load(..) => false,
+                        _ => true,
+                    };
+                    let (reg1, before1, _) = var_to_reg(&regmap, var1, 0);
+                    result.push_all_move(before1);
+                    let (reg2, before2, _) = var_to_reg(&regmap, var2, 0);
+                    result.push_all_move(before2);
+
+                    let pred = Pred { inverted: false,
+                                      reg: 3 };
+                    let lsuop = LsuOp { store: store,
+                                        width: width_to_lsuwidth(width) };
+                    result.push(
+                        if store {
+                            StoreInst(pred,
+                                      lsuop,
+                                      reg1,
+                                      0,
+                                      reg2)
+                        } else {
+                            LoadInst(pred,
+                                     lsuop,
+                                     reg1,
+                                     reg2,
+                                     0)
+                        });
+                }
                 _ => {},
             }
         }
