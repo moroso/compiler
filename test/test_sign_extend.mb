@@ -1,0 +1,14 @@
+fn main() -> u32 {
+    let a: i8 = -1;
+    let aa: i32 = 0;
+    let b: i16 = a as i16;
+
+    *(&aa as *i8) = -1;
+
+    print_int(a as i32);
+    print_int(b as i32);
+    print_int(*(&aa as *i8) as i32);
+    print_int(aa as i32);
+
+    0
+}
