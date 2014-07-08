@@ -401,9 +401,10 @@ fn assign_vars(regmap: &TreeMap<Var, RegisterColor>,
 }
 
 impl IrToAsm {
-    pub fn ir_to_asm(ops: &Vec<Op>) -> Vec<InstNode> {
+    pub fn ir_to_asm(ops: &Vec<Op>) -> (Vec<InstNode>, TreeMap<String, uint>) {
         let (conflicts, counts) = ConflictAnalyzer::conflicts(ops);
         let regmap = RegisterColorer::color(conflicts, counts, num_usable_vars);
+        let mut targets: TreeMap<String, uint> = TreeMap::new();
 
         let mut labels: SmallIntMap<TreeMap<Name, uint>> = SmallIntMap::new();
         // Find out which variables are used at each label.
@@ -422,7 +423,7 @@ impl IrToAsm {
         }
 
         let mut result = vec!();
-        for op in ops.iter() {
+        for (pos, op) in ops.iter().enumerate() {
             match *op {
                 BinOp(ref var, ref op, ref rve1, ref rve2) => {
                     let (lhs_reg, _, after) = var_to_reg(&regmap, var, 0);
@@ -497,16 +498,25 @@ impl IrToAsm {
                     result.push_all_move(assign_vars(&regmap, &pred,
                                                      labels.get(label),
                                                      vars));
-                    result.push(
-                        InstNode::branchimm(
-                            pred,
-                            false,
-                            JumpLabel(format!("LABEL{}", label))));
+                    // Don't emit redundant jumps.
+                    let next = ops.get(pos+1);
+                    match *next {
+                        Label(label2, _) if *label == label2 => {},
+                        _ =>
+                            result.push(
+                                InstNode::branchimm(
+                                    pred,
+                                    false,
+                                    JumpLabel(format!("LABEL{}", label))))
+                    }
                 },
+                Label(ref label, _) => {
+                    targets.insert(format!("LABEL{}", label), result.len());
+                }
                 _ => {},
             }
         }
 
-        result
+        (result, targets)
     }
 }

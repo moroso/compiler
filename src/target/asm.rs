@@ -53,8 +53,20 @@ impl Target for AsmTarget {
                    RegisterColorer::color(conflict_map, counts,
                                           num_usable_vars as uint));
 
-            for inst in IrToAsm::ir_to_asm(insts).iter() {
+            let (asm_insts, labels) = IrToAsm::ir_to_asm(insts);
+
+            for (pos, inst) in asm_insts.iter().enumerate() {
+                for (k, v) in labels.iter() {
+                    if *v == pos {
+                        print!("{}:\n", k);
+                    }
+                }
                 write!(f, "   {}\n", inst);
+            }
+            for (k, v) in labels.iter() {
+                if *v == asm_insts.len() {
+                    print!("{}:\n", k);
+                }
             }
         }
     }
