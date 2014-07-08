@@ -678,7 +678,12 @@ impl<'a> ASTToIntermediate<'a> {
                                 if ty_is_reference(&inner.val) {
                                     Identity
                                 } else {
-                                    op.val
+                                    // This case is a bit different, because
+                                    // we emit a load instead of a UnOp.
+                                    insts.push(Load(res_v,
+                                                    v,
+                                                    ty_width(&inner.val)));
+                                    return (insts, Some(res_v));
                                 },
                             _ => op.val,
                         }
