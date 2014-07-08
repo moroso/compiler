@@ -39,14 +39,19 @@ fn constant_fold_once(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>,
                       verbose: bool) -> bool {
     // Variables to replace with constants.
     let mut changes = vec!();
+    let mut immediate_changes = vec!();
 
-    for op in ops.iter() {
+    for (pos, op) in ops.iter().enumerate() {
         match *op {
             BinOp(ref v, ref op, ref v1, ref v2) => {
                 match fold(op, v1, v2) {
                     Some(c) => {
                         changes.push((v.clone(),
-                                      Constant(c)));
+                                      Constant(c.clone())));
+                        immediate_changes.push((pos,
+                                                UnOp(v.clone(),
+                                                     Identity,
+                                                     Constant(c))));
                     },
                     _ => {}
                 }
@@ -66,6 +71,12 @@ fn constant_fold_once(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>,
     }
 
     let mut changed = false;
+
+    // These are changes we can do unconditionally.
+    for (a, b) in immediate_changes.move_iter() {
+        *ops.get_mut(a) = b;
+        changed = true;
+    }
 
     for (a, b) in changes.move_iter() {
         if !vars_to_avoid.contains(&a){
