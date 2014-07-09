@@ -65,7 +65,7 @@ pub enum CoReg {
 }
 
 // Opcodes for the ALU.
-#[deriving(Show, Eq, PartialEq)]
+#[deriving(Show, Eq, PartialEq, Clone)]
 pub enum AluOp {
     AddAluOp,
     AndAluOp,
@@ -112,7 +112,7 @@ impl AluOp {
 }
 
 // Compare types.
-#[deriving(Show, Eq, PartialEq)]
+#[deriving(Show, Eq, PartialEq, Clone)]
 pub enum CompareType {
     CmpLTU,
     CmpLEU,
@@ -177,7 +177,7 @@ pub enum JumpTarget {
     JumpLabel(String),
 }
 
-#[deriving(Show, Eq, PartialEq)]
+#[deriving(Show, Eq, PartialEq, Clone)]
 pub enum InstNode {
     ALU1ShortInst(Pred, // Instruction predicate
                   AluOp, // Actual op

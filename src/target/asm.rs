@@ -16,6 +16,10 @@ use codegen::register_color::RegisterColorer;
 use codegen::num_usable_vars;
 use codegen::IrToAsm;
 
+use mas::labels;
+use mas::encoder::encode;
+use mas::ast::NopInst;
+
 use std::io::Writer;
 
 pub struct AsmTarget;
@@ -67,6 +71,20 @@ impl Target for AsmTarget {
                 if *v == asm_insts.len() {
                     print!("{}:\n", k);
                 }
+            }
+
+            let mut packets = asm_insts.iter().map(|x| [(*x).clone(),
+                                                        NopInst,
+                                                        NopInst,
+                                                        NopInst]).collect();
+
+            labels::resolve_labels(&mut packets, &labels);
+            for packet in packets.iter() {
+                print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",
+                       encode(&packet[0]),
+                       encode(&packet[1]),
+                       encode(&packet[2]),
+                       encode(&packet[3]))
             }
         }
     }
