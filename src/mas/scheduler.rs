@@ -5,6 +5,7 @@ use mas::parser::{classify_inst,
                   MemoryType,
                   LongType};
 use collections::TreeSet;
+use std::iter::range_inclusive;
 
 // Return Rd.
 fn destreg(inst: &InstNode) -> Option<Reg> {
@@ -199,7 +200,7 @@ fn compatible(packet: &[InstNode, ..4], inst: &InstNode) -> bool {
             }
         },
         ALUInstType => {
-            if !packet.iter().all(|x| *x == NopInst) {
+            if packet.iter().all(|x| *x != NopInst) {
                 return false;
             }
         },
@@ -216,6 +217,7 @@ pub fn schedule(insts: &Vec<InstNode>) -> Vec<[InstNode, ..4]> {
     let mut edges: TreeSet<(uint, uint)> = TreeSet::new();
     let mut all: TreeSet<uint> = FromIterator::from_iter(range(0, insts.len()));
     let mut this_packet: [InstNode, ..4] = [NopInst, NopInst, NopInst, NopInst];
+    let mut packets: Vec<[InstNode, ..4]> = vec!();
 
     for idx in range(0, insts.len()) {
         let inst = insts.get(idx);
@@ -238,13 +240,42 @@ pub fn schedule(insts: &Vec<InstNode>) -> Vec<[InstNode, ..4]> {
             edges.iter().map(|&(_, x)| x));
         let leaves: TreeSet<uint> = FromIterator::from_iter(
             all.iter().map(|&x| x).filter(|x| !non_schedulables.contains(x)));
+        let mut added = false;
         for leaf in leaves.iter() {
-            all.remove(leaf);
-            edges = FromIterator::from_iter(
-                edges.iter().map(|&x|x).filter(|&(x, _)| x!=*leaf));
+            let inst = insts.get(*leaf);
+            if compatible(&this_packet, inst) {
+                all.remove(leaf);
+                for idx in range_inclusive(
+                    0,
+                    match classify_inst(inst) {
+                        ControlType => 0u,
+                        MemoryType => 1,
+                        _ => 3
+                    }).rev() {
+                    if this_packet[idx] == NopInst {
+                        this_packet[idx] = inst.clone();
+                        added = true;
+                        break;
+                    }
+                }
+                edges = FromIterator::from_iter(
+                    edges.iter().map(|&x|x).filter(|&(x, _)| x!=*leaf));
+                break;
+            }
         }
+
+        // This packet is as full as it can get. Move on!
+        if !this_packet.iter().any(|x| *x == NopInst) || !added {
+            packets.push(this_packet);
+            this_packet = [NopInst, NopInst, NopInst, NopInst];
+        }
+
         print!("{}\n", leaves);
     }
 
-    unimplemented!()
+    packets.push(this_packet);
+
+    print!("{}\n", packets);
+
+    packets
 }

@@ -74,22 +74,19 @@ impl Target for AsmTarget {
                 }
             }
 
-            if !asm_insts.is_empty() {
-                schedule(&asm_insts);
-            }
+            if asm_insts.is_empty() {
+                continue;
+            } else {
+                let mut packets = schedule(&asm_insts);
 
-            let mut packets = asm_insts.iter().map(|x| [(*x).clone(),
-                                                        NopInst,
-                                                        NopInst,
-                                                        NopInst]).collect();
-
-            labels::resolve_labels(&mut packets, &labels);
-            for packet in packets.iter() {
-                print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",
-                       encode(&packet[0]),
-                       encode(&packet[1]),
-                       encode(&packet[2]),
-                       encode(&packet[3]))
+                labels::resolve_labels(&mut packets, &labels);
+                for packet in packets.iter() {
+                    print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",
+                           encode(&packet[0]),
+                           encode(&packet[1]),
+                           encode(&packet[2]),
+                           encode(&packet[3]))
+                }
             }
         }
     }
