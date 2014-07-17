@@ -24,6 +24,7 @@ MC_FILES := \
 	mas/lexer.rs \
 	mas/mod.rs \
 	mas/parser.rs \
+	mas/scheduler.rs \
 	mas/util.rs \
 	mc/ast/defmap.rs \
 	mc/ast/macros.rs \

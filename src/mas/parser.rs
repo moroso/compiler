@@ -54,14 +54,14 @@ fn tok_to_cmp(tok: &Token) -> Option<CompareType> {
     }
 }
 
-enum InstType {
+pub enum InstType {
     ALUInstType,
     ControlType,
     MemoryType,
     LongType,
 }
 
-fn classify_inst(inst: &InstNode) -> InstType {
+pub fn classify_inst(inst: &InstNode) -> InstType {
     match *inst {
         ALU1ShortInst(..) |
         ALU2ShortInst(..) |

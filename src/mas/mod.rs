@@ -20,6 +20,7 @@ pub mod ast;
 pub mod encoder;
 pub mod util;
 pub mod labels;
+pub mod scheduler;
 
 fn print_bin<T: Writer>(n: u32, stream: &mut T) {
     // Write in little-endian format.

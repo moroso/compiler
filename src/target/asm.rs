@@ -19,6 +19,7 @@ use codegen::IrToAsm;
 use mas::labels;
 use mas::encoder::encode;
 use mas::ast::NopInst;
+use mas::scheduler::schedule;
 
 use std::io::Writer;
 
@@ -71,6 +72,10 @@ impl Target for AsmTarget {
                 if *v == asm_insts.len() {
                     print!("{}:\n", k);
                 }
+            }
+
+            if !asm_insts.is_empty() {
+                schedule(&asm_insts);
             }
 
             let mut packets = asm_insts.iter().map(|x| [(*x).clone(),

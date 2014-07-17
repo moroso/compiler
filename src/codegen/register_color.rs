@@ -23,6 +23,8 @@ impl RegisterColorer {
         let mut freq_vec: Vec<(&Var, &u32)> = frequencies.iter().collect();
         freq_vec.sort_by(|&(_, a), &(_, b)| b.cmp(a));
 
+        let mut next_color = 0;
+
         for (var, _) in freq_vec.move_iter() {
             let empty_treeset = TreeSet::<Var>::new();
             let ref adjacent_vars =
@@ -40,10 +42,11 @@ impl RegisterColorer {
 
             let mut color = Spilled;
 
-            for n in range(0, num_colors) {
+            for n in range(next_color, num_colors).chain(range(0, next_color)) {
                 if !adjacent_colors.contains(
                     &RegColor(Reg { index: n as u8 } )
                         ) {
+                    next_color = (n + 1) % num_colors;
                     color = RegColor(Reg { index: n as u8 } );
                     break;
                 }
@@ -78,8 +81,8 @@ mod tests {
         }
 
         let coloring = RegisterColorer::color(conflicts, frequencies, 10);
-        for (_, &color) in coloring.iter() {
-            assert_eq!(color, RegColor(Reg { index: 0 } ));
+        for (idx, (_, &color)) in coloring.iter().enumerate() {
+            assert_eq!(color, RegColor(Reg { index: idx as u8 } ));
         }
     }
 
@@ -133,7 +136,7 @@ mod tests {
         let coloring = RegisterColorer::color(conflicts, frequencies, 10);
         for i in range(0u32, 20) {
             let color = *coloring.find(&var(i)).unwrap();
-            assert_eq!(color, RegColor(Reg { index: (i%2) as u8 } ));
+            assert_eq!(color, RegColor(Reg { index: (i%10) as u8 } ));
         }
     }
 }
