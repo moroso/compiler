@@ -35,7 +35,7 @@ fn print_bin<T: Writer>(n: u32, stream: &mut T) {
 pub fn main() {
     // TODO: option parsing.
     let args = os::args();
-    let arg0 = args.get(0);
+    let arg0 = &args[0];
 
     let opts = [
         optopt("", "fmt", "Set the output format.", "[c|bin|internal]"),

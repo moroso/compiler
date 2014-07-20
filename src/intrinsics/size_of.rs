@@ -42,7 +42,7 @@ pub fn offset_of_struct_field(session: &Session,
 
             for i in range(0, sizes.len())
             {
-                if names.get(i) == field {
+                if names[i] == *field {
                     return offset_of(&sizes, i);
                 }
             }
@@ -147,7 +147,7 @@ pub fn offset_of(sizes: &Vec<u64>, item: uint) -> u64 {
         size_so_far += increment_of(size_so_far, *size);
     }
 
-    size_so_far + padding_of(size_so_far, *sizes.get(item))
+    size_so_far + padding_of(size_so_far, sizes[item])
 }
 
 #[cfg(test)]

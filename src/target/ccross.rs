@@ -341,7 +341,7 @@ impl CCrossCompiler {
 
     fn visit_path_in_enum_access(&self, path: &Path) -> String {
         let (_, ref variants, ref pos) = *self.enumitemnames.find(&path.val.elems.last().unwrap().val.name).unwrap();
-        let variant = variants.get(*pos);
+        let variant = &variants[*pos];
         let name = self.session.interner.name_to_str(&variant.ident.val.name);
         name.to_string()
     }
@@ -515,14 +515,14 @@ impl CCrossCompiler {
                     let body = me.visit_expr(&arm.body);
 
                     let &(_, ref variants, idx) = me.enumitemnames.find(&path.val.elems.last().unwrap().val.name).unwrap();
-                    let this_variant = variants.get(idx as uint);
+                    let this_variant = &variants[idx as uint];
 
                     let name = me.visit_path_in_enum_access(path);
 
                     let mut n = 0;
                     let vars = me.visit_list(vars, |me, var| {
                         n += 1;
-                        let ty = me.visit_type(this_variant.args.get(n - 1));
+                        let ty = me.visit_type(&this_variant.args[n - 1]);
                         let varname = match var.val {
                             IdentPat(ref id, _) => me.session.interner.name_to_str(&id.val.name),
                             _ => fail!("Only IdentPats are supported in the arguments of a VariantPat in a match arm for now"),

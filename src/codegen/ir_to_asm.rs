@@ -499,7 +499,7 @@ impl IrToAsm {
                                                      labels.get(label),
                                                      vars));
                     // Don't emit redundant jumps.
-                    let next = ops.get(pos+1);
+                    let next = &ops[pos+1];
                     match *next {
                         Label(label2, _) if *label == label2 => {},
                         _ =>

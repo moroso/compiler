@@ -570,13 +570,13 @@ impl<'a> ASTToIntermediate<'a> {
                                 insts.push_all_move(ops);
 
                                 for i in range(0, vars.len()) {
-                                    let var = vars.get(i);
-                                    let width = widths.get(i);
+                                    let var = vars[i];
+                                    let width = &widths[i];
                                     let (expr_insts, expr_var) =
-                                        self.convert_expr(args.get(i));
+                                        self.convert_expr(&args[i]);
                                     let expr_var = expr_var.unwrap();
                                     insts.push_all_move(expr_insts);
-                                    insts.push(Store(*var,
+                                    insts.push(Store(var,
                                                      expr_var,
                                                      width.clone()));
                                 }
@@ -819,7 +819,7 @@ impl<'a> ASTToIntermediate<'a> {
                     // If not, jump to the next one.
                     ops.push(CondGoto(true,
                                       Variable(compare_var),
-                                      *begin_labels.get(pos),
+                                      begin_labels[pos],
                                       TreeSet::new()));
                     // It is! Generate the code for this particular variant.
                     ops.push_all_move(variant_ops);
@@ -864,7 +864,7 @@ impl<'a> ASTToIntermediate<'a> {
                     // And skip to the end!
                     ops.push(Goto(end_label, TreeSet::new()));
                     // And finally, the label that goes before the next arm.
-                    ops.push(Label(begin_labels.get(pos).clone(),
+                    ops.push(Label(begin_labels[pos].clone(),
                                    TreeSet::new()));
                 }
 
@@ -951,7 +951,7 @@ impl<'a> ASTToIntermediate<'a> {
         for i in range(0, sizes.len()) {
             let offs = enum_tag_size + offset_of(&sizes, i);
 
-            let new_offs_var = vars.get(i);
+            let new_offs_var = &vars[i];
             insts.push(BinOp(new_offs_var.clone(),
                              PlusOp,
                              Variable(base_var.clone()),

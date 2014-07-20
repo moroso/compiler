@@ -22,7 +22,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
 
     for u in range(0, len) {
         let opinfo = opinfo.get_mut(u);
-        match *ops.get(u) {
+        match ops[u] {
             BinOp(ref lv, _, ref rve1, ref rve2) => {
                 opinfo.def.insert(lv.clone());
                 seed_rve(opinfo, rve1);
@@ -89,7 +89,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
             },
             Goto(ref l, ref vars) => {
                 for u2 in range(0, len) {
-                    match *ops.get(u2) {
+                    match ops[u2] {
                         Label(l2, _) if *l == l2 => {
                             opinfo.succ.insert(u2);
                             break;
@@ -104,7 +104,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
             // TODO: get rid of redundant code.
             CondGoto(_, _, ref l, ref vars) => {
                 for u2 in range(0, len) {
-                    match *ops.get(u2) {
+                    match ops[u2] {
                         Label(l2, _) if *l == l2 => {
                             opinfo.succ.insert(u2);
                             break;

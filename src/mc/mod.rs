@@ -41,7 +41,7 @@ macro_rules! targets {
 
 pub fn main() {
     let args = os::args();
-    let arg0 = args.get(0);
+    let arg0 = &args[0];
 
     let opts = [
         optopt("", "target", "Set the output target format.", "[c|null|asm|ir]"),
@@ -101,7 +101,7 @@ pub fn main() {
     let name = if matches.free.len() == 0 {
         "-"
     } else if matches.free.len() == 1 {
-        matches.free.get(0).as_slice()
+        matches.free[0].as_slice()
     } else {
         return bail(Some("too many arguments"))
     };

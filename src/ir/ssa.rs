@@ -53,7 +53,7 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
     for i in range(0, len) {
         match *ops.get_mut(i) {
             Label(ref label, ref mut vars) => {
-                let ref live_vars = opinfo.get(i).live;
+                let ref live_vars = opinfo[i].live;
                 label_vars.insert(*label,
                                   live_vars.clone());
                 vars.extend(live_vars.iter().map(|x| (*x).clone()));
@@ -130,7 +130,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
             // We can entirely remove the variables, with a substitution.
             let label_vars = label_table.get(idx);
             for var in label_vars.iter() {
-                let new_gen = *item.get(0).find(&var.name).unwrap();
+                let new_gen = *(**item)[0].find(&var.name).unwrap();
                 substitutions.insert((var.clone(),
                                       Var { name: var.name,
                                             generation: Some(new_gen) } ));
