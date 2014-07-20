@@ -9,7 +9,7 @@ use mc::ast::visitor::*;
 
 //#[allow(non_camel_case_types)] leaving the warning so we remember to patch rust later
 pub enum NS {
-    TypeAndModNS = 0u,
+    TypeAndModNS = 0i,
     ValNS,
     StructNS,
 }
@@ -293,7 +293,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
                 }
             }
             MatchExpr(ref e, ref arms) => {
-                self.visit_expr(*e);
+                self.visit_expr(&**e);
                 for arm in arms.iter() {
                     self.descend(None, |me| {
                         me.visit_pat(&arm.pat);

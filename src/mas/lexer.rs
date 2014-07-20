@@ -126,7 +126,7 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
 
             match matcher.captures(s) {
                 Some(groups) => {
-                    let c = groups.at(1)[0] as u32;
+                    let c = groups.at(1).as_bytes()[0] as u32;
 
                     Some((groups.at(0).len(), c))
                 },
@@ -176,7 +176,7 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
                     Some((groups.at(0).len(),
                           Pred {
                               inverted: groups.at(1) == "!",
-                              reg: groups.at(2)[0] - '0' as u8
+                              reg: groups.at(2).as_bytes()[0] - '0' as u8
                           }))
                 },
                 _ => None

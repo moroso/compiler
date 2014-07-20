@@ -250,8 +250,8 @@ impl<'a> ASTToIntermediate<'a> {
                 (insts, Some(res_var))
             }
             BinOpExpr(ref op, ref e1, ref e2) => {
-                let (mut insts1, var1) = self.convert_expr(*e1);
-                let (insts2, var2) = self.convert_expr(*e2);
+                let (mut insts1, var1) = self.convert_expr(&**e1);
+                let (insts2, var2) = self.convert_expr(&**e2);
                 let var1 = var1.unwrap();
                 let var2 = var2.unwrap();
                 match op.val {
@@ -323,7 +323,7 @@ impl<'a> ASTToIntermediate<'a> {
             AssignExpr(ref op, ref e1, ref e2) => {
                 // TODO: this will break in the case of structs and enums.
 
-                let (mut res, var2) = self.convert_expr(*e2);
+                let (mut res, var2) = self.convert_expr(&**e2);
                 let var2 = var2.unwrap();
 
                 // The LHS might be wrapped in a GroupExpr.
@@ -367,7 +367,7 @@ impl<'a> ASTToIntermediate<'a> {
                             UintTy(w) => w.clone(),
                             _ => Width32,
                         };
-                        let (insts, var) = self.convert_expr(*e);
+                        let (insts, var) = self.convert_expr(&**e);
                         let var = var.unwrap();
                         res.push_all_move(insts);
                         let res_var = self.gen_temp();
@@ -389,7 +389,7 @@ impl<'a> ASTToIntermediate<'a> {
                     ArrowExpr(ref e, ref name) |
                     DotExpr(ref e, ref name) => {
                         let (insts, added_addr_var, ty) =
-                            self.struct_helper(*e, name);
+                            self.struct_helper(&**e, name);
                         let width = ty_width(&ty);
                         let is_ref = ty_is_reference(&ty);
 
@@ -417,7 +417,7 @@ impl<'a> ASTToIntermediate<'a> {
                             .clone();
 
                         let (ops, ptr_var, width, is_ref) =
-                            self.array_helper(*arr, *idx, &ty);
+                            self.array_helper(&**arr, &**idx, &ty);
                         res.push_all_move(ops);
 
                         let binop_var = self.gen_temp();
@@ -463,12 +463,12 @@ impl<'a> ASTToIntermediate<'a> {
 
                 (res, Some(final_var))
             }
-            BlockExpr(ref b) => self.convert_block(*b),
+            BlockExpr(ref b) => self.convert_block(&**b),
             IfExpr(ref e, ref b1, ref b2) => {
-                let (mut insts, if_var) = self.convert_expr(*e);
+                let (mut insts, if_var) = self.convert_expr(&**e);
                 let if_var = if_var.unwrap();
-                let (b1_insts, b1_var) = self.convert_block(*b1);
-                let (b2_insts, b2_var) = self.convert_block(*b2);
+                let (b1_insts, b1_var) = self.convert_block(&**b1);
+                let (b2_insts, b2_var) = self.convert_block(&**b2);
                 assert!(
                     b1_var.is_none() == b2_var.is_none(),
                     "ICE: one branch of if statement is unit but other isn't");
@@ -505,26 +505,26 @@ impl<'a> ASTToIntermediate<'a> {
                 let continue_label = self.gen_label();
                 self.break_labels.push(break_label);
                 self.continue_labels.push(continue_label);
-                let (block_insts, _) = self.convert_block(*b);
+                let (block_insts, _) = self.convert_block(&**b);
                 self.break_labels.pop();
                 self.continue_labels.pop();
-                self.while_helper(*e,
+                self.while_helper(&**e,
                                   block_insts,
                                   None,
                                   break_label,
                                   continue_label)
             },
             ForExpr(ref init, ref cond, ref iter, ref body) => {
-                let (mut init_insts, _) = self.convert_expr(*init);
+                let (mut init_insts, _) = self.convert_expr(&**init);
                 let break_label = self.gen_label();
                 let continue_label = self.gen_label();
                 self.break_labels.push(break_label);
                 self.continue_labels.push(continue_label);
-                let (block_insts, _) = self.convert_block(*body);
+                let (block_insts, _) = self.convert_block(&**body);
                 self.break_labels.pop();
                 self.continue_labels.pop();
-                let (iter_insts, _) = self.convert_expr(*iter);
-                let (loop_insts, var) = self.while_helper(*cond,
+                let (iter_insts, _) = self.convert_expr(&**iter);
+                let (loop_insts, var) = self.while_helper(&**cond,
                                                           block_insts,
                                                           Some(iter_insts),
                                                           break_label,
@@ -532,7 +532,7 @@ impl<'a> ASTToIntermediate<'a> {
                 init_insts.push_all_move(loop_insts);
                 (init_insts, var)
             }
-            GroupExpr(ref e) => self.convert_expr(*e),
+            GroupExpr(ref e) => self.convert_expr(&**e),
             CallExpr(ref f, ref args) => {
                 // We need to deal with actual function calls, as well as
                 // enum constructors.
@@ -596,7 +596,7 @@ impl<'a> ASTToIntermediate<'a> {
                     ops.push_all_move(new_ops);
                     vars.push(new_var.unwrap());
                 }
-                let (new_ops, new_var) = self.convert_expr(*f);
+                let (new_ops, new_var) = self.convert_expr(&**f);
                 let new_var = new_var.unwrap();
                 ops.push_all_move(new_ops);
                 let result_var = self.gen_temp();
@@ -614,7 +614,7 @@ impl<'a> ASTToIntermediate<'a> {
             ArrowExpr(ref e, ref name) => {
                 let (mut ops,
                      added_addr_var,
-                     ty) = self.struct_helper(*e, name);
+                     ty) = self.struct_helper(&**e, name);
                 let width = ty_width(&ty);
                 let is_ref = ty_is_reference(&ty);
 
@@ -627,7 +627,7 @@ impl<'a> ASTToIntermediate<'a> {
                 (ops, Some(res_var))
             },
             CastExpr(ref e, _) => {
-                self.convert_expr(*e)
+                self.convert_expr(&**e)
             },
             UnitExpr => (vec!(), None),
             SizeofExpr(ref t) => {
@@ -649,18 +649,18 @@ impl<'a> ASTToIntermediate<'a> {
                     ArrowExpr(ref e, ref name) => {
                         let (ops,
                              added_addr_var,
-                             _) = self.struct_helper(*e, name);
+                             _) = self.struct_helper(&**e, name);
                         return (ops, Some(added_addr_var));
                     },
                     IndexExpr(ref arr, ref idx) => {
                         let (ops, ptr_var, _, _) =
-                            self.array_helper(*arr, *idx, &ty);
+                            self.array_helper(&**arr, &**idx, &ty);
                         return (ops, Some(ptr_var));
                     },
                     _ => {}
                 }
 
-                let (mut insts, v) = self.convert_expr(*e);
+                let (mut insts, v) = self.convert_expr(&**e);
                 let v = v.unwrap();
                 let res_v = self.gen_temp();
                 let actual_op = match op.val {
@@ -696,7 +696,7 @@ impl<'a> ASTToIntermediate<'a> {
                 (insts, Some(res_v))
             },
             ReturnExpr(ref e) => {
-                let (mut insts, v) = self.convert_expr(*e);
+                let (mut insts, v) = self.convert_expr(&**e);
                 let v = v.unwrap();
                 insts.push(Return(Variable(v)));
                 (insts, None)
@@ -753,7 +753,7 @@ impl<'a> ASTToIntermediate<'a> {
                 let ty = (*self.typemap.types.get(&expr.id.to_uint())).clone();
 
                 let (mut ops, ptr_var, width, is_ref) =
-                    self.array_helper(*arr, *idx, &ty);
+                    self.array_helper(&**arr, &**idx, &ty);
 
                 if is_ref {
                     (ops, Some(ptr_var))
@@ -774,7 +774,7 @@ impl<'a> ASTToIntermediate<'a> {
                  None)
             }
             MatchExpr(ref e, ref arms) => {
-                let (mut ops, base_var) = self.convert_expr(*e);
+                let (mut ops, base_var) = self.convert_expr(&**e);
                 let base_var = base_var.unwrap();
                 let variant_var = self.gen_temp();
                 let end_label = self.gen_label();

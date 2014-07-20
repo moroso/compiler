@@ -94,7 +94,7 @@ impl<'a> Visitor for DefMapVisitor<'a> {
     fn visit_expr(&mut self, expr: &Expr) {
         match expr.val {
             MatchExpr(ref e, ref arms) => {
-                walk_expr(self, *e);
+                walk_expr(self, &**e);
                 for arm in arms.iter() {
                     self.visit_pat(&arm.pat);
                     self.visit_expr(&arm.body);

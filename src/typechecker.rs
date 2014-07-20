@@ -65,7 +65,7 @@ fn constant_fold(session: &Session, map: &ConstantMap, expr: &Expr)
                 ref val                 => Ok(val.clone())
             }
         }
-        GroupExpr(ref e) => constant_fold(session, map, *e),
+        GroupExpr(ref e) => constant_fold(session, map, &**e),
         PathExpr(ref path) => {
             let nid = session.resolver.def_from_path(path);
             match map.find(&nid) {
@@ -416,7 +416,7 @@ fn intkind_to_ty(ik: IntKind) -> Ty {
 }
 
 macro_rules! save_ty {
-    ($n:expr, $t:expr) => ({ let ty = $t; self.typemap.types.insert($n.id.to_uint(), ty.clone()); ty.with_id_of($n) })
+    ($s:expr, $n:expr, $t:expr) => ({ let ty = $t; $s.typemap.types.insert($n.id.to_uint(), ty.clone()); ty.with_id_of($n) })
 }
 
 macro_rules! enumset {
@@ -593,12 +593,12 @@ impl<'a> Typechecker<'a> {
     }
 
     fn type_to_ty(&mut self, t: &Type) -> WithId<Ty> {
-        save_ty!(t, match t.val {
+        save_ty!(self, t, match t.val {
             BoolType => BoolTy,
             UnitType => UnitTy,
             DivergingType => BottomTy,
             IntType(ik) => intkind_to_ty(ik),
-            PtrType(ref t) => PtrTy(box self.type_to_ty(*t)),
+            PtrType(ref t) => PtrTy(box self.type_to_ty(&**t)),
             NamedType(ref path) => {
                 let nid = self.session.resolver.def_from_path(path);
                 match *self.session.defmap.find(&nid).take_unwrap() {
@@ -618,7 +618,7 @@ impl<'a> Typechecker<'a> {
                 }
             },
             FuncType(ref args, ref t) => {
-               let ret_ty = self.type_to_ty(*t);
+               let ret_ty = self.type_to_ty(&**t);
                let arg_tys = args.iter().map(|arg| {
                    self.type_to_ty(arg)
                }).collect();
@@ -626,10 +626,10 @@ impl<'a> Typechecker<'a> {
                FuncTy(arg_tys, box ret_ty)
             },
             ArrayType(ref t, ref d) => {
-                let ty = self.type_to_ty(*t);
-                let d_ty = self.expr_to_ty(*d);
+                let ty = self.type_to_ty(&**t);
+                let d_ty = self.expr_to_ty(&**d);
                 self.check_ty_bounds_w(d.id, InvalidDimension, d_ty, Concrete(UintTy(AnyWidth)));
-                let c = self.expr_to_const(*d);
+                let c = self.expr_to_const(&**d);
                 let len = match c {
                     NumLit(u, UnsignedInt(_)) | NumLit(u, GenericInt) => u,
                     _ => self.error_fatal(t.id, "Array length must be a uint constant"),
@@ -647,7 +647,7 @@ impl<'a> Typechecker<'a> {
     }
 
     fn pat_to_ty(&mut self, pat: &Pat) -> WithId<Ty> {
-        save_ty!(pat, match pat.val {
+        save_ty!(self, pat, match pat.val {
             DiscardPat(ref t) => {
                 match *t {
                     Some(ref t) => self.type_to_ty(t).val,
@@ -724,7 +724,7 @@ impl<'a> Typechecker<'a> {
     }
 
     fn lit_to_ty(&mut self, lit: &Lit) -> WithId<Ty> {
-        save_ty!(lit, match lit.val {
+        save_ty!(self, lit, match lit.val {
             NumLit(_, ik) => intkind_to_ty(ik),
             StringLit(..) => PtrTy(box UintTy(Width8).with_id_of(lit)),
             BoolLit(..) => BoolTy,
@@ -744,7 +744,7 @@ impl<'a> Typechecker<'a> {
     }
 
     fn expr_to_ty(&mut self, expr: &Expr) -> WithId<Ty> {
-        save_ty!(expr, match expr.val {
+        save_ty!(self, expr, match expr.val {
             UnitExpr => UnitTy,
             LitExpr(ref l) => self.lit_to_ty(l).val,
             SizeofExpr(ref t) => {
@@ -752,7 +752,7 @@ impl<'a> Typechecker<'a> {
                 UintTy(Width32)
             }
             TupleExpr(ref es) => TupleTy(es.iter().map(|e| self.expr_to_ty(e)).collect()),
-            GroupExpr(ref e) => self.expr_to_ty(*e).val,
+            GroupExpr(ref e) => self.expr_to_ty(&**e).val,
             PathExpr(ref path) => {
                 let nid = self.session.resolver.def_from_path(path);
                 match *self.session.defmap.find(&nid).take_unwrap() {
@@ -836,13 +836,13 @@ impl<'a> Typechecker<'a> {
                 StructTy(nid, tp_tys)
             }
             BinOpExpr(ref op, ref l, ref r) => {
-                let l_ty = self.expr_to_ty(*l);
-                let r_ty = self.expr_to_ty(*r);
+                let l_ty = self.expr_to_ty(&**l);
+                let r_ty = self.expr_to_ty(&**r);
 
                 self.unify_with_binop(expr.id, op, l_ty, r_ty)
             }
             UnOpExpr(ref op, ref e) => {
-                let ty = self.expr_to_ty(*e);
+                let ty = self.expr_to_ty(&**e);
                 let expr_ty = match op.val {
                     Negate => self.check_ty_bounds_w(e.id, InvalidUnop,
                                                      ty, Constrained(enumset!(SubKind))),
@@ -861,8 +861,8 @@ impl<'a> Typechecker<'a> {
                 expr_ty
             }
             IndexExpr(ref a, ref i) => {
-                let a_ty = self.expr_to_ty(*a);
-                let i_ty = self.expr_to_ty(*i);
+                let a_ty = self.expr_to_ty(&**a);
+                let i_ty = self.expr_to_ty(&**i);
                 self.check_ty_bounds_w(i.id, InvalidIndex,
                                        i_ty, Concrete(UintTy(AnyWidth)));
 
@@ -872,15 +872,15 @@ impl<'a> Typechecker<'a> {
                 }
             }
             IfExpr(ref c, ref tb, ref fb) => {
-                let c_ty = self.expr_to_ty(*c);
+                let c_ty = self.expr_to_ty(&**c);
                 self.check_ty_bounds_w(c.id, InvalidCond, c_ty, Concrete(BoolTy));
-                let tb_ty = self.block_to_ty(*tb);
-                let fb_ty = self.block_to_ty(*fb);
+                let tb_ty = self.block_to_ty(&**tb);
+                let fb_ty = self.block_to_ty(&**fb);
                 self.unify_with_cause(expr.id, InvalidIfBranches, tb_ty, fb_ty)
             }
             CallExpr(ref e, ref args) => {
                 let arg_tys: Vec<WithId<Ty>> = args.iter().map(|arg| self.expr_to_ty(arg)).collect();
-                match self.expr_to_ty(*e).val {
+                match self.expr_to_ty(&**e).val {
                     FuncTy(e_arg_tys, e_ret_ty) => {
                         if e_arg_tys.len() == arg_tys.len() {
                             for (e_arg_ty, arg_ty) in e_arg_tys.move_iter().zip(arg_tys.move_iter()) {
@@ -899,17 +899,17 @@ impl<'a> Typechecker<'a> {
                 }
             }
             BlockExpr(ref b) => {
-                self.block_to_ty(*b).val
+                self.block_to_ty(&**b).val
             }
             ReturnExpr(ref e) => {
-                let ty = self.expr_to_ty(*e);
+                let ty = self.expr_to_ty(&**e);
                 self.exits.push(ty);
                 BottomTy
             }
             BreakExpr => BottomTy,
             ContinueExpr => BottomTy,
             CastExpr(ref e, ref t) => {
-                let e_ty = self.expr_to_ty(*e);
+                let e_ty = self.expr_to_ty(&**e);
                 let t_ty = self.type_to_ty(t);
 
                 match e_ty.val {
@@ -927,12 +927,12 @@ impl<'a> Typechecker<'a> {
             AssignExpr(ref op, ref lv, ref rv) => {
                 let l_ty = match lv.val {
                     PathExpr(..) | UnOpExpr(WithId { val: Deref, .. }, _) | IndexExpr(..) | DotExpr(..) | ArrowExpr(..) => {
-                        self.expr_to_ty(*lv)
+                        self.expr_to_ty(&**lv)
                     }
                     _ => self.error_fatal(lv.id, "LHS of assignment is not an lvalue"),
                 };
 
-                let r_ty = self.expr_to_ty(*rv);
+                let r_ty = self.expr_to_ty(&**rv);
 
                 match *op {
                     Some(ref op) => self.unify_with_binop(expr.id, op, l_ty, r_ty),
@@ -940,7 +940,7 @@ impl<'a> Typechecker<'a> {
                 }
             }
             DotExpr(ref e, ref fld) => {
-                let e_ty = self.expr_to_ty(*e);
+                let e_ty = self.expr_to_ty(&**e);
                 let (nid, tp_tys) = match e_ty.val { //self.unify(BottomTy, e_ty) {
                     StructTy(nid, tp_tys) => (nid, tp_tys),
                     ty => self.error_fatal(e.id,
@@ -969,7 +969,7 @@ impl<'a> Typechecker<'a> {
                 }
             }
             ArrowExpr(ref e, ref fld) => {
-                let e_ty = self.expr_to_ty(*e);
+                let e_ty = self.expr_to_ty(&**e);
                 let (nid, tp_tys) = match e_ty.val { //self.unify(BottomTy, e_ty) {
                     PtrTy(box WithId { id: _, val: StructTy(nid, tp_tys) }) => (nid, tp_tys),
                     _ => self.error_fatal(e.id, "Expression is not a pointer to a structure"),
@@ -998,31 +998,31 @@ impl<'a> Typechecker<'a> {
                 }
             }
             WhileExpr(ref e, ref b) => {
-                let e_ty = self.expr_to_ty(*e);
+                let e_ty = self.expr_to_ty(&**e);
 
                 self.check_ty_bounds_w(e.id, InvalidCond, e_ty, Concrete(BoolTy));
 
-                let b_ty = self.block_to_ty(*b);
+                let b_ty = self.block_to_ty(&**b);
                 self.check_ty_bounds_w(b.id, InvalidLoopTy, b_ty, Concrete(UnitTy))
             }
             ForExpr(ref init, ref cond, ref step, ref b) => {
-                let _ = self.expr_to_ty(*init);
+                let _ = self.expr_to_ty(&**init);
 
-                let c_ty = self.expr_to_ty(*cond);
+                let c_ty = self.expr_to_ty(&**cond);
                 self.check_ty_bounds_w(cond.id, InvalidCond, c_ty, Concrete(BoolTy));
 
-                let _ = self.expr_to_ty(*step);
+                let _ = self.expr_to_ty(&**step);
 
-                let b_ty = self.block_to_ty(*b);
+                let b_ty = self.block_to_ty(&**b);
                 self.check_ty_bounds_w(b.id, InvalidLoopTy, b_ty, Concrete(UnitTy))
             }
             MatchExpr(ref e, ref arms) => {
-                let mut e_ty = self.expr_to_ty(*e).val;
+                let mut e_ty = self.expr_to_ty(&**e).val;
                 let mut ty = BottomTy;
                 for arm in arms.iter() {
                     let pat_ty = self.pat_to_ty(&arm.pat);
                     let body_ty = self.expr_to_ty(&arm.body);
-                    e_ty = self.unify_with_cause(arm.pat.id, InvalidPatBinding, e_ty.with_id_of(*e), pat_ty);
+                    e_ty = self.unify_with_cause(arm.pat.id, InvalidPatBinding, e_ty.with_id_of(&**e), pat_ty);
                     ty = self.unify_with_cause(arm.body.id, InvalidMatchResult, ty.with_id_of(expr), body_ty);
                 }
                 ty
@@ -1032,7 +1032,7 @@ impl<'a> Typechecker<'a> {
     }
 
     fn block_to_ty(&mut self, block: &Block) -> WithId<Ty> {
-        save_ty!(block, {
+        save_ty!(self, block, {
             for item in block.val.items.iter() {
                 self.visit_item(item);
             }

@@ -15,7 +15,7 @@ type ExpanderArgs = (Vec<Vec<Token>>,);
 struct Expander(Box<Fn<ExpanderArgs, Vec<Token>>>);
 
 impl Fn<ExpanderArgs, Vec<Token>> for Expander {
-    fn call(&self, args: ExpanderArgs) -> Vec<Token> {
+    extern "rust-call" fn call(&self, args: ExpanderArgs) -> Vec<Token> {
         use mc::lexer::Eof;
         let Expander(ref f) = *self;
         let mut tokens = f.call(args);
@@ -82,14 +82,14 @@ static builtin_macros: &'static [(&'static str, ExpanderFn)] = &[
 
 struct FnWrapper(ExpanderFn);
 impl Fn<ExpanderArgs, Vec<Token>> for FnWrapper {
-    fn call(&self, args: ExpanderArgs) -> Vec<Token> {
+    extern "rust-call" fn call(&self, args: ExpanderArgs) -> Vec<Token> {
         let FnWrapper(f) = *self;
         f(args)
     }
 }
 
 impl Fn<ExpanderArgs, Vec<Token>> for WithId<MacroDef> {
-    fn call(&self, args: ExpanderArgs) -> Vec<Token> {
+    extern "rust-call" fn call(&self, args: ExpanderArgs) -> Vec<Token> {
         let (input,) = args;
         let mut output = vec!();
 

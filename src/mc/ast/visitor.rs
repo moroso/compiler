@@ -60,18 +60,18 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
 pub fn walk_type<T: Visitor>(visitor: &mut T, t: &Type) {
     match t.val {
         PtrType(ref p) => {
-            visitor.visit_type(*p);
+            visitor.visit_type(&**p);
         }
         NamedType(ref p) => {
             visitor.visit_path(p);
         }
         FuncType(ref d, ref r) => {
             for a in d.iter() { visitor.visit_type(a); }
-            visitor.visit_type(*r);
+            visitor.visit_type(&**r);
         }
         ArrayType(ref a, ref d) => {
-            visitor.visit_type(*a);
-            visitor.visit_expr(*d);
+            visitor.visit_type(&**a);
+            visitor.visit_expr(&**d);
         }
         TupleType(ref ts) => {
             for t in ts.iter() { visitor.visit_type(t); }
@@ -159,7 +159,7 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
             for e in es.iter() { visitor.visit_expr(e); }
         }
         GroupExpr(ref e) => {
-            visitor.visit_expr(*e);
+            visitor.visit_expr(&**e);
         }
         PathExpr(ref p) => {
             visitor.visit_path(p);
@@ -171,59 +171,59 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
             }
         }
         BinOpExpr(_, ref l, ref r) => {
-            visitor.visit_expr(*l);
-            visitor.visit_expr(*r);
+            visitor.visit_expr(&**l);
+            visitor.visit_expr(&**r);
         }
         UnOpExpr(_, ref e) => {
-            visitor.visit_expr(*e);
+            visitor.visit_expr(&**e);
         }
         IndexExpr(ref a, ref i) => {
-            visitor.visit_expr(*a);
-            visitor.visit_expr(*i);
+            visitor.visit_expr(&**a);
+            visitor.visit_expr(&**i);
         }
         DotExpr(ref e, _) => {
-            visitor.visit_expr(*e);
+            visitor.visit_expr(&**e);
         }
         ArrowExpr(ref e, _) => {
-            visitor.visit_expr(*e);
+            visitor.visit_expr(&**e);
         }
         AssignExpr(_, ref lv, ref rv) => {
-            visitor.visit_expr(*lv);
-            visitor.visit_expr(*rv);
+            visitor.visit_expr(&**lv);
+            visitor.visit_expr(&**rv);
         }
         CallExpr(ref f, ref args) => {
-            visitor.visit_expr(*f);
+            visitor.visit_expr(&**f);
             for arg in args.iter() { visitor.visit_expr(arg); }
         }
         CastExpr(ref e, ref t) => {
-            visitor.visit_expr(*e);
+            visitor.visit_expr(&**e);
             visitor.visit_type(t);
         }
         IfExpr(ref c, ref tb, ref fb) => {
-            visitor.visit_expr(*c);
-            visitor.visit_block(*tb);
-            visitor.visit_block(*fb);
+            visitor.visit_expr(&**c);
+            visitor.visit_block(&**tb);
+            visitor.visit_block(&**fb);
         }
         BlockExpr(ref b) => {
-            visitor.visit_block(*b);
+            visitor.visit_block(&**b);
         }
         ReturnExpr(ref e) => {
-            visitor.visit_expr(*e);
+            visitor.visit_expr(&**e);
         }
         BreakExpr => {}
         ContinueExpr => {}
         WhileExpr(ref e, ref b) => {
-            visitor.visit_expr(*e);
-            visitor.visit_block(*b);
+            visitor.visit_expr(&**e);
+            visitor.visit_block(&**b);
         }
         ForExpr(ref e1, ref e2, ref e3, ref b) => {
-            visitor.visit_expr(*e1);
-            visitor.visit_expr(*e2);
-            visitor.visit_expr(*e3);
-            visitor.visit_block(*b);
+            visitor.visit_expr(&**e1);
+            visitor.visit_expr(&**e2);
+            visitor.visit_expr(&**e3);
+            visitor.visit_block(&**b);
         }
         MatchExpr(ref e, ref arms) => {
-            visitor.visit_expr(*e);
+            visitor.visit_expr(&**e);
             for arm in arms.iter() {
                 visitor.visit_match_arm(arm);
             }

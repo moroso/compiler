@@ -9,23 +9,8 @@ pub struct SourcePos {
 
 impl PartialOrd for SourcePos {
     #[inline]
-    fn lt(&self, other: &SourcePos) -> bool {
-        self.row < other.row || (self.row == other.row && self.col < other.col)
-    }
-
-    #[inline]
-    fn le(&self, other: &SourcePos) -> bool {
-        self.row < other.row || (self.row == other.row && self.col <= other.col)
-    }
-
-    #[inline]
-    fn gt(&self, other: &SourcePos) -> bool {
-        self.row >= other.row || (self.row == other.row && self.col > other.col)
-    }
-
-    #[inline]
-    fn ge(&self, other: &SourcePos) -> bool {
-        self.row >= other.row || (self.row == other.row && self.col >= other.col)
+    fn partial_cmp(&self, other: &SourcePos) -> Option<Ordering> {
+        (self.row, self.col).partial_cmp(&(other.row, other.col))
     }
 }
 

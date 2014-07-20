@@ -127,13 +127,13 @@ impl CCrossCompiler {
             // We have to special case this, because of the way things of
             // a function pointer type are declared in C.
             FuncType(ref d, ref r) => {
-                let ty = self.visit_type(*r);
+                let ty = self.visit_type(&**r);
                 let list = self.visit_list(d, |me, x| me.visit_type(x), ", ");
                 format!("{}(*{})({})", ty, name, list)
             },
             ArrayType(ref t, ref size) => {
-                let ty = self.visit_type(*t);
-                format!("{} {}[{}]", ty, name, self.visit_expr(*size))
+                let ty = self.visit_type(&**t);
+                format!("{} {}[{}]", ty, name, self.visit_expr(&**size))
             },
             NamedType(ref p) => {
                 let resolved_node = self.session.resolver.def_from_path(p);
@@ -179,7 +179,7 @@ impl CCrossCompiler {
             Some(ref x) => {
                 match x.val {
                     WhileExpr(..) | ForExpr(..) => self.visit_expr(x),
-                    ReturnExpr(ref e) => tail(Some(self.visit_expr(*e))),
+                    ReturnExpr(ref e) => tail(Some(self.visit_expr(&**e))),
                     _ => tail(Some(self.visit_expr(x))),
                 }
             }
@@ -273,7 +273,7 @@ impl CCrossCompiler {
     fn visit_type(&self, t: &Type) -> String {
         match t.val {
             PtrType(ref t) | ArrayType(ref t, _) => {
-                format!("{}*", self.visit_type(*t))
+                format!("{}*", self.visit_type(&**t))
             }
             NamedType(ref path) => {
                 let did = self.session.resolver.def_from_path(path);
@@ -295,7 +295,7 @@ impl CCrossCompiler {
                 }
             }
             FuncType(ref d, ref r) => {
-                let ty = self.visit_type(*r);
+                let ty = self.visit_type(&**r);
                 let args = self.visit_list(d, |me, x| me.visit_type(x), ", ");
                 format!("{}(*)({})", ty, args)
             }
@@ -389,7 +389,7 @@ impl CCrossCompiler {
             LitExpr(ref l) => self.visit_lit(l),
             SizeofExpr(ref t) => format!("sizeof({})", self.visit_type(t)),
             TupleExpr(..) => fail!("Tuples not yet supported."),
-            GroupExpr(ref e) => format!("({})", self.visit_expr(*e)),
+            GroupExpr(ref e) => format!("({})", self.visit_expr(&**e)),
             PathExpr(ref p) => {
                self.visit_mangled_path(p)
             }
@@ -407,34 +407,34 @@ impl CCrossCompiler {
                         args)
             }
             BinOpExpr(ref op, ref lhs, ref rhs) => {
-                let lhs = self.visit_expr(*lhs);
+                let lhs = self.visit_expr(&**lhs);
                 let op = self.visit_binop(op);
-                let rhs = self.visit_expr(*rhs);
+                let rhs = self.visit_expr(&**rhs);
                 format!("({}) {} ({})", lhs, op, rhs)
             }
             UnOpExpr(ref op, ref expr) => {
                 let op = self.visit_unop(op);
-                let expr = self.visit_expr(*expr);
+                let expr = self.visit_expr(&**expr);
                 format!("{}({})", op, expr)
             }
             IndexExpr(ref exp, ref idx) => {
-                let exp = self.visit_expr(*exp);
-                let idx = self.visit_expr(*idx);
+                let exp = self.visit_expr(&**exp);
+                let idx = self.visit_expr(&**idx);
                 format!("({})[{}]", exp, idx)
             }
             DotExpr(ref exp, ref field) => {
-                let exp = self.visit_expr(*exp);
+                let exp = self.visit_expr(&**exp);
                 let field = self.session.interner.name_to_str(field);
                 format!("({}).{}", exp, field)
             }
             ArrowExpr(ref exp, ref field) => {
-                let exp = self.visit_expr(*exp);
+                let exp = self.visit_expr(&**exp);
                 let field = self.session.interner.name_to_str(field);
                 format!("({})->{}", exp, field)
             }
             AssignExpr(ref op, ref lhs, ref rhs) => {
-                let lhs = self.visit_expr(*lhs);
-                let rhs = self.visit_expr(*rhs);
+                let lhs = self.visit_expr(&**lhs);
+                let rhs = self.visit_expr(&**rhs);
                 let op = op.map_or(String::new(), |op| format!("{}", op));
                 format!("({}) {}= ({})", lhs, op, rhs)
             }
@@ -462,7 +462,7 @@ impl CCrossCompiler {
                         }
                     }
                     _ => {
-                        let f = self.visit_expr(*f);
+                        let f = self.visit_expr(&**f);
                         let args = self.mut_visit_list(args, |me, x| me.visit_expr(x), ", ");
                         format!("{}({})", f, args)
                     }
@@ -470,32 +470,32 @@ impl CCrossCompiler {
             }
             CastExpr(ref e, ref t) => {
                 let ty = self.visit_type(t);
-                let expr = self.visit_expr(*e);
+                let expr = self.visit_expr(&**e);
                 format!("({})({})", ty, expr)
             }
             IfExpr(ref e, ref b1, ref b2) => {
-                let cond = self.visit_expr(*e);
-                let thenpart = self.visit_block_expr(*b1);
-                let elsepart = self.visit_block_expr(*b2);
+                let cond = self.visit_expr(&**e);
+                let thenpart = self.visit_block_expr(&**b1);
+                let elsepart = self.visit_block_expr(&**b2);
                 format!("(({})?({}):({}))", cond, thenpart, elsepart)
             }
-            BlockExpr(ref b) => self.visit_block_expr(*b),
+            BlockExpr(ref b) => self.visit_block_expr(&**b),
             ReturnExpr(ref e) => {
-                let expr = self.visit_expr(*e);
+                let expr = self.visit_expr(&**e);
                 format!("return/*expr*/ {};", expr)
             }
             BreakExpr => format!("break;"),
             ContinueExpr => format!("continue;"),
             WhileExpr(ref e, ref b) => {
-                let cond = self.visit_expr(*e);
-                let body = self.visit_block_expr(*b);
+                let cond = self.visit_expr(&**e);
+                let body = self.visit_block_expr(&**b);
                 format!("while({}) {{\n{};}}\n", cond, body)
             }
             ForExpr(ref e1, ref e2, ref e3, ref b) => {
-                let e1 = self.visit_expr(*e1);
-                let e2 = self.visit_expr(*e2);
-                let e3 = self.visit_expr(*e3);
-                let body = self.visit_block_expr(*b);
+                let e1 = self.visit_expr(&**e1);
+                let e2 = self.visit_expr(&**e2);
+                let e3 = self.visit_expr(&**e3);
+                let body = self.visit_block_expr(&**b);
                 format!("for({};{};{}) {{\n{};}}\n", e1, e2, e3, body)
             }
             MatchExpr(ref e, ref arms) => {
@@ -505,7 +505,7 @@ impl CCrossCompiler {
                     (*overall_type == UnitTy, self.visit_ty(overall_type))
                 };
 
-                let expr = self.visit_expr(*e);
+                let expr = self.visit_expr(&**e);
                 let arms = self.mut_visit_list(arms, |me, arm| {
                     let (path, vars) = match arm.pat.val {
                         VariantPat(ref path, ref args) => (path, args),
