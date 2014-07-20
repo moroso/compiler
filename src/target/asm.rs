@@ -77,7 +77,30 @@ impl Target for AsmTarget {
             if asm_insts.is_empty() {
                 continue;
             } else {
-                let mut packets = schedule(&asm_insts);
+                let (mut packets, new_labels) = schedule(&asm_insts,
+                                                         &labels,
+                                                         true);
+                print!("New labels: {}\n", new_labels);
+                for (pos, packet) in packets.iter().enumerate() {
+                    for (k, v) in new_labels.iter() {
+                        if *v == pos {
+                            print!("{}:\n", k);
+                        }
+                    }
+
+                    print!("    {}, {}, {}, {},\n",
+                           packet[0],
+                           packet[1],
+                           packet[2],
+                           packet[3])
+                }
+                for (k, v) in new_labels.iter() {
+                    if *v == packets.len() {
+                        print!("{}:\n", k);
+                    }
+                }
+
+                
 
                 labels::resolve_labels(&mut packets, &labels);
                 for packet in packets.iter() {

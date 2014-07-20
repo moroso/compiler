@@ -4,7 +4,7 @@ use mas::parser::{classify_inst,
                   ControlType,
                   MemoryType,
                   LongType};
-use collections::TreeSet;
+use collections::{TreeSet, TreeMap, PriorityQueue};
 use std::iter::range_inclusive;
 
 // Return Rd.
@@ -180,6 +180,13 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
             return false;
         }
 
+    // Unless one of the exceptions above applies, jumps can't commute.
+    match *inst1 {
+        BranchImmInst(..) |
+        BranchRegInst(..)  => return false,
+        _ => {},
+    }
+
     // TODO: a few more cases.
 
     return true;
@@ -212,70 +219,160 @@ fn compatible(packet: &[InstNode, ..4], inst: &InstNode) -> bool {
     packet.iter().all(|x| compatible_insts(x, inst))
 }
 
-pub fn schedule(insts: &Vec<InstNode>) -> Vec<[InstNode, ..4]> {
-    // Start by building the instruction DAG.
-    let mut edges: TreeSet<(uint, uint)> = TreeSet::new();
-    let mut all: TreeSet<uint> = FromIterator::from_iter(range(0, insts.len()));
-    let mut this_packet: [InstNode, ..4] = [NopInst, NopInst, NopInst, NopInst];
+fn update_labels(label_map: &TreeMap<uint, Vec<&String>>,
+                 new_label_list: &mut TreeMap<String, uint>,
+                 orig_pos: uint,
+                 new_pos: uint) {
+    let labels = label_map.find(&orig_pos);
+    match labels {
+        // Update the labels that pointed here.
+        Some(labels) => {
+            for label in labels.iter() {
+                new_label_list.insert((*label).clone(), new_pos);
+            }
+        },
+        None => {},
+    }
+
+}
+                 
+
+
+pub fn schedule(insts: &Vec<InstNode>,
+                labels: &TreeMap<String, uint>,
+                debug: bool) -> (Vec<[InstNode, ..4]>,
+                                 TreeMap<String, uint>) {
     let mut packets: Vec<[InstNode, ..4]> = vec!();
 
-    for idx in range(0, insts.len()) {
-        let inst = &insts[idx];
-
-        for prev_idx in range(0, idx) {
-            let prev_inst = &insts[prev_idx];
-            if !commutes(prev_inst, inst) {
-                edges.insert((prev_idx, idx));
-            }
+    let mut modified_labels: TreeMap<String, uint> = TreeMap::new();
+    let mut jump_target_dict: TreeMap<uint, Vec<&String>> = TreeMap::new();
+    for (label, pos) in labels.iter() {
+        if jump_target_dict.contains_key(pos) {
+            jump_target_dict.find_mut(pos).unwrap().push(label);
+        } else {
+            jump_target_dict.insert(*pos, vec!(label));
         }
     }
 
-    print!("{}\n", edges);
+    // Include all jump targets...
+    let mut jump_targets: Vec<uint> =
+        FromIterator::from_iter(labels.iter().map(|(_, &b)| b));
+    // .. and all jumps.
+    for (idx, inst) in insts.iter().enumerate() {
+        match *inst {
+            BranchImmInst(..) |
+            BranchRegInst(..) => jump_targets.push(idx+1),
+            _ => {},
+        }
+    }
 
-    // We now have a DAG, corresponding to dependencies among instructions.
-    // Scheduling involves essentially a topological sort of this DAG.
+    jump_targets.sort();
 
-    while !all.is_empty() {
-        let non_schedulables: TreeSet<uint> = FromIterator::from_iter(
-            edges.iter().map(|&(_, x)| x));
-        let leaves: TreeSet<uint> = FromIterator::from_iter(
-            all.iter().map(|&x| x).filter(|x| !non_schedulables.contains(x)));
-        let mut added = false;
-        for leaf in leaves.iter() {
-            let inst = &insts[*leaf];
-            if compatible(&this_packet, inst) {
-                all.remove(leaf);
-                for idx in range_inclusive(
-                    0,
-                    match classify_inst(inst) {
-                        ControlType => 0u,
-                        MemoryType => 1,
-                        _ => 3
-                    }).rev() {
-                    if this_packet[idx] == NopInst {
-                        this_packet[idx] = inst.clone();
-                        added = true;
-                        break;
-                    }
+    jump_targets.push(insts.len());
+
+    if debug {
+        for target in jump_targets.iter() {
+            print!("targets:{}\n", target);
+        }
+    }
+
+    let mut start = 0;
+    for end in jump_targets.move_iter() {
+        if debug {
+            print!("Scheduling ({}, {})\n", start, end);
+        }
+
+        // Start by building the instruction DAG.
+        let mut edges: TreeSet<(uint, uint)> = TreeSet::new();
+        let mut all: TreeSet<uint> =
+            FromIterator::from_iter(range(start, end));
+        let mut this_packet: [InstNode, ..4] =
+            [NopInst, NopInst, NopInst, NopInst];
+        let mut packet_added = false;
+        for idx in range(start, end) {
+            let inst = &insts[idx];
+
+            for prev_idx in range(start, idx) {
+                let prev_inst = &insts[prev_idx];
+                if !commutes(prev_inst, inst) {
+                    edges.insert((prev_idx, idx));
                 }
-                edges = FromIterator::from_iter(
-                    edges.iter().map(|&x|x).filter(|&(x, _)| x!=*leaf));
-                break;
             }
         }
 
-        // This packet is as full as it can get. Move on!
-        if !this_packet.iter().any(|x| *x == NopInst) || !added {
-            packets.push(this_packet);
-            this_packet = [NopInst, NopInst, NopInst, NopInst];
+        if debug {
+            print!("edges: {}\n", edges);
         }
 
-        print!("{}\n", leaves);
+        // We now have a DAG, corresponding to dependencies among instructions.
+        // Scheduling involves essentially a topological sort of this DAG.
+
+        while !all.is_empty() {
+            if debug {
+                print!("{}\n", all);
+            }
+            let non_schedulables: TreeSet<uint> = FromIterator::from_iter(
+                edges.iter().map(|&(_, x)| x));
+            let leaves: TreeSet<uint> = FromIterator::from_iter(
+                all.iter()
+                    .map(|&x| x)
+                    .filter(|x| !non_schedulables.contains(x)));
+            let mut added = false;
+            for leaf in leaves.iter() {
+                let inst = &insts[*leaf];
+                if compatible(&this_packet, inst) {
+                    all.remove(leaf);
+                    for idx in range_inclusive(
+                        0,
+                        match classify_inst(inst) {
+                            ControlType => 0u,
+                            MemoryType => 1,
+                            _ => 3
+                        }).rev() {
+                        if this_packet[idx] == NopInst {
+                            update_labels(&jump_target_dict,
+                                          &mut modified_labels,
+                                          *leaf,
+                                          packets.len());
+                            this_packet[idx] = inst.clone();
+                            added = true;
+                            packet_added = true;
+                            break;
+                        }
+                    }
+                    edges = FromIterator::from_iter(
+                        edges.iter().map(|&x|x).filter(|&(x, _)| x!=*leaf));
+                    break;
+                }
+            }
+
+            // This packet is as full as it can get. Move on!
+            if !this_packet.iter().any(|x| *x == NopInst) || !added {
+                packets.push(this_packet);
+                this_packet = [NopInst, NopInst, NopInst, NopInst];
+                packet_added = false;
+            }
+
+            if debug {
+                print!("leaves: {}\n", leaves);
+            }
+        }
+
+        if packet_added {
+            packets.push(this_packet);
+        }
+
+        start = end;
     }
 
-    packets.push(this_packet);
+    // If there's any label at the very end, we have to update it too.
+    update_labels(&jump_target_dict,
+                  &mut modified_labels,
+                  insts.len(),
+                  packets.len());
 
-    print!("{}\n", packets);
-
-    packets
+    if debug {
+        print!("packets: {}\n", packets);
+    }
+    (packets, modified_labels)
 }
