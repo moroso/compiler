@@ -100,8 +100,6 @@ impl Target for AsmTarget {
                     }
                 }
 
-                
-
                 labels::resolve_labels(&mut packets, &labels);
                 for packet in packets.iter() {
                     print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",

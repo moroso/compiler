@@ -199,23 +199,6 @@ fn compatible_insts(inst1: &InstNode, inst2: &InstNode) -> bool {
 }
 
 fn compatible(packet: &[InstNode, ..4], inst: &InstNode) -> bool {
-    match classify_inst(inst) {
-        ControlType => { if packet[0] != NopInst { return false; } },
-        MemoryType => {
-            if packet[0] != NopInst && packet[1] != NopInst {
-                return false;
-            }
-        },
-        ALUInstType => {
-            if packet.iter().all(|x| *x != NopInst) {
-                return false;
-            }
-        },
-        LongType => {
-            fail!("Should never be trying to directly schedule a long inst.")
-        }
-    }
-
     packet.iter().all(|x| compatible_insts(x, inst))
 }
 
@@ -321,7 +304,6 @@ pub fn schedule(insts: &Vec<InstNode>,
             for leaf in leaves.iter() {
                 let inst = &insts[*leaf];
                 if compatible(&this_packet, inst) {
-                    all.remove(leaf);
                     for idx in range_inclusive(
                         0,
                         match classify_inst(inst) {
@@ -329,20 +311,39 @@ pub fn schedule(insts: &Vec<InstNode>,
                             MemoryType => 1,
                             _ => 3
                         }).rev() {
-                        if this_packet[idx] == NopInst {
-                            update_labels(&jump_target_dict,
-                                          &mut modified_labels,
-                                          *leaf,
-                                          packets.len());
-                            this_packet[idx] = inst.clone();
-                            added = true;
-                            packet_added = true;
+                        // Does this expect a long after it?
+                        let is_long = match *inst {
+                            ALU2LongInst(..) |
+                            ALU1LongInst(..) |
+                            CompareLongInst(..) => true,
+                            _ => false,
+                        };
+                        if this_packet[idx] == NopInst && (
+                            !is_long ||
+                                (idx < 3 && this_packet[idx] == NopInst)) {
+                            // Usually we just have to move one instruction
+                            // into the packet, but for instructions expecting
+                            // a long we have to move two.
+                            for offs in range(0, if is_long { 2 } else { 1 }) {
+                                let inst = &insts[*leaf+offs];
+                                all.remove(&(*leaf+offs));
+                                update_labels(&jump_target_dict,
+                                              &mut modified_labels,
+                                              *leaf+offs,
+                                              packets.len());
+                                this_packet[idx+offs] = inst.clone();
+                                added = true;
+                                packet_added = true;
+                                edges = FromIterator::from_iter(
+                                    edges.iter().map(|&x|x)
+                                        .filter(|&(x, _)| x!=*leaf+offs));
+                            }
                             break;
                         }
                     }
-                    edges = FromIterator::from_iter(
-                        edges.iter().map(|&x|x).filter(|&(x, _)| x!=*leaf));
-                    break;
+                    if added {
+                        break;
+                    }
                 }
             }
 

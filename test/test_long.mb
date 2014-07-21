@@ -1,0 +1,13 @@
+// This is to make sure that the compiler backend can handle long instruction
+// forms.
+
+fn foo(y: u32) {
+    let x: u32 = 0xffffffff;
+    print_uint(x+y);
+}
+
+fn main(y: u32) -> u32 {
+    foo(1);
+
+    0
+}
