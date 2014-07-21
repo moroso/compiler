@@ -145,7 +145,7 @@ impl IRTarget {
                         _=> unimplemented!(),
                     };
                     let list: Vec<String> = args.iter()
-                        .map(|arg| print_rvalelem(interner, arg)).collect();
+                        .map(|arg| print_var(interner, arg)).collect();
                     s = s.append(list.connect(", ").as_slice());
                     s = s.append(");\n");
                     s

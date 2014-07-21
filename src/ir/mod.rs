@@ -78,7 +78,7 @@ pub enum Op {
     // Apply a binary operator
     BinOp(Var, BinOpNode, RValueElem, RValueElem),
     Alloca(Var, u64),
-    Call(Var, RValueElem, Vec<RValueElem>),
+    Call(Var, RValueElem, Vec<Var>),
     // Store to memory address pointed to by first Var.
     Store(Var, Var, Width),
     // Load from the address pointed to by the second Var.

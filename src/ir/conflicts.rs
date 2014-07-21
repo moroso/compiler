@@ -3,6 +3,8 @@ use ir::liveness::LivenessAnalyzer;
 use std::collections::{TreeMap, TreeSet};
 use util::Name;
 use mc::ast::AddrOf;
+use codegen::*;
+use mas::ast::Reg;
 
 pub struct ConflictAnalyzer;
 
@@ -14,6 +16,7 @@ impl ConflictAnalyzer {
     /// Assumes the IR is already in SSA form.
     pub fn conflicts(ops: &Vec<Op>) -> (TreeMap<Var, TreeSet<Var>>,
                                         TreeMap<Var, u32>,
+                                        TreeMap<Var, RegisterColor>,
                                         // This is a set of Names, because
                                         // we spill *every* generation of
                                         // the variable.
@@ -22,6 +25,7 @@ impl ConflictAnalyzer {
         let mut conflict_map = TreeMap::<Var, TreeSet<Var>>::new();
         let mut counts = TreeMap::<Var, u32>::new();
         let mut referenced_vars = TreeSet::<Name>::new();
+        let mut must_colors = TreeMap::new();
 
         for op in ops.iter() {
             match *op {
@@ -31,6 +35,20 @@ impl ConflictAnalyzer {
                         _ => fail!("Should have a variable here."),
                     }
                 },
+                Call(_, ref f, ref args) => {
+                    // TODO: this is a hack for now (as should be obvious!)
+                    match *f {
+                        Variable(v) => {
+                            if format!("{}", v.name)
+                                == "print_uint".to_string() {
+                                    must_colors.insert(args[0],
+                                                       RegColor(
+                                                           Reg { index: 0 }));
+                                }
+                        },
+                        _ => {}
+                    }
+                }
                 _ => {}
             }
         }
@@ -58,6 +76,6 @@ impl ConflictAnalyzer {
             }
         }
 
-        (conflict_map, counts, referenced_vars)
+        (conflict_map, counts, must_colors, referenced_vars)
     }
 }

@@ -130,8 +130,14 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
         return true;
     }
 
-    // Fence never commutes.
+    // Fence never commutes; neither does break (for now).
     match *inst1 {
+        BreakInst(..) |
+        FenceInst(..) => return false,
+        _ => {},
+    }
+    match *inst2 {
+        BreakInst(..) |
         FenceInst(..) => return false,
         _ => {},
     }
@@ -291,9 +297,6 @@ pub fn schedule(insts: &Vec<InstNode>,
         // Scheduling involves essentially a topological sort of this DAG.
 
         while !all.is_empty() {
-            if debug {
-                print!("{}\n", all);
-            }
             let non_schedulables: TreeSet<uint> = FromIterator::from_iter(
                 edges.iter().map(|&(_, x)| x));
             let leaves: TreeSet<uint> = FromIterator::from_iter(
@@ -352,10 +355,6 @@ pub fn schedule(insts: &Vec<InstNode>,
                 packets.push(this_packet);
                 this_packet = [NopInst, NopInst, NopInst, NopInst];
                 packet_added = false;
-            }
-
-            if debug {
-                print!("leaves: {}\n", leaves);
             }
         }
 

@@ -123,11 +123,12 @@ impl ConstantFolder {
                     vars_to_avoid.insert(v1.clone());
                     vars_to_avoid.insert(v2.clone());
                 },
+                Call(_, _, ref vars) |
                 Func(_, ref vars) => {
                     for var in vars.iter() {
                         vars_to_avoid.insert(var.clone());
                     }
-                }
+                },
                 _ => {},
             }
         }

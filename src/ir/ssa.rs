@@ -287,7 +287,7 @@ impl ToSSA {
                 Call(ref mut v, ref mut f, ref mut args) => {
                     ssa_rvalelem(gens, f);
                     for arg in args.mut_iter() {
-                        ssa_rvalelem(gens, arg);
+                        arg.generation = gen_of(gens, arg.name);
                     }
                     v.generation = next_gen(gens, v.name);
                 },

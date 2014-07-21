@@ -60,7 +60,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                 opinfo.def.insert(lv.clone());
                 seed_rve(opinfo, f);
                 for arg in args.iter() {
-                    seed_rve(opinfo, arg);
+                    opinfo.used.insert(arg.clone());
                 }
 
                 if u + 1 < len {

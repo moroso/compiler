@@ -1,4 +1,4 @@
-use codegen::num_usable_vars;
+use codegen::*;
 use codegen::register_color::*;
 use ir::*;
 use ir::conflicts::ConflictAnalyzer;
@@ -449,8 +449,9 @@ fn assign_vars(regmap: &TreeMap<Var, RegisterColor>,
 
 impl IrToAsm {
     pub fn ir_to_asm(ops: &Vec<Op>) -> (Vec<InstNode>, TreeMap<String, uint>) {
-        let (conflicts, counts, mem_vars) = ConflictAnalyzer::conflicts(ops);
-        let regmap = RegisterColorer::color(conflicts, counts,
+        let (conflicts, counts, must_colors, mem_vars) =
+            ConflictAnalyzer::conflicts(ops);
+        let regmap = RegisterColorer::color(conflicts, counts, must_colors,
                                             mem_vars, num_usable_vars);
         let mut targets: TreeMap<String, uint> = TreeMap::new();
 
@@ -561,9 +562,47 @@ impl IrToAsm {
                 Label(ref label, _) => {
                     targets.insert(format!("LABEL{}", label), result.len());
                 }
+                // TODO: this needs a lot of work!
+                Call(_, ref f, _) => {
+                    match *f {
+                        Variable(v) => {
+                            if format!("{}", v.name)
+                                == "print_uint".to_string() {
+                                    let pred = Pred { inverted: false,
+                                                      reg: 3 };
+                                    result.push(
+                                        InstNode::alu1short(
+                                            pred,
+                                            MovAluOp,
+                                            Reg { index: 30 },
+                                            1,
+                                            0));
+                                    result.push(
+                                        InstNode::breaknum(
+                                            pred,
+                                            0x1f));
+                                }
+                        },
+                        _ => {},
+                    }
+                }
                 _ => {},
             }
         }
+
+        let pred = Pred { inverted: false,
+                          reg: 3 };
+        result.push(
+            InstNode::alu1short(
+                pred,
+                MovAluOp,
+                Reg { index: 30 },
+                0,
+                0));
+        result.push(
+            InstNode::breaknum(
+                pred,
+                0x1f));
 
         (result, targets)
     }

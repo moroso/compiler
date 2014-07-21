@@ -589,6 +589,7 @@ impl<'a> ASTToIntermediate<'a> {
                     _ => {}
                 }
 
+                // It's an actual function!
                 let mut ops = vec!();
                 let mut vars = vec!();
                 for arg in args.iter() {
@@ -600,10 +601,17 @@ impl<'a> ASTToIntermediate<'a> {
                 let new_var = new_var.unwrap();
                 ops.push_all_move(new_ops);
                 let result_var = self.gen_temp();
+
+                // We add in a bunch of dummy assignments, so that we can
+                // be sure that registers are assigned correctly. Many of
+                // these will be optimized away later.
+                for var in vars.iter() {
+                    ops.push(UnOp(var.clone(), Identity,
+                                  Variable(var.clone())));
+                }
                 ops.push(Call(result_var.clone(),
                               Variable(new_var),
-                              vars.move_iter().map(
-                                  |v| Variable(v)).collect()));
+                              vars.move_iter().collect()));
                 let this_ty = self.typemap.types.get(&expr.id.to_uint());
                 match *this_ty {
                     UnitTy => (ops, None),

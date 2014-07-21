@@ -102,12 +102,15 @@ pub fn subst(ops: &mut Vec<Op>,
             },
             Call(ref lv, ref x, ref params) => {
                 let new_vars = params.iter().map(
-                    |param|
-                    match *param {
-                        Variable(ref v) if v == orig_var => {
-                            new_rvelem.clone()
-                        },
-                        _ => param.clone()
+                    |v|
+                    if v == orig_var {
+                        match *new_rvelem {
+                            Variable(ref v2) =>
+                                v2.clone(),
+                            _ => fail!(),
+                        }
+                    } else {
+                        v.clone()
                     }).collect();
 
                 Call(lv.clone(), x.clone(), new_vars)

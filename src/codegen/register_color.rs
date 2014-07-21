@@ -4,13 +4,7 @@ use mas::ast::Reg;
 use ir::*;
 use std::collections::{TreeMap, TreeSet};
 use util::Name;
-
-#[deriving(Ord, PartialOrd, PartialEq, Eq, Show)]
-pub enum RegisterColor {
-    RegColor(Reg),
-    StackColor(uint),
-    GlobalColor,
-}
+use codegen::*;
 
 pub struct RegisterColorer;
 
@@ -18,10 +12,13 @@ impl RegisterColorer {
     /// Greedy register allocator, favoring variables that are used more often.
     pub fn color(conflicts: TreeMap<Var, TreeSet<Var>>,
                  frequencies: TreeMap<Var, u32>,
+                 must_colors: TreeMap<Var, RegisterColor>,
                  mem_vars: TreeSet<Name>,
                  num_colors: uint
                  ) -> TreeMap<Var, RegisterColor> {
-        let mut coloring = TreeMap::<Var, RegisterColor>::new();
+        print!("must colors: {}\n", must_colors);
+        let mut coloring: TreeMap<Var, RegisterColor> =
+            FromIterator::from_iter(must_colors.move_iter());
         let mem_locs: TreeMap<Name, uint> = FromIterator::from_iter(
             mem_vars.move_iter().enumerate().map(|(x,y)| (y,x)));
 
@@ -71,6 +68,9 @@ impl RegisterColorer {
             let mut color = StackColor(i);
 
             for n in range(next_color, num_colors).chain(range(0, next_color)) {
+                // NOTE: this is just for magic debugging stuff, and should be
+                // removed later.
+                if n == 30 { continue; }
                 if !adjacent_colors.contains(
                     &Some(RegColor(Reg { index: n as u8 } ))) {
                     next_color = (n + 1) % num_colors;
