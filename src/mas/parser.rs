@@ -619,7 +619,7 @@ impl<T: Buffer> AsmParser<T> {
         match *self.peek() {
             NumLit(num) => {
                 self.eat();
-                self.assert_num_size(num, 20);
+                self.assert_num_size(num, 5);
                 cons(pred, num)
             },
             _ => cons(pred, 0),

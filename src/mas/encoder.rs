@@ -240,13 +240,15 @@ pub fn encode(inst: &InstNode) -> u32 {
                   val) => {
             (0b100010001 << 20) |
             encode_pred(&pred) |
-            val
+            ((val >> 4) << 19) |
+            ((val & 0xf) << 10)
         },
         SyscallInst(pred,
                     val) => {
             (0b100010010 << 20) |
             encode_pred(&pred) |
-            val
+            ((val >> 4) << 19) |
+            ((val & 0xf) << 10)
         }
         MtcInst(pred,
                 coreg,

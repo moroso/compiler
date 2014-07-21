@@ -565,7 +565,7 @@ impl InstNode {
                     val: u32
                     ) -> InstNode {
         assert_pred(pred);
-        assert!(fits_in_bits(val as u32, 20));
+        assert!(fits_in_bits(val as u32, 5));
         BreakInst(pred,
                   val)
     }
@@ -573,7 +573,7 @@ impl InstNode {
                    val: u32
                    ) -> InstNode {
         assert_pred(pred);
-        assert!(fits_in_bits(val as u32, 20));
+        assert!(fits_in_bits(val as u32, 5));
         SyscallInst(pred,
                     val)
     }
