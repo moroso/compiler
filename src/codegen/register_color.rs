@@ -3,6 +3,7 @@
 use mas::ast::Reg;
 use ir::*;
 use std::collections::{TreeMap, TreeSet};
+use util::Name;
 
 #[deriving(Ord, PartialOrd, PartialEq, Eq, Show)]
 pub enum RegisterColor {
@@ -17,14 +18,25 @@ impl RegisterColorer {
     /// Greedy register allocator, favoring variables that are used more often.
     pub fn color(conflicts: TreeMap<Var, TreeSet<Var>>,
                  frequencies: TreeMap<Var, u32>,
+                 mem_vars: TreeSet<Name>,
                  num_colors: uint
                  ) -> TreeMap<Var, RegisterColor> {
         let mut coloring = TreeMap::<Var, RegisterColor>::new();
+        let mem_locs: TreeMap<Name, uint> = FromIterator::from_iter(
+            mem_vars.move_iter().enumerate().map(|(x,y)| (y,x)));
 
         let mut freq_vec: Vec<(&Var, &u32)> = frequencies.iter().collect();
         freq_vec.sort_by(|&(_, a), &(_, b)| b.cmp(a));
 
         let mut next_color = 0;
+
+        for &(var, _) in freq_vec.iter() {
+            let maybe_pos = mem_locs.find(&var.name);
+            match maybe_pos {
+                Some(i) => { coloring.insert(var.clone(), StackColor(*i)); },
+                _ => {},
+            }
+        }
 
         for (var, _) in freq_vec.move_iter() {
             let empty_treeset = TreeSet::<Var>::new();
@@ -39,6 +51,15 @@ impl RegisterColorer {
                                                .find(var)
                                                .map(|&x|x)
                                                ));
+
+            // If we already have a coloring, make sure that it hasn't
+            // created any inconsistencies.
+            let cur_color = coloring.find(var).map(|&x|x);
+            if cur_color.is_some() {
+                assert!(!adjacent_colors.contains(&cur_color));
+                continue;
+            }
+
             let mut i = 0u;
             loop {
                 if !adjacent_colors.contains(&Some(StackColor(i))) {

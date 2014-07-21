@@ -1,17 +1,39 @@
 use ir::*;
 use ir::liveness::LivenessAnalyzer;
 use std::collections::{TreeMap, TreeSet};
+use util::Name;
+use mc::ast::AddrOf;
 
 pub struct ConflictAnalyzer;
 
 impl ConflictAnalyzer {
-    /// Analyze a block of IR code, and return a map of conflicting registers.
+    /// Analyze a block of IR code, and return a map of conflicting registers
+    /// as well as how many times each variable is used.
+    /// Also return a list of variables that must be in memory rather than
+    /// in registers, because they are referenced.
     /// Assumes the IR is already in SSA form.
     pub fn conflicts(ops: &Vec<Op>) -> (TreeMap<Var, TreeSet<Var>>,
-                                        TreeMap<Var, u32>) {
+                                        TreeMap<Var, u32>,
+                                        // This is a set of Names, because
+                                        // we spill *every* generation of
+                                        // the variable.
+                                        TreeSet<Name>) {
         let opinfo = LivenessAnalyzer::analyze(ops);
         let mut conflict_map = TreeMap::<Var, TreeSet<Var>>::new();
         let mut counts = TreeMap::<Var, u32>::new();
+        let mut referenced_vars = TreeSet::<Name>::new();
+
+        for op in ops.iter() {
+            match *op {
+                UnOp(_, AddrOf, ref rve) => {
+                    match *rve {
+                        Variable(ref v) => { referenced_vars.insert(v.name); },
+                        _ => fail!("Should have a variable here."),
+                    }
+                },
+                _ => {}
+            }
+        }
 
         for info in opinfo.iter() {
             for var1 in info.live.iter().chain(info.def.iter()) {
@@ -36,6 +58,6 @@ impl ConflictAnalyzer {
             }
         }
 
-        (conflict_map, counts)
+        (conflict_map, counts, referenced_vars)
     }
 }

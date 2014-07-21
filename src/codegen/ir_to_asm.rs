@@ -238,6 +238,31 @@ fn convert_unop<'a>(
         inverted: false,
         reg: 3 };
 
+    // This needs to be special cased.
+    if *op == AddrOf {
+        match *rhs {
+            Variable(ref v) => {
+                match *regmap.find(v).unwrap() {
+                    StackColor(n) => {
+                        return vec!(InstNode::alu2short(pred,
+                                                        AddAluOp,
+                                                        dest,
+                                                        // TODO: this should be
+                                                        // defined somewhere.
+                                                        Reg {
+                                                            index: 31
+                                                        },
+                                                        (n * 4) as u32,
+                                                        0));
+                    },
+                    GlobalColor => unimplemented!(),
+                    RegColor(..) => fail!("Cannot take the address of a reg."),
+                }
+            },
+            _ => fail!("Cannot take the address of a constant."),
+        }
+    }
+
     let reg_op = match *op {
         Deref |
         AddrOf => fail!("Should not have & or * in IR."),
@@ -424,8 +449,9 @@ fn assign_vars(regmap: &TreeMap<Var, RegisterColor>,
 
 impl IrToAsm {
     pub fn ir_to_asm(ops: &Vec<Op>) -> (Vec<InstNode>, TreeMap<String, uint>) {
-        let (conflicts, counts) = ConflictAnalyzer::conflicts(ops);
-        let regmap = RegisterColorer::color(conflicts, counts, num_usable_vars);
+        let (conflicts, counts, mem_vars) = ConflictAnalyzer::conflicts(ops);
+        let regmap = RegisterColorer::color(conflicts, counts,
+                                            mem_vars, num_usable_vars);
         let mut targets: TreeMap<String, uint> = TreeMap::new();
 
         let mut labels: SmallIntMap<TreeMap<Name, uint>> = SmallIntMap::new();

@@ -52,10 +52,12 @@ impl Target for AsmTarget {
                 write!(f, "{}\n", a);
             }
             write!(f, "{}\n", insts);
-            let (conflict_map, counts) = ConflictAnalyzer::conflicts(insts);
-            write!(f, "conflicts: {}\ncounts: {}\n", conflict_map, counts);
+            let (conflict_map, counts, mem_vars) =
+                ConflictAnalyzer::conflicts(insts);
+            write!(f, "conflicts: {}\ncounts: {}\nin mem: {}\n",
+                   conflict_map, counts, mem_vars);
             write!(f, "{}\n",
-                   RegisterColorer::color(conflict_map, counts,
+                   RegisterColorer::color(conflict_map, counts, mem_vars,
                                           num_usable_vars as uint));
 
             let (asm_insts, labels) = IrToAsm::ir_to_asm(insts);
