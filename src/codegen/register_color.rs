@@ -7,8 +7,8 @@ use std::collections::{TreeMap, TreeSet};
 #[deriving(Ord, PartialOrd, PartialEq, Eq, Show)]
 pub enum RegisterColor {
     RegColor(Reg),
-    Spilled,
-    Global,
+    StackColor(uint),
+    GlobalColor,
 }
 
 pub struct RegisterColorer;
@@ -32,21 +32,26 @@ impl RegisterColorer {
                 conflicts
                 .find(var)
                 .unwrap_or(&empty_treeset);
-            let adjacent_colors: TreeSet<RegisterColor>
+            let adjacent_colors: TreeSet<Option<RegisterColor>>
                 = FromIterator::from_iter(adjacent_vars.iter()
                                           .map(|var|
-                                               *coloring
+                                               coloring
                                                .find(var)
-                                               .unwrap_or(
-                                                   &Spilled)
+                                               .map(|&x|x)
                                                ));
+            let mut i = 0u;
+            loop {
+                if !adjacent_colors.contains(&Some(StackColor(i))) {
+                    break;
+                }
+                i+=1;
+            }
 
-            let mut color = Spilled;
+            let mut color = StackColor(i);
 
             for n in range(next_color, num_colors).chain(range(0, next_color)) {
                 if !adjacent_colors.contains(
-                    &RegColor(Reg { index: n as u8 } )
-                        ) {
+                    &Some(RegColor(Reg { index: n as u8 } ))) {
                     next_color = (n + 1) % num_colors;
                     color = RegColor(Reg { index: n as u8 } );
                     break;

@@ -364,11 +364,9 @@ fn var_to_reg(regmap: &TreeMap<Var, RegisterColor>,
     match *regmap.find(var).unwrap() {
         RegColor(reg) => (reg,
                           vec!(), vec!()),
-        Spilled => {
-            // TODO: this is very rudimentary and not yet correct.
-            // We need to actually keep track of the offsets of the
-            // variable relative to the stack pointer.
-            let reg = Reg { index: 29 };
+        StackColor(pos) => {
+            // TODO: clean up these constants and document this.
+            let reg = Reg { index: 29 + spill_pos };
             let ptr_reg = Reg { index: 31 };
             let pred = Pred { inverted: false, reg: 3 };
             (reg,
@@ -378,14 +376,14 @@ fn var_to_reg(regmap: &TreeMap<Var, RegisterColor>,
                                         width: LsuWidthL },
                                 reg,
                                 ptr_reg,
-                                0)
+                                (pos * 4) as i32)
                      ),
              vec!(
                  InstNode::store(pred,
                                  LsuOp { store: false,
                                          width: LsuWidthL },
                                  ptr_reg,
-                                 0,
+                                 (pos * 4) as i32,
                                  reg)
                      ),
                  )
