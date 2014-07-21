@@ -361,13 +361,37 @@ fn width_to_lsuwidth(width: &Width) -> LsuWidth {
 fn var_to_reg(regmap: &TreeMap<Var, RegisterColor>,
               var: &Var,
               spill_pos: u8) -> (Reg, Vec<InstNode>, Vec<InstNode>) {
-    (match *regmap.find(var).unwrap() {
-        RegColor(reg) => reg,
-        // TODO: implement spilling.
+    match *regmap.find(var).unwrap() {
+        RegColor(reg) => (reg,
+                          vec!(), vec!()),
+        Spilled => {
+            // TODO: this is very rudimentary and not yet correct.
+            // We need to actually keep track of the offsets of the
+            // variable relative to the stack pointer.
+            let reg = Reg { index: 29 };
+            let ptr_reg = Reg { index: 31 };
+            let pred = Pred { inverted: false, reg: 3 };
+            (reg,
+             vec!(
+                 InstNode::load(pred,
+                                LsuOp { store: true,
+                                        width: LsuWidthL },
+                                reg,
+                                ptr_reg,
+                                0)
+                     ),
+             vec!(
+                 InstNode::store(pred,
+                                 LsuOp { store: false,
+                                         width: LsuWidthL },
+                                 ptr_reg,
+                                 0,
+                                 reg)
+                     ),
+                 )
+        },
         _ => unimplemented!(),
-    },
-     vec!(),
-     vec!())
+    }
 }
 
 fn assign_vars(regmap: &TreeMap<Var, RegisterColor>,

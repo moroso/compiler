@@ -8,6 +8,7 @@ use std::collections::{TreeMap, TreeSet};
 pub enum RegisterColor {
     RegColor(Reg),
     Spilled,
+    Global,
 }
 
 pub struct RegisterColorer;
