@@ -93,6 +93,7 @@ mod tests {
     use std::collections::{TreeMap, TreeSet};
     use util::Name;
     use mas::ast::Reg;
+    use codegen::*;
 
     fn var(n: u32) -> Var {
         Var { name: Name(n as uint), generation: Some(1) }
@@ -107,7 +108,10 @@ mod tests {
             frequencies.insert(var(n), 1);
         }
 
-        let coloring = RegisterColorer::color(conflicts, frequencies, 10);
+        let coloring = RegisterColorer::color(conflicts, frequencies,
+                                              TreeMap::new(),
+                                              TreeSet::new(),
+                                              10);
         for (idx, (_, &color)) in coloring.iter().enumerate() {
             assert_eq!(color, RegColor(Reg { index: idx as u8 } ));
         }
@@ -130,7 +134,10 @@ mod tests {
             conflicts.insert(var(n), conflict_set);
         }
 
-        let coloring = RegisterColorer::color(conflicts, frequencies, 10);
+        let coloring = RegisterColorer::color(conflicts, frequencies,
+                                              TreeMap::new(),
+                                              TreeSet::new(),
+                                              10);
         for i in range(0u32, 10) {
             let color = *coloring.find(&var(i)).unwrap();
             assert_eq!(color, RegColor(Reg { index: i as u8 } ));
@@ -138,7 +145,10 @@ mod tests {
 
         for i in range(10u32, 20) {
             let color = *coloring.find(&var(i)).unwrap();
-            assert_eq!(color, Spilled);
+            match color {
+                StackColor(_) => {},
+                _ => assert!(false),
+            }
         }
     }
 
@@ -160,7 +170,10 @@ mod tests {
             conflicts.insert(var(n), conflict_set);
         }
 
-        let coloring = RegisterColorer::color(conflicts, frequencies, 10);
+        let coloring = RegisterColorer::color(conflicts, frequencies,
+                                              TreeMap::new(),
+                                              TreeSet::new(),
+                                              10);
         for i in range(0u32, 20) {
             let color = *coloring.find(&var(i)).unwrap();
             assert_eq!(color, RegColor(Reg { index: (i%10) as u8 } ));

@@ -458,6 +458,7 @@ impl InstNode {
         assert_reg(rd);
         assert_reg(rs);
         assert_offs(offs, 12);
+        assert!(!lsuop.store);
         LoadInst(pred,
                  lsuop,
                  rd,
@@ -474,6 +475,7 @@ impl InstNode {
         assert_reg(rs);
         assert_reg(rt);
         assert_offs(offs, 12);
+        assert!(lsuop.store);
         StoreInst(pred,
                   lsuop,
                   rs,
