@@ -25,8 +25,6 @@ impl RegisterColorer {
         let mut freq_vec: Vec<(&Var, &u32)> = frequencies.iter().collect();
         freq_vec.sort_by(|&(_, a), &(_, b)| b.cmp(a));
 
-        let mut next_color = 0;
-
         for &(var, _) in freq_vec.iter() {
             let maybe_pos = mem_locs.find(&var.name);
             match maybe_pos {
@@ -67,13 +65,12 @@ impl RegisterColorer {
 
             let mut color = StackColor(i);
 
-            for n in range(next_color, num_colors).chain(range(0, next_color)) {
+            for n in range(0, num_colors) {
                 // NOTE: this is just for magic debugging stuff, and should be
                 // removed later.
                 if n == 30 { continue; }
                 if !adjacent_colors.contains(
                     &Some(RegColor(Reg { index: n as u8 } ))) {
-                    next_color = (n + 1) % num_colors;
                     color = RegColor(Reg { index: n as u8 } );
                     break;
                 }
@@ -113,7 +110,7 @@ mod tests {
                                               TreeSet::new(),
                                               10);
         for (idx, (_, &color)) in coloring.iter().enumerate() {
-            assert_eq!(color, RegColor(Reg { index: idx as u8 } ));
+            assert_eq!(color, RegColor(Reg { index: 0 as u8 } ));
         }
     }
 
@@ -176,7 +173,7 @@ mod tests {
                                               10);
         for i in range(0u32, 20) {
             let color = *coloring.find(&var(i)).unwrap();
-            assert_eq!(color, RegColor(Reg { index: (i%10) as u8 } ));
+            assert_eq!(color, RegColor(Reg { index: (i%2) as u8 } ));
         }
     }
 }
