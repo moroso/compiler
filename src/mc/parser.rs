@@ -328,7 +328,8 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             ::std::os::make_absolute(&::std::path::Path::new(base))
         };
 
-        let s = format!("Parse error: {}\n    at {} {}", message.as_slice(), path.display(), pos);
+        let s = format!("Parse error: {}\n    at {} {}\n",
+                        message.as_slice(), path.display(), pos);
         let _ = io::stderr().write_str(s.as_slice());
         fail!()
     }
