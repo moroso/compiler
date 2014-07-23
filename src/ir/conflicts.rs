@@ -35,18 +35,26 @@ impl ConflictAnalyzer {
                         _ => fail!("Should have a variable here."),
                     }
                 },
-                Call(_, ref f, ref args) => {
-                    // TODO: this is a hack for now (as should be obvious!)
-                    match *f {
-                        Variable(v) => {
-                            if format!("{}", v.name)
-                                == "print_uint".to_string() {
-                                    must_colors.insert(args[0],
-                                                       RegColor(
-                                                           Reg { index: 0 }));
-                                }
-                        },
-                        _ => {}
+                Call(ref v, _, ref args) => {
+                    for (i, arg) in args.iter().enumerate()
+                        .take(num_param_regs)
+                    {
+                        must_colors.insert(*arg,
+                                           RegColor(Reg { index: i as u8 }));
+                    }
+                    must_colors.insert(*v, RegColor(Reg { index: 0 as u8 }));
+                },
+                Func(_, ref args) => {                    
+                    for (i, arg) in args.iter().enumerate()
+                        .take(num_param_regs)
+                    {
+                        must_colors.insert(*arg,
+                                           RegColor(Reg { index: i as u8 }));
+                    }
+                    for i in range(num_param_regs, args.len()) {
+                        must_colors.insert(args[i],
+                                           StackColor((i as int) -
+                                                      (args.len() as int)));
                     }
                 }
                 _ => {}
@@ -54,8 +62,8 @@ impl ConflictAnalyzer {
         }
 
         for info in opinfo.iter() {
-            for var1 in info.live.iter().chain(info.def.iter()) {
-                for var2 in info.live.iter().chain(info.def.iter()) {
+            for var1 in info.live.iter() {
+                for var2 in info.live.iter() {
                     if var1 != var2 {
                         if !conflict_map.contains_key(var1) {
                             conflict_map.insert(*var1, TreeSet::<Var>::new());

@@ -89,50 +89,45 @@ impl Target for AsmTarget {
                 }
             }
 
-            // TODO: this is, of course, a hack.
-            if asm_insts.len() < 4 {
-                continue;
-            } else {
-                let (mut packets, new_labels) = schedule(&asm_insts,
-                                                         &labels,
-                                                         true);
-                print!("New labels: {}\n", new_labels);
-                for (pos, packet) in packets.iter().enumerate() {
-                    for (k, v) in new_labels.iter() {
-                        if *v == pos {
-                            print!("{}:\n", k);
-                        }
-                    }
-
-                    print!("    {}, {}, {}, {},\n",
-                           packet[0],
-                           packet[1],
-                           packet[2],
-                           packet[3])
-                }
+            let (mut packets, new_labels) = schedule(&asm_insts,
+                                                     &labels,
+                                                     true);
+            print!("New labels: {}\n", new_labels);
+            for (pos, packet) in packets.iter().enumerate() {
                 for (k, v) in new_labels.iter() {
-                    if *v == packets.len() {
+                    if *v == pos {
                         print!("{}:\n", k);
                     }
                 }
 
-                labels::resolve_labels(&mut packets, &new_labels);
-                for packet in packets.iter() {
-                    print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",
-                           encode(&packet[0]),
-                           encode(&packet[1]),
-                           encode(&packet[2]),
-                           encode(&packet[3]))
+                print!("    {}, {}, {}, {},\n",
+                       packet[0],
+                       packet[1],
+                       packet[2],
+                       packet[3])
+            }
+            for (k, v) in new_labels.iter() {
+                if *v == packets.len() {
+                    print!("{}:\n", k);
                 }
+            }
 
-                let mut stderr = stdio::stderr();
+            labels::resolve_labels(&mut packets, &new_labels);
+            for packet in packets.iter() {
+                print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",
+                       encode(&packet[0]),
+                       encode(&packet[1]),
+                       encode(&packet[2]),
+                       encode(&packet[3]))
+            }
 
-                for packet in packets.iter() {
-                    print_bin(encode(&packet[0]), &mut stderr);
-                    print_bin(encode(&packet[1]), &mut stderr);
-                    print_bin(encode(&packet[2]), &mut stderr);
-                    print_bin(encode(&packet[3]), &mut stderr);
-                }
+            let mut stderr = stdio::stderr();
+
+            for packet in packets.iter() {
+                print_bin(encode(&packet[0]), &mut stderr);
+                print_bin(encode(&packet[1]), &mut stderr);
+                print_bin(encode(&packet[2]), &mut stderr);
+                print_bin(encode(&packet[3]), &mut stderr);
             }
         }
     }

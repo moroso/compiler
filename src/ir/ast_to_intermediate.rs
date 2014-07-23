@@ -150,16 +150,23 @@ impl<'a> ASTToIntermediate<'a> {
                     None => return vec!(),
                 };
 
-                let mut ops = vec!(Func(id.val.name,
-                                        args.iter()
-                                        .map(
-                                            |arg| Var {
-                                                name: arg.ident.val.name,
-                                                generation: None
-                                            })
-                                        .collect()));
+                let vars: Vec<Var> = args
+                    .iter()
+                    .map(
+                        |arg| Var {
+                            name: arg.ident.val.name,
+                            generation: None
+                        })
+                    .collect();
 
+                let var_stores = vars.iter()
+                    .map(|var| UnOp(var.clone(), Identity,
+                                    Variable(var.clone()))).collect();
+
+                let mut ops = vec!(Func(id.val.name, vars));
+                ops.push_all_move(var_stores);
                 ops.push_all_move(new_ops);
+
                 match v {
                     Some(v) => ops.push(Return(Variable(v))),
                     // TODO: Return should take an Option.
@@ -605,13 +612,18 @@ impl<'a> ASTToIntermediate<'a> {
                 // We add in a bunch of dummy assignments, so that we can
                 // be sure that registers are assigned correctly. Many of
                 // these will be optimized away later.
-                for var in vars.iter() {
-                    ops.push(UnOp(var.clone(), Identity,
+                let new_vars = Vec::from_fn(vars.len(),
+                                            |_| self.gen_temp());
+                for (idx, var) in vars.iter().enumerate() {
+                    ops.push(UnOp(new_vars[idx], Identity,
                                   Variable(var.clone())));
                 }
                 ops.push(Call(result_var.clone(),
                               Variable(new_var),
-                              vars.move_iter().collect()));
+                              new_vars.move_iter().collect()));
+                // We add one more dummy assignment, for the result.
+                ops.push(UnOp(result_var.clone(), Identity,
+                              Variable(result_var.clone())));
                 let this_ty = self.typemap.types.get(&expr.id.to_uint());
                 match *this_ty {
                     UnitTy => (ops, None),

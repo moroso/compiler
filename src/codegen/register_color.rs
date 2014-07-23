@@ -28,7 +28,8 @@ impl RegisterColorer {
         for &(var, _) in freq_vec.iter() {
             let maybe_pos = mem_locs.find(&var.name);
             match maybe_pos {
-                Some(i) => { coloring.insert(var.clone(), StackColor(*i)); },
+                Some(i) => { coloring.insert(var.clone(),
+                                             StackColor(*i as int)); },
                 _ => {},
             }
         }
@@ -55,7 +56,7 @@ impl RegisterColorer {
                 continue;
             }
 
-            let mut i = 0u;
+            let mut i = 0i;
             loop {
                 if !adjacent_colors.contains(&Some(StackColor(i))) {
                     break;
