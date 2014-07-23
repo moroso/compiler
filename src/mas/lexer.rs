@@ -187,20 +187,14 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
     struct ShiftRule;
     impl RuleMatcher<ShiftType> for ShiftRule {
         fn find(&self, s: &str) -> Option<(uint, ShiftType)> {
-            let matcher = matcher!(r"(<<|>>)(u|s|r)?");
+            let matcher = matcher!(r"(<<|>>u|>>s|>>r)");
             match matcher.captures(s) {
                 Some(groups) => {
                     let shift_type = match groups.at(1) {
-                        "<<" => {
-                            if groups.at(2) != "r" { SllShift }
-                            else { fail!("Can't rotate left.") }
-                        },
-                        ">>" => match groups.at(2) {
-                            "u" => SrlShift,
-                            "s" => SraShift,
-                            "r" => RorShift,
-                            _ => fail!(),
-                        },
+                        "<<" => SllShift,
+                        ">>u" => SrlShift,
+                        ">>s" => SraShift,
+                        ">>r" => RorShift,
                         _ => fail!(),
                     };
 
