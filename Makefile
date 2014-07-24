@@ -6,9 +6,10 @@ MC_FILES := \
 	span.rs \
 	typechecker.rs \
 	values.rs \
+	codegen/combine.rs \
+	codegen/ir_to_asm.rs \
 	codegen/mod.rs \
 	codegen/register_color.rs \
-	codegen/ir_to_asm.rs \
 	intrinsics/mod.rs \
 	intrinsics/size_of.rs \
 	ir/ast_to_intermediate.rs \

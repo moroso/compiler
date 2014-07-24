@@ -11,18 +11,21 @@ use ir::ast_to_intermediate::ASTToIntermediate;
 use ir::constant_fold::ConstantFolder;
 use ir::ssa::ToSSA;
 use ir::conflicts::ConflictAnalyzer;
+use ir::Func;
 
 use codegen::register_color::RegisterColorer;
 use codegen::num_usable_vars;
 use codegen::IrToAsm;
+use codegen::combine::link;
 
 use mas::labels;
 use mas::encoder::encode;
 use mas::ast::NopInst;
 use mas::scheduler::schedule;
+use mas::lexer::new_asm_lexer;
+use mas::parser::AsmParser;
 
-use std::io::Writer;
-use std::io::stdio;
+use std::io::{Writer, stdio, File, BufferedReader};
 
 pub struct AsmTarget;
 
@@ -57,7 +60,32 @@ impl Target for AsmTarget {
             converter.convert_module(&module)
         };
 
+        let fname = "src/mc/prelude.ma";
+        let path = Path::new(fname);
+        let file = File::open(&path).unwrap_or_else(|e| fail!("{}", e));
+
+        let reader = BufferedReader::new(file);
+        let asm_lexer = new_asm_lexer(fname, reader);
+        let asm_peekable = asm_lexer.peekable();
+        let mut asm_parser = AsmParser::new(asm_peekable);
+        let (insts, labels) = asm_parser.parse_toplevel();
+
+        let mut items = vec!((insts, labels));
+
         for insts in result.mut_iter() {
+            match (*insts)[0] {
+                Func(ref n, _) => {
+                    // We override certain functions with asm versions in
+                    // prelude.ma. This is a temporary hack.
+                    match format!("{}", n).as_slice() {
+                        "print_uint" |
+                        "print_int" |
+                        "print_newline" => continue,
+                        _ => {},
+                    }
+                },
+                _ => fail!()
+            }
             ToSSA::to_ssa(insts, true);
             ConstantFolder::fold(insts, true);
             for a in LivenessAnalyzer::analyze(insts).iter() {
@@ -89,9 +117,10 @@ impl Target for AsmTarget {
                 }
             }
 
-            let (mut packets, new_labels) = schedule(&asm_insts,
-                                                     &labels,
-                                                     true);
+            let (packets, new_labels) = schedule(&asm_insts,
+                                                 &labels,
+                                                 true);
+            /*
             print!("New labels: {}\n", new_labels);
             for (pos, packet) in packets.iter().enumerate() {
                 for (k, v) in new_labels.iter() {
@@ -111,24 +140,48 @@ impl Target for AsmTarget {
                     print!("{}:\n", k);
                 }
             }
+            */
+            items.push((packets, new_labels));
+        }
 
-            labels::resolve_labels(&mut packets, &new_labels);
-            for packet in packets.iter() {
-                print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",
-                       encode(&packet[0]),
-                       encode(&packet[1]),
-                       encode(&packet[2]),
-                       encode(&packet[3]))
+        let (mut all_packets, all_labels) = link(items);
+
+        for (pos, packet) in all_packets.iter().enumerate() {
+            for (k, v) in all_labels.iter() {
+                if *v == pos {
+                    print!("{}:\n", k);
+                }
             }
 
-            let mut stderr = stdio::stderr();
-
-            for packet in packets.iter() {
-                print_bin(encode(&packet[0]), &mut stderr);
-                print_bin(encode(&packet[1]), &mut stderr);
-                print_bin(encode(&packet[2]), &mut stderr);
-                print_bin(encode(&packet[3]), &mut stderr);
+            print!("    {}, {}, {}, {},\n",
+                   packet[0],
+                   packet[1],
+                   packet[2],
+                   packet[3])
+        }
+        for (k, v) in all_labels.iter() {
+            if *v == all_packets.len() {
+                print!("{}:\n", k);
             }
+        }
+
+
+        labels::resolve_labels(&mut all_packets, &all_labels);
+        for packet in all_packets.iter() {
+            print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",
+                   encode(&packet[0]),
+                   encode(&packet[1]),
+                   encode(&packet[2]),
+                   encode(&packet[3]))
+        }
+
+        let mut stderr = stdio::stderr();
+
+        for packet in all_packets.iter() {
+            print_bin(encode(&packet[0]), &mut stderr);
+            print_bin(encode(&packet[1]), &mut stderr);
+            print_bin(encode(&packet[2]), &mut stderr);
+            print_bin(encode(&packet[3]), &mut stderr);
         }
     }
 

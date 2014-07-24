@@ -434,7 +434,15 @@ impl IrToAsm {
                 Func(ref name, _) => {
                     targets.insert(format!("{}", name), result.len());
 
-                    // Save the return address.
+                    // Save the return address, offset by one packet size.
+                    result.push(
+                        InstNode::alu2short(
+                            true_pred,
+                            AddAluOp,
+                            link_register,
+                            link_register,
+                            16,
+                            0));
                     result.push(
                         InstNode::store(true_pred,
                                         store32_op,
@@ -636,6 +644,12 @@ impl IrToAsm {
                                 ));
                     }
 
+                    let fname = match *f {
+                        Variable(v) => v.name,
+                        // TODO
+                        _ => fail!(),
+                    };
+
                     result.push_all_move(vec!(
                         InstNode::alu2short(
                             true_pred,
@@ -644,19 +658,17 @@ impl IrToAsm {
                             stack_pointer,
                             offs_base,
                             offs_shift),
-
+                        InstNode::branchimm(
+                            true_pred,
+                            true,
+                            JumpLabel(format!("{}", fname))),
                         InstNode::alu2short(
                             true_pred,
                             SubAluOp,
                             stack_pointer,
                             stack_pointer,
                             offs_base,
-                            offs_shift),
-                            
-                        //InstNode::branchimm(
-                        //    true_pred,
-                        //    true,
-                        //    JumpLabel(format!("{}", f.name)))
+                            offs_shift)
                         ));
 
                     for (i, arg_reg) in range(total_vars,
@@ -675,18 +687,6 @@ impl IrToAsm {
                 _ => {},
             }
         }
-
-        result.push(
-            InstNode::alu1short(
-                true_pred,
-                MovAluOp,
-                Reg { index: 30 },
-                0,
-                0));
-        result.push(
-            InstNode::breaknum(
-                true_pred,
-                0x1f));
 
         (result, targets)
     }
