@@ -128,8 +128,8 @@ pub enum CompareType {
 #[deriving(Clone, Eq, PartialEq, FromPrimitive, Ord, PartialOrd)]
 pub enum ShiftType {
     SllShift,
-    SraShift,
     SrlShift,
+    SraShift,
     RorShift,
 }
 
