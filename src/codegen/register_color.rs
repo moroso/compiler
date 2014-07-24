@@ -67,12 +67,19 @@ impl RegisterColorer {
             let mut color = StackColor(i);
 
             for n in range(0, num_colors) {
-                // NOTE: this is just for magic debugging stuff, and should be
-                // removed later.
-                if n == 30 { continue; }
+                let n = n as u8;
+                // No matter what, we're not allowed to assign these registers.
+                if n == spill_reg_base ||
+                    n == spill_reg_base+1 ||
+                    n == spill_reg_base+2 ||
+                    n == link_register.index ||
+                    n == stack_pointer.index
+                {
+                    continue;
+                }
                 if !adjacent_colors.contains(
-                    &Some(RegColor(Reg { index: n as u8 } ))) {
-                    color = RegColor(Reg { index: n as u8 } );
+                    &Some(RegColor(Reg { index: n } ))) {
+                    color = RegColor(Reg { index: n } );
                     break;
                 }
             }
