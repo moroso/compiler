@@ -102,7 +102,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                 }
             },
             // TODO: get rid of redundant code.
-            CondGoto(_, _, ref l, ref vars) => {
+            CondGoto(_, ref rve, ref l, ref vars) => {
                 for u2 in range(0, len) {
                     match ops[u2] {
                         Label(l2, _) if *l == l2 => {
@@ -117,6 +117,10 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                 }
                 if u + 1 < len {
                     opinfo.succ.insert(u + 1);
+                }
+                match *rve {
+                    Variable(ref v) => { opinfo.used.insert(v.clone()); },
+                    _ => {},
                 }
             },
             Return(ref v) => {

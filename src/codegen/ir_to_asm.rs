@@ -596,9 +596,14 @@ impl IrToAsm {
 
                     // TODO: be smarter about which caller-save variables
                     // we need to save.
-                    let offs = stack_arg_offs as i32 +
-                        max(num_param_regs as i32,
-                            total_vars as i32 - num_param_regs as i32) * 4;
+                    let offs =
+                        if total_vars >= num_param_regs {
+                            stack_arg_offs as i32 +
+                                (total_vars as i32 - num_param_regs as i32) * 4
+                        } else {
+                            stack_arg_offs as i32 +
+                                num_param_regs as i32 * 4
+                        };
                     let (offs_base, offs_shift) =
                         pack_int(offs as u32, 10).unwrap();
 

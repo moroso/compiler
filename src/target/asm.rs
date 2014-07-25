@@ -149,11 +149,12 @@ impl Target for AsmTarget {
         for (pos, packet) in all_packets.iter().enumerate() {
             for (k, v) in all_labels.iter() {
                 if *v == pos {
-                    print!("{}:\n", k);
+                    print!("    {}:\n", k);
                 }
             }
 
-            print!("    {}, {}, {}, {},\n",
+            print!("{:04x}        {}, {}, {}, {},\n",
+                   pos * 16,
                    packet[0],
                    packet[1],
                    packet[2],

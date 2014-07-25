@@ -1,7 +1,7 @@
 _start:
         { bl main; r30 <- 0x1000; }
         { r30 <- 0; }
-        { break; }
+        { break 0x1f; }
 
 print_int:
 print_uint:
