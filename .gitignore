@@ -8,3 +8,6 @@
 /test/c-results/
 /test/ir-c/
 /test/ir-c-results/
+/test/ir-c-bin/
+/test/asm-bin/
+/test/asm-results/
