@@ -143,12 +143,12 @@ mod tests {
                                               TreeMap::new(),
                                               TreeSet::new(),
                                               10);
-        for i in range(0u32, 10) {
+        for i in range(0u32, 8) {
             let color = *coloring.find(&var(i)).unwrap();
             assert_eq!(color, RegColor(Reg { index: i as u8 } ));
         }
 
-        for i in range(10u32, 20) {
+        for i in range(8u32, 20) {
             let color = *coloring.find(&var(i)).unwrap();
             match color {
                 StackColor(_) => {},

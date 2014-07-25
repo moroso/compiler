@@ -162,7 +162,8 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
     // inst1 writes a variable that inst2 uses.
     if destreg1.is_some() &&
         destreg1 == srcreg1(inst2) ||
-        destreg1 == srcreg2(inst2) {
+        destreg1 == srcreg2(inst2) ||
+        destreg1 == destreg(inst2) {
             return false;
         }
 
