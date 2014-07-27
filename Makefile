@@ -85,6 +85,7 @@ ASM_TEST_FILES := \
 	test_struct.mb \
 	test_recursive_types.mb \
 	test_nested_struct.mb \
+	test_enums.mb \
 	test_indexing.mb \
 	test_struct_offs.mb \
 	test_array.mb \

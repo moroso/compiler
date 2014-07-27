@@ -21,7 +21,7 @@ use codegen::combine::link;
 use mas::labels;
 use mas::encoder::encode;
 use mas::ast::NopInst;
-use mas::scheduler::schedule;
+use mas::scheduler::{schedule, schedule_dummy};
 use mas::lexer::new_asm_lexer;
 use mas::parser::AsmParser;
 

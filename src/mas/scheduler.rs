@@ -182,7 +182,7 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
     match destpred1 {
         Some(ref p1) => match pred(inst2) {
             Some(ref p2) => {
-                if p1.reg != p2.reg {
+                if p1.reg == p2.reg {
                     return false;
                 }
             },
@@ -235,8 +235,35 @@ fn update_labels(label_map: &TreeMap<uint, Vec<&String>>,
     }
 
 }
-                 
 
+/// Dummy scheduler: one instruction per packet.
+pub fn schedule_dummy(insts: &Vec<InstNode>,
+                      labels: &TreeMap<String, uint>,
+                      _: bool) -> (Vec<[InstNode, ..4]>,
+                                   TreeMap<String, uint>) {
+    let mut packets = vec!();
+
+    for i in range(0, insts.len()) {
+        match insts[i] {
+            LongInst(..) => continue,
+            _ => {},
+        }
+        let is_long = match insts[i] {
+            ALU2LongInst(..) |
+            ALU1LongInst(..) |
+            CompareLongInst(..) => true,
+            _ => false,
+        };
+        if is_long {
+            packets.push([insts[i].clone(), insts[i+1].clone(), NopInst,
+                          NopInst]);
+        } else {
+            packets.push([insts[i].clone(), NopInst, NopInst, NopInst]);
+        }
+    }
+
+    (packets, labels.clone())
+}
 
 pub fn schedule(insts: &Vec<InstNode>,
                 labels: &TreeMap<String, uint>,
