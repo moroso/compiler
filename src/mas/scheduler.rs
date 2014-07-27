@@ -134,6 +134,16 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
     match *inst1 {
         BreakInst(..) |
         FenceInst(..) => return false,
+        // Never commute a load with a store, because we aren't smart enough
+        // to know about aliasing.
+        LoadInst(..) => match *inst2 {
+            StoreInst(..) => return false,
+            _ => {},
+        },
+        StoreInst(..) => match *inst2 {
+            LoadInst(..) => return false,
+            _ => {},
+        },
         _ => {},
     }
     match *inst2 {
@@ -161,9 +171,9 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
     let destreg1 = destreg(inst1);
     // inst1 writes a variable that inst2 uses.
     if destreg1.is_some() &&
-        destreg1 == srcreg1(inst2) ||
-        destreg1 == srcreg2(inst2) ||
-        destreg1 == destreg(inst2) {
+        (destreg1 == srcreg1(inst2) ||
+         destreg1 == srcreg2(inst2) ||
+         destreg1 == destreg(inst2)) {
             return false;
         }
 
@@ -324,7 +334,7 @@ pub fn schedule(insts: &Vec<InstNode>,
                         };
                         if this_packet[idx] == NopInst && (
                             !is_long ||
-                                (idx < 3 && this_packet[idx] == NopInst)) {
+                                (idx < 3 && this_packet[idx+1] == NopInst)) {
                             // Usually we just have to move one instruction
                             // into the packet, but for instructions expecting
                             // a long we have to move two.
