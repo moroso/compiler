@@ -629,6 +629,9 @@ impl IrToAsm {
                     result.push_all_move(after);
                 },
                 Call(_, ref f, ref vars) => {
+                    // TODO: this is a lot messier than it should be.
+                    // Clean it up!
+
                     // The register allocator will ensure that all variables
                     // that need to be passed on the stack actually are, and
                     // that the return variable is assigned correctly. We need
@@ -666,7 +669,9 @@ impl IrToAsm {
                     // available stack slots.
                     // Note that if we fill all register slots, we have no
                     // saving to do.
-                    for (i, arg_reg) in range(total_vars,
+                    // The "max" here is because we never want to save/restore
+                    // r0.
+                    for (i, arg_reg) in range(max(total_vars, 1),
                                               num_param_regs).enumerate() {
                         result.push(
                             InstNode::store(
@@ -729,7 +734,7 @@ impl IrToAsm {
                             offs_shift)
                         ));
 
-                    for (i, arg_reg) in range(total_vars,
+                    for (i, arg_reg) in range(max(total_vars, 1),
                                               num_param_regs).enumerate() {
                         result.push(
                             InstNode::load(

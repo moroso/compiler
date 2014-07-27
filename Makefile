@@ -77,6 +77,7 @@ ASM_TEST_FILES := \
 	test_short_circuit.mb \
 	test_sizeof.mb \
 	test_break_continue.mb \
+	test_modules.mb \
 	test_func_prototypes.mb \
 	test_param_types.mb \
 	test_struct.mb \
