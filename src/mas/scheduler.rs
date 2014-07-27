@@ -411,6 +411,9 @@ pub fn schedule(insts: &Vec<InstNode>,
 
     if debug {
         print!("packets: {}\n", packets);
+        print!("Efficiency: {} instructions in {} packets = {}\n",
+               insts.len(), packets.len(),
+               insts.len() as f32 / packets.len() as f32);
     }
     (packets, modified_labels)
 }
