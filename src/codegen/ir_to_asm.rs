@@ -73,7 +73,8 @@ fn convert_binop<'a>(
     dest: Reg,
     op: &BinOpNode,
     mut op_l: &'a RValueElem,
-    mut op_r: &'a RValueElem) -> Vec<InstNode> {
+    mut op_r: &'a RValueElem,
+    offs: u32) -> Vec<InstNode> {
 
     let mut result = vec!();
     let mut swapped = false;
@@ -88,14 +89,14 @@ fn convert_binop<'a>(
         _ => fail!("Trying to apply a binary operation to two constants. Did you remember to do the constant folding pass?"),
     };
 
-    let (reg_l, before_l, _) = var_to_reg(regmap, &var_l, 1);
+    let (reg_l, before_l, _) = var_to_reg(regmap, &var_l, 1, offs);
     result.push_all_move(before_l);
 
     // TODO: handle shifts, multiplication, division.
 
     match *op_r {
         Variable(ref var) => {
-            let (reg_r, before_r, _) = var_to_reg(regmap, var, 2);
+            let (reg_r, before_r, _) = var_to_reg(regmap, var, 2, offs);
             result.push_all_move(before_r);
 
             // TODO: signedness needs to be part of the IR.
@@ -234,7 +235,8 @@ fn convert_unop<'a>(
     regmap: &TreeMap<Var, RegisterColor>,
     dest: Reg,
     op: &UnOpNode,
-    rhs: &'a RValueElem) -> Vec<InstNode> {
+    rhs: &'a RValueElem,
+    offs: u32) -> Vec<InstNode> {
 
     let pred = Pred {
         inverted: false,
@@ -250,7 +252,7 @@ fn convert_unop<'a>(
                                                         AddAluOp,
                                                         dest,
                                                         stack_pointer,
-                                                        (n * 4) as u32,
+                                                        offs + (n * 4) as u32,
                                                         0));
                     },
                     GlobalColor => unimplemented!(),
@@ -274,7 +276,7 @@ fn convert_unop<'a>(
 
     match *rhs {
         Variable(ref var) => {
-            let (reg_r, mut before_r, _) = var_to_reg(regmap, var, 2);
+            let (reg_r, mut before_r, _) = var_to_reg(regmap, var, 2, offs);
             before_r.push_all_move(reg_op(reg_r));
             before_r
         },
@@ -323,9 +325,12 @@ fn width_to_lsuwidth(width: &Width) -> LsuWidth {
 // afterwards (for writes), for it to be valid (in the case of
 // spilling). spill_pos must be 0, 1, or 2, and should not be re-used
 // while another register with the same spill_pos is active.
+// offs is where variables on the stack start (so, after all structs
+// and such that are allocated on the stack).
 fn var_to_reg(regmap: &TreeMap<Var, RegisterColor>,
               var: &Var,
-              spill_pos: u8) -> (Reg, Vec<InstNode>, Vec<InstNode>) {
+              spill_pos: u8,
+              offs: u32) -> (Reg, Vec<InstNode>, Vec<InstNode>) {
     match *regmap.find(var).unwrap() {
         RegColor(reg) => (reg,
                           vec!(), vec!()),
@@ -340,14 +345,14 @@ fn var_to_reg(regmap: &TreeMap<Var, RegisterColor>,
                                         width: LsuWidthL },
                                 reg,
                                 stack_pointer,
-                                (pos * 4) as i32)
+                                (offs as int + pos * 4) as i32)
                      ),
              vec!(
                  InstNode::store(pred,
                                  LsuOp { store: true,
                                          width: LsuWidthL },
                                  stack_pointer,
-                                 (pos * 4) as i32,
+                                 (offs as int + pos * 4) as i32,
                                  reg)
                      ),
                  )
@@ -359,7 +364,8 @@ fn var_to_reg(regmap: &TreeMap<Var, RegisterColor>,
 fn assign_vars(regmap: &TreeMap<Var, RegisterColor>,
                pred: &Pred,
                gens: &TreeMap<Name, uint>,
-               vars: &TreeSet<Var>) -> Vec<InstNode> {
+               vars: &TreeSet<Var>,
+               offs: u32) -> Vec<InstNode> {
     let mut result = vec!();
 
     for var in vars.iter() {
@@ -367,8 +373,8 @@ fn assign_vars(regmap: &TreeMap<Var, RegisterColor>,
             name: var.name.clone(),
             generation: Some(*gens.find(&var.name).unwrap())
         };
-        let (src_reg, src_insts, _) = var_to_reg(regmap, var, 1);
-        let (dest_reg, _, dest_insts) = var_to_reg(regmap, &new_var, 1);
+        let (src_reg, src_insts, _) = var_to_reg(regmap, var, 1, offs);
+        let (dest_reg, _, dest_insts) = var_to_reg(regmap, &new_var, 1, offs);
         result.push_all_move(src_insts);
         if src_reg != dest_reg {
             result.push(
@@ -392,6 +398,22 @@ impl IrToAsm {
             ConflictAnalyzer::conflicts(ops);
         let regmap = RegisterColorer::color(conflicts, counts, must_colors,
                                             mem_vars, num_usable_vars);
+        // Figure out where objects on the stack will go.
+        // stack_item_map is a map from instruction index (for an alloca
+        // instruction) to a stack offset.
+        let mut stack_item_map: TreeMap<uint, u32> = TreeMap::new();
+        // Start at 4, to skip over the saved return value.
+        let mut stack_item_offs: u32 = 4;
+        for (inst, op) in ops.iter().enumerate() {
+            match *op {
+                Alloca(_, size) => {
+                    stack_item_map.insert(inst, stack_item_offs);
+                    stack_item_offs += size as u32;
+                },
+                _ => {}
+            }
+        }
+
         // Find the highest index of any register we use, so we know which
         // ones we need to save.
         let max_reg_index = regmap.iter().map(|(_, c)|
@@ -410,6 +432,8 @@ impl IrToAsm {
 
         let mut labels: SmallIntMap<TreeMap<Name, uint>> = SmallIntMap::new();
         // Find out which variables are used at each label.
+        // TODO: merge this in with the loop above, so we don't iterate over
+        // the instruction list as many times?
         for op in ops.iter() {
             match *op {
                 Label(ref idx, ref vars) => {
@@ -459,7 +483,8 @@ impl IrToAsm {
                             InstNode::store(true_pred,
                                             store32_op,
                                             stack_pointer,
-                                            ((x + 1) * 4) as i32,
+                                            (stack_item_offs as uint +
+                                             x * 4) as i32,
                                             Reg { index: i })
                                 );
                     }
@@ -467,7 +492,8 @@ impl IrToAsm {
                 Return(ref rve) => {
                     // Store the result in r0.
                     result.push_all_move(
-                        convert_unop(&regmap, return_reg, &Identity, rve));
+                        convert_unop(&regmap, return_reg, &Identity, rve,
+                                     stack_item_offs));
 
                     // Restore all callee-save registers
                     for (x, i) in range_inclusive(first_callee_saved_reg.index,
@@ -477,7 +503,8 @@ impl IrToAsm {
                                            load32_op,
                                            Reg { index: i },
                                            stack_pointer,
-                                           ((x + 1) * 4) as i32
+                                           (stack_item_offs as uint +
+                                            x * 4) as i32
                                            ));
                     }
 
@@ -496,15 +523,19 @@ impl IrToAsm {
                                             0));
                 },
                 BinOp(ref var, ref op, ref rve1, ref rve2) => {
-                    let (lhs_reg, _, after) = var_to_reg(&regmap, var, 0);
+                    let (lhs_reg, _, after) = var_to_reg(&regmap, var, 0,
+                                                         stack_item_offs);
                     result.push_all_move(
-                        convert_binop(&regmap, lhs_reg, op, rve1, rve2));
+                        convert_binop(&regmap, lhs_reg, op, rve1, rve2,
+                                      stack_item_offs));
                     result.push_all_move(after);
                 },
                 UnOp(ref var, ref op, ref rve1) => {
-                    let (lhs_reg, _, after) = var_to_reg(&regmap, var, 0);
+                    let (lhs_reg, _, after) = var_to_reg(&regmap, var, 0,
+                                                         stack_item_offs);
                     result.push_all_move(
-                        convert_unop(&regmap, lhs_reg, op, rve1));
+                        convert_unop(&regmap, lhs_reg, op, rve1,
+                                     stack_item_offs));
                     result.push_all_move(after);
                 }
                 Load(ref var1, ref var2, ref width) |
@@ -513,9 +544,11 @@ impl IrToAsm {
                         Load(..) => false,
                         _ => true,
                     };
-                    let (reg1, before1, _) = var_to_reg(&regmap, var1, 0);
+                    let (reg1, before1, _) = var_to_reg(&regmap, var1, 0,
+                                                        stack_item_offs);
                     result.push_all_move(before1);
-                    let (reg2, before2, _) = var_to_reg(&regmap, var2, 0);
+                    let (reg2, before2, _) = var_to_reg(&regmap, var2, 0,
+                                                        stack_item_offs);
                     result.push_all_move(before2);
 
                     let lsuop = LsuOp { store: store,
@@ -537,7 +570,8 @@ impl IrToAsm {
                 },
                 CondGoto(ref negated, Variable(ref var), ref label,
                          ref vars) => {
-                    let (reg, before, _) = var_to_reg(&regmap, var, 0);
+                    let (reg, before, _) = var_to_reg(&regmap, var, 0,
+                                                      stack_item_offs);
                     result.push_all_move(before);
                     result.push(
                         InstNode::compareshort(
@@ -550,7 +584,7 @@ impl IrToAsm {
                             0));
                     result.push_all_move(assign_vars(&regmap, &true_pred,
                                                      labels.get(label),
-                                                     vars));
+                                                     vars, stack_item_offs));
                     result.push(
                         InstNode::branchimm(
                             Pred { inverted: *negated,
@@ -561,7 +595,7 @@ impl IrToAsm {
                 Goto(ref label, ref vars) => {
                     result.push_all_move(assign_vars(&regmap, &true_pred,
                                                      labels.get(label),
-                                                     vars));
+                                                     vars, stack_item_offs));
                     // Don't emit redundant jumps.
                     let next = &ops[pos+1];
                     match *next {
@@ -576,7 +610,24 @@ impl IrToAsm {
                 },
                 Label(ref label, _) => {
                     targets.insert(format!("LABEL{}", label), result.len());
-                }
+                },
+                Alloca(ref var, _) => {
+                    let offs = *stack_item_map.find(&pos).unwrap();
+                    let (reg, _, after) = var_to_reg(&regmap,
+                                                     var, 0,
+                                                     stack_item_offs);
+                    result.push(
+                        InstNode::alu2short(
+                            true_pred,
+                            AddAluOp,
+                            reg,
+                            stack_pointer,
+                            // TODO: encode as base/shift?
+                            offs,
+                            0)
+                        );
+                    result.push_all_move(after);
+                },
                 Call(_, ref f, ref vars) => {
                     // The register allocator will ensure that all variables
                     // that need to be passed on the stack actually are, and
@@ -587,7 +638,8 @@ impl IrToAsm {
 
                     let total_vars = vars.len();
 
-                    let stack_arg_offs = (max_stack_index + 1) * 4;
+                    let stack_arg_offs = stack_item_offs as int +
+                                         (max_stack_index + 1) * 4;
 
                     // This is where the stack pointer should end up pointing.
                     // We always reserve at least num_param_regs slots: either
@@ -637,7 +689,8 @@ impl IrToAsm {
                     for (i, arg_idx) in range(num_param_regs,
                                               total_vars).enumerate() {
                         let (reg, before, _) = var_to_reg(&regmap,
-                                                          &vars[arg_idx], 0);
+                                                          &vars[arg_idx], 0,
+                                                          stack_item_offs);
                         result.push_all_move(before);
                         result.push(
                             InstNode::store(

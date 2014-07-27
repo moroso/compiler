@@ -78,10 +78,13 @@ ASM_TEST_FILES := \
 	test_sizeof.mb \
 	test_break_continue.mb \
 	test_func_prototypes.mb \
+	test_param_types.mb \
 	test_struct.mb \
 	test_recursive_types.mb \
+	test_nested_struct.mb \
 	test_indexing.mb \
 	test_struct_offs.mb \
+	test_array.mb \
 	test_long.mb
 
 mbc: $(addprefix src/,$(MC_FILES))

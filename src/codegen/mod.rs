@@ -23,6 +23,7 @@ pub static spill_reg_base: u8 = 8;
 #[deriving(Ord, PartialOrd, PartialEq, Eq, Show)]
 pub enum RegisterColor {
     RegColor(Reg),
+    // Offset on the stack, in words.
     StackColor(int),
     GlobalColor,
 }
