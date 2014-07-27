@@ -1,6 +1,8 @@
 RUST_FLAGS ?=
 
-CPU_SIM=../cpu/sim/cpu_sim/cpu_sim
+CPU_SIM ?= ../cpu/sim/cpu_sim/cpu_sim
+
+SIM_DURATION ?= 5
 
 MC_FILES := \
 	main.rs \
@@ -157,7 +159,7 @@ test/ir-c-results/%.txt: test/ir-c-bin/%
 
 test/asm-results/%.txt: test/asm-bin/%.bin
 	@mkdir -p $(dir $@)
-	@$(CPU_SIM) < $< |grep 'HAS VALUE' |sed 's/.*VALUE //;s/ .*//' > $@
+	@timeout $(SIM_DURATION) $(CPU_SIM) < $< |grep 'HAS VALUE' |sed 's/.*VALUE //;s/ .*//' > $@
 	@diff $@ $(patsubst test/asm-results/%.txt,test/%.txt,$@)
 
 .PHONY: all docs clean run-tests check
