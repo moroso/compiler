@@ -38,6 +38,8 @@ impl RegisterColorer {
         for (var, _) in freq_vec.move_iter() {
             if global_map.find(&var.name).is_some() {
                 // It's a global variable. No work to do!
+                assert!(coloring.find(var).is_none(),
+                        "Already colored a global variable");
                 coloring.insert(*var, GlobalColor);
                 continue;
             }

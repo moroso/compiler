@@ -70,7 +70,7 @@ fn binop_to_aluop(op: &BinOpNode, swapped: bool) -> Option<AluOp> {
 /// Convert a binop into the internal asm representation.
 fn convert_binop<'a, T>(
     regmap: &TreeMap<Var, RegisterColor>,
-    global_map: &TreeMap<Name, (uint, bool, T)>,
+    global_map: &TreeMap<Name, (uint, uint, bool, T)>,
     dest: Reg,
     op: &BinOpNode,
     mut op_l: &'a RValueElem,
@@ -235,7 +235,7 @@ fn convert_binop<'a, T>(
 
 fn convert_unop<'a, T>(
     regmap: &TreeMap<Var, RegisterColor>,
-    global_map: &TreeMap<Name, (uint, bool, T)>,
+    global_map: &TreeMap<Name, (uint, uint, bool, T)>,
     dest: Reg,
     op: &UnOpNode,
     rhs: &'a RValueElem,
@@ -333,7 +333,7 @@ fn width_to_lsuwidth(width: &Width) -> LsuWidth {
 // offs is where variables on the stack start (so, after all structs
 // and such that are allocated on the stack).
 fn var_to_reg<T>(regmap: &TreeMap<Var, RegisterColor>,
-                 global_map: &TreeMap<Name, (uint, bool, T)>,
+                 global_map: &TreeMap<Name, (uint, uint, bool, T)>,
                  var: &Var,
                  spill_pos: u8,
                  offs: u32) -> (Reg, Vec<InstNode>, Vec<InstNode>) {
@@ -364,7 +364,7 @@ fn var_to_reg<T>(regmap: &TreeMap<Var, RegisterColor>,
                  )
         },
         GlobalColor => {
-            let &(offs, is_ref, _) = global_map.find(&var.name).unwrap();
+            let &(offs, _, is_ref, _) = global_map.find(&var.name).unwrap();
             let reg = Reg { index: spill_reg_base + spill_pos };
             if is_ref {
                 (reg,
@@ -409,7 +409,7 @@ fn var_to_reg<T>(regmap: &TreeMap<Var, RegisterColor>,
 }
 
 fn assign_vars<T>(regmap: &TreeMap<Var, RegisterColor>,
-                  global_map: &TreeMap<Name, (uint, bool, T)>,
+                  global_map: &TreeMap<Name, (uint, uint, bool, T)>,
                   pred: &Pred,
                   gens: &TreeMap<Name, uint>,
                   vars: &TreeSet<Var>,
@@ -444,7 +444,7 @@ fn assign_vars<T>(regmap: &TreeMap<Var, RegisterColor>,
 
 impl IrToAsm {
     pub fn ir_to_asm<T>(ops: &Vec<Op>,
-                        global_map: &TreeMap<Name, (uint, bool, T)>
+                        global_map: &TreeMap<Name, (uint, uint, bool, T)>
                         ) -> (Vec<InstNode>, TreeMap<String, uint>) {
         let (conflicts, counts, must_colors, mem_vars) =
             ConflictAnalyzer::conflicts(ops);

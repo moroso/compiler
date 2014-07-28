@@ -90,7 +90,8 @@ ASM_TEST_FILES := \
 	test_struct_offs.mb \
 	test_array.mb \
 	test_long.mb \
-	test_globals.mb
+	test_globals.mb \
+	test_struct_init.mb
 
 mbc: $(addprefix src/,$(MC_FILES))
 	rustc $(RUST_FLAGS) $< --cfg mc -o $@ -g

@@ -218,12 +218,14 @@ impl<'a> ASTToIntermediate<'a> {
     }
 
     pub fn allocate_globals(globals: Vec<StaticIRItem>
-                            ) -> TreeMap<Name, (uint, bool, Option<Expr>)> {
+                            ) -> TreeMap<Name, (uint, uint,
+                                                bool, Option<Expr>)> {
         let mut offs: uint = 0;
         let mut result = TreeMap::new();
 
         for global in globals.move_iter() {
-            result.insert(global.name, (offs, global.is_ref, global.expr));
+            result.insert(global.name, (offs, global.size,
+                                        global.is_ref, global.expr));
             offs += global.size;
         }
 
@@ -236,15 +238,16 @@ impl<'a> ASTToIntermediate<'a> {
     /// initalize all of the items.
     pub fn convert_globals(&mut self,
                            global_map: &TreeMap<Name,
-                           (uint, bool, Option<Expr>)>) -> Vec<Op> {
+                           (uint, uint, bool, Option<Expr>)>) -> Vec<Op> {
         let mut res = vec!(
             Func(self.session.interner.intern("__INIT_GLOBALS".to_string()),
                  vec!()));
-        for (name, &(_, is_ref, ref en)) in global_map.iter() {
+        for (name, &(_, size, is_ref, ref en)) in global_map.iter() {
             match *en {
                 Some(ref expr) => {
                     // First get the instructions for this expression.
                     let (ops, expr_var) = self.convert_expr(expr);
+                    let expr_var = expr_var.unwrap();
                     let ty = (*self.typemap.types.get(&expr.id.to_uint()))
                         .clone();
                     res.push_all_move(ops);
@@ -254,11 +257,30 @@ impl<'a> ASTToIntermediate<'a> {
                     // the value was stored into a register, and it's our
                     // responsibility to store it in memory.
                     assert_eq!(is_ref, ty_is_reference(&ty));
-                    if !ty_is_reference(&ty) {
-                        let result_var = Var { name: name.clone(),
-                                               generation: None };
+                    let result_var = Var { name: name.clone(),
+                                           generation: None };
+                    if ty_is_reference(&ty) {
+                        let new_result_var = self.gen_temp();
+                        res.push(UnOp(new_result_var.clone(), Identity,
+                                      Variable(result_var.clone())));
+                        res.push(UnOp(expr_var.clone(), Identity,
+                                      Variable(expr_var.clone())));
+                        let len_var = self.gen_temp();
+                        res.push(UnOp(len_var, Identity,
+                                      Constant(NumLit(size as u64,
+                                                      UnsignedInt(Width32)))));
+                        res.push(
+                            Call(self.gen_temp(),
+                                 Variable(
+                                     Var { name: self.session.interner.intern(
+                                         "memcpy".to_string()),
+                                           generation: None }),
+                                 vec!(new_result_var,
+                                      expr_var.clone(),
+                                      len_var)));
+                    } else {
                         res.push(UnOp(result_var, Identity,
-                                      Variable(expr_var.unwrap())));
+                                      Variable(expr_var)));
                     }
                 },
                 _ => {},
