@@ -30,15 +30,16 @@ struct CCrossCompiler {
     mangle_map: TreeMap<NodeId, String>,
 }
 
-// TODO: this and find_enum_item_names are hacks, and don't actually support
-// the module system (they will break in the presence of anything nontrivial
-// with paths).
 fn find_structs(module: &Module) -> TreeSet<NodeId> {
     let mut struct_set = TreeSet::new();
 
     for item in module.val.items.iter() {
         match item.val {
             StructItem(ref id, _, _) => { struct_set.insert(id.id); },
+            ModItem(_, ref submod) => {
+                let inner_structs = find_structs(submod);
+                struct_set.extend(inner_structs.iter().map(|x| *x));
+            }
             _ => {},
         }
     }
@@ -46,6 +47,8 @@ fn find_structs(module: &Module) -> TreeSet<NodeId> {
     struct_set
 }
 
+// TODO: this doesn't actually support the module system but since the
+// kernel doesn't use enums I can't be bothered to fix it.
 fn find_enum_item_names(module: &Module)
                         -> TreeMap<Name, (Ident, Vec<Variant>, uint)> {
     let mut enum_map = TreeMap::new();
