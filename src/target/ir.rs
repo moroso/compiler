@@ -242,7 +242,7 @@ impl Target for IRTarget {
             typemap: mut typemap,
         } = p;
 
-        let mut result = {
+        let (mut result, mut staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap);
 
@@ -286,12 +286,14 @@ impl Target for IRTarget {
             }
         }
 
+        let global_map = ASTToIntermediate::allocate_globals(staticitems);
+
         for insts in result.mut_iter() {
             ToSSA::to_ssa(insts, self.verbose);
             if self.verbose {
                 write!(f, "{}\n", insts);
             }
-            ConstantFolder::fold(insts, self.verbose);
+            ConstantFolder::fold(insts, &global_map, self.verbose);
             if self.verbose {
                 write!(f, "{}\n", insts);
                 for a in LivenessAnalyzer::analyze(insts).iter() {

@@ -1,4 +1,4 @@
-use mc::ast::{LitNode, BinOpNode, UnOpNode};
+use mc::ast::{LitNode, BinOpNode, UnOpNode, Expr};
 
 use std::fmt::{Formatter, Result, Show};
 use std::collections::TreeSet;
@@ -11,6 +11,15 @@ pub mod constant_fold;
 pub mod ssa;
 pub mod util;
 pub mod conflicts;
+
+#[deriving(Clone, Eq, PartialEq, Show)]
+pub struct StaticIRItem {
+    pub name: Name,
+    pub size: uint,
+    pub is_ref: bool, // Should this variable be a pointer to global space, or
+                      // is it actually stored in global space?
+    pub expr: Option<Expr>,
+}
 
 #[deriving(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Var {

@@ -3,7 +3,7 @@ use util::{Width32, Width16, Width8, AnyWidth, Width, UnsignedInt, Name};
 use mc::session::Session;
 use mc::ast::defmap::{StructDef, EnumDef, VariantDef};
 
-use std::collections::TreeSet;
+use std::collections::{TreeSet, TreeMap};
 use std::vec::unzip;
 
 use mc::ast::*;
@@ -142,12 +142,14 @@ impl<'a> ASTToIntermediate<'a> {
         }
     }
 
-    pub fn convert_item(&mut self, item: &Item) -> Vec<Vec<Op>> {
+    pub fn convert_item(&mut self, item: &Item) -> (Vec<Vec<Op>>,
+                                                    Vec<StaticIRItem>) {
         match item.val {
             FuncItem(ref id, ref args, _, ref block, _) => {
                 let (new_ops, v) = match *block {
                     Some(ref block) => self.convert_block(block),
-                    None => return vec!(),
+                    // TODO: extern functions.
+                    None => return (vec!(), vec!())
                 };
 
                 let vars: Vec<Var> = args
@@ -178,23 +180,92 @@ impl<'a> ASTToIntermediate<'a> {
                         ops.push(Return(Variable(v)));
                     },
                 }
-                vec!(ops)
+                (vec!(ops), vec!())
             },
             ModItem(_, ref module) => self.convert_module(module),
             StructItem(..) |
             EnumItem(..) |
-            UseItem(..) => vec!(),
-            StaticItem(..) => vec!(), // TODO
+            UseItem(..) => (vec!(), vec!()),
+            StaticItem(ref id, ref t, ref exp) => {
+                let ty = self.typemap.types.get(&t.id.to_uint());
+
+                let size = size_of_ty(self.session,
+                                      self.typemap,
+                                      ty);
+                (vec!(),
+                 vec!(StaticIRItem {
+                     name: id.val.name,
+                     size: size as uint,
+                     is_ref: ty_is_reference(ty),
+                     expr: exp.clone(),
+                 }))
+            }
             _ => fail!("{}", item)
         }
     }
 
-    pub fn convert_module(&mut self, module: &Module) -> Vec<(Vec<Op>)> {
+    pub fn convert_module(&mut self, module: &Module) -> (Vec<(Vec<Op>)>,
+                                                          Vec<StaticIRItem>) {
         let mut res = vec!();
+        let mut static_res = vec!();
         for item in module.val.items.iter() {
-            let converted_items = self.convert_item(item);
+            let (converted_items, converted_static_items) =
+                self.convert_item(item);
             res.push_all_move(converted_items);
+            static_res.push_all_move(converted_static_items);
         }
+        (res, static_res)
+    }
+
+    pub fn allocate_globals(globals: Vec<StaticIRItem>
+                            ) -> TreeMap<Name, (uint, bool, Option<Expr>)> {
+        let mut offs: uint = 0;
+        let mut result = TreeMap::new();
+
+        for global in globals.move_iter() {
+            result.insert(global.name, (offs, global.is_ref, global.expr));
+            offs += global.size;
+        }
+
+        result
+    }
+
+    /// Once we know where in memory we're putting the globals, we have to
+    /// initialize them. Later on this should be moved to some other part of
+    /// the object file, but for now we just generate code on startup to
+    /// initalize all of the items.
+    pub fn convert_globals(&mut self,
+                           global_map: &TreeMap<Name,
+                           (uint, bool, Option<Expr>)>) -> Vec<Op> {
+        let mut res = vec!(
+            Func(self.session.interner.intern("__INIT_GLOBALS".to_string()),
+                 vec!()));
+        for (name, &(_, is_ref, ref en)) in global_map.iter() {
+            match *en {
+                Some(ref expr) => {
+                    // First get the instructions for this expression.
+                    let (ops, expr_var) = self.convert_expr(expr);
+                    let ty = (*self.typemap.types.get(&expr.id.to_uint()))
+                        .clone();
+                    res.push_all_move(ops);
+                    // If the type is a reference, then the instructions just
+                    // produced will store the values into the correct memory
+                    // location, and we have no work to do. But if not, then
+                    // the value was stored into a register, and it's our
+                    // responsibility to store it in memory.
+                    assert_eq!(is_ref, ty_is_reference(&ty));
+                    if !ty_is_reference(&ty) {
+                        let result_var = Var { name: name.clone(),
+                                               generation: None };
+                        res.push(UnOp(result_var, Identity,
+                                      Variable(expr_var.unwrap())));
+                    }
+                },
+                _ => {},
+            }
+        }
+        res.push(Return(Variable(self.gen_temp())));
+
         res
     }
 

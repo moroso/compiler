@@ -13,6 +13,8 @@ pub static link_register: Reg = Reg { index: 31 };
 pub static stack_pointer: Reg = Reg { index: 30 };
 pub static first_callee_saved_reg: Reg = Reg { index: 11 };
 pub static return_reg: Reg = Reg { index: 0 };
+// This register is used for pointers into global storage.
+pub static global_reg: Reg = Reg { index: 11 };
 
 // How many parameters we can pass in registers.
 pub static num_param_regs: uint = 8;
@@ -20,10 +22,15 @@ pub static num_param_regs: uint = 8;
 // We use three registers, starting at this index, for spilled registers.
 pub static spill_reg_base: u8 = 8;
 
+pub static global_mem_start: u32 = 0x8000;
+
 #[deriving(Ord, PartialOrd, PartialEq, Eq, Show)]
 pub enum RegisterColor {
     RegColor(Reg),
     // Offset on the stack, in words.
     StackColor(int),
+    // This value is in global storage.
     GlobalColor,
+    // This is a structure in global storage; we access it by reference.
+    GlobalReferenceColor,
 }

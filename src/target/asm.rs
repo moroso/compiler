@@ -53,12 +53,22 @@ impl Target for AsmTarget {
             typemap: mut typemap,
         } = p;
 
-        let mut result = {
+        let (mut result, staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap);
 
             converter.convert_module(&module)
         };
+
+        let global_map = ASTToIntermediate::allocate_globals(staticitems);
+        print!("Global map: {}\n", global_map);
+        let global_initializer = {
+            let mut converter = ASTToIntermediate::new(&mut session,
+                                                       &mut typemap);
+
+            converter.convert_globals(&global_map)
+        };
+        result.push(global_initializer);
 
         let fname = "src/mc/prelude.ma";
         let path = Path::new(fname);
@@ -87,7 +97,7 @@ impl Target for AsmTarget {
                 _ => fail!()
             }
             ToSSA::to_ssa(insts, true);
-            ConstantFolder::fold(insts, true);
+            ConstantFolder::fold(insts, &global_map, true);
             for a in LivenessAnalyzer::analyze(insts).iter() {
                 write!(f, "{}\n", a);
             }
@@ -99,9 +109,10 @@ impl Target for AsmTarget {
             write!(f, "{}\n",
                    RegisterColorer::color(conflict_map, counts,
                                           must_colors, mem_vars,
+                                          &global_map,
                                           num_usable_vars as uint));
 
-            let (asm_insts, labels) = IrToAsm::ir_to_asm(insts);
+            let (asm_insts, labels) = IrToAsm::ir_to_asm(insts, &global_map);
 
             for (pos, inst) in asm_insts.iter().enumerate() {
                 for (k, v) in labels.iter() {

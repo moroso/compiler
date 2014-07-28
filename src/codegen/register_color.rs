@@ -10,12 +10,13 @@ pub struct RegisterColorer;
 
 impl RegisterColorer {
     /// Greedy register allocator, favoring variables that are used more often.
-    pub fn color(conflicts: TreeMap<Var, TreeSet<Var>>,
-                 frequencies: TreeMap<Var, u32>,
-                 must_colors: TreeMap<Var, RegisterColor>,
-                 mem_vars: TreeSet<Name>,
-                 num_colors: uint
-                 ) -> TreeMap<Var, RegisterColor> {
+    pub fn color<T>(conflicts: TreeMap<Var, TreeSet<Var>>,
+                    frequencies: TreeMap<Var, u32>,
+                    must_colors: TreeMap<Var, RegisterColor>,
+                    mem_vars: TreeSet<Name>,
+                    global_map: &TreeMap<Name, T>,
+                    num_colors: uint
+                    ) -> TreeMap<Var, RegisterColor> {
         print!("must colors: {}\n", must_colors);
         let mut coloring: TreeMap<Var, RegisterColor> =
             FromIterator::from_iter(must_colors.move_iter());
@@ -35,6 +36,11 @@ impl RegisterColorer {
         }
 
         for (var, _) in freq_vec.move_iter() {
+            if global_map.find(&var.name).is_some() {
+                // It's a global variable. No work to do!
+                coloring.insert(*var, GlobalColor);
+                continue;
+            }
             let empty_treeset = TreeSet::<Var>::new();
             let ref adjacent_vars =
                 conflicts
@@ -73,7 +79,8 @@ impl RegisterColorer {
                     n == spill_reg_base+1 ||
                     n == spill_reg_base+2 ||
                     n == link_register.index ||
-                    n == stack_pointer.index
+                    n == stack_pointer.index ||
+                    n == global_reg.index
                 {
                     continue;
                 }
@@ -116,6 +123,7 @@ mod tests {
         let coloring = RegisterColorer::color(conflicts, frequencies,
                                               TreeMap::new(),
                                               TreeSet::new(),
+                                              &TreeMap::<Name, uint>::new(),
                                               10);
         for (idx, (_, &color)) in coloring.iter().enumerate() {
             assert_eq!(color, RegColor(Reg { index: 0 as u8 } ));
@@ -142,6 +150,7 @@ mod tests {
         let coloring = RegisterColorer::color(conflicts, frequencies,
                                               TreeMap::new(),
                                               TreeSet::new(),
+                                              &TreeMap::<Name, uint>::new(),
                                               10);
         for i in range(0u32, 8) {
             let color = *coloring.find(&var(i)).unwrap();
@@ -178,6 +187,7 @@ mod tests {
         let coloring = RegisterColorer::color(conflicts, frequencies,
                                               TreeMap::new(),
                                               TreeSet::new(),
+                                              &TreeMap::<Name, uint>::new(),
                                               10);
         for i in range(0u32, 20) {
             let color = *coloring.find(&var(i)).unwrap();
