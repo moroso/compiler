@@ -102,7 +102,7 @@ struct ModuleResolver<'a> {
     session: &'a mut Session,
     scope: Vec<Subscope>,
     tree: TreeMap<NodeId, ModuleScope>,
-    root: ModuleScope,
+    root: uint,
 }
 
 impl Resolver {
@@ -134,7 +134,7 @@ impl Resolver {
             session: session,
             scope: vec!(root),
             tree: tree,
-            root: OnBranch(0),
+            root: 0,
         };
 
         modres.visit_module(module);
@@ -151,28 +151,18 @@ impl ModuleCollector {
     }
 }
 
-// Utilities
-fn make_scope<'a>(scope: &'a [Subscope], modscope: &'a ModuleScope) -> &'a [Subscope] {
-    match *modscope {
-        OnBranch(idx) => slice::ref_slice(scope.get(idx).unwrap()),
-        OffBranch(ref scope) => slice::ref_slice(scope),
-    }
-}
-
 fn try_resolve_ident(scope: &[Subscope], ns: NS, ident: &Ident) -> Option<NodeId> {
     scope.iter().rev().filter_map(|subscope| subscope.find(ns, ident)).next()
 }
-
-
 
 impl<'a> ModuleResolver<'a> {
     // Takes a module path
     fn try_resolve_subscope(&mut self, global: bool,
                             path: &[Ident]) -> Option<&[Subscope]> {
         let mut search_scope = if global {
-            make_scope(self.scope.as_slice(), &self.root)
+            slice::ref_slice(&self.scope[0])
         } else {
-            self.scope.as_slice()
+            self.scope.slice_from(self.root)
         };
 
         for elem in path.iter() {
@@ -183,7 +173,10 @@ impl<'a> ModuleResolver<'a> {
             };
             match maybe_modscope {
                 Some(modscope) => {
-                    search_scope = make_scope(search_scope, modscope);
+                    search_scope = match *modscope {
+                        OnBranch(idx) => slice::ref_slice(&self.scope[idx]),
+                        OffBranch(ref subscope) => slice::ref_slice(subscope),
+                    }
                 }
                 None => return None,
             }
@@ -464,51 +457,30 @@ impl<'a> Visitor for ModuleResolver<'a> {
             ModItem(ref ident, ref module) => {
                 use std::mem;
 
+                let mut idx = self.scope.len();
+
                 // Find the subscope we're about to descend into and swap it out of the tree
-                let mut scope = match self.tree.swap(ident.id, OnBranch(0)) {
-                    Some(OffBranch(scope)) => vec!(scope),
+                let subscope = match self.tree.swap(ident.id, OnBranch(idx)) {
+                    Some(OffBranch(subscope)) => subscope,
                     _ => fail!(),
                 };
 
-                // Swap the new scope with our current scope (since scope doesn't leak across modules)
-                mem::swap(&mut self.scope, &mut scope);
+                // Add the subscope to the scope branch
+                self.scope.push(subscope);
 
-                // Update our root scope pointer
-                let old_root_idx = match self.root {
-                    OnBranch(idx) => {
-                        let mut root = Subscope::new();
-                        // Swap in a dummy subscope so we can get the old root subscope out
-                        mem::swap(&mut root, scope.get_mut(idx));
-                        self.root = OffBranch(root);
-                        Some(idx)
-                    }
-                    _ => None,
-                };
+                // Update our root scope
+                mem::swap(&mut self.root, &mut idx);
 
                 self.visit_module(module);
 
-                // Pop all the context we saved above
-                match old_root_idx {
-                    Some(idx) => {
-                        let mut root = OnBranch(idx);
-                        mem::swap(&mut root, &mut self.root);
+                // Restore the old root scope
+                mem::swap(&mut self.root, &mut idx);
 
-                        match root {
-                            OffBranch(mut root) => {
-                                // Swap the old root subscope back into the old scope
-                                mem::swap(&mut root, scope.get_mut(idx));
-                            }
-                            _ => unreachable!(),
-                        };
-                    }
-                    None => {}
-                }
-
-                // Swap the old scope back into place
-                mem::swap(&mut self.scope, &mut scope);
+                // Pop the subscope
+                let subscope = self.scope.pop().unwrap();
 
                 // Put the child module's scope back in the tree
-                self.tree.swap(ident.id, OffBranch(scope.pop().unwrap()));
+                self.tree.swap(ident.id, OffBranch(subscope));
             }
             _ => {}
         }
