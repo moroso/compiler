@@ -80,7 +80,7 @@ macro list_prev_entry!(head, node, typ, link) {
 // If we had typeof we could drop the typ argument.
 macro list_foreach_entry!(cur, head, typ, link, body) {
     for ($cur = list_head_entry_!($head, $typ, $link);
-         &$cur->$link != $head;
+         &$cur->$link != &($head)->node;
          $cur = list_next_entry_!($cur, $typ, $link)) {
         $body
     }
