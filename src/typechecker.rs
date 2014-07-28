@@ -1121,10 +1121,12 @@ impl<'a> Typechecker<'a> {
                     val: r_ty_val,
                 };
 
+
+                let out_ty = self.unify_with_cause(nid, InvalidBinop, l_ty, r_ty);
                 if kinds.intersects(enumset!(EqKind, CmpKind, AndKind, OrKind)) {
                     BoolTy
                 } else {
-                    self.unify_with_cause(nid, InvalidBinop, l_ty, r_ty)
+                    out_ty
                 }
             }
         }
