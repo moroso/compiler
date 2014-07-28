@@ -433,7 +433,12 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let path = self.parse_path_common(false, true);
         let import = match *self.peek() {
             Star => {
-                fail!("unimplemented");
+                self.expect(Star);
+                ImportNode {
+                    elems: path.val.elems,
+                    global: path.val.global,
+                    import: ImportAll
+                }
             }
             LBrace => {
                 self.expect(LBrace);

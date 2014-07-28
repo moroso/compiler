@@ -440,7 +440,8 @@ impl MacroDef {
 
 #[deriving(Clone, Show, Eq, PartialEq)]
 pub enum ImportSpec {
-    ImportNames(Vec<Ident>)
+    ImportNames(Vec<Ident>),
+    ImportAll
 }
 
 #[deriving(Eq, PartialEq, Clone, Show)]

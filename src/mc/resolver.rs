@@ -21,7 +21,10 @@ enum ModuleScope {
 }
 
 struct Subscope {
-    names: TreeMap<Name, SmallIntMap<NodeId>>,
+    // XXX: We want SmallIntMap but it didn't derive Clone until
+    // very very recently so I'm making this a TreeMap until we
+    // need to do a compiler upgrade for some other reason.
+    names: TreeMap<Name, TreeMap<uint, NodeId>>,
 }
 
 impl Subscope {
@@ -35,7 +38,9 @@ impl Subscope {
         let ns = ns as uint;
 
         if !self.names.contains_key(&name) {
-            self.names.insert(name, SmallIntMap::new());
+            // See above.
+            //self.names.insert(name, SmallIntMap::new());
+            self.names.insert(name, TreeMap::new());
         }
 
         let names = self.names.find_mut(&name).unwrap();
@@ -250,20 +255,12 @@ impl<'a> ModuleResolver<'a> {
         self.scope.pop().unwrap()
     }
 
-    fn handle_use(&mut self, import: &Import) {
-
-        let idents = match import.val.import {
-            ImportNames(ref id) => id
-        };
-
+    fn handle_use_names(&mut self, global: bool, elems: &[Ident], idents: &[Ident]) {
         for ident in idents.iter() {
 
             let mut found = false;
             for ns in [TypeAndModNS, ValNS, StructNS].iter() {
-                match self.try_resolve_path_split(*ns,
-                                                  import.val.global,
-                                                  import.val.elems.as_slice(),
-                                                  ident) {
+                match self.try_resolve_path_split(*ns, global, elems, ident) {
                     Some(node_id) => {
                         self.add_to_scope(*ns, ident.val.name, node_id);
                         found = true;
@@ -273,11 +270,50 @@ impl<'a> ModuleResolver<'a> {
             }
 
             if !found {
-                let mut path = import.val.elems.clone();
+                let mut path = Vec::from_slice(elems);
                 path.push(ident.clone());
                 self.fail_resolve(ident.id, path.as_slice());
             }
         }
+    }
+
+    fn handle_use_all(&mut self, id: NodeId, global: bool, elems: &[Ident]) {
+        // I hate you borrow checker.
+        // Is there a more idiomatic way to do this?
+        let scope = {
+            match self.try_resolve_subscope(global, elems) {
+                Some(scope) => {
+                    assert!(scope.len() == 1);
+                    Some(scope[0].names.clone())
+                }
+                None => None
+            }
+        };
+        let scope = match scope {
+            Some(scope) => scope,
+            None => self.fail_resolve(id, elems)
+        };
+
+        // Ok, now that we have found the stuff, add it all in.
+        for (name, map) in scope.iter() {
+            for ns in [TypeAndModNS, ValNS, StructNS].iter() {
+                for id in map.find(&(*ns as uint)).iter() {
+                    self.add_to_scope(*ns, *name, **id);
+                }
+            }
+        }
+    }
+
+    fn handle_use(&mut self, import: &Import) {
+        match import.val.import {
+            ImportNames(ref id) => self.handle_use_names(import.val.global,
+                                                         import.val.elems.as_slice(),
+                                                         id.as_slice()),
+            ImportAll => self.handle_use_all(import.id,
+                                             import.val.global,
+                                             import.val.elems.as_slice())
+        };
+
     }
 }
 

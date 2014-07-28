@@ -199,8 +199,9 @@ impl<'a> Visitor for DefMapVisitor<'a> {
                 self.visit_expr(expr);
             }
             UseItem(ref import) => {
-                // Hm. When is this important? We won't be able to do anything good for
+                // Hm. When is this important? We can't do anything good about *.
                 match import.val.import {
+                    ImportAll => {}
                     ImportNames(ref names) => {
                         for ident in names.iter() {
                             let qn = self.make_qualified_name(ident.val.name);

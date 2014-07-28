@@ -261,6 +261,7 @@ pub fn walk_import<T: MutVisitor>(visitor: &mut T, path: &mut Import) {
         visitor.visit_ident(elem);
     }
     match path.val.import {
+        ImportAll => {}
         ImportNames(ref mut v) => {
             for elem in v.mut_iter() {
                 visitor.visit_ident(elem);
