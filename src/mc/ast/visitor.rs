@@ -15,6 +15,7 @@ pub trait Visitor {
     fn visit_ident(&mut self, ident: &Ident) { walk_ident(self, ident) }
     fn visit_path(&mut self, path: &Path) { walk_path(self, path) }
     fn visit_module(&mut self, module: &Module) { walk_module(self, module) }
+    fn visit_import(&mut self, import: &Import) { walk_import(self, import) }
 }
 
 pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
@@ -50,8 +51,8 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
             visitor.visit_type(ty);
             visitor.visit_expr(expr);
         }
-        UseItem(ref path) => {
-            visitor.visit_path(path);
+        UseItem(ref import) => {
+            visitor.visit_import(import);
         }
         MacroDefItem(..) => {}
     }
@@ -255,7 +256,19 @@ pub fn walk_path<T: Visitor>(visitor: &mut T, path: &Path) {
     }
 }
 
+pub fn walk_import<T: Visitor>(visitor: &mut T, path: &Import) {
+    for elem in path.val.elems.iter() {
+        visitor.visit_ident(elem);
+    }
+    match path.val.import {
+        ImportNames(ref v) => {
+            for elem in v.iter() {
+                visitor.visit_ident(elem);
+            }
+        }
+    }
+}
+
 pub fn walk_module<T: Visitor>(visitor: &mut T, module: &Module) {
     for item in module.val.items.iter() { visitor.visit_item(item); }
 }
-

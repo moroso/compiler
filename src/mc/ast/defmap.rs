@@ -198,11 +198,19 @@ impl<'a> Visitor for DefMapVisitor<'a> {
                 self.visit_type(ty);
                 self.visit_expr(expr);
             }
-            UseItem(ref path) => {
-                let ident = path.val.elems.last().unwrap();
-                let qn = self.make_qualified_name(ident.val.name);
-                let path_qn = path.val.elems.iter().map(|e| e.val.name).collect();
-                self.session.defmap.table.insert(ident.id, UseDef(qn, path_qn));
+            UseItem(ref import) => {
+                // Hm. When is this important? We won't be able to do anything good for
+                match import.val.import {
+                    ImportNames(ref names) => {
+                        for ident in names.iter() {
+                            let qn = self.make_qualified_name(ident.val.name);
+                            let mut path_qn: Vec<Name> =
+                                import.val.elems.iter().map(|e| e.val.name).collect();
+                            path_qn.push(ident.val.name);
+                            self.session.defmap.table.insert(ident.id, UseDef(qn, path_qn));
+                        }
+                    }
+                }
             }
             _ => {}
         }

@@ -45,6 +45,7 @@ with_id! {
     Ident    => IdentNode,
     Path     => PathNode,
     Module   => ModuleNode,
+    Import   => ImportNode,
 }
 
 #[deriving(Eq, PartialEq, Clone, Ord, PartialOrd, Show)]
@@ -437,6 +438,18 @@ impl MacroDef {
     }
 }
 
+#[deriving(Clone, Show, Eq, PartialEq)]
+pub enum ImportSpec {
+    ImportNames(Vec<Ident>)
+}
+
+#[deriving(Eq, PartialEq, Clone, Show)]
+pub struct ImportNode {
+    pub elems: Vec<Ident>,
+    pub import: ImportSpec,
+    pub global: bool
+}
+
 #[deriving(Eq, PartialEq, Clone)]
 pub enum ItemNode {
     FuncItem(Ident, Vec<FuncArg>, Type, Option<Block>, Vec<Ident>),
@@ -444,7 +457,7 @@ pub enum ItemNode {
     EnumItem(Ident, Vec<Variant>, Vec<Ident>),
     ModItem(Ident, Module),
     StaticItem(Ident, Type, Option<Expr>),
-    UseItem(Path),
+    UseItem(Import),
     MacroDefItem(MacroDef),
     ConstItem(Ident, Type, Expr),
 }

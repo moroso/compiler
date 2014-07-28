@@ -1,14 +1,8 @@
-use prelude::print_int;
-use prelude::print_char;
-use prelude::malloc;
-use prelude::calloc;
+use prelude::{print_int,print_char};
+use prelude::{malloc,calloc};
 use prelude::assert;
 use prelude::abort;
 
-use prelude::printf0_;
-use prelude::printf1_;
-use prelude::printf2_;
-use prelude::printf3_;
+use prelude::{printf0_,printf1_,printf2_,printf3_};
 
-use prelude::print_uint;
-use prelude::print_newline;
+use prelude::{print_uint,print_newline};

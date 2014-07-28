@@ -427,7 +427,50 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         }
     }
 
-    fn parse_path_common(&mut self, with_tps: bool) -> Path {
+    fn parse_use(&mut self) -> Import {
+        let start_span = self.cur_span();
+
+        let path = self.parse_path_common(false, true);
+        let import = match *self.peek() {
+            Star => {
+                fail!("unimplemented");
+            }
+            LBrace => {
+                self.expect(LBrace);
+                let mut idents = vec!(self.parse_ident());
+
+                while *self.peek() == Comma {
+                    self.expect(Comma);
+                    idents.push(self.parse_ident());
+                }
+                self.expect(RBrace);
+
+                ImportNode {
+                    elems: path.val.elems,
+                    global: path.val.global,
+                    import: ImportNames(idents)
+                }
+            }
+            _ => {
+                let mut v = path.val.elems;
+                let last = v.pop().expect("path can't be empty");
+
+                ImportNode {
+                    elems: v,
+                    global: path.val.global,
+                    import: ImportNames(vec!(last))
+                }
+            }
+        };
+
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(import, start_span.to(end_span))
+    }
+
+    // If for_use is true, then we tolerate a { or a * appearing after
+    // a ::.
+    fn parse_path_common(&mut self, with_tps: bool, for_use: bool) -> Path {
         let start_span = self.cur_span();
 
         let global = match *self.peek() {
@@ -453,6 +496,9 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                     let tps = self.parse_type_params();
                     elem.val.tps = Some(tps);
                 }
+                Star | LBrace if for_use => {
+                    break;
+                }
                 _ => {
                     path.elems.push(self.parse_ident());
                 }
@@ -469,11 +515,11 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn parse_path(&mut self) -> Path {
-        self.parse_path_common(true)
+        self.parse_path_common(true, false)
     }
 
     fn parse_path_no_tps(&mut self) -> Path {
-        self.parse_path_common(false)
+        self.parse_path_common(false, false)
     }
 
     fn expect_number(&mut self) -> u64 {
@@ -1356,7 +1402,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     fn parse_use_item(&mut self) -> Item {
         let start_span = self.cur_span();
         self.expect(Use);
-        let mut path = self.parse_path();
+        let mut path = self.parse_use();
         self.expect(Semicolon);
 
         // 'use' items are always globally-scoped

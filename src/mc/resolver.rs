@@ -3,6 +3,7 @@ use mc::session::Session;
 use util::Name;
 
 use std::collections::{SmallIntMap, TreeMap};
+use std::slice;
 
 use mc::ast::*;
 use mc::ast::visitor::*;
@@ -145,35 +146,31 @@ impl ModuleCollector {
     }
 }
 
+// Utilities
+fn make_scope<'a>(scope: &'a [Subscope], modscope: &'a ModuleScope) -> &'a [Subscope] {
+    match *modscope {
+        OnBranch(idx) => slice::ref_slice(scope.get(idx).unwrap()),
+        OffBranch(ref scope) => slice::ref_slice(scope),
+    }
+}
+
+fn try_resolve_ident(scope: &[Subscope], ns: NS, ident: &Ident) -> Option<NodeId> {
+    scope.iter().rev().filter_map(|subscope| subscope.find(ns, ident)).next()
+}
+
+
+
 impl<'a> ModuleResolver<'a> {
-    /// Search the current scope stack local-to-global for a matching ident in the requested namespace
-    fn try_resolve_path(&mut self, ns: NS, path: &Path) -> Option<NodeId> {
-        use std::slice;
-
-        fn make_scope<'a>(scope: &'a [Subscope], modscope: &'a ModuleScope) -> &'a [Subscope] {
-            match *modscope {
-                OnBranch(idx) => slice::ref_slice(scope.get(idx).unwrap()),
-                OffBranch(ref scope) => slice::ref_slice(scope),
-            }
-        }
-
-        fn try_resolve_ident(scope: &[Subscope], ns: NS, ident: &Ident) -> Option<NodeId> {
-            scope.iter().rev().filter_map(|subscope| subscope.find(ns, ident)).next()
-        }
-
-        for elem in path.val.elems.iter() {
-            for tp in elem.val.tps.iter().flat_map(|tps| tps.iter()) {
-                self.visit_type(tp);
-            }
-        }
-
-        let mut search_scope = if path.val.global {
+    // Takes a module path
+    fn try_resolve_subscope(&mut self, global: bool,
+                            path: &[Ident]) -> Option<&[Subscope]> {
+        let mut search_scope = if global {
             make_scope(self.scope.as_slice(), &self.root)
         } else {
             self.scope.as_slice()
         };
 
-        for elem in path.val.elems.init().iter() {
+        for elem in path.iter() {
             let maybe_node_id = try_resolve_ident(search_scope, TypeAndModNS, elem);
             let maybe_modscope = match maybe_node_id {
                 Some(node_id) => self.tree.find(&node_id),
@@ -187,8 +184,36 @@ impl<'a> ModuleResolver<'a> {
             }
         }
 
-        let terminal = path.val.elems.last().unwrap();
-        try_resolve_ident(search_scope, ns, terminal)
+        Some(search_scope)
+    }
+
+
+    fn try_resolve_path_split(&mut self, ns: NS,
+                              global: bool, path: &[Ident], ident: &Ident) -> Option<NodeId> {
+        match self.try_resolve_subscope(global, path) {
+            None => None,
+            Some(search_scope) => {
+                try_resolve_ident(search_scope, ns, ident)
+            }
+        }
+    }
+
+    /// Search the current scope stack local-to-global for a matching
+    /// ident in the requested namespace
+    fn try_resolve_path(&mut self, ns: NS, path: &Path) -> Option<NodeId> {
+        self.try_resolve_path_split(ns,
+                                    path.val.global,
+                                    path.val.elems.init(),
+                                    path.val.elems.last().unwrap())
+    }
+
+    fn fail_resolve(&mut self, id: NodeId, path: &[Ident]) -> ! {
+        let elems: Vec<String> =
+            path.iter().map(|e|
+                       String::from_str(
+                           self.session.interner.name_to_str(&e.val.name))).collect();
+        self.session.error(id,
+                           format!("Unresolved name `{}`", elems.connect("::")));
     }
 
     fn resolve_path(&mut self, ns: NS, path: &Path) -> NodeId {
@@ -198,12 +223,7 @@ impl<'a> ModuleResolver<'a> {
                 node_id
             }
             None => {
-                let elems: Vec<String> =
-                    path.val.elems.iter().map(|e|
-                       String::from_str(
-                           self.session.interner.name_to_str(&e.val.name))).collect();
-                self.session.error(path.id,
-                                   format!("Unresolved name `{}`", elems.connect("::")));
+                self.fail_resolve(path.id, path.val.elems.as_slice())
             }
         }
     }
@@ -228,6 +248,36 @@ impl<'a> ModuleResolver<'a> {
         self.scope.push(subscope);
         visit(self);
         self.scope.pop().unwrap()
+    }
+
+    fn handle_use(&mut self, import: &Import) {
+
+        let idents = match import.val.import {
+            ImportNames(ref id) => id
+        };
+
+        for ident in idents.iter() {
+
+            let mut found = false;
+            for ns in [TypeAndModNS, ValNS, StructNS].iter() {
+                match self.try_resolve_path_split(*ns,
+                                                  import.val.global,
+                                                  import.val.elems.as_slice(),
+                                                  ident) {
+                    Some(node_id) => {
+                        self.add_to_scope(*ns, ident.val.name, node_id);
+                        found = true;
+                    }
+                    None => {}
+                }
+            }
+
+            if !found {
+                let mut path = import.val.elems.clone();
+                path.push(ident.clone());
+                self.fail_resolve(ident.id, path.as_slice());
+            }
+        }
     }
 }
 
@@ -324,21 +374,8 @@ impl<'a> Visitor for ModuleResolver<'a> {
 
     fn visit_item(&mut self, item: &Item) {
         match item.val {
-            UseItem(ref path) => {
-                let ident = path.val.elems.last().unwrap();
-                let mut found = false;
-                for ns in [TypeAndModNS, ValNS, StructNS].iter() {
-                    match self.try_resolve_path(*ns, path) {
-                        Some(node_id) => {
-                            self.add_to_scope(*ns, ident.val.name, node_id);
-                            found = true;
-                        }
-                        None => {}
-                    }
-                }
-                if !found {
-                    self.resolve_path(TypeAndModNS, path);
-                }
+            UseItem(ref import) => {
+                self.handle_use(import);
             }
             FuncItem(_, ref args, ref t, ref block, ref tps) => {
                 self.descend(None, |me| {
