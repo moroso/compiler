@@ -559,105 +559,118 @@ impl CCrossCompiler {
         }
     }
 
-    // Visit a module, but only give prototypes for the things that
-    // are defined in it.
-    fn visit_module_protos(&mut self, module: &Module) -> String {
-        let mut results = vec!();
+    // Visit a module and all of its submodules, applying a worker function.
+    // We need this so we can print out all the modules, then all the structs,
+    // etc.
+    fn visit_module_worker(&mut self,
+                           results: &mut Vec<String>,
+                           module: &Module,
+                           f: |&mut CCrossCompiler, &mut Vec<String>,&Module|) {
 
-        // XXX: I don't think this quite works:
-        // functions in submodules might depend on struct types in this module
-        results.push(self.mut_visit_list(&module.val.items, |me, item| {
-            match item.val {
-                ModItem(_, ref module) => me.visit_module_protos(module),
-                _ => String::from_str(""),
-            }
-        }, "\n"));
-
-        // Constants
-        results.push(self.mut_visit_list(&module.val.items, |me, item| {
-            match item.val {
-                ConstItem(..) => me.visit_item(item),
-                _ => String::from_str(""),
-            }
-        }, "\n"));
-
-
-        // Now print struct prototypes.
         for item in module.val.items.iter() {
             match item.val {
-                StructItem(ref id, _, _) |
-                EnumItem(ref id, _, _) => {
-                    let name = self.visit_ident(id);
-                    results.push(format!("struct {};\n", name));
-                },
+                ModItem(_, ref module) =>
+                    self.visit_module_worker(results, module,
+                                             |me, results, x| f(me,results,x)),
                 _ => {}
             }
         }
 
-        // Now print function prototypes.
-        for item in module.val.items.iter() {
-            match item.val {
-                FuncItem(ref name, ref args, ref t, ref b, _) => {
-                    let ty = self.visit_type(t);
-                    let name = self.visit_ident(name);
-                    // This is a terrible hack.
-                    if name.as_slice() == "malloc" ||
-                        name.as_slice() == "calloc" ||
-                        name.as_slice() == "assert" {
-                            continue;
-                        }
-                    let args = self.mut_visit_list(
-                        args,
-                        |me, x| me.visit_func_arg(x),
-                        ", ");
-
-                    match *b {
-                        Some(_) =>
-                            results.push(format!("{} {}({});\n", ty, name, args)),
-                        None =>
-                            results.push(format!("extern {} {}({});\n", ty, name, args))
-                    }
-                },
-                _ => {},
-            }
-        }
-
-        results.connect("")
+        f(self, results, module);
     }
 
     fn visit_module(&mut self, module: &Module) -> String {
         let mut results = vec!();
 
-        results.push(self.visit_module_protos(module));
+        // Constants
+        self.visit_module_worker(&mut results, module, |me, results, module| {
+            results.push(me.mut_visit_list(&module.val.items, |me, item| {
+                match item.val {
+                    ConstItem(..) => me.visit_item(item),
+                    _ => String::from_str(""),
+                }
+            }, "\n"));
+        });
 
-        results.push(self.mut_visit_list(&module.val.items, |me, item| {
-            match item.val {
-                ModItem(..) => me.visit_item(item),
-                _ => String::from_str(""),
-            }
-        }, "\n"));
 
-        results.push(self.mut_visit_list(&module.val.items, |me, item| {
-            match item.val {
-                StructItem(..) |
-                EnumItem(..) => me.visit_item(item),
-                _ => String::from_str(""),
+        // Now print struct prototypes.
+        self.visit_module_worker(&mut results, module, |me, results, module| {
+            for item in module.val.items.iter() {
+                match item.val {
+                    StructItem(ref id, _, _) |
+                    EnumItem(ref id, _, _) => {
+                        let name = me.visit_ident(id);
+                        results.push(format!("struct {};\n", name));
+                    },
+                    _ => {}
+                }
             }
-        }, "\n"));
+        });
 
-        results.push(self.mut_visit_list(&module.val.items, |me, item| {
-            match item.val {
-                StaticItem(..) => me.visit_item(item),
-                _ => String::from_str(""),
-            }
-        }, "\n"));
+        // Now print function prototypes.
+        self.visit_module_worker(&mut results, module, |me, results, module| {
 
-        results.push(self.mut_visit_list(&module.val.items, |me, item| {
-            match item.val {
-                FuncItem(..) => me.visit_item(item),
-                _ => String::from_str(""),
+            for item in module.val.items.iter() {
+                match item.val {
+                    FuncItem(ref name, ref args, ref t, ref b, _) => {
+                        let ty = me.visit_type(t);
+                        let name = me.visit_ident(name);
+                        // This is a terrible hack.
+                        if name.as_slice() == "malloc" ||
+                            name.as_slice() == "calloc" ||
+                            name.as_slice() == "assert" {
+                                continue;
+                            }
+                        let args = me.mut_visit_list(
+                            args,
+                            |me, x| me.visit_func_arg(x),
+                            ", ");
+
+                        match *b {
+                            Some(_) =>
+                                results.push(format!("{} {}({});\n",
+                                                     ty, name, args)),
+                            None =>
+                                results.push(format!("extern {} {}({});\n",
+                                                     ty, name, args))
+                        }
+                    },
+                    _ => {},
+                }
             }
-        }, "\n"));
+        });
+
+        // Structs and enums.
+        // FIXME: need to topo sort structs
+        self.visit_module_worker(&mut results, module, |me, results, module| {
+            results.push(me.mut_visit_list(&module.val.items, |me, item| {
+                match item.val {
+                    StructItem(..) |
+                    EnumItem(..) => me.visit_item(item),
+                    _ => String::from_str(""),
+                }
+            }, "\n"));
+        });
+
+        // Now globals
+        self.visit_module_worker(&mut results, module, |me, results, module| {
+            results.push(me.mut_visit_list(&module.val.items, |me, item| {
+                match item.val {
+                    StaticItem(..) => me.visit_item(item),
+                    _ => String::from_str(""),
+                }
+            }, "\n"));
+        });
+
+        // And functions
+        self.visit_module_worker(&mut results, module, |me, results, module| {
+            results.push(me.mut_visit_list(&module.val.items, |me, item| {
+                match item.val {
+                    FuncItem(..) => me.visit_item(item),
+                    _ => String::from_str(""),
+                }
+            }, "\n"));
+        });
 
         results.connect("")
     }
