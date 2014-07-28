@@ -191,13 +191,14 @@ impl CCrossCompiler {
     fn visit_item(&mut self, item: &Item) -> String {
         match item.val {
             UseItem(..) => String::new(),
-            ConstItem(ref id, _, _) => {
+            ConstItem(ref id, ref t, _) => {
+                let ty = self.visit_type(t);
                 let name = self.visit_ident(id);
                 let lit = self.typemap.consts.find(&id.id)
                     .expect("finding const in map")
                     .clone().ok().expect("getting const value"); // wee
                 let lit = WithId { id: id.id, val: lit };
-                format!("#define {} {}\n", name, self.visit_lit(&lit))
+                format!("#define {} (({}){})\n", name, ty, self.visit_lit(&lit))
             }
             FuncItem(ref name, ref args, ref t, ref block, _) => {
                 match *block {
@@ -375,7 +376,10 @@ impl CCrossCompiler {
 
     fn visit_lit(&self, lit: &Lit) -> String {
         match lit.val {
-            NumLit(ref n, _) => format!("{}", n),
+            // Is always outputting as hex correct?
+            // I'm not totally sure, actually.
+            // We might get sign fucked.
+            NumLit(ref n, _) => format!("0x{:x}/*{}*/", *n, n),
             // I'm sorry about the cast in the following.
             StringLit(ref s) => format!("(uint8_t*)\"{}\"", s),
             BoolLit(ref b) => format!("{}", if *b { 1u8 } else { 0 }),
