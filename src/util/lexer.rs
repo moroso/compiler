@@ -257,7 +257,7 @@ impl<B: Buffer> Iterator<(uint, String, Option<String>)> for BufferLines<B> {
                 if s.char_at(0) == '#' {
                     let s2: &str = s.split_str(" ").nth(1).unwrap_or("");
                     let s3 = s.split_str(" ").nth(2).unwrap_or("").
-                        replace("\"", "");
+                        replace("\"", "").replace("\n", "");
 
                     let i = from_str_radix::<uint>(s2, 10).unwrap_or(1);
                     self.lineno = i - 1;
