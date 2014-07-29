@@ -186,22 +186,33 @@ impl<'a> ASTToIntermediate<'a> {
             StructItem(..) |
             EnumItem(..) |
             UseItem(..) => (vec!(), vec!()),
+            ConstItem(ref id, ref t, ref exp) => {
+                self.static_item_helper(id, t, &Some(exp.clone()))
+            },
             StaticItem(ref id, ref t, ref exp) => {
-                let ty = self.typemap.types.get(&t.id.to_uint());
-
-                let size = size_of_ty(self.session,
-                                      self.typemap,
-                                      ty);
-                (vec!(),
-                 vec!(StaticIRItem {
-                     name: id.val.name,
-                     size: size as uint,
-                     is_ref: ty_is_reference(ty),
-                     expr: exp.clone(),
-                 }))
+                self.static_item_helper(id, t, exp)
             }
             _ => fail!("{}", item)
         }
+    }
+
+    fn static_item_helper(&mut self,
+                          id: &Ident,
+                          t: &Type,
+                          exp: &Option<Expr>) -> (Vec<Vec<Op>>,
+                                                  Vec<StaticIRItem>) {
+        let ty = self.typemap.types.get(&t.id.to_uint());
+
+        let size = size_of_ty(self.session,
+                              self.typemap,
+                              ty);
+        (vec!(),
+         vec!(StaticIRItem {
+             name: id.val.name,
+             size: size as uint,
+             is_ref: ty_is_reference(ty),
+             expr: exp.clone(),
+         }))
     }
 
     pub fn convert_module(&mut self, module: &Module) -> (Vec<(Vec<Op>)>,
