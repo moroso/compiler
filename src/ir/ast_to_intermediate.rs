@@ -91,7 +91,8 @@ impl<'a> ASTToIntermediate<'a> {
                 match *e_opt {
                     Some(ref e) => {
                         let (mut ops, other_v) = self.convert_expr(e);
-                        let other_v = other_v.unwrap();
+                        let other_v = other_v.expect(
+                            "Must have a value when assigning");
                         ops.push(UnOp(v, Identity, Variable(other_v)));
                         (ops, Some(v))
                     },
@@ -110,7 +111,8 @@ impl<'a> ASTToIntermediate<'a> {
                                         let size = size_of_ty(self.session,
                                                               self.typemap,
                                                               &ty.val);
-                                        let nelem = nelem_opt.unwrap();
+                                        let nelem = nelem_opt.expect(
+                                            "Array must have a size");
                                         (vec!(Alloca(v, size*nelem)), Some(v))
                                     }
                                     // TODO: enums
@@ -258,7 +260,8 @@ impl<'a> ASTToIntermediate<'a> {
                 Some(ref expr) => {
                     // First get the instructions for this expression.
                     let (ops, expr_var) = self.convert_expr(expr);
-                    let expr_var = expr_var.unwrap();
+                    let expr_var = expr_var.expect(
+                        "Global must have a non-unit value");
                     let ty = (*self.typemap.types.get(&expr.id.to_uint()))
                         .clone();
                     res.push_all_move(ops);
@@ -330,7 +333,8 @@ impl<'a> ASTToIntermediate<'a> {
             Goto(begin_label, TreeSet::new()),
             Label(begin_label, TreeSet::new()));
         let (cond_insts, cond_var) = self.convert_expr(e);
-        let cond_var = cond_var.unwrap();
+        let cond_var = cond_var.expect(
+            "Condition must have a non-unit value");
         res.push_all_move(cond_insts);
         res.push(CondGoto(true,
                           Variable(cond_var),
@@ -363,8 +367,10 @@ impl<'a> ASTToIntermediate<'a> {
             BinOpExpr(ref op, ref e1, ref e2) => {
                 let (mut insts1, var1) = self.convert_expr(&**e1);
                 let (insts2, var2) = self.convert_expr(&**e2);
-                let var1 = var1.unwrap();
-                let var2 = var2.unwrap();
+                let var1 = var1.expect(
+                    "Binop argument must have a non-unit value");
+                let var2 = var2.expect(
+                    "Binop argument must have a non-unit value");
                 match op.val {
                     AndAlsoOp |
                     OrElseOp => {
@@ -399,7 +405,8 @@ impl<'a> ASTToIntermediate<'a> {
                 let defid = self.session.resolver.def_from_path(path);
                 // We do this to avoid borrowing self.
                 let def = {
-                    let d = self.session.defmap.find(&defid).unwrap();
+                    let d = self.session.defmap.find(&defid).expect(
+                        format!("Unable to find defid {}", defid).as_slice());
                     (*d).clone()
                 };
                 match def {
@@ -428,14 +435,15 @@ impl<'a> ASTToIntermediate<'a> {
                 }
                 // TODO: mangling.
                 (vec!(), Some(
-                    Var { name: path.val.elems.last().unwrap().val.name,
+                    Var { name: path.val.elems.last().expect(
+                        format!("Empty path: {}", path).as_slice()
+                        ).val.name,
                           generation: None }))
             },
             AssignExpr(ref op, ref e1, ref e2) => {
-                // TODO: this will break in the case of structs and enums.
-
                 let (mut res, var2) = self.convert_expr(&**e2);
-                let var2 = var2.unwrap();
+                let var2 = var2.expect(
+                    "RHS of assignment must have a non-unit value");
 
                 // The LHS might be wrapped in a GroupExpr.
                 // Unwrap it.
@@ -461,7 +469,9 @@ impl<'a> ASTToIntermediate<'a> {
                      finalize) = match e1val {
                     PathExpr(ref path) => {
                         let lhs_var = Var {
-                            name: path.val.elems.last().unwrap().val.name,
+                            name: path.val.elems.last().expect(
+                                format!("Empty path: {}", path).as_slice()
+                                    ).val.name,
                             generation: None
                         };
                         (lhs_var.clone(),
@@ -479,7 +489,8 @@ impl<'a> ASTToIntermediate<'a> {
                             _ => Width32,
                         };
                         let (insts, var) = self.convert_expr(&**e);
-                        let var = var.unwrap();
+                        let var = var.expect(
+                            "Argument to unary op must have non-unit value");
                         res.push_all_move(insts);
                         let res_var = self.gen_temp();
                         match lhs_op.val {
@@ -577,7 +588,8 @@ impl<'a> ASTToIntermediate<'a> {
             BlockExpr(ref b) => self.convert_block(&**b),
             IfExpr(ref e, ref b1, ref b2) => {
                 let (mut insts, if_var) = self.convert_expr(&**e);
-                let if_var = if_var.unwrap();
+                let if_var = if_var.expect(
+                    "Condition for if statement must have non-unit value");
                 let (b1_insts, b1_var) = self.convert_block(&**b1);
                 let (b2_insts, b2_var) = self.convert_block(&**b2);
                 assert!(
@@ -653,7 +665,9 @@ impl<'a> ASTToIntermediate<'a> {
                         let defid = self.session.resolver.def_from_path(path);
                         // We do this to avoid borrowing self.
                         let def = {
-                            let d = self.session.defmap.find(&defid).unwrap();
+                            let d = self.session.defmap.find(&defid).expect(
+                                format!("Cannot find defid {}",
+                                        defid).as_slice());
                             (*d).clone()
                         };
                         match def {
@@ -706,10 +720,11 @@ impl<'a> ASTToIntermediate<'a> {
                 for arg in args.iter() {
                     let (new_ops, new_var) = self.convert_expr(arg);
                     ops.push_all_move(new_ops);
-                    vars.push(new_var.unwrap());
+                    vars.push(new_var.expect("Passing a unit to a function"));
                 }
                 let (new_ops, new_var) = self.convert_expr(&**f);
-                let new_var = new_var.unwrap();
+                let new_var = new_var.expect(
+                    "Function pointer had no non-unit value");
                 ops.push_all_move(new_ops);
                 let result_var = self.gen_temp();
 
@@ -785,7 +800,8 @@ impl<'a> ASTToIntermediate<'a> {
                 }
 
                 let (mut insts, v) = self.convert_expr(&**e);
-                let v = v.unwrap();
+                let v = v.expect(
+                    "Argument to unary op must have non-unit value");
                 let res_v = self.gen_temp();
                 let actual_op = match op.val {
                     AddrOf =>
@@ -821,7 +837,7 @@ impl<'a> ASTToIntermediate<'a> {
             },
             ReturnExpr(ref e) => {
                 let (mut insts, v) = self.convert_expr(&**e);
-                let v = v.unwrap();
+                let v = v.unwrap_or(self.gen_temp());
                 insts.push(Return(Variable(v)));
                 (insts, None)
             }
@@ -849,13 +865,14 @@ impl<'a> ASTToIntermediate<'a> {
                         name);
 
                     let ty = {
-                        let def = self.session.defmap.find(&defid).unwrap();
+                        let def = self.session.defmap.find(&defid).expect(
+                            format!("Cannot find defid {}", defid).as_slice());
                         match *def {
                             StructDef(_, ref fields, _) => {
                                 let &(_, ref t) =
                                     fields.iter()
                                     .find(|&&(a, _)| a == *name)
-                                    .unwrap();
+                                    .expect("No struct field with given name");
                                 self.typemap.types.get(&t.id.to_uint())
                             },
                             _ => fail!(),
@@ -868,7 +885,9 @@ impl<'a> ASTToIntermediate<'a> {
                         PlusOp,
                         Variable(base_var),
                         Constant(NumLit(offs, UnsignedInt(Width32)))));
-                    ops.push(Store(offset_var, expr_var.unwrap(), width));
+                    ops.push(Store(offset_var, expr_var.expect(
+                        "Expression of struct type must have non-unit value"
+                        ), width));
                 }
 
                 (ops, Some(base_var))
@@ -888,18 +907,21 @@ impl<'a> ASTToIntermediate<'a> {
                 }
             }
             BreakExpr(..) => {
-                (vec!(Goto(*self.break_labels.last().unwrap(),
+                (vec!(Goto(*self.break_labels.last().expect(
+                    "Break with no label to break to"),
                            TreeSet::new())),
                  None)
             }
             ContinueExpr(..) => {
-                (vec!(Goto(*self.continue_labels.last().unwrap(),
+                (vec!(Goto(*self.continue_labels.last().expect(
+                    "Continue with no label to continue to"),
                            TreeSet::new())),
                  None)
             }
             MatchExpr(ref e, ref arms) => {
                 let (mut ops, base_var) = self.convert_expr(&**e);
-                let base_var = base_var.unwrap();
+                let base_var = base_var.expect(
+                    "Match expression must have non-unit value");
                 let variant_var = self.gen_temp();
                 let end_label = self.gen_label();
                 let mut result_var = None;
@@ -923,7 +945,9 @@ impl<'a> ASTToIntermediate<'a> {
 
                     let patid = self.session.resolver.def_from_path(path);
                     let def =
-                        (*self.session.defmap.find(&patid).unwrap()).clone();
+                        (*self.session.defmap.find(&patid).expect(
+                            format!("Cannot find defid {}", patid).as_slice()
+                                )).clone();
                     let (parent_id, types) = match def {
                         VariantDef(_, ref parent_id, ref types) =>
                             (parent_id, types),
@@ -1006,7 +1030,7 @@ impl<'a> ASTToIntermediate<'a> {
                      e: &Expr,
                      name: &Name) -> (Vec<Op>, Var, Ty) {
         let (mut ops, var) = self.convert_expr(e);
-        let var = var.unwrap();
+        let var = var.expect("Struct expr must have non-unit value");
         let id = match *self.typemap.types.get(&e.id.to_uint()) {
             StructTy(id, _) => id,
             PtrTy(ref p) => match p.val {
@@ -1022,14 +1046,16 @@ impl<'a> ASTToIntermediate<'a> {
             name);
 
         let ty = {
-            let def = self.session.defmap.find(&id).unwrap();
+            let def = self.session.defmap.find(&id).expect(
+                format!("Cannot find defid {}", id).as_slice());
 
             match *def {
                 StructDef(_, ref fields, _) => {
                     let &(_, ref t) =
                         fields.iter()
                         .find(|&&(a, _)| a == *name)
-                        .unwrap();
+                        .expect(format!("Cannot find name {}", name).as_slice()
+                                );
                     self.typemap.types.get(&t.id.to_uint())
                 },
                 _ => fail!("Looking up struct field offset in a non-struct.")
@@ -1049,9 +1075,11 @@ impl<'a> ASTToIntermediate<'a> {
     }
 
     fn variant_index(&mut self, defid: &NodeId, parent_id: &NodeId) -> u64 {
-        (match *self.session.defmap.find(parent_id).unwrap() {
+        (match *self.session.defmap.find(parent_id).expect(
+            format!("Cannot find defid {}", parent_id).as_slice()) {
             EnumDef(_, ref variants, _) =>
-                variants.iter().position(|&n| n == *defid).unwrap(),
+                variants.iter().position(|&n| n == *defid).expect(
+                    format!("Cannot find defid {}", defid).as_slice()),
             _ => fail!(),
         }) as u64
     }
@@ -1090,9 +1118,9 @@ impl<'a> ASTToIntermediate<'a> {
                     idx: &Expr,
                     ty: &Ty) -> (Vec<Op>, Var, Width, bool) {
         let (mut ops, base_var) = self.convert_expr(arr);
-        let base_var = base_var.unwrap();
+        let base_var = base_var.expect("Array base must have non-unit value");
         let (idx_ops, idx_var) = self.convert_expr(idx);
-        let idx_var = idx_var.unwrap();
+        let idx_var = idx_var.expect("Array index must have non-unit value");
         ops.push_all_move(idx_ops);
         let size = size_of_ty(self.session, self.typemap, ty);
         let total_size = packed_size(&vec!(size));
