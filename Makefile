@@ -54,6 +54,7 @@ TEST_FILES := $(patsubst test/%,%,$(wildcard test/test_*.mb))
 IR_TEST_FILES := \
 	test_array.mb \
 	test_break_continue.mb \
+	test_call.mb \
 	test_casts.mb \
 	test_enums.mb \
 	test_for_loop.mb \
@@ -71,7 +72,6 @@ IR_TEST_FILES := \
 	test_struct.mb \
 	test_struct_offs.mb
 
-  # test_call.mb \
 	# test_const.mb \
 	# test_func_ptr.mb \
 	# test_globals.mb \
@@ -84,6 +84,7 @@ ASM_TEST_FILES := \
 	test_array.mb \
 	test_break_continue.mb \
 	test_casts.mb \
+	test_call.mb \
 	test_const.mb \
 	test_enums.mb \
 	test_for_loop.mb \
@@ -103,8 +104,6 @@ ASM_TEST_FILES := \
 	test_struct_init.mb \
 	test_struct_offs.mb
 
-  # test_call.mb \
-	# test_const.mb \
 	# test_func_ptr.mb \
 	# test_sign_extend.mb \
 	# test_string.mb \
