@@ -372,7 +372,7 @@ pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
 
         // If we're within a comment, any string not
         // containing "/*" or "*/" is considered whitespace.
-        WS => matcher!(r"(?:.)")
+        WS => matcher!(r"(?:.|\n)")
     };
 
     let morasm = Language {
