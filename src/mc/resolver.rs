@@ -468,6 +468,11 @@ impl<'a> Visitor for ModuleResolver<'a> {
                 // Add the subscope to the scope branch
                 self.scope.push(subscope);
 
+                // Now, push a new bogus subscope to prevent polluting
+                // the real scope with our imports.
+                // FIXME: we want to support reexport with a pub thing.
+                self.scope.push(Subscope::new());
+
                 // Update our root scope
                 mem::swap(&mut self.root, &mut idx);
 
@@ -475,6 +480,9 @@ impl<'a> Visitor for ModuleResolver<'a> {
 
                 // Restore the old root scope
                 mem::swap(&mut self.root, &mut idx);
+
+                // Pop the bogus subscope
+                self.scope.pop();
 
                 // Pop the subscope
                 let subscope = self.scope.pop().unwrap();
