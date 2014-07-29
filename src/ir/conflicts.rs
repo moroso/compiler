@@ -1,5 +1,4 @@
 use ir::*;
-use ir::liveness::LivenessAnalyzer;
 use std::collections::{TreeMap, TreeSet};
 use util::Name;
 use mc::ast::AddrOf;
@@ -14,14 +13,15 @@ impl ConflictAnalyzer {
     /// Also return a list of variables that must be in memory rather than
     /// in registers, because they are referenced.
     /// Assumes the IR is already in SSA form.
-    pub fn conflicts(ops: &Vec<Op>) -> (TreeMap<Var, TreeSet<Var>>,
-                                        TreeMap<Var, u32>,
-                                        TreeMap<Var, RegisterColor>,
-                                        // This is a set of Names, because
-                                        // we spill *every* generation of
-                                        // the variable.
-                                        TreeSet<Name>) {
-        let opinfo = LivenessAnalyzer::analyze(ops);
+    pub fn conflicts(ops: &Vec<Op>,
+                     opinfo: &Vec<OpInfo>
+                     ) -> (TreeMap<Var, TreeSet<Var>>,
+                           TreeMap<Var, u32>,
+                           TreeMap<Var, RegisterColor>,
+                           // This is a set of Names, because
+                           // we spill *every* generation of
+                           // the variable.
+                           TreeSet<Name>) {
         let mut conflict_map = TreeMap::<Var, TreeSet<Var>>::new();
         let mut counts = TreeMap::<Var, u32>::new();
         let mut referenced_vars = TreeSet::<Name>::new();

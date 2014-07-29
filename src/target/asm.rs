@@ -107,12 +107,13 @@ impl Target for AsmTarget {
             }
             ToSSA::to_ssa(insts, true);
             ConstantFolder::fold(insts, &global_map, true);
-            for a in LivenessAnalyzer::analyze(insts).iter() {
+            let opinfo = LivenessAnalyzer::analyze(insts);
+            for a in opinfo.iter() {
                 write!(f, "{}\n", a);
             }
             write!(f, "{}\n", insts);
             let (conflict_map, counts, must_colors, mem_vars) =
-                ConflictAnalyzer::conflicts(insts);
+                ConflictAnalyzer::conflicts(insts, &opinfo);
             write!(f, "conflicts: {}\ncounts: {}\nmust: {}\nin mem: {}\n",
                    conflict_map, counts, must_colors, mem_vars);
             write!(f, "{}\n",

@@ -2,6 +2,7 @@ use codegen::*;
 use codegen::register_color::*;
 use ir::*;
 use ir::conflicts::ConflictAnalyzer;
+use ir::liveness::LivenessAnalyzer;
 use mas::ast::*;
 use mas::util::pack_int;
 use mc::ast::*;
@@ -446,11 +447,15 @@ impl IrToAsm {
     pub fn ir_to_asm<T>(ops: &Vec<Op>,
                         global_map: &TreeMap<Name, (uint, uint, bool, T)>
                         ) -> (Vec<InstNode>, TreeMap<String, uint>) {
+        let opinfo = LivenessAnalyzer::analyze(ops);
         let (conflicts, counts, must_colors, mem_vars) =
-            ConflictAnalyzer::conflicts(ops);
+            ConflictAnalyzer::conflicts(ops, &opinfo);
         let regmap = RegisterColorer::color(conflicts, counts, must_colors,
                                             mem_vars, global_map,
                                             num_usable_vars);
+        // Does this function call any other function? If not, we can
+        // avoid saving r31.
+        let mut has_call = false;
         // Figure out where objects on the stack will go.
         // stack_item_map is a map from instruction index (for an alloca
         // instruction) to a stack offset.
@@ -465,6 +470,7 @@ impl IrToAsm {
                         stack_item_offs += size as u32;
                     }
                 },
+                Call(..) => { has_call = true; }
                 _ => {}
             }
         }
@@ -522,14 +528,16 @@ impl IrToAsm {
                             link_register,
                             16,
                             0));
-                    result.push(
-                        InstNode::store(true_pred,
-                                        store32_op,
-                                        stack_pointer,
-                                        0,
-                                        link_register
-                                        )
-                            );
+                    if has_call {
+                        result.push(
+                            InstNode::store(true_pred,
+                                            store32_op,
+                                            stack_pointer,
+                                            0,
+                                            link_register
+                                            )
+                                );
+                    }
 
                     // Save all callee-save registers
                     for (x, i) in range_inclusive(first_callee_saved_reg.index,
@@ -564,12 +572,14 @@ impl IrToAsm {
                     }
 
                     // Restore link register
-                    result.push(
-                        InstNode::load(true_pred,
-                                       load32_op,
-                                       link_register,
-                                       stack_pointer,
-                                       0));
+                    if has_call {
+                        result.push(
+                            InstNode::load(true_pred,
+                                           load32_op,
+                                           link_register,
+                                           stack_pointer,
+                                           0));
+                    }
                     // Return
                     result.push(
                         InstNode::branchreg(true_pred,
@@ -721,21 +731,45 @@ impl IrToAsm {
                     // we're using a slot for a parameter, or we're saving
                     // the caller-save variable that goes there.
 
-                    // TODO: be smarter about which caller-save variables
-                    // we need to save.
+                    // We want to save caller-save registers, but only if we
+                    // actually use them.
+                    let ref this_opinfo = opinfo[pos];
+                    let ref live_vars = this_opinfo.live;
+                    let mut reg_set: TreeSet<Reg> = TreeSet::new();
+                    // Make a list of the registers we actually need to save.
+                    for var in live_vars.iter() {
+                        match *regmap.find(var).unwrap() {
+                            RegColor(ref r) => {
+                                if r.index as uint >= total_vars &&
+                                    r.index as uint <= num_param_regs &&
+                                    r.index > 0 {
+                                        reg_set.insert(r.clone());
+                                    }
+                            },
+                            _ => {}
+                        }
+                    }
+                    let num_regs_to_save = reg_set.len();
+                    let reg_list: Vec<Reg> =
+                        FromIterator::from_iter(reg_set.iter().map(|&x|x));
+
                     let offs =
                         if total_vars >= num_param_regs {
+                            // We're using all registers that we can, and
+                            // possibly passing some arguments on the stack.
                             stack_arg_offs as i32 +
                                 (total_vars as i32 - num_param_regs as i32) * 4
                         } else {
+                            // We're not using all the registers, for
+                            // arguments, so we may have to save some
+                            // caller-save registers.
                             stack_arg_offs as i32 +
-                                num_param_regs as i32 * 4
+                                num_regs_to_save as i32 * 4
                         };
                     let (offs_base, offs_shift) =
                         pack_int(offs as u32, 10).unwrap();
 
                     // Save all caller-save registers that need to be saved.
-                    // (Actually, we save even ones that don't... TODO!)
                     // If we use, say, registers r0 - r3 as arguments, we
                     // must save r4 ... r7, and we put those in the first
                     // available stack slots.
@@ -743,15 +777,14 @@ impl IrToAsm {
                     // saving to do.
                     // The "max" here is because we never want to save/restore
                     // r0.
-                    for (i, arg_reg) in range(max(total_vars, 1),
-                                              num_param_regs).enumerate() {
+                    for i in range(0, reg_list.len()) {
                         result.push(
                             InstNode::store(
                                 true_pred,
                                 store32_op,
                                 stack_pointer,
                                 (stack_arg_offs + i as int * 4) as i32,
-                                Reg { index: arg_reg as u8 }
+                                reg_list[i],
                                 ));
                     }
 
@@ -807,13 +840,12 @@ impl IrToAsm {
                             offs_shift)
                         ));
 
-                    for (i, arg_reg) in range(max(total_vars, 1),
-                                              num_param_regs).enumerate() {
+                    for i in range(0, reg_list.len()) {
                         result.push(
                             InstNode::load(
                                 true_pred,
                                 load32_op,
-                                Reg { index: arg_reg as u8 },
+                                reg_list[i],
                                 stack_pointer,
                                 (stack_arg_offs + i as int * 4) as i32
                                 ));
