@@ -10,6 +10,8 @@ use std::collections::enum_set::CLike;
 use std::fmt;
 use values::eval_binop;
 
+use util::graph::{Graph, VertexIndex};
+
 use mc::ast::*;
 use mc::ast::defmap::*;
 use mc::ast::visitor::*;
@@ -43,13 +45,20 @@ pub enum Ty {
     BottomTy,
 }
 
+type ConstGraph = Graph<NodeId, ()>;
+
 struct ConstCollector<'a> {
-    nodes: TreeMap<NodeId, &'a Expr>,
-    edges: TreeMap<NodeId, TreeSet<NodeId>>,
-    deps: TreeMap<NodeId, u64>,
+    graph: ConstGraph,
+    nodes: TreeMap<NodeId, VertexIndex>,
+    consts: TreeMap<NodeId, &'a Expr>,
     session: &'a Session,
 }
 
+struct ConstGraphBuilder<'a> {
+    graph: &'a mut ConstGraph,
+    nodes: &'a TreeMap<NodeId, VertexIndex>,
+    session: &'a Session,
+}
 
 type Constant = LitNode;
 type ConstantResult = Result<Constant, (NodeId, &'static str)>;
@@ -92,113 +101,101 @@ fn constant_fold(session: &Session, map: &ConstantMap, expr: &Expr)
     }
 }
 
+impl<'a> Visitor for ConstCollector<'a> {
+    fn visit_item(&mut self, item: &Item) {
+        match item.val {
+            ConstItem(ref ident, _, ref e) => {
+                use std::mem::copy_lifetime;
+                let vid = self.graph.add_node(ident.id);
+                self.nodes.insert(ident.id, vid);
+                let expr = unsafe { copy_lifetime(self.session, e) };
+                self.consts.insert(ident.id, expr);
+            }
+            _ => walk_item(self, item)
+        }
+    }
+}
+
 impl<'a> ConstCollector<'a> {
     fn new(session: &'a Session) -> ConstCollector<'a> {
         ConstCollector {
             nodes: TreeMap::new(),
-            edges: TreeMap::new(),
-            deps: TreeMap::new(),
+            consts: TreeMap::new(),
+            graph: Graph::new(),
             session: session,
         }
     }
 
-    fn insert_edge(&mut self, srcid: NodeId, expr: &Expr) {
-        match expr.val {
-            PathExpr(ref path) => {
-                let destid = self.session.resolver.def_from_path(path);
-                if !self.edges.contains_key(&destid) {
-                    self.edges.insert(destid, TreeSet::new());
-                }
+    fn get_order(&mut self, module: &'a Module) -> Vec<NodeId> {
+        use util::graph::GraphExt;
 
-                let set = self.edges.find_mut(&destid).unwrap();
-                set.insert(srcid);
+        let ConstCollector {
+            nodes: ref nodes,
+            consts: _,
+            graph: ref mut graph,
+            session: ref session,
+        } = *self;
 
-                if !self.deps.contains_key(&srcid) {
-                    self.deps.insert(srcid, 0);
-                }
+        ConstGraphBuilder::build_graph(graph, nodes, *session, module);
 
-                let count = self.deps.find_mut(&srcid).unwrap();
-                *count += 1;
-            }
-            _ => {}
+        match graph.toposort() {
+            Ok(order) => order,
+            Err(nid)  => session.error_fatal(nid, "Recursive constant"),
         }
-    }
-
-    fn get_order(&mut self) -> Vec<NodeId> {
-        // topo sort from wikipedia, welp
-        let mut list = vec!();
-        let mut set = TreeSet::new();
-        let mut nonconst = vec!();
-
-        for edge in self.edges.iter() {
-            let nid = edge.val0();
-            if !self.nodes.contains_key(nid) {
-                nonconst.push(*edge.val0());
-            }
-        }
-
-        for nid in nonconst.iter() {
-            self.edges.pop(nid).map(|srcs| {
-                for src in srcs.move_iter() {
-                    let count = self.deps.find_mut(&src).unwrap();
-                    *count -= 1;
-                }
-            });
-        }
-
-        for node in self.nodes.iter() {
-            if self.deps.find(node.val0()).map(|count| *count).unwrap_or(0) == 0 {
-                set.insert(*node.val0());
-            }
-        }
-
-        while !set.is_empty() {
-            let n = *set.iter().next().unwrap();
-            set.remove(&n);
-            list.push(n);
-
-            self.edges.pop(&n).map(|srcs| {
-                for src in srcs.move_iter() {
-                    let count = self.deps.find_mut(&src).unwrap();
-                    *count -= 1;
-                    if *count == 0 {
-                        set.insert(src);
-                    }
-                }
-            });
-        }
-
-        for edge in self.edges.iter() {
-            let nid = edge.val0();
-            if self.nodes.contains_key(nid) {
-                self.session.error_fatal(*nid, "Recursive constant");
-            }
-        }
-
-        return list;
     }
 
     fn map_constants(mut self, map: &mut ConstantMap, module: &'a Module) {
         self.visit_module(module);
-        let order = self.get_order();
+        let order = self.get_order(module);
         for nid in order.iter() {
-            let e = *self.nodes.find(nid).unwrap();
+            let e = *self.consts.find(nid).unwrap();
             let c = constant_fold(self.session, map, e);
             map.insert(*nid, c);
         }
     }
 }
 
-impl<'a> Visitor for ConstCollector<'a> {
+impl<'a> Visitor for ConstGraphBuilder<'a> {
     fn visit_item(&mut self, item: &Item) {
         match item.val {
             ConstItem(ref ident, _, ref e) => {
-                use std::mem::copy_lifetime;
-                self.nodes.insert(ident.id, unsafe { copy_lifetime(self.session, e) });
-                self.insert_edge(ident.id, e);
+                let srcidx = self.nodes.find(&ident.id).unwrap();
+                match e.val {
+                    PathExpr(ref path) => {
+                        let nid = self.session.resolver.def_from_path(path);
+                        match self.nodes.find(&nid) {
+                            Some(destidx) => {
+                                self.graph.add_edge(*srcidx, *destidx, ());
+                            }
+                            None => {}
+                        }
+                    }
+                    _ => {}
+                }
             }
             _ => walk_item(self, item)
         }
+    }
+}
+
+impl<'a> ConstGraphBuilder<'a> {
+    fn new(graph: &'a mut ConstGraph,
+           nodes: &'a TreeMap<NodeId, VertexIndex>,
+           session: &'a Session)
+           -> ConstGraphBuilder<'a> {
+        ConstGraphBuilder {
+            graph: graph,
+            nodes: nodes,
+            session: session,
+        }
+    }
+
+    fn build_graph(graph: &'a mut ConstGraph,
+                   nodes: &'a TreeMap<NodeId, VertexIndex>,
+                   session: &'a Session,
+                   module: &'a Module) {
+        let mut builder = ConstGraphBuilder::new(graph, nodes, session);
+        builder.visit_module(module);
     }
 }
 

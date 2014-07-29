@@ -52,9 +52,32 @@ impl Subscope {
         self.insert(ns, ident.val.name, ident.id)
     }
 
-    fn insert_items(&mut self, items: &Vec<Item>) {
+    fn insert_items(&mut self, items: &Vec<Item>, get_pairs: |&[Ident]| -> Vec<(NS, Ident)>) {
         for item in items.iter() {
             match item.val {
+                UseItem(ref import) => {
+                    use std::collections::TreeSet;
+                    use std::iter::FromIterator;
+
+                    let filter = match import.val.import {
+                        ImportNames(ref ids) =>
+                            FromIterator::from_iter(ids.iter().map(|ref id| id.val.name)),
+                        ImportAll =>
+                            TreeSet::new(),
+                    };
+
+                    let allow = match import.val.import {
+                        ImportNames(..) => |id: &Ident| filter.contains(&id.val.name),
+                        ImportAll => |_| true,
+                    };
+
+                    let pairs = get_pairs(import.val.elems.as_slice());
+                    for &(ns, ref ident) in pairs.iter() {
+                        if allow(ident) {
+                            self.insert_ident(ns, ident);
+                        }
+                    }
+                }
                 FuncItem(ref ident, _, _, _, _) => {
                     self.insert_ident(ValNS, ident);
                 }
@@ -146,7 +169,7 @@ impl ModuleCollector {
         let mut collector = ModuleCollector { tree: TreeMap::new() };
         collector.visit_module(module);
         let mut root = Subscope::new();
-        root.insert_items(&module.val.items);
+        root.insert_items(&module.val.items, |_| vec!());
         (root, collector.tree)
     }
 }
@@ -241,7 +264,26 @@ impl<'a> ModuleResolver<'a> {
     fn descend(&mut self, items: Option<&Vec<Item>>, visit: |&mut ModuleResolver|) -> Subscope {
         let mut subscope = Subscope::new();
 
-        items.map(|items| subscope.insert_items(items));
+        items.map(|items| subscope.insert_items(items, |elems| {
+            let scope = self.try_resolve_subscope(true, elems).unwrap();
+            let ref names = scope[0].names;
+
+            let mut pairs = vec!();
+            for (name, map) in names.iter() {
+                for ns in [TypeAndModNS, ValNS, StructNS].iter() {
+                    for nid in map.find(&(*ns as uint)).iter() {
+                        let ident = IdentNode {
+                            tps: None,
+                            name: *name,
+                        };
+
+                        pairs.push((*ns, WithId { id: **nid, val: ident }));
+                    }
+                }
+            }
+
+            pairs
+        }));
 
         self.scope.push(subscope);
         visit(self);
@@ -315,7 +357,7 @@ impl Visitor for ModuleCollector {
         match item.val {
             ModItem(ref ident, ref module) => {
                 let mut subscope = Subscope::new();
-                subscope.insert_items(&module.val.items);
+                subscope.insert_items(&module.val.items, |_| vec!());
                 self.tree.insert(ident.id, OffBranch(subscope));
                 self.visit_module(module);
             }

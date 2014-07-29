@@ -4,6 +4,7 @@ use std::fmt::{Show, Formatter};
 use std::fmt;
 
 pub mod lexer;
+pub mod graph;
 
 // This represents an interned string/name/identifier. The mapping from strings
 // to Names and Names to strings is in the Interner (session.rs).
