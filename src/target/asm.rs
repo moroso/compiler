@@ -13,6 +13,8 @@ use ir::ssa::ToSSA;
 use ir::conflicts::ConflictAnalyzer;
 use ir::Func;
 
+use target::NameMangler;
+
 use codegen::register_color::RegisterColorer;
 use codegen::num_usable_vars;
 use codegen::IrToAsm;
@@ -49,13 +51,19 @@ impl Target for AsmTarget {
     fn compile(&self, p: Package, f: &mut Writer) {
         let Package {
             module:  module,
-            session: mut session,
+            session: session,
             typemap: mut typemap,
         } = p;
 
+        let mangler = NameMangler::new(session, &module, true, true);
+        let mut session = mangler.session;
+
+        print!("Mangler: {}\n", mangler.names);
+
         let (mut result, staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
-                                                       &mut typemap);
+                                                       &mut typemap,
+                                                       &mangler.names);
 
             converter.convert_module(&module)
         };
@@ -64,7 +72,8 @@ impl Target for AsmTarget {
         print!("Global map: {}\n", global_map);
         let global_initializer = {
             let mut converter = ASTToIntermediate::new(&mut session,
-                                                       &mut typemap);
+                                                       &mut typemap,
+                                                       &mangler.names);
 
             converter.convert_globals(&global_map)
         };
@@ -88,9 +97,9 @@ impl Target for AsmTarget {
                     // We override certain functions with asm versions in
                     // prelude.ma. This is a temporary hack.
                     match format!("{}", n).as_slice() {
-                        "print_uint" |
-                        "print_int" |
-                        "print_newline" => continue,
+                        "MANGLEDprelude_print_uint" |
+                        "MANGLEDprelude_print_int" |
+                        "MANGLEDprelude_print_newline" => continue,
                         _ => {},
                     }
                 },

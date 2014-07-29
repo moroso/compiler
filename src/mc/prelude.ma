@@ -1,11 +1,11 @@
 _start:
         { bl __INIT_GLOBALS; r30 <- 0x1000; }
-        { bl main; }
+        { bl MANGLEDmain; }
         { r30 <- 0; }
         { break 0x1f; }
 
-print_int:
-print_uint:
+MANGLEDprelude_print_int:
+MANGLEDprelude_print_uint:
         { r1 <- r30; }
         { r30 <- 1; }
         { break 0x1f; r31 <- r31 + 16; }

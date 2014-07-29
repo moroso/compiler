@@ -693,9 +693,7 @@ impl Target for CTarget {
             typemap: typemap,
         } = p;
 
-        let mut mangler = NameMangler::new(session);
-
-        mangler.visit_module(&module);
+        let mangler = NameMangler::new(session, &module, false, false);
 
         let mut cc = CCrossCompiler {
             structnames: find_structs(&module),

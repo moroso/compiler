@@ -17,6 +17,7 @@ pub struct ASTToIntermediate<'a> {
     label_count: uint,
     session: &'a mut Session,
     typemap: &'a mut Typemap,
+    manglemap: &'a TreeMap<NodeId, String>,
     continue_labels: Vec<uint>,
     break_labels: Vec<uint>,
 }
@@ -48,11 +49,14 @@ fn ty_width(ty: &Ty) -> Width {
 
 impl<'a> ASTToIntermediate<'a> {
     pub fn new(session: &'a mut Session,
-               typemap: &'a mut Typemap) -> ASTToIntermediate<'a> {
+               typemap: &'a mut Typemap,
+               manglemap: &'a TreeMap<NodeId, String>
+               ) -> ASTToIntermediate<'a> {
         ASTToIntermediate { var_count: 0,
                             label_count: 0,
                             session: session,
                             typemap: typemap,
+                            manglemap: manglemap,
                             continue_labels: vec!(),
                             break_labels: vec!(),
         }
@@ -167,7 +171,7 @@ impl<'a> ASTToIntermediate<'a> {
                     .map(|var| UnOp(var.clone(), Identity,
                                     Variable(var.clone()))).collect();
 
-                let mut ops = vec!(Func(id.val.name, vars));
+                let mut ops = vec!(Func(self.mangled_ident(id), vars));
                 ops.push_all_move(var_stores);
                 ops.push_all_move(new_ops);
 
@@ -203,6 +207,7 @@ impl<'a> ASTToIntermediate<'a> {
                           t: &Type,
                           exp: &Option<Expr>) -> (Vec<Vec<Op>>,
                                                   Vec<StaticIRItem>) {
+        let name = self.mangled_ident(id);
         let ty = self.typemap.types.get(&t.id.to_uint());
 
         let size = size_of_ty(self.session,
@@ -210,7 +215,7 @@ impl<'a> ASTToIntermediate<'a> {
                               ty);
         (vec!(),
          vec!(StaticIRItem {
-             name: id.val.name,
+             name: name,
              size: size as uint,
              is_ref: ty_is_reference(ty),
              expr: exp.clone(),
@@ -355,6 +360,26 @@ impl<'a> ASTToIntermediate<'a> {
         (res, None)
     }
 
+    fn mangled_path(&mut self, path: &Path) -> Name {
+        let defid = self.session.resolver.def_from_path(path);
+
+        let name_opt = self.manglemap.find(&defid);
+        match name_opt {
+            Some(ref n) => self.session.interner.intern((*n).clone()),
+            None => path.val.elems.last().expect(
+                format!("Empty path: {}", path).as_slice()
+                    ).val.name
+        }
+    }
+
+    fn mangled_ident(&mut self, ident: &Ident) -> Name {
+        let name_opt = self.manglemap.find(&ident.id);
+        match name_opt {
+            Some(ref n) => self.session.interner.intern((*n).clone()),
+            None => ident.val.name
+        }
+    }
+
     pub fn convert_expr(&mut self, expr: &Expr) -> (Vec<Op>, Option<Var>) {
         match expr.val {
             LitExpr(ref lit) => {
@@ -433,11 +458,8 @@ impl<'a> ASTToIntermediate<'a> {
                     },
                     _ => {},
                 }
-                // TODO: mangling.
                 (vec!(), Some(
-                    Var { name: path.val.elems.last().expect(
-                        format!("Empty path: {}", path).as_slice()
-                        ).val.name,
+                    Var { name: self.mangled_path(path),
                           generation: None }))
             },
             AssignExpr(ref op, ref e1, ref e2) => {
@@ -469,9 +491,7 @@ impl<'a> ASTToIntermediate<'a> {
                      finalize) = match e1val {
                     PathExpr(ref path) => {
                         let lhs_var = Var {
-                            name: path.val.elems.last().expect(
-                                format!("Empty path: {}", path).as_slice()
-                                    ).val.name,
+                            name: self.mangled_path(path),
                             generation: None
                         };
                         (lhs_var.clone(),

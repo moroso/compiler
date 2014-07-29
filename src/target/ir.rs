@@ -13,6 +13,8 @@ use ir::ssa::ToSSA;
 
 use super::Target;
 
+use target::util::NameMangler;
+
 use std::collections::{TreeMap, SmallIntMap, TreeSet};
 use std::io::stdio;
 use std::local_data::Ref;
@@ -238,13 +240,17 @@ impl Target for IRTarget {
     fn compile(&self, p: Package, f: &mut io::Writer) {
         let Package {
             module:  module,
-            session: mut session,
+            session: session,
             typemap: mut typemap,
         } = p;
 
+        let mangler = NameMangler::new(session, &module, false, false);
+        let mut session = mangler.session;
+
         let (mut result, staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
-                                                       &mut typemap);
+                                                       &mut typemap,
+                                                       &mangler.names);
 
             if self.verbose {
                 print!("{}\n", module);
