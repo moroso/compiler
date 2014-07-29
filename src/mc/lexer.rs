@@ -336,7 +336,7 @@ pub fn new_mb_lexer<S: StrAllocating, B: Buffer>(name: S, buffer: B) -> Lexer<B,
 
             // If we're within a comment, any string not
             // containing "/*" or "*/" is considered whitespace.
-            WS => matcher!(r"(?:[^*/]|/[^*]|\*[^/])*")
+            WS => matcher!(r"(?:.)")
         },
     };
 
