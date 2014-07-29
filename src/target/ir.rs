@@ -118,7 +118,7 @@ impl IRTarget {
                 },
                 UnOp(ref v, ref op, ref rv) => {
                     match *op {
-                        Deref => 
+                        Deref =>
                             format!("  {} = (long)({} (long*)({}));\n",
                                     print_var(interner, v),
                                     op,
@@ -242,7 +242,7 @@ impl Target for IRTarget {
             typemap: mut typemap,
         } = p;
 
-        let (mut result, mut staticitems) = {
+        let (mut result, staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap);
 
