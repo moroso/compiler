@@ -11,7 +11,7 @@ use ir::ast_to_intermediate::ASTToIntermediate;
 use ir::constant_fold::ConstantFolder;
 use ir::ssa::ToSSA;
 use ir::conflicts::ConflictAnalyzer;
-use ir::Func;
+use ir::{Func, StaticIRItem};
 
 use target::NameMangler;
 
@@ -60,13 +60,32 @@ impl Target for AsmTarget {
 
         print!("Mangler: {}\n", mangler.names);
 
-        let (mut result, staticitems) = {
+        let (mut result, mut staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,
                                                        &mangler.names);
 
             converter.convert_module(&module)
         };
+
+        // TODO: this is a hack. Eventually we should extract names from labels
+        // in any included asm files.
+        let asm_staticitems = vec!("MANGLEDprelude_print_uint",
+                                   "MANGLEDprelude_print_int",
+                                   "memcpy")
+            .iter()
+            .map(|x|
+                 StaticIRItem {
+                     name: session.interner.intern(
+                         x.to_string()),
+                     size: 0,
+                     offset: None,
+                     is_ref: false,
+                     is_func: true,
+                     expr: None,
+                 }).collect();
+        staticitems.push_all_move(asm_staticitems);
+
 
         let global_map = ASTToIntermediate::allocate_globals(staticitems);
         print!("Global map: {}\n", global_map);

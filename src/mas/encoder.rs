@@ -131,8 +131,11 @@ pub fn encode(inst: &InstNode) -> u32 {
             encode_rt(&rt) |
             encode_shift_type(&shifttype)
         },
-        LongInst(arg) => {
+        LongInst(Immediate(arg)) => {
             arg
+        },
+        LongInst(LabelOffs(ref label)) => {
+            fail!("Unresolved label {}", label)
         },
         NopInst => {
             encode_pred(&Pred { reg: 3,

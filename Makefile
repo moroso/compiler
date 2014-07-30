@@ -89,6 +89,7 @@ ASM_TEST_FILES := \
 	test_enums.mb \
 	test_for_loop.mb \
 	test_func_prototypes.mb \
+	test_func_ptr.mb \
 	test_globals.mb \
 	test_indexing.mb \
 	test_long.mb \
@@ -104,7 +105,6 @@ ASM_TEST_FILES := \
 	test_struct_init.mb \
 	test_struct_offs.mb
 
-	# test_func_ptr.mb \
 	# test_sign_extend.mb \
 	# test_string.mb \
 

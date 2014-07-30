@@ -69,9 +69,9 @@ fn binop_to_aluop(op: &BinOpNode, swapped: bool) -> Option<AluOp> {
 }
 
 /// Convert a binop into the internal asm representation.
-fn convert_binop<'a, T>(
+fn convert_binop<'a>(
     regmap: &TreeMap<Var, RegisterColor>,
-    global_map: &TreeMap<Name, (uint, uint, bool, T)>,
+    global_map: &TreeMap<Name, StaticIRItem>,
     dest: Reg,
     op: &BinOpNode,
     mut op_l: &'a RValueElem,
@@ -234,9 +234,9 @@ fn convert_binop<'a, T>(
     result
 }
 
-fn convert_unop<'a, T>(
+fn convert_unop<'a>(
     regmap: &TreeMap<Var, RegisterColor>,
-    global_map: &TreeMap<Name, (uint, uint, bool, T)>,
+    global_map: &TreeMap<Name, StaticIRItem>,
     dest: Reg,
     op: &UnOpNode,
     rhs: &'a RValueElem,
@@ -333,15 +333,35 @@ fn width_to_lsuwidth(width: &Width) -> LsuWidth {
 // while another register with the same spill_pos is active.
 // offs is where variables on the stack start (so, after all structs
 // and such that are allocated on the stack).
-fn var_to_reg<T>(regmap: &TreeMap<Var, RegisterColor>,
-                 global_map: &TreeMap<Name, (uint, uint, bool, T)>,
-                 var: &Var,
-                 spill_pos: u8,
-                 offs: u32) -> (Reg, Vec<InstNode>, Vec<InstNode>) {
+fn var_to_reg(regmap: &TreeMap<Var, RegisterColor>,
+              global_map: &TreeMap<Name, StaticIRItem>,
+              var: &Var,
+              spill_pos: u8,
+              offs: u32) -> (Reg, Vec<InstNode>, Vec<InstNode>) {
     let pred = Pred { inverted: false, reg: 3 };
     match *regmap.find(var).unwrap() {
-        RegColor(reg) => (reg,
-                          vec!(), vec!()),
+        RegColor(reg) => {
+            let global_info = global_map.find(&var.name);
+            match global_info {
+                None =>
+                    // It's an ordinary variable!
+                    (reg,
+                     vec!(), vec!()),
+                Some(ref info) => {
+                    // It's a function address. We need to load it into
+                    // the register.
+                    assert!(info.is_func);
+                    (reg,
+                     vec!(InstNode::alu1long(
+                         pred,
+                         MovAluOp,
+                         reg),
+                          InstNode::long_label(format!("{}", var.name))
+                         ),
+                     vec!())
+                }
+            }
+        },
         StackColor(pos) => {
             // TODO: clean up these constants and document this.
             let reg = Reg { index: spill_reg_base + spill_pos };
@@ -365,9 +385,10 @@ fn var_to_reg<T>(regmap: &TreeMap<Var, RegisterColor>,
                  )
         },
         GlobalColor => {
-            let &(offs, _, is_ref, _) = global_map.find(&var.name).unwrap();
+            let global_info = global_map.find(&var.name).unwrap();
+            let offs = global_info.offset.expect("No offset for global item");
             let reg = Reg { index: spill_reg_base + spill_pos };
-            if is_ref {
+            if global_info.is_ref {
                 (reg,
                  vec!(InstNode::alu1long(
                      pred,
@@ -409,12 +430,12 @@ fn var_to_reg<T>(regmap: &TreeMap<Var, RegisterColor>,
     }
 }
 
-fn assign_vars<T>(regmap: &TreeMap<Var, RegisterColor>,
-                  global_map: &TreeMap<Name, (uint, uint, bool, T)>,
-                  pred: &Pred,
-                  gens: &TreeMap<Name, uint>,
-                  vars: &TreeSet<Var>,
-                  offs: u32) -> Vec<InstNode> {
+fn assign_vars(regmap: &TreeMap<Var, RegisterColor>,
+               global_map: &TreeMap<Name, StaticIRItem>,
+               pred: &Pred,
+               gens: &TreeMap<Name, uint>,
+               vars: &TreeSet<Var>,
+               offs: u32) -> Vec<InstNode> {
     let mut result = vec!();
 
     for var in vars.iter() {
@@ -444,9 +465,9 @@ fn assign_vars<T>(regmap: &TreeMap<Var, RegisterColor>,
 }
 
 impl IrToAsm {
-    pub fn ir_to_asm<T>(ops: &Vec<Op>,
-                        global_map: &TreeMap<Name, (uint, uint, bool, T)>
-                        ) -> (Vec<InstNode>, TreeMap<String, uint>) {
+    pub fn ir_to_asm(ops: &Vec<Op>,
+                     global_map: &TreeMap<Name, StaticIRItem>
+                     ) -> (Vec<InstNode>, TreeMap<String, uint>) {
         let opinfo = LivenessAnalyzer::analyze(ops);
         let (conflicts, counts, must_colors, mem_vars) =
             ConflictAnalyzer::conflicts(ops, &opinfo);
@@ -501,7 +522,8 @@ impl IrToAsm {
                     let mut varmap: TreeMap<Name, uint> = TreeMap::new();
                     for var in vars.iter() {
                         varmap.insert(var.name.clone(),
-                                      var.generation.unwrap());
+                                      var.generation.expect(
+                                          "Variable has no generation"));
                     }
                     labels.insert(*idx, varmap);
                 }
@@ -520,14 +542,6 @@ impl IrToAsm {
                     targets.insert(format!("{}", name), result.len());
 
                     // Save the return address, offset by one packet size.
-                    result.push(
-                        InstNode::alu2short(
-                            true_pred,
-                            AddAluOp,
-                            link_register,
-                            link_register,
-                            16,
-                            0));
                     if has_call {
                         result.push(
                             InstNode::store(true_pred,
@@ -555,7 +569,8 @@ impl IrToAsm {
                 Return(ref rve) => {
                     // Store the result in r0.
                     result.push_all_move(
-                        convert_unop(&regmap, global_map, return_reg, &Identity, rve,
+                        convert_unop(&regmap, global_map, return_reg,
+                                     &Identity, rve,
                                      stack_item_offs));
 
                     // Restore all callee-save registers
@@ -585,7 +600,7 @@ impl IrToAsm {
                         InstNode::branchreg(true_pred,
                                             false,
                                             link_register,
-                                            0));
+                                            1));
                 },
                 BinOp(ref var, ref op, ref rve1, ref rve2) => {
                     let (lhs_reg, _, after) = var_to_reg(&regmap, global_map,
@@ -738,7 +753,8 @@ impl IrToAsm {
                     let mut reg_set: TreeSet<Reg> = TreeSet::new();
                     // Make a list of the registers we actually need to save.
                     for var in live_vars.iter() {
-                        match *regmap.find(var).unwrap() {
+                        match *regmap.find(var).expect(
+                            "Variable does not appear in regmap") {
                             RegColor(ref r) => {
                                 if r.index as uint >= total_vars &&
                                     r.index as uint <= num_param_regs &&
@@ -767,7 +783,8 @@ impl IrToAsm {
                                 num_regs_to_save as i32 * 4
                         };
                     let (offs_base, offs_shift) =
-                        pack_int(offs as u32, 10).unwrap();
+                        pack_int(offs as u32, 10).expect(
+                            "Unable to pack literal.");
 
                     // Save all caller-save registers that need to be saved.
                     // If we use, say, registers r0 - r3 as arguments, we
@@ -813,24 +830,54 @@ impl IrToAsm {
                                 ));
                     }
 
-                    let fname = match *f {
-                        Variable(v) => v.name,
+                    // At this point, we need to figure out if the thing we're
+                    // calling is a global function itself (in which case we'll
+                    // just call it), or a variable that's a function pointer.
+                    let func_var = match *f {
+                        Variable(v) => v,
                         // TODO
                         _ => fail!(),
                     };
 
-                    result.push_all_move(vec!(
+                    let reg_opt = match global_map.find(&func_var.name) {
+                        // It's a global. No register to deal with!
+                        // TODO: check that it's actually a function, and not
+                        // a global function pointer.
+                        Some(..) => None,
+                        // It's a variable. Figure out which register holds it.
+                        None => {
+                            let (reg, before, _) = var_to_reg(&regmap,
+                                                              global_map,
+                                                              &func_var, 0,
+                                                              stack_item_offs);
+                            Some((reg, before))
+                        }
+                    };
+
+                    result.push(
                         InstNode::alu2short(
                             true_pred,
                             AddAluOp,
                             stack_pointer,
                             stack_pointer,
                             offs_base,
-                            offs_shift),
-                        InstNode::branchimm(
-                            true_pred,
-                            true,
-                            JumpLabel(format!("{}", fname))),
+                            offs_shift));
+                    match reg_opt {
+                        Some((reg, before)) => {
+                            result.push_all_move(before);
+                            result.push(InstNode::branchreg(
+                                true_pred,
+                                true,
+                                reg, 0));
+                        },
+                        None => {
+                            result.push(InstNode::branchimm(
+                                true_pred,
+                                true,
+                                JumpLabel(format!("{}", func_var.name))));
+                        }
+                    }
+                    result.push(
                         InstNode::alu2short(
                             true_pred,
                             SubAluOp,
@@ -838,7 +885,7 @@ impl IrToAsm {
                             stack_pointer,
                             offs_base,
                             offs_shift)
-                        ));
+                        );
 
                     for i in range(0, reg_list.len()) {
                         result.push(

@@ -147,6 +147,10 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
         _ => {},
     }
     match *inst2 {
+        // TODO: this is more conservative than it needs to be, with LongInst.
+        // We really only need to prevent it from commuting with its immediate
+        // predecessor.
+        LongInst(..) |
         BreakInst(..) |
         FenceInst(..) => return false,
         _ => {},

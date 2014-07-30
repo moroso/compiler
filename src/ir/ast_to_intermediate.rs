@@ -186,7 +186,16 @@ impl<'a> ASTToIntermediate<'a> {
                         ops.push(Return(Variable(v)));
                     },
                 }
-                (vec!(ops), vec!())
+                (vec!(ops), vec!(
+                    StaticIRItem {
+                        name: self.mangled_ident(id),
+                        size: 0,
+                        offset: None,
+                        is_ref: false,
+                        is_func: true,
+                        expr: None,
+                    }
+                    ))
             },
             ModItem(_, ref module) => self.convert_module(module),
             StructItem(..) |
@@ -217,7 +226,9 @@ impl<'a> ASTToIntermediate<'a> {
          vec!(StaticIRItem {
              name: name,
              size: size as uint,
+             offset: None,
              is_ref: ty_is_reference(ty),
+             is_func: false,
              expr: exp.clone(),
          }))
     }
@@ -236,15 +247,15 @@ impl<'a> ASTToIntermediate<'a> {
     }
 
     pub fn allocate_globals(globals: Vec<StaticIRItem>
-                            ) -> TreeMap<Name, (uint, uint,
-                                                bool, Option<Expr>)> {
+                            ) -> TreeMap<Name, StaticIRItem> {
         let mut offs: uint = 0;
         let mut result = TreeMap::new();
 
-        for global in globals.move_iter() {
-            result.insert(global.name, (offs, global.size,
-                                        global.is_ref, global.expr));
-            offs += global.size;
+        for mut global in globals.move_iter() {
+            let size = global.size;
+            global.offset = Some(offs);
+            result.insert(global.name, global);
+            offs += size;
         }
 
         result
@@ -256,11 +267,16 @@ impl<'a> ASTToIntermediate<'a> {
     /// initalize all of the items.
     pub fn convert_globals(&mut self,
                            global_map: &TreeMap<Name,
-                           (uint, uint, bool, Option<Expr>)>) -> Vec<Op> {
+                           StaticIRItem>) -> Vec<Op> {
         let mut res = vec!(
             Func(self.session.interner.intern("__INIT_GLOBALS".to_string()),
                  vec!()));
-        for (name, &(_, size, is_ref, ref en)) in global_map.iter() {
+        for (name, global_item) in global_map.iter() {
+            let size = global_item.size;
+            let is_ref = global_item.is_ref;
+            let is_func = global_item.is_func;
+            let ref en = global_item.expr;
+            if is_func { continue; } // No initialization to do for functions.
             match *en {
                 Some(ref expr) => {
                     // First get the instructions for this expression.

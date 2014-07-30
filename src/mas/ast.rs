@@ -177,6 +177,12 @@ pub enum JumpTarget {
     JumpLabel(String),
 }
 
+#[deriving(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+pub enum LongValue {
+    Immediate(u32),
+    LabelOffs(String),
+}
+
 #[deriving(Show, Eq, PartialEq, Clone, Ord, PartialOrd)]
 pub enum InstNode {
     ALU1ShortInst(Pred, // Instruction predicate
@@ -222,7 +228,7 @@ pub enum InstNode {
                   ShiftType,
                   Reg // Rt
                   ),
-    LongInst(u32),
+    LongInst(LongValue),
     NopInst,
     LoadInst(Pred,
              LsuOp,
@@ -445,7 +451,10 @@ impl InstNode {
                       rt)
     }
     pub fn long(val: u32) -> InstNode {
-        LongInst(val)
+        LongInst(Immediate(val))
+    }
+    pub fn long_label(label: String) -> InstNode {
+        LongInst(LabelOffs(label))
     }
     pub fn nop() -> InstNode { NopInst }
     pub fn load(pred: Pred,

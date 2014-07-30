@@ -10,13 +10,13 @@ pub struct RegisterColorer;
 
 impl RegisterColorer {
     /// Greedy register allocator, favoring variables that are used more often.
-    pub fn color<T>(conflicts: TreeMap<Var, TreeSet<Var>>,
-                    frequencies: TreeMap<Var, u32>,
-                    must_colors: TreeMap<Var, RegisterColor>,
-                    mem_vars: TreeSet<Name>,
-                    global_map: &TreeMap<Name, T>,
-                    num_colors: uint
-                    ) -> TreeMap<Var, RegisterColor> {
+    pub fn color(conflicts: TreeMap<Var, TreeSet<Var>>,
+                 frequencies: TreeMap<Var, u32>,
+                 must_colors: TreeMap<Var, RegisterColor>,
+                 mem_vars: TreeSet<Name>,
+                 global_map: &TreeMap<Name, StaticIRItem>,
+                 num_colors: uint
+                 ) -> TreeMap<Var, RegisterColor> {
         print!("must colors: {}\n", must_colors);
         let mut coloring: TreeMap<Var, RegisterColor> =
             FromIterator::from_iter(must_colors.move_iter());
@@ -36,12 +36,20 @@ impl RegisterColorer {
         }
 
         for (var, _) in freq_vec.move_iter() {
-            if global_map.find(&var.name).is_some() {
-                // It's a global variable. No work to do!
-                assert!(coloring.find(var).is_none(),
-                        "Already colored a global variable");
-                coloring.insert(*var, GlobalColor);
-                continue;
+            let global_info = global_map.find(&var.name);
+            match global_info {
+                Some(ref info) => {
+                    // It's a global variable. No work to do!
+                    assert!(coloring.find(var).is_none(),
+                            "Already colored a global variable");
+                    // Global functions get registers.
+                    if !info.is_func {
+                        // Anything else gets the global color.
+                        coloring.insert(*var, GlobalColor);
+                        continue;
+                    }
+                },
+                _ => {},
             }
             let empty_treeset = TreeSet::<Var>::new();
             let ref adjacent_vars =

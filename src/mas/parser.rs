@@ -1176,7 +1176,7 @@ mod tests {
 
     #[test]
     fn test_parse_inst_long() {
-        assert_eq!(inst_from_str("long 0x56"), LongInst(0x56));
+        assert_eq!(inst_from_str("long 0x56"), LongInst(Immediate(0x56)));
     }
 
     #[test]
