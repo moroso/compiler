@@ -233,7 +233,7 @@ pub fn encode(inst: &InstNode) -> u32 {
             (0b111 << 26) |
             encode_pred(&pred) |
             encode_rs(&rs) |
-            (offs as u32 & ((1<<25)-1)) |
+            ((offs as u32 & ((1<<20)-1)) << 5) |
             (if link { 1 << 25 } else { 0 })
         },
         BreakInst(pred,
