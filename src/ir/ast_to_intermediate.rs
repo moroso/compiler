@@ -400,8 +400,14 @@ impl<'a> ASTToIntermediate<'a> {
         match expr.val {
             LitExpr(ref lit) => {
                 let res_var = self.gen_temp();
+                let new_lit = match lit.val {
+                    // A NULL is just a 0.
+                    NullLit => NumLit(0,
+                                      UnsignedInt(Width32)),
+                    _ => lit.val.clone(),
+                };
                 let insts = vec!(
-                    UnOp(res_var.clone(), Identity, Constant(lit.val.clone()))
+                    UnOp(res_var.clone(), Identity, Constant(new_lit))
                     );
                 (insts, Some(res_var))
             }

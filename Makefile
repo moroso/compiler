@@ -56,9 +56,12 @@ IR_TEST_FILES := \
 	test_break_continue.mb \
 	test_call.mb \
 	test_casts.mb \
+	test_const.mb \
 	test_enums.mb \
 	test_for_loop.mb \
 	test_func_prototypes.mb \
+	test_func_ptr.mb \
+	test_globals.mb \
 	test_indexing.mb \
 	test_long.mb \
 	test_modules.mb \
@@ -69,15 +72,13 @@ IR_TEST_FILES := \
 	test_recursive_types.mb \
 	test_short_circuit.mb \
 	test_sizeof.mb \
+	test_string.mb \
 	test_struct.mb \
+	test_struct_init.mb \
 	test_struct_offs.mb
 
-	# test_const.mb \
-	# test_func_ptr.mb \
-	# test_globals.mb \
 	# test_sign_extend.mb \
 	# test_string.mb \
-	# test_struct_init.mb \
 
 
 ASM_TEST_FILES := \

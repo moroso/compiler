@@ -35,7 +35,7 @@ pub fn generic_op(lhs: &LitNode, rhs: &LitNode,
     match *lhs {
         NumLit(n1, kind1) => num_op_helper(&kind1, rhs, |x| intfunc(n1, x)),
         BoolLit(b) => bool_op_helper(rhs, |x| boolfunc(b, x)),
-        _ => fail!("Unimplemented.")
+        _ => fail!("Unimplemented: {} {}", lhs, rhs)
     }
 }
 

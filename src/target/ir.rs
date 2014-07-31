@@ -28,36 +28,52 @@ pub struct IRTarget {
     verbose: bool,
 }
 
-fn print_var(interner: &Ref<Interner>, v: &Var) -> String {
+fn print_var(interner: &Ref<Interner>,
+             global_map: &TreeMap<Name, StaticIRItem>,
+             v: &Var) -> String {
     format!("{}{}",
             interner.name_to_str(&v.name),
             match v.generation {
-                Some(ref g) if *g > 0 => format!("_{}", g),
+                Some(ref g) if *g > 0 =>
+                    if global_map.find(&v.name).is_none() {
+                        format!("_{}", g)
+                    } else {
+                        format!("")
+                    },
                 _ => format!(""),
             }
             )
 }
 
-fn print_lvalue(interner: &Ref<Interner>, lv: &LValue) -> String {
+fn print_lvalue(interner: &Ref<Interner>,
+                global_map: &TreeMap<Name, StaticIRItem>,
+                lv: &LValue) -> String {
     match *lv {
-        VarLValue(ref v) => print_var(interner, v),
-        PtrLValue(ref v) => format!("*(int*){}", print_var(interner, v)),
+        VarLValue(ref v) => print_var(interner, global_map, v),
+        PtrLValue(ref v) => format!("*(int*){}", print_var(interner,
+                                                           global_map, v)),
     }
 }
 
-fn print_rvalelem(interner: &Ref<Interner>, rve: &RValueElem) -> String {
+fn print_rvalelem(interner: &Ref<Interner>,
+                  global_map: &TreeMap<Name, StaticIRItem>,
+                  rve: &RValueElem) -> String {
     match *rve {
-        Variable(ref v) => print_var(interner, v),
+        Variable(ref v) => print_var(interner, global_map, v),
         Constant(ref l) => {
             match *l {
                 NumLit(n, _) => format!("{}", n),
-                _ => fail!("Non-integer literals not yet supported."),
+                NullLit => format!("NULL"),
+                BoolLit(true) => format!("1"),
+                BoolLit(false) => format!("0"),
+                StringLit(ref s) => format!("\"{}\"", s),
             }
         }
     }
 }
 
 fn assign_vars(interner: &Ref<Interner>,
+               global_map: &TreeMap<Name, StaticIRItem>,
                label: &TreeMap<Name, uint>,
                vars: &TreeSet<Var>) -> String {
     let mut s = "".to_string();
@@ -67,15 +83,16 @@ fn assign_vars(interner: &Ref<Interner>,
             generation: Some(*label.find(&var.name).unwrap())
         };
         s = s.append(format!("  {} = {};\n",
-                             print_var(interner, &new_var),
-                             print_var(interner, var)).as_slice());
+                             print_var(interner, global_map, &new_var),
+                             print_var(interner, global_map, var)).as_slice());
     }
     s
 }
 
 impl IRTarget {
     fn convert_function(&self, interner: &Ref<Interner>,
-                        ops: &Vec<Op>) -> String {
+                        ops: &Vec<Op>,
+                        global_map: &TreeMap<Name, StaticIRItem>) -> String {
         if ops.len() == 0 { return String::from_str("") }
 
         let mut s = "".to_string();
@@ -88,6 +105,13 @@ impl IRTarget {
         for op in opinfo.iter().skip(1) {
             for var in op.def.iter() {
                 vars.insert(var);
+            }
+        }
+        // TODO: This is a hack, until "return" takes an option.
+        for op in ops.iter() {
+            match *op {
+                Return(Variable(ref v)) => { vars.insert(v); },
+                _ => {}
             }
         }
 
@@ -113,55 +137,55 @@ impl IRTarget {
             s = s.append(match *op {
                 BinOp(ref v, ref op, ref rv1, ref rv2) => {
                     format!("  {} = (long)(({}) {} ({}));\n",
-                            print_var(interner, v),
-                            print_rvalelem(interner, rv1),
+                            print_var(interner, global_map, v),
+                            print_rvalelem(interner, global_map, rv1),
                             op,
-                            print_rvalelem(interner, rv2))
+                            print_rvalelem(interner, global_map, rv2))
                 },
                 UnOp(ref v, ref op, ref rv) => {
                     match *op {
                         Deref =>
                             format!("  {} = (long)({} (long*)({}));\n",
-                                    print_var(interner, v),
+                                    print_var(interner, global_map, v),
                                     op,
-                                    print_rvalelem(interner, rv)),
+                                    print_rvalelem(interner, global_map, rv)),
                         _ =>
                             format!("  {} = (long)({} ({}));\n",
-                                    print_var(interner, v),
+                                    print_var(interner, global_map, v),
                                     op,
-                                    print_rvalelem(interner, rv))
+                                    print_rvalelem(interner, global_map, rv))
                     }
                 },
                 Alloca(ref v, ref size) => {
                     format!("  {} = (long)(alloca({}));\n",
-                            print_var(interner, v), size)
+                            print_var(interner, global_map, v), size)
                 },
                 Call(ref v, ref fname, ref args) => {
-                    // TODO: fix this. Right now, as a hack, we just leave
-                    // off the generation.
                     let mut s = match *fname {
                         Variable(ref fnv) =>
                             format!("  {} = ((long (*)()){})(",
-                                    print_var(interner, v),
-                                    fnv.name),
+                                    print_var(interner, global_map, v),
+                                    print_var(interner, global_map, fnv),
+                                    ),
                         _=> unimplemented!(),
                     };
                     let list: Vec<String> = args.iter()
-                        .map(|arg| print_var(interner, arg)).collect();
+                        .map(|arg| print_var(interner, global_map, arg)
+                             ).collect();
                     s = s.append(list.connect(", ").as_slice());
                     s = s.append(");\n");
                     s
                 },
                 Load(ref l, ref r, ref size) => {
                     format!("  {} = (long)*({}*)({});\n",
-                            print_var(interner, l),
+                            print_var(interner, global_map, l),
                             match *size {
                                 AnyWidth |
                                 Width32 => "uint32_t",
                                 Width16 => "uint16_t",
                                 Width8 => "uint8_t",
                             },
-                            print_var(interner, r))
+                            print_var(interner, global_map, r))
                 },
                 Store(ref l, ref r, ref size) => {
                     format!("  *({}*)({}) = {};\n",
@@ -171,8 +195,8 @@ impl IRTarget {
                                 Width16 => "uint16_t",
                                 Width8 => "uint8_t",
                             },
-                            print_var(interner, l),
-                            print_var(interner, r))
+                            print_var(interner, global_map, l),
+                            print_var(interner, global_map, r))
                 },
                 Nop => format!(""),
                 Label(ref l, _) => {
@@ -183,6 +207,7 @@ impl IRTarget {
                 Goto(ref l, ref vars) => {
                     format!("{}  goto LABEL{};\n",
                             assign_vars(interner,
+                                        global_map,
                                         labels.get(l),
                                         vars),
                             l)
@@ -190,21 +215,29 @@ impl IRTarget {
                 CondGoto(ref negated, ref rve, ref l, _) => {
                     format!("  if ({}({})) goto LABEL{};\n",
                             if *negated { "!" } else { "" },
-                            print_rvalelem(interner, rve),
+                            print_rvalelem(interner, global_map, rve),
                             l)
                 },
                 Return(ref rve) => {
-                    format!("  return {};\n", print_rvalelem(interner, rve))
+                    format!("  return {};\n", print_rvalelem(interner,
+                                                             global_map,
+                                                             rve))
                 },
                 Func(ref name, ref args) => {
                     let mapped_args: Vec<String> = args.iter()
-                        .map(|arg| format!("long {}", print_var(interner, arg)))
+                        .map(|arg| format!("long {}", print_var(interner,
+                                                                global_map,
+                                                                arg)))
                         .collect();
                     let mut s = format!("");
                     for var in vars.iter() {
-                        s = s.append(format!("  long {};\n",
-                                             print_var(interner, *var))
-                                     .as_slice());
+                        if global_map.find(&var.name).is_none() {
+                            s = s.append(format!("  long {};\n",
+                                                 print_var(interner,
+                                                           global_map,
+                                                           *var))
+                                         .as_slice());
+                        }
                     }
 
                     let closer = if in_func { "}" } else { "" };
@@ -244,10 +277,10 @@ impl Target for IRTarget {
             typemap: mut typemap,
         } = p;
 
-        let mangler = NameMangler::new(session, &module, false, false);
+        let mangler = NameMangler::new(session, &module, true, false);
         let mut session = mangler.session;
 
-        let (mut result, staticitems) = {
+        let (mut result, mut staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,
                                                        &mangler.names);
@@ -269,6 +302,7 @@ impl Target for IRTarget {
         println!("{}", "#include <stdlib.h>");
         println!("{}", "#include <stdint.h>");
         println!("{}", "#include <assert.h>");
+        println!("{}", "#include <string.h>");
         println!("{}", "typedef unsigned int uint_t;");
         println!("{}", "typedef int int_t;");
 
@@ -292,7 +326,48 @@ impl Target for IRTarget {
             }
         }
 
+        // TODO: this is a hack. Eventually we should extract names from labels
+        // in any included asm files.
+        let builtin_staticitems = vec!("print_char",
+                                       "print_int",
+                                       "printf0_",
+                                       "printf1_",
+                                       "printf2_",
+                                       "printf3_",
+                                       "assert")
+            .iter()
+            .map(|x|
+                 StaticIRItem {
+                     name: session.interner.intern(
+                         x.to_string()),
+                     size: 0,
+                     offset: None,
+                     is_ref: false,
+                     is_func: true,
+                     expr: None,
+                 }).collect();
+        staticitems.push_all_move(builtin_staticitems);
+
         let global_map = ASTToIntermediate::allocate_globals(staticitems);
+        let global_initializer = {
+            let mut converter = ASTToIntermediate::new(&mut session,
+                                                       &mut typemap,
+                                                       &mangler.names);
+
+            converter.convert_globals(&global_map)
+        };
+        result.push(global_initializer);
+
+        // Print global definitions.
+        for (_, item) in global_map.iter() {
+            if !item.is_func {
+                if item.is_ref {
+                    println!("char {}[{}];", item.name, item.size);
+                } else {
+                    println!("long {};", item.name);
+                }
+            }
+        }
 
         for insts in result.mut_iter() {
             ToSSA::to_ssa(insts, self.verbose);
@@ -306,7 +381,10 @@ impl Target for IRTarget {
                     write!(f, "{}\n", a);
                 }
             }
-            write!(f, "{}\n", self.convert_function(&session.interner, insts));
+            write!(f, "{}\n", self.convert_function(&session.interner, insts,
+                                                    &global_map));
         }
+
+        println!("{}", "void main() { __INIT_GLOBALS(); MANGLEDmain(); }");
     }
 }

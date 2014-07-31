@@ -6,7 +6,7 @@ fn foo(y: u32) {
     print_uint(x+y);
 }
 
-fn main(y: u32) -> u32 {
+fn main() -> u32 {
     foo(1);
 
     0
