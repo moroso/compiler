@@ -1,3 +1,5 @@
+use time::precise_time_ns;
+
 use package::Package;
 
 use mc::lexer::Lexer;
@@ -387,22 +389,40 @@ impl Target for IRTarget {
             }
         }
 
+        let mut ssa_time: u64 = 0;
+        let mut fold_time: u64 = 0;
+        let mut convert_time: u64 = 0;
+
         for insts in result.mut_iter() {
+            let start = precise_time_ns();
             ToSSA::to_ssa(insts, self.verbose);
+            let end = precise_time_ns();
+            ssa_time += end-start;
             if self.verbose {
                 write!(f, "{}\n", insts);
             }
+            let start = precise_time_ns();
             ConstantFolder::fold(insts, &global_map, self.verbose);
+            let end = precise_time_ns();
+            fold_time += end-start;
             if self.verbose {
                 write!(f, "{}\n", insts);
                 for a in LivenessAnalyzer::analyze(insts).iter() {
                     write!(f, "{}\n", a);
                 }
             }
+            let start = precise_time_ns();
             write!(f, "{}\n", self.convert_function(&session.interner, insts,
                                                     &global_map));
+            let end = precise_time_ns();
+            convert_time += end-start;
         }
 
         println!("{}", "void main() { __INIT_GLOBALS(); MANGLEDmain(); }");
+
+        println!("// ssa:{} fold:{} convert:{}",
+                 ssa_time as f32 / 1000000000f32,
+                 fold_time as f32 / 1000000000f32,
+                 convert_time as f32 / 1000000000f32);
     }
 }
