@@ -120,7 +120,14 @@ impl<'a> ASTToIntermediate<'a> {
                                         (vec!(Alloca(v, size*nelem)), Some(v))
                                     }
                                     // TODO: enums
-                                    _ => (vec!(), Some(v))
+                                    _ => // If no expression is given,
+                                        // initialize to 0.
+                                        (vec!(UnOp(v, Identity,
+                                                   Constant(NumLit(
+                                                       0,
+                                                       UnsignedInt(
+                                                           Width32))))),
+                                         Some(v))
                                 }
                             }
                         }
