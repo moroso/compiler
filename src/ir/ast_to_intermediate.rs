@@ -154,8 +154,9 @@ impl<'a> ASTToIntermediate<'a> {
             FuncItem(ref id, ref args, _, ref block, _) => {
                 let (new_ops, v) = match *block {
                     Some(ref block) => self.convert_block(block),
-                    // TODO: extern functions.
-                    None => return (vec!(), vec!())
+                    // For extern functions, we'll generate a Func() op,
+                    // but nothing else.
+                    None => (vec!(), Some(self.gen_temp()))
                 };
 
                 let vars: Vec<Var> = args
@@ -171,20 +172,24 @@ impl<'a> ASTToIntermediate<'a> {
                     .map(|var| UnOp(var.clone(), Identity,
                                     Variable(var.clone()))).collect();
 
-                let mut ops = vec!(Func(self.mangled_ident(id), vars));
-                ops.push_all_move(var_stores);
-                ops.push_all_move(new_ops);
+                let mut ops = vec!(Func(self.mangled_ident(id), vars,
+                                        block.is_none()));
+                if block.is_some() {
+                    ops.push_all_move(var_stores);
+                    ops.push_all_move(new_ops);
 
-                match v {
-                    Some(v) => ops.push(Return(Variable(v))),
-                    // TODO: Return should take an Option.
-                    None => {
-                        let v = self.gen_temp();
-                        ops.push(UnOp(v, Identity,
-                                      Constant(NumLit(5,
-                                                      UnsignedInt(Width32)))));
-                        ops.push(Return(Variable(v)));
-                    },
+                    match v {
+                        Some(v) => ops.push(Return(Variable(v))),
+                        // TODO: Return should take an Option.
+                        None => {
+                            let v = self.gen_temp();
+                            ops.push(UnOp(v, Identity,
+                                          Constant(NumLit(
+                                              5,
+                                              UnsignedInt(Width32)))));
+                            ops.push(Return(Variable(v)));
+                        },
+                    }
                 }
                 (vec!(ops), vec!(
                     StaticIRItem {
@@ -270,7 +275,8 @@ impl<'a> ASTToIntermediate<'a> {
                            StaticIRItem>) -> Vec<Op> {
         let mut res = vec!(
             Func(self.session.interner.intern("__INIT_GLOBALS".to_string()),
-                 vec!()));
+                 vec!(),
+                 false));
         for (name, global_item) in global_map.iter() {
             let size = global_item.size;
             let is_ref = global_item.is_ref;

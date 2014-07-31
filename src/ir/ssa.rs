@@ -312,7 +312,8 @@ impl ToSSA {
                 Return(ref mut rv) => {
                     ssa_rvalelem(gens, rv);
                 },
-                Func(_, ref mut vars) => {
+                Func(_, ref mut vars, is_extern) => {
+                    if is_extern { return; }
                     for var in vars.mut_iter() {
                         *var = Var {
                             name: var.name.clone(),

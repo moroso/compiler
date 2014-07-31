@@ -112,7 +112,7 @@ impl Target for AsmTarget {
 
         for insts in result.mut_iter() {
             match (*insts)[0] {
-                Func(ref n, _) => {
+                Func(ref n, _, _) => {
                     // We override certain functions with asm versions in
                     // prelude.ma. This is a temporary hack.
                     match format!("{}", n).as_slice() {

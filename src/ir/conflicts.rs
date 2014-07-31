@@ -44,7 +44,8 @@ impl ConflictAnalyzer {
                     }
                     must_colors.insert(*v, RegColor(Reg { index: 0 as u8 }));
                 },
-                Func(_, ref args) => {                    
+                Func(_, ref args, is_extern) => {
+                    if is_extern { break; }
                     for (i, arg) in args.iter().enumerate()
                         .take(num_param_regs)
                     {

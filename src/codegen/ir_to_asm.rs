@@ -538,7 +538,8 @@ impl IrToAsm {
         let mut result = vec!();
         for (pos, op) in ops.iter().enumerate() {
             match *op {
-                Func(ref name, _) => {
+                Func(ref name, _, is_extern) => {
+                    if is_extern { continue; }
                     targets.insert(format!("{}", name), result.len());
 
                     // Save the return address, offset by one packet size.

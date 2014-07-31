@@ -129,7 +129,8 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                     _ => {},
                 }
             },
-            Func(_, ref vars) => {
+            Func(_, ref vars, is_extern) => {
+                if is_extern { return; }
                 for v in vars.iter() {
                     opinfo.def.insert(v.clone());
                 }

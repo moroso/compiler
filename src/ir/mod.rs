@@ -105,8 +105,9 @@ pub enum Op {
     // Return statement.
     Return(RValueElem),
     // Function definition. A special op, that can only appear once, at
-    // the beginning of a function.
-    Func(Name, Vec<Var>),
+    // the beginning of a function. The bool is whether it corresponds to
+    // an extern.
+    Func(Name, Vec<Var>, bool),
     Nop,
 }
 
@@ -137,7 +138,9 @@ impl Show for Op {
                 write!(f, "if {}{} goto {}({})\n",
                        if *neg { "!" } else { "" }, e, l, vars),
             Return(ref v) => write!(f, "return {}\n", v),
-            Func(ref name, ref vars) => write!(f, "fn {}({})\n", name, vars),
+            Func(ref name, ref vars, is_extern) =>
+                write!(f, "{}fn {}({})\n",
+                       if is_extern { "extern " } else { "" }, name, vars),
             Nop => write!(f, "{: >16}\n", "nop"),
         }
     }

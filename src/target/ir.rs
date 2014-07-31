@@ -62,7 +62,7 @@ fn print_rvalelem(interner: &Ref<Interner>,
         Variable(ref v) => print_var(interner, global_map, v),
         Constant(ref l) => {
             match *l {
-                NumLit(n, _) => format!("{}", n),
+                NumLit(n, _) => format!("{}", n as i32),
                 NullLit => format!("NULL"),
                 BoolLit(true) => format!("1"),
                 BoolLit(false) => format!("0"),
@@ -93,7 +93,8 @@ impl IRTarget {
     fn convert_function(&self, interner: &Ref<Interner>,
                         ops: &Vec<Op>,
                         global_map: &TreeMap<Name, StaticIRItem>) -> String {
-        if ops.len() == 0 { return String::from_str("") }
+        // If this is the case, it's an extern. We don't want to emit it.
+        if ops.len() <= 1 { return String::from_str("") }
 
         let mut s = "".to_string();
         let mut vars = TreeSet::new();
@@ -163,10 +164,15 @@ impl IRTarget {
                 Call(ref v, ref fname, ref args) => {
                     let mut s = match *fname {
                         Variable(ref fnv) =>
-                            format!("  {} = ((long (*)()){})(",
-                                    print_var(interner, global_map, v),
-                                    print_var(interner, global_map, fnv),
-                                    ),
+                            if format!("{}", fnv.name) == format!("assert") {
+                                // This is a hack since assert isn't a function.
+                                format!("  assert(")
+                            } else {
+                                format!("  {} = ((long (*)()){})(",
+                                        print_var(interner, global_map, v),
+                                        print_var(interner, global_map, fnv),
+                                        )
+                            },
                         _=> unimplemented!(),
                     };
                     let list: Vec<String> = args.iter()
@@ -223,7 +229,7 @@ impl IRTarget {
                                                              global_map,
                                                              rve))
                 },
-                Func(ref name, ref args) => {
+                Func(ref name, ref args, _) => {
                     let mapped_args: Vec<String> = args.iter()
                         .map(|arg| format!("long {}", print_var(interner,
                                                                 global_map,
@@ -313,21 +319,8 @@ impl Target for IRTarget {
         println!("{}", "long print_int(long x) { printf(\"%d\\n\", (int)x); return x; }");
         println!("{}", "long print_char(long x) { printf(\"%c\", (int)x); return x; }");
 
-        // Print function prototypes.
-        for insts in result.iter() {
-            for inst in insts.iter() {
-                match *inst {
-                    Func(ref name, _) => {
-                        write!(f, "long {}();\n",
-                               session.interner.name_to_str(name));
-                    },
-                    _ => {}
-                }
-            }
-        }
-
-        // TODO: this is a hack. Eventually we should extract names from labels
-        // in any included asm files.
+        // TODO: this is a hack. Eventually we should extract names from
+        // any included files.
         let builtin_staticitems = vec!("print_char",
                                        "print_int",
                                        "printf0_",
@@ -357,6 +350,31 @@ impl Target for IRTarget {
             converter.convert_globals(&global_map)
         };
         result.push(global_initializer);
+
+        // Another hack! We don't want to emit "extern" declarations for some
+        // of these functions.
+        let declared_builtins: TreeSet<String> = FromIterator::from_iter(
+            vec!("abort", "malloc", "calloc", "assert")
+                .move_iter()
+                .map(|x| x.to_string())
+            );
+
+        // Print function prototypes.
+        for insts in result.iter() {
+            for inst in insts.iter() {
+                match *inst {
+                    Func(ref name, _, is_extern) => {
+                        if !declared_builtins.contains(&format!("{}", name)) {
+                            write!(f, "{}long {}();\n",
+                                   if is_extern { "extern " } else { "" },
+                                   session.interner.name_to_str(name));
+                        }
+                    },
+                    _ => {}
+                }
+            }
+        }
+
 
         // Print global definitions.
         for (_, item) in global_map.iter() {
