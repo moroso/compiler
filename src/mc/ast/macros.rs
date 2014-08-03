@@ -205,7 +205,10 @@ impl<'a> MutVisitor for MacroExpanderVisitor<'a> {
 
                 let mut toks = unsafe {
                     let macro: & &Expander = ::std::mem::transmute(
-                        self.session.expander.macros.find(&name).expect(format!("Macro {}! is undefined", name).as_slice())
+                        match self.session.expander.macros.find(&name) {
+                            Some(m) => m,
+                            None => self.session.error_fatal(expr.id, format!("Macro {}! is undefined", name).as_slice()),
+                        }
                     );
                     macro.expand(my_args, expr.id, self.session)
                 };
