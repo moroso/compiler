@@ -1,7 +1,7 @@
 use util::{Width32, Width16, Width8, AnyWidth, Width, UnsignedInt, Name};
 
 use mc::session::Session;
-use mc::ast::defmap::{StructDef, EnumDef, VariantDef};
+use mc::ast::defmap::{StructDef, EnumDef, VariantDef, ConstDef};
 
 use std::collections::{TreeSet, TreeMap};
 use std::vec::unzip;
@@ -262,10 +262,8 @@ impl<'a> ASTToIntermediate<'a> {
             ModItem(_, ref module) => self.convert_module(module),
             StructItem(..) |
             EnumItem(..) |
+            ConstItem(..) |
             UseItem(..) => (vec!(), vec!()),
-            ConstItem(ref id, ref t, ref exp) => {
-                self.static_item_helper(id, t, &Some(exp.clone()))
-            },
             StaticItem(ref id, ref t, ref exp) => {
                 self.static_item_helper(id, t, exp)
             }
@@ -558,6 +556,15 @@ impl<'a> ASTToIntermediate<'a> {
                                 );
 
                         return (insts, Some(base_var))
+                    },
+                    ConstDef(_) => {
+                        let constval = self.typemap.consts.find(
+                            &defid).expect("No folded constant found").clone()
+                            .ok().unwrap();
+                        let ret_var = self.gen_temp();
+                        return (vec!(UnOp(ret_var, Identity,
+                                          Constant(constval))),
+                                Some(ret_var));
                     },
                     _ => {},
                 }
