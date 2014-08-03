@@ -40,7 +40,9 @@ MC_FILES := \
 	mc/deps.rs \
 	mc/lexer.rs \
 	mc/parser.rs \
+	mc/prelude.ma \
 	mc/prelude.mb \
+	mc/std.mb \
 	mc/resolver.rs \
 	mc/session.rs \
 	target/asm.rs \
