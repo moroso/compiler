@@ -96,6 +96,8 @@ pub fn eval_unop(op: UnOpNode, lit: LitNode) -> Option<LitNode> {
         BitNot => Some(generic_unop(&lit, |x| !x, |_| fail!())),
         LogNot => Some(generic_unop(&lit, |_| fail!(), |x| !x)),
         Deref | AddrOf => None,
+        SxbOp => Some(generic_unop(&lit, |x| (x as i8) as u64, |_| fail!())),
+        SxhOp => Some(generic_unop(&lit, |x| (x as i16) as u64, |_| fail!())),
     }
 }
 

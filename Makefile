@@ -72,13 +72,13 @@ IR_TEST_FILES := \
 	test_recursion.mb \
 	test_recursive_types.mb \
 	test_short_circuit.mb \
+	test_sign_extend.mb \
 	test_sizeof.mb \
 	test_string.mb \
 	test_struct.mb \
 	test_struct_init.mb \
 	test_struct_offs.mb
 
-	# test_sign_extend.mb \
 	# test_string.mb \
 
 
@@ -102,12 +102,12 @@ ASM_TEST_FILES := \
 	test_recursion.mb \
 	test_recursive_types.mb \
 	test_short_circuit.mb \
+	test_sign_extend.mb \
 	test_sizeof.mb \
 	test_struct.mb \
 	test_struct_init.mb \
 	test_struct_offs.mb
 
-	# test_sign_extend.mb \
 	# test_string.mb \
 
 mbc: $(addprefix src/,$(MC_FILES))

@@ -417,7 +417,9 @@ impl CCrossCompiler {
                 let lhs = self.visit_expr(&**lhs);
                 let op = self.visit_binop(op);
                 let rhs = self.visit_expr(&**rhs);
-                format!("({}) {} ({})", lhs, op, rhs)
+                let typename = self.visit_ty(self.typemap.types.get(
+                    &expr.id.to_uint()));
+                format!("({})(({}) {} ({}))", typename, lhs, op, rhs)
             }
             UnOpExpr(ref op, ref expr) => {
                 let op = self.visit_unop(op);

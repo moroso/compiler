@@ -277,6 +277,10 @@ fn convert_unop<'a>(
                                              SllShift, 0)),
         Identity => |x| if dest == x { vec!() } else {
             vec!(InstNode::alu1reg(pred, MovAluOp, dest, x, SllShift, 0)) },
+        SxbOp => |x| vec!(InstNode::alu1reg(pred, SxbAluOp, dest, x,
+                                            SllShift, 0)),
+        SxhOp => |x| vec!(InstNode::alu1reg(pred, SxhAluOp, dest, x,
+                                            SllShift, 0)),
     };
 
     match *rhs {
@@ -287,7 +291,8 @@ fn convert_unop<'a>(
             before_r
         },
         Constant(ref val) => {
-            if *op != Identity { fail!("Should have been constant folded.") };
+            if *op != Identity { fail!("Should have been constant folded. {}",
+                                       op) };
 
             let mut result = vec!();
             let num = lit_to_u32(val);

@@ -856,6 +856,8 @@ impl<'a> Typechecker<'a> {
                         _ => unreachable!(),
                     },
                     Identity => ty.val,
+                    _ => fail!("Operator {} should not appear here.",
+                               op.val),
                 };
 
                 expr_ty

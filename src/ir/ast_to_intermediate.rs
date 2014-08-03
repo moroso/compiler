@@ -47,6 +47,16 @@ fn ty_width(ty: &Ty) -> Width {
     }
 }
 
+fn ty_is_signed(ty: &Ty) -> bool {
+    match *ty {
+        GenericIntTy |
+        IntTy(..) => true,
+        UintTy(..) |
+        PtrTy(..) => false,
+        _ => fail!("Non-integer type {}", ty),
+    }
+}
+
 impl<'a> ASTToIntermediate<'a> {
     pub fn new(session: &'a mut Session,
                typemap: &'a mut Typemap,
@@ -59,6 +69,46 @@ impl<'a> ASTToIntermediate<'a> {
                             manglemap: manglemap,
                             continue_labels: vec!(),
                             break_labels: vec!(),
+        }
+    }
+
+    /// Does whatever needs to be done to a variable so that it has a correct
+    /// value for some type that is smaller than 32 bits.
+    fn contract(&mut self,
+                v: Var, 
+                ty: &Ty) -> (Vec<Op>, Option<Var>) {
+        match *ty {
+            IntTy(..) |
+            UintTy(..) |
+            GenericIntTy(..) => {},
+            _ => return (vec!(), Some(v))
+        }
+        let width = ty_width(ty);
+        let is_signed = ty_is_signed(ty);
+
+        match width {
+            Width8 |
+            Width16 => {
+                let res = self.gen_temp();
+                if is_signed {
+                    (vec!(UnOp(res,
+                               if width == Width8 {
+                                   SxbOp
+                               } else {
+                                   SxhOp
+                               }, Variable(v))), Some(res))
+                } else {
+                    (vec!(BinOp(res, BitAndOp, Variable(v),
+                                Constant(NumLit(
+                                    if width == Width8 {
+                                        0xff
+                                    } else {
+                                        0xffff
+                                    },
+                                    UnsignedInt(Width32))))), Some(res))
+                }
+            },
+            _ => (vec!(), Some(v))
         }
     }
 
@@ -104,7 +154,7 @@ impl<'a> ASTToIntermediate<'a> {
                         match ty {
                             None => fail!("No type available."),
                             Some(ref t) => {
-                                match *self.typemap.types.get(&t.id.to_uint()) {
+                                match *self.lookup_ty(t.id) {
                                     StructTy(ref id, _) => {
                                         let size = size_of_def(self.session,
                                                                self.typemap,
@@ -229,7 +279,7 @@ impl<'a> ASTToIntermediate<'a> {
                           exp: &Option<Expr>) -> (Vec<Vec<Op>>,
                                                   Vec<StaticIRItem>) {
         let name = self.mangled_ident(id);
-        let ty = self.typemap.types.get(&t.id.to_uint());
+        let ty = self.lookup_ty(t.id);
 
         let size = size_of_ty(self.session,
                               self.typemap,
@@ -296,7 +346,7 @@ impl<'a> ASTToIntermediate<'a> {
                     let (ops, expr_var) = self.convert_expr(expr);
                     let expr_var = expr_var.expect(
                         "Global must have a non-unit value");
-                    let ty = (*self.typemap.types.get(&expr.id.to_uint()))
+                    let ty = (*self.lookup_ty(expr.id))
                         .clone();
                     res.push_all_move(ops);
                     // If the type is a reference, then the instructions just
@@ -409,6 +459,19 @@ impl<'a> ASTToIntermediate<'a> {
         }
     }
 
+    pub fn lookup_ty(&self, id: NodeId) -> &Ty {
+        let this_ty = self.typemap.types.get(&id.to_uint());
+        match *this_ty {
+            BoundTy(ref bid) => {
+                match *self.typemap.bounds.get(&bid.to_uint()) {
+                    Concrete(ref ty) => ty,
+                    _ => fail!("Should have a concrete type."),
+                }
+            },
+            _ => this_ty
+        }
+    }
+
     pub fn convert_expr(&mut self, expr: &Expr) -> (Vec<Op>, Option<Var>) {
         match expr.val {
             LitExpr(ref lit) => {
@@ -457,7 +520,12 @@ impl<'a> ASTToIntermediate<'a> {
                                   op.val.clone(),
                                   Variable(var1),
                                   Variable(var2)));
-                        (insts1, Some(new_res))
+                        let dest_ty = &self.lookup_ty(expr.id).clone();
+                        let (new_ops, new_var) = self.contract(new_res,
+                                                               dest_ty);
+                        insts1.push_all_move(new_ops);
+
+                        (insts1, new_var)
                     }
                 }
             },
@@ -536,13 +604,12 @@ impl<'a> ASTToIntermediate<'a> {
                          |lv, v, _| UnOp(lv, Identity, Variable(v)))
                     },
                     UnOpExpr(ref lhs_op, ref e) => {
-                        let width = match *self.typemap.types.get(
-                            &e2.id.to_uint()) {
-                            BoolTy => Width8,
-                            IntTy(w) |
-                            UintTy(w) => w.clone(),
-                            _ => Width32,
-                        };
+                        let ty = match *self.lookup_ty(e.id) {
+                            PtrTy(ref inner_ty) => &inner_ty.val,
+                            _ => fail!(concat!("Expecting a deref, and can ",
+                                               "only deref a pointer type")),
+                        }.clone();
+                        let width = ty_width(&ty);
                         let (insts, var) = self.convert_expr(&**e);
                         let var = var.expect(
                             "Argument to unary op must have non-unit value");
@@ -590,7 +657,7 @@ impl<'a> ASTToIntermediate<'a> {
                          |lv, v, w| Store(lv, v, w))
                     },
                     IndexExpr(ref arr, ref idx) => {
-                        let ty = (*self.typemap.types.get(&e1.id.to_uint()))
+                        let ty = (*self.lookup_ty(e1.id))
                             .clone();
 
                         let (ops, ptr_var, width, is_ref) =
@@ -798,7 +865,7 @@ impl<'a> ASTToIntermediate<'a> {
                 // We add one more dummy assignment, for the result.
                 ops.push(UnOp(result_var.clone(), Identity,
                               Variable(result_var.clone())));
-                let this_ty = self.typemap.types.get(&expr.id.to_uint());
+                let this_ty = self.lookup_ty(expr.id);
                 match *this_ty {
                     UnitTy => (ops, None),
                     _ => (ops, Some(result_var))
@@ -820,13 +887,20 @@ impl<'a> ASTToIntermediate<'a> {
                 }
                 (ops, Some(res_var))
             },
-            CastExpr(ref e, _) => {
-                self.convert_expr(&**e)
+            CastExpr(ref e, ref t) => {
+                let (mut ops, res) = self.convert_expr(&**e);
+                let dest_ty = &self.lookup_ty(t.id).clone();
+
+                let res = res.expect("Casting a unit value is not allowed.");
+
+                let (new_ops, new_var) = self.contract(res, dest_ty);
+                ops.push_all_move(new_ops);
+                (ops, new_var)
             },
             UnitExpr => (vec!(), None),
             SizeofExpr(ref t) => {
                 let v = self.gen_temp();
-                let ty = self.typemap.types.get(&t.id.to_uint());
+                let ty = self.lookup_ty(t.id);
 
                 (vec!(UnOp(v,
                            Identity,
@@ -837,7 +911,7 @@ impl<'a> ASTToIntermediate<'a> {
                  Some(v))
             },
             UnOpExpr(ref op, ref e) => {
-                let ty = (*self.typemap.types.get(&e.id.to_uint())).clone();
+                let ty = (*self.lookup_ty(e.id)).clone();
                 match e.val {
                     DotExpr(ref e, ref name) |
                     ArrowExpr(ref e, ref name) => {
@@ -878,7 +952,15 @@ impl<'a> ASTToIntermediate<'a> {
                                     insts.push(Load(res_v,
                                                     v,
                                                     ty_width(&inner.val)));
-                                    return (insts, Some(res_v));
+
+                                    let dest_ty = &self.lookup_ty(expr.id)
+                                        .clone();
+                                    let (new_ops, new_var) = self.contract(
+                                        res_v,
+                                        dest_ty);
+                                    insts.push_all_move(new_ops);
+
+                                    return (insts, new_var);
                                 },
                             _ => op.val,
                         }
@@ -888,7 +970,10 @@ impl<'a> ASTToIntermediate<'a> {
                 insts.push(UnOp(res_v,
                                 actual_op,
                                 Variable(v)));
-                (insts, Some(res_v))
+                let dest_ty = &self.lookup_ty(expr.id).clone();
+                let (new_ops, new_var) = self.contract(res_v, dest_ty);
+                insts.push_all_move(new_ops);
+                (insts, new_var)
             },
             ReturnExpr(ref e) => {
                 let (mut insts, v) = self.convert_expr(&**e);
@@ -928,7 +1013,7 @@ impl<'a> ASTToIntermediate<'a> {
                                     fields.iter()
                                     .find(|&&(a, _)| a == *name)
                                     .expect("No struct field with given name");
-                                self.typemap.types.get(&t.id.to_uint())
+                                self.lookup_ty(t.id)
                             },
                             _ => fail!(),
                         }
@@ -948,7 +1033,7 @@ impl<'a> ASTToIntermediate<'a> {
                 (ops, Some(base_var))
             }
             IndexExpr(ref arr, ref idx) => {
-                let ty = (*self.typemap.types.get(&expr.id.to_uint())).clone();
+                let ty = (*self.lookup_ty(expr.id)).clone();
 
                 let (mut ops, ptr_var, width, is_ref) =
                     self.array_helper(&**arr, &**idx, &ty);
@@ -1031,8 +1116,7 @@ impl<'a> ASTToIntermediate<'a> {
                         vars.iter().zip(pats.iter()).zip(types.iter())
                         .zip(widths.iter())
                     {
-                        let this_ty = self.typemap.types.get(
-                            &this_type.id.to_uint());
+                        let this_ty = self.lookup_ty(this_type.id);
                         match pat.val {
                             IdentPat(ref ident, _) => {
                                 // TODO: a move or a load, depending.
@@ -1086,7 +1170,7 @@ impl<'a> ASTToIntermediate<'a> {
                      name: &Name) -> (Vec<Op>, Var, Ty) {
         let (mut ops, var) = self.convert_expr(e);
         let var = var.expect("Struct expr must have non-unit value");
-        let id = match *self.typemap.types.get(&e.id.to_uint()) {
+        let id = match *self.lookup_ty(e.id) {
             StructTy(id, _) => id,
             PtrTy(ref p) => match p.val {
                 StructTy(id, _) => id,
@@ -1111,7 +1195,7 @@ impl<'a> ASTToIntermediate<'a> {
                         .find(|&&(a, _)| a == *name)
                         .expect(format!("Cannot find name {}", name).as_slice()
                                 );
-                    self.typemap.types.get(&t.id.to_uint())
+                    self.lookup_ty(t.id)
                 },
                 _ => fail!("Looking up struct field offset in a non-struct.")
             }
@@ -1149,7 +1233,7 @@ impl<'a> ASTToIntermediate<'a> {
                       base_var: &Var) -> (Vec<Op>, Vec<Var>, Vec<Width>) {
         let mut insts = vec!();
         let (widths, sizes) = unzip(types.iter()
-            .map(|t| self.typemap.types.get(&t.id.to_uint()))
+            .map(|t| self.lookup_ty(t.id))
             .map(|ty| (ty_width(ty),
                        size_of_ty(self.session, self.typemap, ty))));
 

@@ -10,5 +10,7 @@ fn main() -> u32 {
     print_int(*(&aa as *i8) as i32);
     print_int(aa as i32);
 
+    print_int(((0x80 as i8) + (0x80 as i8)) as i32);
+
     0
 }

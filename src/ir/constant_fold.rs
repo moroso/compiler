@@ -58,7 +58,13 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>,
                 match fold_unary(op, rv) {
                     Some(c) => {
                         changes.push((v.clone(),
-                                      Constant(c)));
+                                      Constant(c.clone())));
+                        if *op != Identity {
+                            immediate_changes.push((pos,
+                                                    UnOp(v.clone(),
+                                                         Identity,
+                                                         Constant(c))));
+                        }
                     },
                     _ => {}
                 }

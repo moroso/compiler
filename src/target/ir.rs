@@ -152,6 +152,16 @@ impl IRTarget {
                                     print_var(interner, global_map, v),
                                     op,
                                     print_rvalelem(interner, global_map, rv)),
+                        SxbOp |
+                        SxhOp =>
+                            format!("  {} = (long)({} ({}));\n",
+                                    print_var(interner, global_map, v),
+                                    if *op == SxbOp {
+                                        "(int8_t)"
+                                    } else {
+                                        "(int16_t)"
+                                    },
+                                    print_rvalelem(interner, global_map, rv)),
                         _ =>
                             format!("  {} = (long)({} ({}));\n",
                                     print_var(interner, global_map, v),
