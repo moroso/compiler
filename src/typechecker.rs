@@ -883,7 +883,7 @@ impl<'a> Typechecker<'a> {
                     FuncTy(e_arg_tys, e_ret_ty) => {
                         if e_arg_tys.len() == arg_tys.len() {
                             for (e_arg_ty, arg_ty) in e_arg_tys.move_iter().zip(arg_tys.move_iter()) {
-                                self.check_ty_bounds_w(arg_ty.id, InvalidCall, arg_ty, Concrete(e_arg_ty.val));
+                                self.unify_with_cause(arg_ty.id, InvalidCall, e_arg_ty, arg_ty);
                             }
                             e_ret_ty.val
                         } else {
