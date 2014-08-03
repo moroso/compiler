@@ -1,4 +1,5 @@
 use util::Name;
+use span::Span;
 use mc::lexer::Token;
 use mc::session::Session;
 
@@ -11,37 +12,42 @@ use std::ops::Fn;
 use super::mut_visitor::*;
 use super::*;
 
-type ExpanderArgs = (Vec<Vec<Token>>,);
-struct Expander(Box<Fn<ExpanderArgs, Vec<Token>>>);
-
-impl Fn<ExpanderArgs, Vec<Token>> for Expander {
-    extern "rust-call" fn call(&self, args: ExpanderArgs) -> Vec<Token> {
-        use mc::lexer::Eof;
-        let Expander(ref f) = *self;
-        let mut tokens = f.call(args);
-        tokens.push(Eof);
-        tokens
-    }
-}
-
 pub struct MacroExpander {
-    macros: TreeMap<Name, Expander>,
+    macros: TreeMap<Name, Box<Expander>>,
 }
 
 struct MacroExpanderVisitor<'a> {
     session: &'a mut Session,
 }
 
-fn expand_concat(args: ExpanderArgs) -> Vec<Token> {
-    use mc::lexer::IdentTok;
+fn expand_file(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
+    use mc::lexer::StringTok;
 
-    let (input,) = args;
+    assert!(input.len() == 0);
+
+    let filename = session.parser.filename_of(&id);
+    vec!(StringTok(format!("{}", filename)))
+}
+
+fn expand_line(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
+    use util::GenericInt;
+    use mc::lexer::NumberTok;
+
+    assert!(input.len() == 0);
+
+    let span = session.parser.span_of(&id);
+    vec!(NumberTok(span.get_begin().row as u64, GenericInt))
+}
+
+fn expand_concat(input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> Vec<Token> {
+    use mc::lexer::StringTok;
 
     let mut concat = vec!();
+    println!("{}", input);
     for mut arg in input.move_iter() {
         match arg.pop() {
-            Some(IdentTok(s)) => concat.push(s),
-            _ => fail!("expected ident in concat!"),
+            Some(StringTok(s)) => concat.push(s),
+            t => fail!("expected string in concat!, found {}", t),
         }
 
         if arg.len() > 0 {
@@ -49,48 +55,51 @@ fn expand_concat(args: ExpanderArgs) -> Vec<Token> {
         }
     }
 
-    vec!(IdentTok(concat.connect("")))
-}
-
-fn expand_stringify(args: ExpanderArgs) -> Vec<Token> {
-    use mc::lexer::{IdentTok, NumberTok, StringTok};
-
-    let (input,) = args;
-
-    let mut concat = vec!();
-    for mut arg in input.move_iter() {
-        match arg.pop() {
-            Some(IdentTok(s)) => concat.push(s),
-            Some(StringTok(s)) => concat.push(s),
-            Some(NumberTok(u, _)) => concat.push(format!("{}", u)),
-            _ => fail!("expected ident or literal in stringify!"),
-        }
-
-        if arg.len() > 0 {
-            fail!("expected comma in stringify!")
-        }
-    }
-
     vec!(StringTok(concat.connect("")))
 }
 
-type ExpanderFn = fn(ExpanderArgs) -> Vec<Token>;
-static builtin_macros: &'static [(&'static str, ExpanderFn)] = &[
+fn expand_stringify(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
+    use mc::lexer::{StringTok, new_mb_lexer, SourceToken, Eof};
+    use mc::parser::Parser;
+
+    let span = session.parser.span_of(&id);
+    let filename = session.parser.filename_of(&id);
+    let filename_str = format!("{}", filename);
+
+    let mut concat = vec!();
+    for mut arg in input.move_iter() {
+        arg.push(Eof);
+        let stream = arg.move_iter().map(|t| SourceToken { sp: span, tok: t, filename: filename_str.clone() });
+        let temp = Parser::parse_stream(session, filename, stream, |p| p.parse_expr());
+        concat.push(format!("{}", temp));
+    }
+
+    vec!(StringTok(concat.connect(", ")))
+}
+
+type ExpanderFnSig = fn(Vec<Vec<Token>>, NodeId, &mut Session) -> Vec<Token>;
+struct ExpanderFn(ExpanderFnSig);
+
+static builtin_macros: &'static [(&'static str, ExpanderFnSig)] = &[
     ("concat", expand_concat),
     ("stringify", expand_stringify),
+    ("file", expand_file),
+    ("line", expand_line),
 ];
 
-struct FnWrapper(ExpanderFn);
-impl Fn<ExpanderArgs, Vec<Token>> for FnWrapper {
-    extern "rust-call" fn call(&self, args: ExpanderArgs) -> Vec<Token> {
-        let FnWrapper(f) = *self;
-        f(args)
+trait Expander {
+    fn expand(&self, input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token>;
+}
+
+impl Expander for ExpanderFn {
+    fn expand(&self, input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
+        let ExpanderFn(f) = *self;
+        f(input, id, session)
     }
 }
 
-impl Fn<ExpanderArgs, Vec<Token>> for WithId<MacroDef> {
-    extern "rust-call" fn call(&self, args: ExpanderArgs) -> Vec<Token> {
-        let (input,) = args;
+impl Expander for WithId<MacroDef> {
+    fn expand(&self, input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> Vec<Token> {
         let mut output = vec!();
 
         let mut args = TreeMap::new();
@@ -157,7 +166,7 @@ impl MacroExpander {
 
         for &(s, e) in builtin_macros.iter() {
             let name = interner.intern(String::from_str(s));
-            macros.insert(name, Expander(box FnWrapper(e)));
+            macros.insert(name, box ExpanderFn(e) as Box<Expander>);
         }
 
         MacroExpander {
@@ -169,7 +178,7 @@ impl MacroExpander {
         let user_macros = MacroCollector::collect(module);
         for def in user_macros.move_iter() {
             let name = def.val.name;
-            session.expander.macros.insert(name, Expander(box def));
+            session.expander.macros.insert(name, box def);
         }
 
         let mut visitor = MacroExpanderVisitor {
@@ -182,8 +191,9 @@ impl MacroExpander {
 
 impl<'a> MutVisitor for MacroExpanderVisitor<'a> {
     fn visit_expr(&mut self, expr: &mut Expr) {
+        use mc::lexer::Eof;
+        use mc::parser::Parser;
         use util::lexer::SourceToken;
-        use mc::parser::{Parser, StreamParser};
 
         let mut new_expr: Expr = match expr.val {
             MacroExpr(name, ref mut args) => {
@@ -193,10 +203,14 @@ impl<'a> MutVisitor for MacroExpanderVisitor<'a> {
                 let span = self.session.parser.span_of(&expr.id);
                 let filename = self.session.parser.filename_of(&expr.id);
 
-                let toks = {
-                    let expand = self.session.expander.macros.find(&name).expect(format!("Macro {}! is undefined", name).as_slice());
-                    expand.call((my_args,)) // TODO use the call operator instead of the method
+                let mut toks = unsafe {
+                    let macro: & &Expander = ::std::mem::transmute(
+                        self.session.expander.macros.find(&name).expect(format!("Macro {}! is undefined", name).as_slice())
+                    );
+                    macro.expand(my_args, expr.id, self.session)
                 };
+
+                toks.push(Eof);
 
                 let stream = toks.move_iter().map(|t| SourceToken { sp: span, tok: t, filename: format!("{}", filename) });
                 Parser::parse_stream(self.session, filename, stream, |p| p.parse_expr())

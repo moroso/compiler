@@ -161,17 +161,23 @@ impl Session {
         module.val.items.push_all_move(temp.val.items);
     }
 
-    pub fn parse_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
+    fn parse_buffer_common<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
         let lexer = new_mb_lexer(name, buffer);
         let mut module = Parser::parse(self, lexer);
         self.inject_prelude(&mut module);
+        module
+    }
+
+    pub fn parse_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
+        let mut module = self.parse_buffer_common(name, buffer);
         MacroExpander::expand_macros(self, &mut module);
         module
     }
 
     pub fn parse_package_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
-        let mut module = self.parse_buffer(name, buffer);
+        let mut module = self.parse_buffer_common(name, buffer);
         self.inject_std(&mut module);
+        MacroExpander::expand_macros(self, &mut module);
         DefMap::record(self, &module);
         Resolver::resolve(self, &module);
         module

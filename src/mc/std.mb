@@ -13,4 +13,15 @@ mod prelude {
 
     fn print_uint(x: u32) { print_int(x as i32); }
     fn print_newline() { print_char(10); }
+
+    macro assert!(cond) {
+        if !($cond) {
+            let err = printf3_("Assertion failed: %s (%d:%d)" as *u8,
+                               stringify!($cond) as u32,
+                               file!() as u32,
+                               line!() as u32);
+            abort();
+        }
+    }
 }
+
