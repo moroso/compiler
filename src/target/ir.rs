@@ -137,6 +137,10 @@ impl IRTarget {
 
         // Do the actual conversion.
         for op in ops.iter() {
+            match *op {
+                Nop => {},
+                _ => s = s.append(format!("  // {}", op).as_slice())
+            }
             s = s.append(match *op {
                 BinOp(ref v, ref op, ref rv1, ref rv2) => {
                     format!("  {} = (long)(({}) {} ({}));\n",
