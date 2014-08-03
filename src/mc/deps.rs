@@ -15,7 +15,7 @@ pub fn output_deps(package: &Package, target: &String) {
     dep_path.set_extension("dep");
     let mut file = File::create(&dep_path);
 
-    match writeln!(file, "{}: {}", target, vec.connect(" ")) {
+    match writeln!(file, "{}: {}\n{}", target, vec.connect(" "), vec.connect(":\n").append(":")) {
         Ok(()) => (), // succeeded
         Err(e) => fail!("Failed to generate dependency file: {}", e),
     }
