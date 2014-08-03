@@ -344,6 +344,11 @@ impl Target for IRTarget {
         writeln!(f, "{}", "long print_char(long x) { return x; }");
         writeln!(f, "{}", "#endif");
 
+        // Handle alloca
+        writeln!(f, "{}", "#ifndef alloca");
+        writeln!(f, "{}", "#define alloca(size) __builtin_alloca(size)");
+        writeln!(f, "{}", "#endif");
+
         // TODO: this is a hack. Eventually we should extract names from
         // any included files.
         let builtin_staticitems = vec!("print_char",
