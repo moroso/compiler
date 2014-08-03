@@ -17,6 +17,7 @@ pub mod parser;
 pub mod ast;
 pub mod session;
 pub mod resolver;
+pub mod deps;
 
 struct NullTarget;
 impl Target for NullTarget {
@@ -39,6 +40,7 @@ macro_rules! targets {
     ($($n:expr => $t:ty),+,) => (targets!($($n => $t),+))
 }
 
+
 pub fn main() {
     let args = os::args();
     let arg0 = &args[0];
@@ -46,6 +48,7 @@ pub fn main() {
     let opts = [
         optopt("", "target", "Set the output target format.", "[c|null|asm|ir]"),
         optopt("o", "output", "Output file", "<filename>"),
+        optflag("d", "dep-files", "Generate dependency files"),
         optflag("v", "verbose", "Enable verbose output."),
         optflag("h", "help", "Show this help message."),
     ];
@@ -126,6 +129,11 @@ pub fn main() {
             box file as Box<Writer>
         }
     };
+
+    if matches.opt_present("dep-files") {
+        let target = matches.opt_str("output").unwrap_or(format!("-"));
+        deps::output_deps(&package, &target);
+    }
 
     target.compile(package, writer);
 }

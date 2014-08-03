@@ -37,6 +37,7 @@ MC_FILES := \
 	mc/ast/mut_visitor.rs \
 	mc/ast/visitor.rs \
 	mc/mod.rs \
+	mc/deps.rs \
 	mc/lexer.rs \
 	mc/parser.rs \
 	mc/prelude.mb \
