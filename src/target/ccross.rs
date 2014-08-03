@@ -370,6 +370,7 @@ impl CCrossCompiler {
             StructTy(did, _) => {
                 format!("struct {}", self.mangle_map.find(&did).unwrap())
             }
+            BottomTy => String::from_str("void"),
             _ => fail!("Not supported yet: {}", t),
         }
     }
