@@ -919,20 +919,24 @@ impl<'a> ASTToIntermediate<'a> {
             },
             UnOpExpr(ref op, ref e) => {
                 let ty = (*self.lookup_ty(e.id)).clone();
-                match e.val {
-                    DotExpr(ref e, ref name) |
-                    ArrowExpr(ref e, ref name) => {
-                        let (ops,
-                             added_addr_var,
-                             _) = self.struct_helper(&**e, name);
-                        return (ops, Some(added_addr_var));
-                    },
-                    IndexExpr(ref arr, ref idx) => {
-                        let (ops, ptr_var, _, _) =
-                            self.array_helper(&**arr, &**idx, &ty);
-                        return (ops, Some(ptr_var));
-                    },
-                    _ => {}
+                // AddrOf needs to be special cased when it's applied to
+                // certain kinds of expressions.
+                if op.val == AddrOf {
+                    match e.val {
+                        DotExpr(ref e, ref name) |
+                        ArrowExpr(ref e, ref name) => {
+                            let (ops,
+                                 added_addr_var,
+                                 _) = self.struct_helper(&**e, name);
+                            return (ops, Some(added_addr_var));
+                        },
+                        IndexExpr(ref arr, ref idx) => {
+                            let (ops, ptr_var, _, _) =
+                                self.array_helper(&**arr, &**idx, &ty);
+                            return (ops, Some(ptr_var));
+                        },
+                        _ => {}
+                    }
                 }
 
                 let (mut insts, v) = self.convert_expr(&**e);

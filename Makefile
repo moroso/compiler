@@ -81,7 +81,8 @@ ASM_TEST_FILES := \
 	test_string_simple.mb \
 	test_struct.mb \
 	test_struct_init.mb \
-	test_struct_offs.mb
+	test_struct_offs.mb \
+	test_unop_on_field_access.mb
 
 #	test_string.mb \
 
