@@ -142,7 +142,7 @@ impl Session {
         let s = include_str!("std.mb");
         let bytes = Vec::from_slice(s.as_bytes());
         let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
-        let lexer = new_mb_lexer("<prelude>", buffer);
+        let lexer = new_mb_lexer("<stdlib>", buffer);
         let mut temp = Parser::parse(self, lexer);
         swap(&mut module.val.items, &mut temp.val.items);
         module.val.items.push_all_move(temp.val.items);
@@ -161,22 +161,32 @@ impl Session {
         module.val.items.push_all_move(temp.val.items);
     }
 
-    fn parse_buffer_common<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
+    fn parse_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
         let lexer = new_mb_lexer(name, buffer);
-        let mut module = Parser::parse(self, lexer);
-        self.inject_prelude(&mut module);
-        module
-    }
-
-    pub fn parse_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
-        let mut module = self.parse_buffer_common(name, buffer);
-        MacroExpander::expand_macros(self, &mut module);
-        module
+        Parser::parse(self, lexer)
     }
 
     pub fn parse_package_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
-        let mut module = self.parse_buffer_common(name, buffer);
+        use super::ast::mut_visitor::MutVisitor;
+
+        struct PreludeInjector<'a> { session: &'a mut Session }
+        impl<'a> MutVisitor for PreludeInjector<'a> {
+            fn visit_module(&mut self, module: &mut Module) {
+                use super::ast::mut_visitor::walk_module;
+                self.session.inject_prelude(module);
+                walk_module(self, module);
+            }
+        }
+
+        let mut module = self.parse_buffer(name, buffer);
+
+        {
+            let mut injector = PreludeInjector { session: self };
+            injector.visit_module(&mut module);
+        }
+
         self.inject_std(&mut module);
+
         MacroExpander::expand_macros(self, &mut module);
         DefMap::record(self, &module);
         Resolver::resolve(self, &module);

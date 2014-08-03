@@ -43,7 +43,6 @@ fn expand_concat(input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> Vec<Toke
     use mc::lexer::StringTok;
 
     let mut concat = vec!();
-    println!("{}", input);
     for mut arg in input.move_iter() {
         match arg.pop() {
             Some(StringTok(s)) => concat.push(s),
