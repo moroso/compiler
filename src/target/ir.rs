@@ -312,24 +312,33 @@ impl Target for IRTarget {
 
         if self.verbose {
             for res in result.iter() {
-                write!(f, "{}\n\n", res);
+                print!("{}\n\n", res);
             }
         }
 
-        println!("{}", "#include <stdio.h>");
-        println!("{}", "#include <stdlib.h>");
-        println!("{}", "#include <stdint.h>");
-        println!("{}", "#include <assert.h>");
-        println!("{}", "#include <string.h>");
-        println!("{}", "typedef unsigned int uint_t;");
-        println!("{}", "typedef int int_t;");
+        // I wish that this was actually the same as the ccross one, but it differs slightly.
+        // We could probably get this merged.
+        writeln!(f, "{}", "#include <stdint.h>");
+        writeln!(f, "{}", "typedef unsigned int uint_t;");
+        writeln!(f, "{}", "typedef int int_t;");
+        writeln!(f, "{}", "typedef unsigned long ulong;");
 
-        println!("{}", "long printf0_(uint8_t *s) { return printf(\"%s\", (char *)s); }");
-        println!("{}", "long printf1_(uint8_t *s, ulong a) { return printf((char *)s, a); }");
-        println!("{}", "long printf2_(uint8_t *s, ulong a, ulong b) { return printf((char *)s, a, b); }");
-        println!("{}", "long printf3_(uint8_t *s, ulong a, ulong b, ulong c) { return printf((char *)s, a, b, c); }");
-        println!("{}", "long print_int(long x) { printf(\"%d\\n\", (int)x); return x; }");
-        println!("{}", "long print_char(long x) { printf(\"%c\", (int)x); return x; }");
+        writeln!(f, "{}", "#ifndef MB_FREESTANDING");
+        writeln!(f, "{}", "#include <stdio.h>");
+        writeln!(f, "{}", "#include <stdlib.h>");
+        writeln!(f, "{}", "#include <assert.h>");
+        writeln!(f, "{}", "#include <string.h>");
+
+        writeln!(f, "{}", "long printf0_(uint8_t *s) { return printf(\"%s\", (char *)s); }");
+        writeln!(f, "{}", "long printf1_(uint8_t *s, ulong a) { return printf((char *)s, a); }");
+        writeln!(f, "{}", "long printf2_(uint8_t *s, ulong a, ulong b) { return printf((char *)s, a, b); }");
+        writeln!(f, "{}", "long printf3_(uint8_t *s, ulong a, ulong b, ulong c) { return printf((char *)s, a, b, c); }");
+        writeln!(f, "{}", "long print_int(long x) { printf(\"%d\\n\", (int)x); return x; }");
+        writeln!(f, "{}", "long print_char(long x) { printf(\"%c\", (int)x); return x; }");
+        writeln!(f, "{}", "#else");
+        writeln!(f, "{}", "long print_int(long x) { return x; }");
+        writeln!(f, "{}", "long print_char(long x) { return x; }");
+        writeln!(f, "{}", "#endif");
 
         // TODO: this is a hack. Eventually we should extract names from
         // any included files.
@@ -392,9 +401,9 @@ impl Target for IRTarget {
         for (_, item) in global_map.iter() {
             if !item.is_func {
                 if item.is_ref {
-                    println!("char {}[{}];", item.name, item.size);
+                    writeln!(f, "char {}[{}];", item.name, item.size);
                 } else {
-                    println!("long {};", item.name);
+                    writeln!(f, "long {};", item.name);
                 }
             }
         }
@@ -428,9 +437,9 @@ impl Target for IRTarget {
             convert_time += end-start;
         }
 
-        println!("{}", "void main() { __INIT_GLOBALS(); MANGLEDmain(); }");
+        writeln!(f, "{}", "int main() { __INIT_GLOBALS(); return (int)MANGLEDmain(); }");
 
-        println!("// ssa:{} fold:{} convert:{}",
+        writeln!(f, "// ssa:{} fold:{} convert:{}",
                  ssa_time as f32 / 1000000000f32,
                  fold_time as f32 / 1000000000f32,
                  convert_time as f32 / 1000000000f32);

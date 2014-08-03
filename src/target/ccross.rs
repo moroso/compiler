@@ -21,6 +21,32 @@ use mc::ast::defmap::*;
 use typechecker::*;
 use values::*;
 
+
+#[allow(unused_must_use)]
+pub fn emit_ccross_prelude(f: &mut Writer) {
+    // This freestanding stuff is a hack but hey, so is the rest of this?
+    writeln!(f, "{}", "#include <stdint.h>");
+    writeln!(f, "{}", "typedef unsigned int uint_t;");
+    writeln!(f, "{}", "typedef int int_t;");
+
+    writeln!(f, "{}", "#ifndef MB_FREESTANDING");
+    writeln!(f, "{}", "#include <stdio.h>");
+    writeln!(f, "{}", "#include <stdlib.h>");
+    writeln!(f, "{}", "#include <assert.h>");
+    writeln!(f, "{}", "#include <string.h>");
+
+    writeln!(f, "{}", "int32_t printf0_(uint8_t *s) { return printf(\"%s\", (char *)s); }");
+    writeln!(f, "{}", "int32_t printf1_(uint8_t *s, uint32_t a) { return printf((char *)s, a); }");
+    writeln!(f, "{}", "int32_t printf2_(uint8_t *s, uint32_t a, uint32_t b) { return printf((char *)s, a, b); }");
+    writeln!(f, "{}", "int32_t printf3_(uint8_t *s, uint32_t a, uint32_t b, uint32_t c) { return printf((char *)s, a, b, c); }");
+    writeln!(f, "{}", "int32_t print_int(int32_t x) { printf(\"%d\\n\", (int)x); return x; }");
+    writeln!(f, "{}", "int32_t print_char(int32_t x) { printf(\"%c\", (int)x); return x; }");
+    writeln!(f, "{}", "#else");
+    writeln!(f, "{}", "int32_t print_int(int32_t x) { return x; }");
+    writeln!(f, "{}", "int32_t print_char(int32_t x) { return x; }");
+    writeln!(f, "{}", "#endif");
+}
+
 struct CCrossCompiler {
     structnames: TreeSet<NodeId>,
     enumitemnames: TreeMap<Name, (Ident, Vec<Variant>, uint)>,
@@ -720,28 +746,7 @@ impl Target for CTarget {
             _ => {}
         }
         */
-        // This freestanding stuff is a hack but hey, so is the rest of this?
-        writeln!(f, "{}", "#include <stdint.h>");
-        writeln!(f, "{}", "typedef unsigned int uint_t;");
-        writeln!(f, "{}", "typedef int int_t;");
-
-        writeln!(f, "{}", "#ifndef MB_FREESTANDING");
-        writeln!(f, "{}", "#include <stdio.h>");
-        writeln!(f, "{}", "#include <stdlib.h>");
-        writeln!(f, "{}", "#include <assert.h>");
-
-        writeln!(f, "{}", "int32_t printf0_(uint8_t *s) { return printf(\"%s\", (char *)s); }");
-        writeln!(f, "{}", "int32_t printf1_(uint8_t *s, uint32_t a) { return printf((char *)s, a); }");
-        writeln!(f, "{}", "int32_t printf2_(uint8_t *s, uint32_t a, uint32_t b) { return printf((char *)s, a, b); }");
-        writeln!(f, "{}", "int32_t printf3_(uint8_t *s, uint32_t a, uint32_t b, uint32_t c) { return printf((char *)s, a, b, c); }");
-        writeln!(f, "{}", "int32_t print_int(int32_t x) { printf(\"%d\\n\", (int)x); return x; }");
-        writeln!(f, "{}", "int32_t print_char(int32_t x) { printf(\"%c\", (int)x); return x; }");
-        writeln!(f, "{}", "#else");
-        writeln!(f, "{}", "int32_t print_int(int32_t x) { return x; }");
-        writeln!(f, "{}", "int32_t print_char(int32_t x) { return x; }");
-        writeln!(f, "{}", "#endif");
-
-
+        emit_ccross_prelude(f);
         writeln!(f, "{}", cc.visit_module(&module));
     }
 }
