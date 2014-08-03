@@ -12,7 +12,7 @@ pub fn output_deps(package: &Package, target: &String) {
           filter(|name| name.as_slice() != "<prelude>").collect();
 
     let mut dep_path = Path::new(target.clone());
-    dep_path.set_extension("d");
+    dep_path.set_extension("dep");
     let mut file = File::create(&dep_path);
 
     match writeln!(file, "{}: {}", target, vec.connect(" ")) {
