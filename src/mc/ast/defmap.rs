@@ -175,6 +175,9 @@ impl<'a> Visitor for DefMapVisitor<'a> {
                 let qn = self.make_qualified_name(ident.val.name);
                 self.session.defmap.table.insert(ident.id, EnumDef(qn, variant_def_ids, tp_def_ids));
             }
+            TypeItem(ref ident, ref t, _) => {
+                self.session.defmap.table.insert(ident.id, TypeDef(t.clone()));
+            }
             ModItem(ref ident, ref module) => {
                 let item_ids = module.val.items.iter().map(|item| item.id).collect();
                 let qn = self.make_qualified_name(ident.val.name);

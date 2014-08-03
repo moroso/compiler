@@ -92,7 +92,7 @@ fn can_start_item(t: &Token) -> bool {
     match *t {
         Fn | Static | Extern |
         Enum | Struct | Mod |
-        Macro | Const
+        Macro | Const | Type
             => true,
         _   => false
     }
@@ -1410,6 +1410,18 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         self.add_id_and_span(EnumItem(enumname, body, type_params), start_span.to(end_span))
     }
 
+    fn parse_type_item(&mut self) -> Item {
+        let start_span = self.cur_span();
+        self.expect(Type);
+        let typename = self.parse_ident();
+        let type_params = self.parse_item_type_params(Eq);
+        self.expect(Eq);
+        let typedef = self.parse_type();
+        self.expect(Semicolon);
+        let end_span = self.cur_span();
+        self.add_id_and_span(TypeItem(typename, typedef, type_params), start_span.to(end_span))
+    }
+
     fn parse_use_item(&mut self) -> Item {
         let start_span = self.cur_span();
         self.expect(Use);
@@ -1586,6 +1598,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             Fn => self.parse_func_item(),
             Struct => self.parse_struct_item(),
             Enum => self.parse_enum_item(),
+            Type => self.parse_type_item(),
             Mod => self.parse_mod_item(),
             Static => self.parse_static_item(),
             Extern => self.parse_extern_item(),

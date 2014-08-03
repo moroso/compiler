@@ -1415,6 +1415,16 @@ impl<'a> Visitor for Typechecker<'a> {
                 let e_ty = self.expr_to_ty(e);
                 self.unify_with_cause(item.id, InvalidPatBinding, ty, e_ty);
             }
+            TypeItem(_, ref t, ref tps) => {
+                let mut gs = TreeMap::new();
+                for tp in tps.iter() {
+                    gs.insert(tp.id, UnitTy.with_id_of(tp));
+                }
+
+                self.with_generics(gs, |me| {
+                    me.visit_type(t);
+                })
+            }
             EnumItem(_, ref vs, ref tps) => {
                 for v in vs.iter() {
                     let mut gs = TreeMap::new();

@@ -272,6 +272,11 @@ impl CCrossCompiler {
                         variants,
                         name.as_slice())
             }
+            TypeItem(ref id, ref ty, _) => {
+                let name = self.visit_ident(id);
+                let ty = self.visit_type(ty);
+                format!("typedef {} {};\n", name.as_slice(), ty.as_slice())
+            }
             StaticItem(ref id, ref ty, ref expr) => {
                 let name_and_type = self.visit_id_and_type(id.id, ty);
                 match *expr {
@@ -610,6 +615,16 @@ impl CCrossCompiler {
     fn visit_module(&mut self, module: &Module) -> String {
         let mut results = vec!();
 
+        // Typedefs
+        self.visit_module_worker(&mut results, module, |me, results, module| {
+            results.push(me.mut_visit_list(&module.val.items, |me, item| {
+                match item.val {
+                    TypeItem(..) => me.visit_item(item),
+                    _ => String::from_str(""),
+                }
+            }, "\n"));
+        });
+
         // Constants
         self.visit_module_worker(&mut results, module, |me, results, module| {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
@@ -619,7 +634,6 @@ impl CCrossCompiler {
                 }
             }, "\n"));
         });
-
 
         // Now print struct prototypes.
         self.visit_module_worker(&mut results, module, |me, results, module| {

@@ -460,6 +460,7 @@ pub enum ItemNode {
     FuncItem(Ident, Vec<FuncArg>, Type, Option<Block>, Vec<Ident>),
     StructItem(Ident, Vec<Field>, Vec<Ident>),
     EnumItem(Ident, Vec<Variant>, Vec<Ident>),
+    TypeItem(Ident, Type, Vec<Ident>),
     ModItem(Ident, Module),
     StaticItem(Ident, Type, Option<Expr>),
     UseItem(Import),
@@ -498,6 +499,13 @@ impl Show for ItemNode {
                     try!(write!(f, "    {},\n", item));
                 }
                 write!(f, "{}", "}")
+            }
+            TypeItem(ref id, ref ty, ref tps) => {
+                try!(write!(f, "type {}", id));
+                if tps.len() > 0 {
+                    try!(write!(f, "<{}>", tps));
+                }
+                write!(f, " = {};", ty)
             }
             ModItem(ref ident, ref module) => {
                 try!(write!(f, "mod {}", ident));

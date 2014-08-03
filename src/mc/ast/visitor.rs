@@ -37,6 +37,11 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
             for variant in variants.iter() { visitor.visit_variant(variant); }
             for id in tps.iter() { visitor.visit_ident(id); }
         },
+        TypeItem(ref id, ref ty, ref tps) => {
+            visitor.visit_ident(id);
+            visitor.visit_type(ty);
+            for id in tps.iter() { visitor.visit_ident(id); }
+        },
         ModItem(ref ident, ref module) => {
             visitor.visit_ident(ident);
             visitor.visit_module(module);

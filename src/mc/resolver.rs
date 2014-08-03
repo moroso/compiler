@@ -91,6 +91,9 @@ impl Subscope {
                         self.insert_ident(ValNS, &variant.ident);
                     }
                 }
+                TypeItem(ref ident, _, _) => {
+                    self.insert_ident(TypeAndModNS, ident);
+                }
                 ModItem(ref ident, _) => {
                     self.insert_ident(TypeAndModNS, ident);
                 }
@@ -494,6 +497,15 @@ impl<'a> Visitor for ModuleResolver<'a> {
                             me.visit_type(arg);
                         }
                     }
+                });
+            }
+            TypeItem(ref id, ref ty, ref tps) => {
+                self.add_ident_to_scope(TypeAndModNS, id);
+                self.descend(None, |me| {
+                    for tp in tps.iter() {
+                        me.add_ident_to_scope(TypeAndModNS, tp);
+                    }
+                    me.visit_type(ty);
                 });
             }
             ModItem(ref ident, ref module) => {
