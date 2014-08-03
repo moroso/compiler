@@ -456,6 +456,9 @@ impl InstNode {
     pub fn long_label(label: String) -> InstNode {
         LongInst(LabelOffs(label))
     }
+    pub fn anylong(arg: LongValue) -> InstNode {
+        LongInst(arg)
+    }
     pub fn nop() -> InstNode { NopInst }
     pub fn load(pred: Pred,
                 lsuop: LsuOp,

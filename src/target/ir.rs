@@ -68,7 +68,12 @@ fn print_rvalelem(interner: &Ref<Interner>,
                 NullLit => format!("NULL"),
                 BoolLit(true) => format!("1"),
                 BoolLit(false) => format!("0"),
-                StringLit(ref s) => format!("\"{}\"", s),
+                StringLit(ref s) => {
+                    let parts: Vec<String> = s.as_slice().bytes()
+                        .map(|b: u8|format!("\\x{:02x}", b))
+                        .collect();
+                    format!("\"{}\"", parts.concat())
+                },
             }
         }
     }

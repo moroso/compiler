@@ -25,7 +25,14 @@ fn fold(op: &BinOpNode, e1: &RValueElem, e2: &RValueElem) ->
 
 fn fold_unary(op: &UnOpNode, e: &RValueElem) -> Option<LitNode> {
     let lit = match *e {
-        Constant(ref l) => l.clone(),
+        Constant(ref l) => {
+            match *l {
+                NumLit(..) |
+                BoolLit(..) => l.clone(),
+                StringLit(..) => return None,
+                _ => fail!(),
+            }
+        }
         _ => return None,
     };
 
@@ -51,7 +58,39 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>,
                                                      Identity,
                                                      Constant(c))));
                     },
-                    _ => {}
+                    None => {
+                        // We can't directly fold, but if we're
+                        // applying the operator to an identity
+                        // element, we can optimize out the operation.
+                        let ident = match *op {
+                            TimesOp => Some(1),
+                            PlusOp => Some(0),
+                            _ => None,
+                        };
+                        // Note: we won't match in *both* of these, because
+                        // if that could have happened we instead would have
+                        // folded above and never landed here at all.
+                        match *v1 {
+                            Constant(NumLit(x, _)) if Some(x) == ident => {
+                                immediate_changes.push(
+                                    (pos,
+                                     UnOp(v.clone(),
+                                          Identity,
+                                          v2.clone())));
+                            },
+                            _ => {}
+                        }
+                        match *v2 {
+                            Constant(NumLit(x, _)) if Some(x) == ident => {
+                                immediate_changes.push(
+                                    (pos,
+                                     UnOp(v.clone(),
+                                          Identity,
+                                          v1.clone())));
+                            }
+                            _ => {}
+                        }
+                    }
                 }
             },
             UnOp(ref v, ref op, ref rv) => {

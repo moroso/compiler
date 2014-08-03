@@ -27,7 +27,10 @@ use mas::scheduler::{schedule, schedule_dummy};
 use mas::lexer::new_asm_lexer;
 use mas::parser::AsmParser;
 
+use util::Name;
+
 use std::io::{Writer, stdio, File, BufferedReader};
+use std::collections::TreeSet;
 
 pub struct AsmTarget;
 
@@ -110,6 +113,8 @@ impl Target for AsmTarget {
 
         let mut items = vec!((insts, labels));
 
+        let mut strings: TreeSet<Name> = TreeSet::new();
+
         for insts in result.mut_iter() {
             match (*insts)[0] {
                 Func(ref n, _, _) => {
@@ -141,7 +146,10 @@ impl Target for AsmTarget {
                                           &global_map,
                                           num_usable_vars as uint));
 
-            let (asm_insts, labels) = IrToAsm::ir_to_asm(insts, &global_map);
+            let (asm_insts, labels) = IrToAsm::ir_to_asm(insts,
+                                                         &global_map,
+                                                         &mut session,
+                                                         &mut strings);
 
             for (pos, inst) in asm_insts.iter().enumerate() {
                 for (k, v) in labels.iter() {
@@ -183,6 +191,8 @@ impl Target for AsmTarget {
             */
             items.push((packets, new_labels));
         }
+
+        items.push(IrToAsm::strings_to_asm(&session, &strings));
 
         let (mut all_packets, all_labels) = link(items);
 

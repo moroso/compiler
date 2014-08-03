@@ -415,7 +415,12 @@ impl CCrossCompiler {
             // We might get sign fucked.
             NumLit(ref n, _) => format!("0x{:x}/*{}*/", *n, n),
             // I'm sorry about the cast in the following.
-            StringLit(ref s) => format!("(uint8_t*)\"{}\"", s),
+            StringLit(ref s) => {
+                let parts: Vec<String> = s.as_slice().bytes()
+                    .map(|b: u8|format!("\\x{:02x}", b))
+                    .collect();
+                format!("(uint8_t*)\"{}\"", parts.concat())
+            },
             BoolLit(ref b) => format!("{}", if *b { 1u8 } else { 0 }),
             NullLit => String::from_str("NULL"),
         }

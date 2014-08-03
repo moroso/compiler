@@ -6,6 +6,7 @@ use ir::liveness::LivenessAnalyzer;
 use mas::ast::*;
 use mas::util::pack_int;
 use mc::ast::*;
+use mc::session::Session;
 use util::{Width, Width32, Width16, Width8, Name};
 use std::mem::swap;
 use std::collections::{TreeMap, TreeSet, SmallIntMap};
@@ -14,9 +15,17 @@ use std::cmp::max;
 
 pub struct IrToAsm;
 
-fn lit_to_u32(lit: &LitNode) -> u32 {
+fn lit_to_longvalue(lit: &LitNode,
+                    session: &mut Session,
+                    strings: &mut TreeSet<Name>) -> LongValue {
     match *lit {
-        NumLit(num, _) => num as u32,
+        NumLit(num, _) => Immediate(num as u32),
+        StringLit(ref s) => {
+            let Name(name) = session.interner.intern(s.clone());
+            strings.insert(Name(name));
+            LabelOffs(format!("__INTERNED_STRING{}", name))
+        },
+        BoolLit(b) => Immediate(if b { 1u32 } else { 0u32 }),
         _ => unimplemented!(),
     }
 }
@@ -76,7 +85,9 @@ fn convert_binop<'a>(
     op: &BinOpNode,
     mut op_l: &'a RValueElem,
     mut op_r: &'a RValueElem,
-    offs: u32) -> Vec<InstNode> {
+    offs: u32,
+    session: &mut Session,
+    strings: &mut TreeSet<Name>) -> Vec<InstNode> {
 
     let mut result = vec!();
     let mut swapped = false;
@@ -150,8 +161,11 @@ fn convert_binop<'a>(
             }
         },
         Constant(ref val) => {
-            let num = lit_to_u32(val);
-            let packed = pack_int(num,10);
+            let longval = lit_to_longvalue(val, session, strings);
+            let packed = match longval {
+                Immediate(num) => pack_int(num,10),
+                _ => None,
+            };
 
             // TODO: signedness needs to be part of the IR.
             match binop_to_cmpop(op, false, swapped) {
@@ -178,7 +192,7 @@ fn convert_binop<'a>(
                                     reg_l,
                                     cmptype));
                             result.push(
-                                InstNode::long(num));
+                                InstNode::anylong(longval));
                         }
                     }
                     result.push(
@@ -224,7 +238,7 @@ fn convert_binop<'a>(
                                     reg_l)
                                     );
                             result.push(
-                                InstNode::long(num));
+                                InstNode::anylong(longval));
                         }
                     }
             }
@@ -240,7 +254,9 @@ fn convert_unop<'a>(
     dest: Reg,
     op: &UnOpNode,
     rhs: &'a RValueElem,
-    offs: u32) -> Vec<InstNode> {
+    offs: u32,
+    session: &mut Session,
+    strings: &mut TreeSet<Name>) -> Vec<InstNode> {
 
     let pred = Pred {
         inverted: false,
@@ -295,8 +311,11 @@ fn convert_unop<'a>(
                                        op) };
 
             let mut result = vec!();
-            let num = lit_to_u32(val);
-            let packed = pack_int(num, 15);
+            let longval = lit_to_longvalue(val, session, strings);
+            let packed = match longval {
+                Immediate(num) => pack_int(num, 15),
+                _ => None,
+            };
             match packed {
                 Some((val, rot)) =>
                     result.push(
@@ -314,7 +333,7 @@ fn convert_unop<'a>(
                             dest)
                             );
                     result.push(
-                        InstNode::long(num));
+                        InstNode::anylong(longval));
                 }
             }
             result
@@ -470,8 +489,58 @@ fn assign_vars(regmap: &TreeMap<Var, RegisterColor>,
 }
 
 impl IrToAsm {
+    fn empty_packet() -> [InstNode, ..4] {
+        [InstNode::long(0),
+         InstNode::long(0),
+         InstNode::long(0),
+         InstNode::long(0)]
+    }
+
+    pub fn strings_to_asm(session: &Session,
+                          strings: &TreeSet<Name>) -> (Vec<[InstNode, ..4]>,
+                                                       TreeMap<String, uint>) {
+        let mut labels = TreeMap::new();
+        let mut insts: Vec<[InstNode, ..4]> = vec!();
+        for &Name(s) in strings.iter() {
+            let mut packetpos = 0u;
+            let mut bytepos = 0u;
+            let mut cur = 0u32;
+            let mut cur_packet: [InstNode, ..4] = IrToAsm::empty_packet();
+            labels.insert(format!("__INTERNED_STRING{}", s), insts.len());
+            for b in session.interner.name_to_str(&Name(s)).bytes()
+                .chain(vec!(0u8).move_iter()) {
+                cur |= b as u32 << (bytepos*8);
+                bytepos += 1;
+                if bytepos == 4 {
+                    bytepos = 0;
+                    cur_packet[packetpos] = InstNode::long(cur);
+                    packetpos += 1;
+                    cur = 0;
+                    if packetpos == 4 {
+                        insts.push(cur_packet);
+                        cur_packet = IrToAsm::empty_packet();
+                        packetpos = 0;
+                    }
+                }
+            }
+
+            if bytepos != 0 {
+                cur_packet[packetpos] = InstNode::long(cur);
+                packetpos += 1;
+            }
+
+            if packetpos != 0 {
+                insts.push(cur_packet);
+            }
+        }
+
+        (insts, labels)
+    }
+
     pub fn ir_to_asm(ops: &Vec<Op>,
-                     global_map: &TreeMap<Name, StaticIRItem>
+                     global_map: &TreeMap<Name, StaticIRItem>,
+                     session: &mut Session,
+                     strings: &mut TreeSet<Name>
                      ) -> (Vec<InstNode>, TreeMap<String, uint>) {
         let opinfo = LivenessAnalyzer::analyze(ops);
         let (conflicts, counts, must_colors, mem_vars) =
@@ -577,7 +646,8 @@ impl IrToAsm {
                     result.push_all_move(
                         convert_unop(&regmap, global_map, return_reg,
                                      &Identity, rve,
-                                     stack_item_offs));
+                                     stack_item_offs,
+                                     session, strings));
 
                     // Restore all callee-save registers
                     for (x, i) in range_inclusive(first_callee_saved_reg.index,
@@ -614,7 +684,7 @@ impl IrToAsm {
                                                          stack_item_offs);
                     result.push_all_move(
                         convert_binop(&regmap, global_map, lhs_reg, op, rve1,
-                                      rve2, stack_item_offs));
+                                      rve2, stack_item_offs, session, strings));
                     result.push_all_move(after);
                 },
                 UnOp(ref var, ref op, ref rve1) => {
@@ -623,7 +693,7 @@ impl IrToAsm {
                                                          stack_item_offs);
                     result.push_all_move(
                         convert_unop(&regmap, global_map, lhs_reg, op, rve1,
-                                     stack_item_offs));
+                                     stack_item_offs, session, strings));
                     result.push_all_move(after);
                 }
                 Load(ref var1, ref var2, ref width) |
