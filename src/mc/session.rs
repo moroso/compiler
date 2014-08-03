@@ -23,6 +23,11 @@ use std::io;
 use std::local_data;
 
 local_data_key!(pub interner: Interner)
+local_data_key!(pub cur_rel_path: Path)
+
+pub fn get_cur_rel_path() -> Path {
+    cur_rel_path.get().unwrap().clone()
+}
 
 pub struct Session {
     pub defmap: DefMap,
@@ -76,6 +81,9 @@ impl Session {
         // XXX this is such a massive hack omg
         if interner.get().is_none() {
             interner.replace(Some(Interner::new()));
+        }
+        if cur_rel_path.get().is_none() {
+            cur_rel_path.replace(Some(Path::new(".")));
         }
 
         let interner_ref = interner.get().unwrap();
@@ -171,11 +179,9 @@ impl Session {
 
     pub fn parse_file_common(&mut self, file: io::File, f: |&mut Session, String, io::BufferedReader<io::File>| -> Module) -> Module {
         let filename = format!("{}", file.path().display());
-        let cwd = ::std::os::getcwd();
-        let new_wd = ::std::os::make_absolute(file.path()).dir_path();
-        ::std::os::change_dir(&new_wd);
+        let old_wd = cur_rel_path.replace(Some(file.path().dir_path()));
         let module = f(self, filename, io::BufferedReader::new(file));
-        ::std::os::change_dir(&cwd);
+        cur_rel_path.replace(old_wd);
         module
     }
 

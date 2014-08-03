@@ -21,6 +21,7 @@ use span::{SourcePos, Span, mk_sp};
 use util::Name;
 
 use super::session::Session;
+use super::session::get_cur_rel_path;
 
 use std::{io, mem, num, vec};
 use std::collections::{HashMap, TreeMap, TreeSet};
@@ -206,6 +207,11 @@ impl Parser {
         *self.filemap.find(id).unwrap()
     }
 
+    /// Get all of the files used by this parse.
+    pub fn get_all_filenames(&self) -> TreeSet<Name> {
+        FromIterator::from_iter(self.filemap.iter().map(|(_,v)| *v))
+    }
+
     fn new_id(&mut self) -> NodeId {
         let id = self.next_id;
         self.next_id += 1;
@@ -323,13 +329,10 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn error<'a, T: Str>(&self, message: T, pos: SourcePos) -> ! {
-        let path = {
-            let base = self.session.interner.name_to_str(&self.name);
-            ::std::os::make_absolute(&::std::path::Path::new(base))
-        };
+        let path = self.session.interner.name_to_str(&self.name);
 
         let s = format!("Parse error: {}\n    at {} {}\n",
-                        message.as_slice(), path.display(), pos);
+                        message.as_slice(), path, pos);
         let _ = io::stderr().write_str(s.as_slice());
         fail!()
     }
@@ -1471,8 +1474,9 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                 let file = {
                     let name = self.session.interner.name_to_str(&ident.val.name);
 
-                    let filename1 = ::std::path::Path::new(format!("{}.mb", name));
-                    let filename2 = ::std::path::Path::new(format!("{}/mod.mb", name));
+                    let base = get_cur_rel_path();
+                    let filename1 = base.join(FilePath::new(format!("{}.mb", name)));
+                    let filename2 = base.join(FilePath::new(format!("{}/mod.mb", name)));
 
                     let filename = match (filename1.exists(), filename2.exists()) {
                         (true,  true)  => self.error(format!("ambiguous module name: both {} and {} exist.",
