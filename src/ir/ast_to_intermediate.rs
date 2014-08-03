@@ -75,7 +75,7 @@ impl<'a> ASTToIntermediate<'a> {
     /// Does whatever needs to be done to a variable so that it has a correct
     /// value for some type that is smaller than 32 bits.
     fn contract(&mut self,
-                v: Var, 
+                v: Var,
                 ty: &Ty) -> (Vec<Op>, Option<Var>) {
         match *ty {
             IntTy(..) |
@@ -369,7 +369,7 @@ impl<'a> ASTToIntermediate<'a> {
                             Call(self.gen_temp(),
                                  Variable(
                                      Var { name: self.session.interner.intern(
-                                         "memcpy".to_string()),
+                                         "memcopy".to_string()),
                                            generation: None }),
                                  vec!(new_result_var,
                                       expr_var.clone(),
@@ -733,7 +733,7 @@ impl<'a> ASTToIntermediate<'a> {
                                     TreeSet::new()));
                 insts.push_all_move(b2_insts);
                 match b2_var {
-                    Some(b2_var) => 
+                    Some(b2_var) =>
                         insts.push(UnOp(end_var, Identity, Variable(b2_var))),
                     None => {},
                 }

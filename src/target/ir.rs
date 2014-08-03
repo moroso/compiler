@@ -344,6 +344,7 @@ impl Target for IRTarget {
         writeln!(f, "{}", "long printf3_(uint8_t *s, ulong a, ulong b, ulong c) { return printf((char *)s, a, b, c); }");
         writeln!(f, "{}", "long print_int(long x) { printf(\"%d\\n\", (int)x); return x; }");
         writeln!(f, "{}", "long print_char(long x) { printf(\"%c\", (int)x); return x; }");
+        writeln!(f, "{}", "long memcopy(long dest, long src, long n) { return (long)memcpy((void*)dest, (void*)src, n); }");
         writeln!(f, "{}", "#else");
         writeln!(f, "{}", "long print_int(long x) { return x; }");
         writeln!(f, "{}", "long print_char(long x) { return x; }");
