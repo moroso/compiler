@@ -133,7 +133,8 @@ mod tests {
         let coloring = RegisterColorer::color(conflicts, frequencies,
                                               TreeMap::new(),
                                               TreeSet::new(),
-                                              &TreeMap::<Name, uint>::new(),
+                                              &TreeMap::<Name,
+                                                         StaticIRItem>::new(),
                                               10);
         for (idx, (_, &color)) in coloring.iter().enumerate() {
             assert_eq!(color, RegColor(Reg { index: 0 as u8 } ));
@@ -160,7 +161,8 @@ mod tests {
         let coloring = RegisterColorer::color(conflicts, frequencies,
                                               TreeMap::new(),
                                               TreeSet::new(),
-                                              &TreeMap::<Name, uint>::new(),
+                                              &TreeMap::<Name,
+                                                         StaticIRItem>::new(),
                                               10);
         for i in range(0u32, 8) {
             let color = *coloring.find(&var(i)).unwrap();
@@ -197,7 +199,8 @@ mod tests {
         let coloring = RegisterColorer::color(conflicts, frequencies,
                                               TreeMap::new(),
                                               TreeSet::new(),
-                                              &TreeMap::<Name, uint>::new(),
+                                              &TreeMap::<Name,
+                                                         StaticIRItem>::new(),
                                               10);
         for i in range(0u32, 20) {
             let color = *coloring.find(&var(i)).unwrap();
