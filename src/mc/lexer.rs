@@ -7,7 +7,9 @@ use std::{io, option, iter};
 pub use util::lexer::{Language, Lexer, LexerRule, LexerRuleT};
 pub use util::lexer::{RuleMatcher, SourceToken, TokenMaker};
 
-#[deriving(Eq, PartialEq, Clone, Show)]
+use std::fmt;
+
+#[deriving(Eq, PartialEq, Clone)]
 pub enum Token {
     // Whitespace
     WS,
@@ -102,6 +104,97 @@ pub enum Token {
     // the token stream it generates.
     BeginComment,
     EndComment,
+}
+
+impl fmt::Show for Token {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let s = match *self {
+            Let                    => String::from_str("let"),
+            As                     => String::from_str("as"),
+            If                     => String::from_str("if"),
+            Else                   => String::from_str("else"),
+            Fn                     => String::from_str("fn"),
+            Return                 => String::from_str("return"),
+            True                   => String::from_str("true"),
+            False                  => String::from_str("false"),
+            While                  => String::from_str("while"),
+            For                    => String::from_str("for"),
+            Struct                 => String::from_str("struct"),
+            Enum                   => String::from_str("enum"),
+            Type                   => String::from_str("type"),
+            Match                  => String::from_str("match"),
+            Mod                    => String::from_str("mod"),
+            Null                   => String::from_str("null"),
+            Break                  => String::from_str("break"),
+            Continue               => String::from_str("continue"),
+            Static                 => String::from_str("static"),
+            Extern                 => String::from_str("extern"),
+            Use                    => String::from_str("use"),
+            Macro                  => String::from_str("macro"),
+            Const                  => String::from_str("const"),
+            Sizeof                 => String::from_str("sizeof"),
+
+            IntTypeTok(ik)         => format!("{}", ik),
+            Bool                   => String::from_str("bool"),
+
+            LParen                 => String::from_str("("),
+            RParen                 => String::from_str(")"),
+            LBrace                 => String::from_str("{"),
+            RBrace                 => String::from_str("}"),
+            LBracket               => String::from_str("["),
+            RBracket               => String::from_str("]"),
+            Less                   => String::from_str("<"),
+            Greater                => String::from_str(">"),
+            LessEq                 => String::from_str("<="),
+            GreaterEq              => String::from_str(">="),
+            Tilde                  => String::from_str("~"),
+            Ampersand              => String::from_str("&"),
+            Pipe                   => String::from_str("|"),
+            Caret                  => String::from_str("^"),
+            AmpAmp                 => String::from_str("&&"),
+            PipePipe               => String::from_str("||"),
+            Plus                   => String::from_str("+"),
+            Dash                   => String::from_str("-"),
+            Star                   => String::from_str("*"),
+            Percent                => String::from_str("%"),
+            ForwardSlash           => String::from_str("/"),
+            Lsh                    => String::from_str("<<"),
+            Rsh                    => String::from_str(">>"),
+            Colon                  => String::from_str(":"),
+            ColonColon             => String::from_str("::"),
+            Semicolon              => String::from_str(";"),
+            Eq                     => String::from_str("="),
+            EqEq                   => String::from_str("=="),
+            BangEq                 => String::from_str("!="),
+            Bang                   => String::from_str("!"),
+            Arrow                  => String::from_str("->"),
+            DoubleArrow            => String::from_str("=>"),
+            Comma                  => String::from_str(","),
+            QuestionMark           => String::from_str("?"),
+            Period                 => String::from_str("."),
+            Underscore             => String::from_str("_"),
+            PlusEq                 => String::from_str("+="),
+            MinusEq                => String::from_str("-="),
+            TimesEq                => String::from_str("*="),
+            SlashEq                => String::from_str("/="),
+            PipeEq                 => String::from_str("|="),
+            CaretEq                => String::from_str("^="),
+            AmpEq                  => String::from_str("&="),
+            LshEq                  => String::from_str("<<="),
+            RshEq                  => String::from_str(">>="),
+            PercentEq              => String::from_str("%="),
+            Dollar                 => String::from_str("$"),
+
+            IdentTok(ref id)       => format!("{}", id),
+            IdentBangTok(ref id)   => format!("{}!", id),
+            NumberTok(n, ik)       => format!("{}{}", n, ik),
+            StringTok(ref s)       => format!("\"{}\"", s),
+
+            _                      => String::from_str(" "),
+        };
+
+        write!(f, "{}", s)
+    }
 }
 
 // Convenience for tests

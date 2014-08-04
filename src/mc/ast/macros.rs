@@ -57,23 +57,29 @@ fn expand_concat(input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> Vec<Toke
     vec!(StringTok(concat.connect("")))
 }
 
-fn expand_stringify(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
+fn expand_stringify(mut input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
     use mc::lexer::{StringTok, new_mb_lexer, SourceToken, Eof};
     use mc::parser::Parser;
+
+    if input.len() == 0 {
+        return vec!(StringTok(String::new()));
+    }
 
     let span = session.parser.span_of(&id);
     let filename = session.parser.filename_of(&id);
     let filename_str = format!("{}", filename);
 
     let mut concat = vec!();
-    for mut arg in input.move_iter() {
-        arg.push(Eof);
-        let stream = arg.move_iter().map(|t| SourceToken { sp: span, tok: t, filename: filename_str.clone() });
-        let temp = Parser::parse_stream(session, filename, stream, |p| p.parse_expr());
-        concat.push(format!("{}", temp));
+
+    let ts = input.pop().unwrap();
+    concat.push_all_move(ts.move_iter().map(|t| format!("{}", t)).collect());
+
+    for mut ts in input.move_iter() {
+        concat.push(String::from_str(","));
+        concat.push_all_move(ts.move_iter().map(|t| format!("{}", t)).collect());
     }
 
-    vec!(StringTok(concat.connect(", ")))
+    vec!(StringTok(concat.connect(" ")))
 }
 
 type ExpanderFnSig = fn(Vec<Vec<Token>>, NodeId, &mut Session) -> Vec<Token>;
