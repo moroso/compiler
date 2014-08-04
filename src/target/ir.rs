@@ -185,15 +185,10 @@ impl IRTarget {
                 Call(ref v, ref fname, ref args) => {
                     let mut s = match *fname {
                         Variable(ref fnv) =>
-                            if format!("{}", fnv.name) == format!("assert") {
-                                // This is a hack since assert isn't a function.
-                                format!("  assert(")
-                            } else {
-                                format!("  {} = ((long (*)()){})(",
-                                        print_var(interner, global_map, v),
-                                        print_var(interner, global_map, fnv),
-                                        )
-                            },
+                            format!("  {} = ((long (*)()){})(",
+                                    print_var(interner, global_map, v),
+                                    print_var(interner, global_map, fnv),
+                                    ),
                         _=> unimplemented!(),
                     };
                     let list: Vec<String> = args.iter()
@@ -344,7 +339,8 @@ impl Target for IRTarget {
         writeln!(f, "{}", "long printf3_(uint8_t *s, ulong a, ulong b, ulong c) { return printf((char *)s, a, b, c); }");
         writeln!(f, "{}", "long print_int(long x) { printf(\"%d\\n\", (int)x); return x; }");
         writeln!(f, "{}", "long print_char(long x) { printf(\"%c\", (int)x); return x; }");
-        writeln!(f, "{}", "long memcopy(long dest, long src, long n) { return (long)memcpy((void*)dest, (void*)src, n); }");
+        writeln!(f, "{}", "long rt_memcpy(long dest, long src, long n) { return (long)memcpy((void*)dest, (void*)src, n); }");
+        writeln!(f, "{}", "extern void abort();");
         writeln!(f, "{}", "#else");
         writeln!(f, "{}", "long print_int(long x) { return x; }");
         writeln!(f, "{}", "long print_char(long x) { return x; }");
@@ -390,7 +386,7 @@ impl Target for IRTarget {
         // Another hack! We don't want to emit "extern" declarations for some
         // of these functions.
         let declared_builtins: TreeSet<String> = FromIterator::from_iter(
-            vec!("abort", "malloc", "calloc", "assert")
+            vec!("abort", "malloc", "calloc")
                 .move_iter()
                 .map(|x| x.to_string())
             );

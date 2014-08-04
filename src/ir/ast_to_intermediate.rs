@@ -369,7 +369,7 @@ impl<'a> ASTToIntermediate<'a> {
                             Call(self.gen_temp(),
                                  Variable(
                                      Var { name: self.session.interner.intern(
-                                         "memcopy".to_string()),
+                                         "rt_memcpy".to_string()),
                                            generation: None }),
                                  vec!(new_result_var,
                                       expr_var.clone(),

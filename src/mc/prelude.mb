@@ -1,6 +1,5 @@
 use prelude::{print_int,print_char};
-use prelude::{malloc,calloc};
-use prelude::assert;
+use prelude::{malloc};
 use prelude::abort;
 
 use prelude::{printf0_,printf1_,printf2_,printf3_};

@@ -75,7 +75,7 @@ impl Target for AsmTarget {
         // in any included asm files.
         let asm_staticitems = vec!("MANGLEDprelude_print_uint",
                                    "MANGLEDprelude_print_int",
-                                   "memcopy")
+                                   "rt_memcpy")
             .iter()
             .map(|x|
                  StaticIRItem {
