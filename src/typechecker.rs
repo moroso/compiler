@@ -661,7 +661,7 @@ impl<'a> Typechecker<'a> {
     }
 
     fn pat_to_ty(&mut self, pat: &Pat) -> WithId<Ty> {
-        save_ty!(self, pat, match pat.val {
+        let ty = match pat.val {
             DiscardPat(ref t) => {
                 match *t {
                     Some(ref t) => self.type_to_ty(t).val,
@@ -705,7 +705,7 @@ impl<'a> Typechecker<'a> {
 
                         EnumTy(*enum_nid, tp_tys)
                     }
-                    _ => unreachable!(),
+                    _ => self.session.error_fatal(pat.id, "Not an enum variant"),
                 }
             }
             StructPat(ref path, ref fps) => {
@@ -731,10 +731,12 @@ impl<'a> Typechecker<'a> {
 
                         StructTy(nid, tp_tys)
                     }
-                    _ => unreachable!(),
+                    _ => self.session.error_fatal(pat.id, "Not a struct"),
                 }
             }
-        })
+        };
+
+        save_ty!(self, pat, ty)
     }
 
     fn lit_to_ty(&mut self, lit: &Lit) -> WithId<Ty> {
