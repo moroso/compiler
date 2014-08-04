@@ -1,0 +1,8 @@
+fn main() -> u32 {
+    print_int((-1) * (-1));
+    if (-1 < 0) {
+        print_uint(0);
+    }
+
+    0
+}

@@ -54,7 +54,6 @@ MC_FILES := \
 	util/mod.rs \
 
 TEST_FILES := $(patsubst test/%,%,$(wildcard test/test_*.mb))
-IR_TEST_FILES := $(TEST_FILES)
 
 ASM_TEST_FILES := \
 	test_array.mb \
@@ -85,6 +84,10 @@ ASM_TEST_FILES := \
 	test_unop_on_field_access.mb
 
 #	test_string.mb \
+# test_signed_ops.mb \
+
+IR_TEST_FILES := $(ASM_TEST_FILES) \
+	test_string.mb
 
 mbc: $(addprefix src/,$(MC_FILES))
 	rustc $(RUST_FLAGS) $< --cfg mc -o $@ -g
