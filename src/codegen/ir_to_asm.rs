@@ -148,16 +148,37 @@ fn convert_binop<'a>(
                         ));
                 },
                 None =>
-                    result.push(
-                        InstNode::alu2reg(
-                            Pred { inverted: false,
-                                   reg: 3 },
-                            binop_to_aluop(op, swapped).unwrap(),
-                            dest,
-                            reg_l,
-                            reg_r,
-                            SllShift,
-                            0))
+                    match *op {
+                        TimesOp =>
+                            result.push(
+                                InstNode::mult(
+                                    Pred { inverted: false,
+                                           reg: 3 },
+                                    false, // TODO: support signed.
+                                    dest,
+                                    reg_l,
+                                    reg_r)),
+                        DivideOp =>
+                            result.push(
+                                InstNode::div(
+                                    Pred { inverted: false,
+                                           reg: 3 },
+                                    false, // TODO: support signed.
+                                    dest,
+                                    reg_l,
+                                    reg_r)),
+                        _ => 
+                            result.push(
+                                InstNode::alu2reg(
+                                    Pred { inverted: false,
+                                           reg: 3 },
+                                    binop_to_aluop(op, swapped).unwrap(),
+                                    dest,
+                                    reg_l,
+                                    reg_r,
+                                    SllShift,
+                                    0))
+                    }
             }
         },
         Constant(ref val) => {
@@ -215,31 +236,72 @@ fn convert_binop<'a>(
                         ));
                 },
                 None =>
-                    match packed {
-                        Some((val, rot)) =>
-                            result.push(
-                                InstNode::alu2short(
-                                    Pred {
-                                        inverted: false,
-                                        reg: 3 },
-                                    binop_to_aluop(op, swapped).unwrap(),
+                    match *op {
+                        TimesOp =>
+                            result.push_all_move(vec!(
+                                // TODO: don't always use longs here, and
+                                // refactor the code around this to make
+                                // the different cases easier to handle.
+                                InstNode::alu1long(
+                                    Pred { inverted: false,
+                                           reg: 3},
+                                    MovAluOp,
+                                    global_reg),
+                                InstNode::anylong(longval),
+                                InstNode::mult(
+                                    Pred { inverted: false,
+                                           reg: 3 },
+                                    false, // TODO: support signed.
                                     dest,
                                     reg_l,
-                                    val,
-                                    rot)),
-                        None => {
-                            result.push(
-                                InstNode::alu2long(
-                                    Pred {
-                                        inverted: false,
-                                        reg: 3 },
-                                    binop_to_aluop(op, swapped).unwrap(),
+                                    global_reg))),
+                        DivideOp =>
+                            result.push_all_move(vec!(
+                                // TODO: don't always use longs here, and
+                                // refactor the code around this to make
+                                // the different cases easier to handle.
+                                InstNode::alu1long(
+                                    Pred { inverted: false,
+                                           reg: 3},
+                                    MovAluOp,
+                                    global_reg),
+                                InstNode::anylong(longval),
+                                InstNode::div(
+                                    Pred { inverted: false,
+                                           reg: 3 },
+                                    false, // TODO: support signed.
                                     dest,
-                                    reg_l)
-                                    );
-                            result.push(
-                                InstNode::anylong(longval));
-                        }
+                                    reg_l,
+                                    global_reg))),
+                        _ =>
+                            match packed {
+                                Some((val, rot)) =>
+                                    result.push(
+                                        InstNode::alu2short(
+                                            Pred {
+                                                inverted: false,
+                                                reg: 3 },
+                                            binop_to_aluop(op, swapped)
+                                                .unwrap(),
+                                            dest,
+                                            reg_l,
+                                            val,
+                                            rot)),
+                                None => {
+                                    result.push(
+                                        InstNode::alu2long(
+                                            Pred {
+                                                inverted: false,
+                                                reg: 3 },
+                                            binop_to_aluop(op, swapped)
+                                                .unwrap(),
+                                            dest,
+                                            reg_l)
+                                            );
+                                    result.push(
+                                        InstNode::anylong(longval));
+                                }
+                            }
                     }
             }
         }

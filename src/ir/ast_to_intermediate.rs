@@ -12,6 +12,9 @@ use intrinsics::size_of::*;
 use ir::*;
 use typechecker::*;
 
+use std::mem::swap;
+use std::cmp::max;
+
 pub struct ASTToIntermediate<'a> {
     var_count: uint,
     label_count: uint,
@@ -47,16 +50,6 @@ fn ty_width(ty: &Ty) -> Width {
     }
 }
 
-fn ty_is_signed(ty: &Ty) -> bool {
-    match *ty {
-        GenericIntTy |
-        IntTy(..) => true,
-        UintTy(..) |
-        PtrTy(..) => false,
-        _ => fail!("Non-integer type {}", ty),
-    }
-}
-
 impl<'a> ASTToIntermediate<'a> {
     pub fn new(session: &'a mut Session,
                typemap: &'a mut Typemap,
@@ -84,7 +77,7 @@ impl<'a> ASTToIntermediate<'a> {
             _ => return (vec!(), Some(v))
         }
         let width = ty_width(ty);
-        let is_signed = ty_is_signed(ty);
+        let is_signed = ty.is_signed();
 
         match width {
             Width8 |
@@ -486,11 +479,33 @@ impl<'a> ASTToIntermediate<'a> {
                 (insts, Some(res_var))
             }
             BinOpExpr(ref op, ref e1, ref e2) => {
-                let (mut insts1, var1) = self.convert_expr(&**e1);
-                let (insts2, var2) = self.convert_expr(&**e2);
+                let mut e1ty = self.lookup_ty(e1.id).clone();
+                let mut e2ty = self.lookup_ty(e2.id).clone();
+                let mut new_e1 = e1;
+                let mut new_e2 = e2;
+                if op.val == PlusOp && e2ty.is_ptr() {
+                    // We'll always put the pointer first.
+                    // Because addition is commutative!
+                    assert!(!e1ty.is_ptr(),
+                            concat!("Can't add two pointers. ",
+                                    "Typechecker should have caught this."));
+                    swap(&mut e1ty, &mut e2ty);
+                    new_e1 = e2;
+                    new_e2 = e1;
+                }
+
+                if op.val == MinusOp {
+                    assert!(!e2ty.is_ptr() || e1ty.is_ptr(),
+                            concat!("Second argument to sub can't be pointer",
+                                    " unless first is. Typechecker should have",
+                                    " caught this."));
+                }
+
+                let (mut insts1, var1) = self.convert_expr(&**new_e1);
+                let (insts2, var2) = self.convert_expr(&**new_e2);
                 let var1 = var1.expect(
                     "Binop argument must have a non-unit value");
-                let var2 = var2.expect(
+                let mut var2 = var2.expect(
                     "Binop argument must have a non-unit value");
                 match op.val {
                     AndAlsoOp |
@@ -513,6 +528,30 @@ impl<'a> ASTToIntermediate<'a> {
                     _ => {
                         let new_res = self.gen_temp();
                         insts1.push_all_move(insts2);
+                        if (op.val == PlusOp || op.val == MinusOp) &&
+                            !e2ty.is_ptr() {
+                            // For pointer arithmetic, we want to scale
+                            // by the size of the type being pointed to.
+                            match e1ty {
+                                PtrTy(ref new_ty) => {
+                                    let size = max(size_of_ty(self.session,
+                                                              self.typemap,
+                                                              &new_ty.val),
+                                                   1);
+                                    let total_size = packed_size(&vec!(size));
+                                    let new_var2 = self.gen_temp();
+                                    insts1.push(
+                                        BinOp(new_var2,
+                                              TimesOp,
+                                              Variable(var2),
+                                              Constant(NumLit(total_size,
+                                                              UnsignedInt(
+                                                                  Width32)))));
+                                    var2 = new_var2;
+                                },
+                                _ => {}
+                            }
+                        }
                         insts1.push(
                             BinOp(new_res.clone(),
                                   op.val.clone(),
@@ -523,7 +562,33 @@ impl<'a> ASTToIntermediate<'a> {
                                                                dest_ty);
                         insts1.push_all_move(new_ops);
 
-                        (insts1, new_var)
+                        // The only thing we need to deal with now is pointer
+                        // differences, where we need to divide by the size
+                        // of the type.
+                        if op.val == MinusOp && e1ty.is_ptr() && e2ty.is_ptr() {
+                            match e1ty {
+                                PtrTy(ref new_ty) => {
+                                    let size = max(size_of_ty(self.session,
+                                                              self.typemap,
+                                                              &new_ty.val),
+                                                   1);
+                                    let total_size = packed_size(&vec!(size));
+                                    let new_result = self.gen_temp();
+                                    insts1.push(
+                                        BinOp(new_result,
+                                              DivideOp,
+                                              Variable(new_var.unwrap()),
+                                              Constant(NumLit(total_size,
+                                                              UnsignedInt(
+                                                                  Width32)))));
+                                    (insts1, Some(new_result))
+                                },
+                                _ => fail!(
+                                    "I was so sure this was a pointer..."),
+                            }
+                        } else {
+                            (insts1, new_var)
+                        }
                     }
                 }
             },

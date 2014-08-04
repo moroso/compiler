@@ -6,4 +6,19 @@ fn sub_ptr(p1: *(), p2: *()) -> u32 {
   p2 - p1
 }
 
-fn main() -> u32 { 0 }
+fn main() -> u32 {
+    let x: u32[5];
+    x[0] = 1;
+    x[1] = 2;
+    x[2] = 3;
+    x[3] = 4;
+    x[4] = 5;
+    let px: *u32 = &x as *u32;
+    let py: *u32 = &x[4];
+
+    print_uint(*px);
+    print_uint(*(px+3));
+    print_uint(py - px);
+
+    0
+}

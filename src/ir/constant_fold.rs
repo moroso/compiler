@@ -59,12 +59,22 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>,
                                                      Constant(c))));
                     },
                     None => {
+                        // TODO: convert multiplications and divisions by
+                        // powers of two into shifts.
+
                         // We can't directly fold, but if we're
                         // applying the operator to an identity
                         // element, we can optimize out the operation.
                         let ident = match *op {
                             TimesOp => Some(1),
                             PlusOp => Some(0),
+                            _ => None,
+                        };
+                        // Some operators have a right identity that is not
+                        // a left identity.
+                        let rhs_ident = match *op {
+                            DivideOp => Some(1),
+                            MinusOp => Some(0),
                             _ => None,
                         };
                         // Note: we won't match in *both* of these, because
@@ -81,7 +91,9 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>,
                             _ => {}
                         }
                         match *v2 {
-                            Constant(NumLit(x, _)) if Some(x) == ident => {
+                            Constant(NumLit(x, _)) if (Some(x) == ident ||
+                                                       Some(x) == rhs_ident
+                                                       ) => {
                                 immediate_changes.push(
                                     (pos,
                                      UnOp(v.clone(),
@@ -161,7 +173,7 @@ impl ConstantFolder {
                         Variable(ref v) => { vars_to_avoid.insert(v.clone()); },
                         _ => {},
                     }
-                }
+                },
                 Store(ref v1, ref v2, _) |
                 Load(ref v1, ref v2, _) => {
                     vars_to_avoid.insert(v1.clone());

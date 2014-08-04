@@ -13,7 +13,8 @@ pub static link_register: Reg = Reg { index: 31 };
 pub static stack_pointer: Reg = Reg { index: 30 };
 pub static first_callee_saved_reg: Reg = Reg { index: 11 };
 pub static return_reg: Reg = Reg { index: 0 };
-// This register is used for pointers into global storage.
+// This register is used for pointers into global storage, or for other things
+// that need a temporary register briefly.
 pub static global_reg: Reg = Reg { index: 11 };
 
 // How many parameters we can pass in registers.

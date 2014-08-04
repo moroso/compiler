@@ -72,7 +72,6 @@ ASM_TEST_FILES := \
 	test_modules.mb \
 	test_nested_struct.mb \
 	test_param_types.mb \
-	test_pointer_arith.mb \
 	test_recursion.mb \
 	test_recursive_types.mb \
 	test_short_circuit.mb \
@@ -85,6 +84,7 @@ ASM_TEST_FILES := \
 	test_unop_on_field_access.mb
 
 #	test_string.mb \
+# test_pointer_arith.mb \
 
 mbc: $(addprefix src/,$(MC_FILES))
 	rustc $(RUST_FLAGS) $< --cfg mc -o $@ -g

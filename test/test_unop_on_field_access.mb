@@ -1,0 +1,11 @@
+struct foo {
+    x: i32
+}
+
+fn main() -> u32 {
+    let z: foo = foo { x: 7 };
+    print_int(z.x);
+    print_int(-z.x);
+
+    0
+}

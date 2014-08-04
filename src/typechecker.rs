@@ -248,6 +248,23 @@ impl Ty {
     fn is_of_kind(&self, k: Kind) -> bool {
         self.kinds().contains_elem(k)
     }
+
+    pub fn is_ptr(&self) -> bool {
+        match *self {
+            PtrTy(..) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_signed(&self) -> bool {
+        match *self {
+            GenericIntTy |
+            IntTy(..) => true,
+            UintTy(..) |
+            PtrTy(..) => false,
+            _ => fail!("Non-integer type {}", self),
+        }
+    }
 }
 
 #[deriving(Eq, PartialEq, Clone)]
