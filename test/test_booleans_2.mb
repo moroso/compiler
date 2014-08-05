@@ -1,0 +1,7 @@
+fn main() -> u32 {
+    if (false && false) {
+        print_uint(0);
+    }
+
+    0
+}

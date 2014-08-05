@@ -1176,15 +1176,20 @@ impl<'a> ASTToIntermediate<'a> {
 
                     let compare_var = self.gen_temp();
                     // Check if the variant is the right one.
-                    ops.push(BinOp(compare_var, EqualsOp,
-                                   Variable(variant_var),
-                                   Constant(NumLit(index,
-                                                   UnsignedInt(Width32)))));
-                    // If not, jump to the next one.
-                    ops.push(CondGoto(true,
-                                      Variable(compare_var),
-                                      begin_labels[pos],
-                                      TreeSet::new()));
+                    // With one exception: if this is the last arm, we can
+                    // assume it matches, because at least one arm is
+                    // *required* to match.
+                    if pos != arms.len() - 1 {
+                        ops.push(BinOp(compare_var, EqualsOp,
+                                       Variable(variant_var),
+                                       Constant(NumLit(index,
+                                                       UnsignedInt(Width32)))));
+                        // If not, jump to the next one.
+                        ops.push(CondGoto(true,
+                                          Variable(compare_var),
+                                          begin_labels[pos],
+                                          TreeSet::new()));
+                    }
                     // It is! Generate the code for this particular variant.
                     ops.push_all_move(variant_ops);
                     // Assign all the variables.

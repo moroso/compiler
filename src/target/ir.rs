@@ -249,10 +249,14 @@ impl IRTarget {
                                         vars),
                             l)
                 },
-                CondGoto(ref negated, ref rve, ref l, _) => {
-                    format!("  if ({}({})) goto LABEL{};\n",
+                CondGoto(ref negated, ref rve, ref l, ref vars) => {
+                    format!("  if ({}({})) {{\n  {}\n  goto LABEL{}; }}\n",
                             if *negated { "!" } else { "" },
                             print_rvalelem(interner, global_map, rve),
+                            assign_vars(interner,
+                                        global_map,
+                                        labels.get(l),
+                                        vars),
                             l)
                 },
                 Return(ref rve) => {
