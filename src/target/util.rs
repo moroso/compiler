@@ -54,7 +54,7 @@ impl Visitor for NameMangler {
                 self.visit_module(body);
                 self.path.pop();
             },
-            StaticItem(ref id, _, Some(_)) |
+            StaticItem(ref id, _, _, false) |
             StructItem(ref id, _, _) |
             EnumItem(ref id, _, _) |
             ConstItem(ref id, _, _) |
@@ -62,7 +62,7 @@ impl Visitor for NameMangler {
                 self.mangle_id(id, item);
             },
             // Extern things don't get managled.
-            StaticItem(ref id, _, None) |
+            StaticItem(ref id, _, None, true) |
             FuncItem(ref id, _, _, None, _) => {
                 if self.mangle_externs {
                     self.mangle_id(id, item);
@@ -76,4 +76,3 @@ impl Visitor for NameMangler {
         }
     }
 }
-

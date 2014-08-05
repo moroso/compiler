@@ -46,7 +46,7 @@ pub fn walk_item<T: MutVisitor>(visitor: &mut T, item: &mut Item) {
             visitor.visit_ident(ident);
             visitor.visit_module(module);
         },
-        StaticItem(ref mut ident, ref mut ty, ref mut expr) => {
+        StaticItem(ref mut ident, ref mut ty, ref mut expr, _) => {
             visitor.visit_ident(ident);
             visitor.visit_type(ty);
             for e in expr.mut_iter() { visitor.visit_expr(e); }

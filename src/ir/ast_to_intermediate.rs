@@ -257,7 +257,7 @@ impl<'a> ASTToIntermediate<'a> {
             EnumItem(..) |
             ConstItem(..) |
             UseItem(..) => (vec!(), vec!()),
-            StaticItem(ref id, ref t, ref exp) => {
+            StaticItem(ref id, ref t, ref exp, _) => {
                 self.static_item_helper(id, t, exp)
             }
             _ => fail!("{}", item)

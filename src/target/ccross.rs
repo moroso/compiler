@@ -280,7 +280,7 @@ impl CCrossCompiler {
                 let ty = self.visit_type(ty);
                 format!("typedef {} {};\n", name.as_slice(), ty.as_slice())
             }
-            StaticItem(ref id, ref ty, ref expr) => {
+            StaticItem(ref id, ref ty, ref expr, _) => {
                 let name_and_type = self.visit_id_and_type(id.id, ty);
                 match *expr {
                     Some(ref e) => format!("{} = {};",
