@@ -14,10 +14,10 @@ mod prelude {
 
     macro assert!(cond) {
         if !($cond) {
-            let err = printf3_("Assertion failed: %s (%s:%d)" as *u8,
+            let err = printf3_("Assertion failed: %s (%s:%d)\n" as *u8,
                                stringify!($cond) as u32,
                                file!() as u32,
-                               line!() as u32);
+                               line!()+1 as u32);
             rt_abort();
         }
     }
