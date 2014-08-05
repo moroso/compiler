@@ -30,6 +30,14 @@ pub struct IRTarget {
     verbose: bool,
 }
 
+fn is_function(global_map: &TreeMap<Name, StaticIRItem>,
+               v: &Var) -> bool {
+    match global_map.find(&v.name) {
+        Some(ref i) => i.is_func,
+        None => false
+    }
+}
+
 fn print_var(interner: &Ref<Interner>,
              global_map: &TreeMap<Name, StaticIRItem>,
              v: &Var) -> String {
@@ -185,10 +193,17 @@ impl IRTarget {
                 Call(ref v, ref fname, ref args) => {
                     let mut s = match *fname {
                         Variable(ref fnv) =>
-                            format!("  {} = ((long (*)()){})(",
+                            if is_function(global_map, fnv) {
+                                format!("  {} = (long){}(",
                                     print_var(interner, global_map, v),
                                     print_var(interner, global_map, fnv),
-                                    ),
+                                    )
+                            } else {
+                                format!("  {} = ((long (*)()){})(",
+                                        print_var(interner, global_map, v),
+                                        print_var(interner, global_map, fnv),
+                                        )
+                            },
                         _=> unimplemented!(),
                     };
                     let list: Vec<String> = args.iter()
@@ -325,7 +340,6 @@ impl Target for IRTarget {
         writeln!(f, "{}", "#include <stdint.h>");
         writeln!(f, "{}", "typedef unsigned int uint_t;");
         writeln!(f, "{}", "typedef int int_t;");
-        writeln!(f, "{}", "typedef unsigned long ulong;");
 
         writeln!(f, "{}", "#ifndef MB_FREESTANDING");
         writeln!(f, "{}", "#include <stdio.h>");
@@ -333,14 +347,16 @@ impl Target for IRTarget {
         writeln!(f, "{}", "#include <assert.h>");
         writeln!(f, "{}", "#include <string.h>");
 
-        writeln!(f, "{}", "long printf0_(uint8_t *s) { return printf(\"%s\", (char *)s); }");
-        writeln!(f, "{}", "long printf1_(uint8_t *s, ulong a) { return printf((char *)s, a); }");
-        writeln!(f, "{}", "long printf2_(uint8_t *s, ulong a, ulong b) { return printf((char *)s, a, b); }");
-        writeln!(f, "{}", "long printf3_(uint8_t *s, ulong a, ulong b, ulong c) { return printf((char *)s, a, b, c); }");
+        writeln!(f, "{}", "long printf0_(long s) { return printf(\"%s\", (char *)s); }");
+        writeln!(f, "{}", "long printf1_(long s, long a) { return printf((char *)s, a); }");
+        writeln!(f, "{}", "long printf2_(long s, long a, long b) { return printf((char *)s, a, b); }");
+        writeln!(f, "{}", "long printf3_(long s, long a, long b, long c) { return printf((char *)s, a, b, c); }");
         writeln!(f, "{}", "long print_int(long x) { printf(\"%d\\n\", (int)x); return x; }");
         writeln!(f, "{}", "long print_char(long x) { printf(\"%c\", (int)x); return x; }");
         writeln!(f, "{}", "long rt_memcpy(long dest, long src, long n) { return (long)memcpy((void*)dest, (void*)src, n); }");
         writeln!(f, "{}", "extern void abort();");
+        writeln!(f, "{}", "long rt_abort() { abort(); return 0; }");
+        writeln!(f, "{}", "long rt_malloc(long size) { return (long)malloc(size); }");
         writeln!(f, "{}", "#else");
         writeln!(f, "{}", "long print_int(long x) { return x; }");
         writeln!(f, "{}", "long print_char(long x) { return x; }");
