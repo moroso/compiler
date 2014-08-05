@@ -57,17 +57,13 @@ fn expand_concat(input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> Vec<Toke
     vec!(StringTok(concat.connect("")))
 }
 
-fn expand_stringify(mut input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
+fn expand_stringify(mut input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> Vec<Token> {
     use mc::lexer::{StringTok, new_mb_lexer, SourceToken, Eof};
     use mc::parser::Parser;
 
     if input.len() == 0 {
         return vec!(StringTok(String::new()));
     }
-
-    let span = session.parser.span_of(&id);
-    let filename = session.parser.filename_of(&id);
-    let filename_str = format!("{}", filename);
 
     let mut concat = vec!();
 
