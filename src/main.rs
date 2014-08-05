@@ -8,6 +8,7 @@ extern crate collections;
 extern crate getopts;
 extern crate regex;
 extern crate rustc;
+extern crate rust_syntax = "syntax";
 extern crate time;
 
 #[cfg(test)]

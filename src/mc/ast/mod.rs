@@ -243,7 +243,7 @@ impl Show for LitNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             NumLit(i, nt)     => write!(f, "{}{}", i, nt),
-            StringLit(ref s)  => write!(f, "\"{}\"", s),
+            StringLit(ref s)  => write!(f, "\"{}\"", s.escape_default()),
             BoolLit(b)        => write!(f, "BoolLit:{}", b),
             NullLit           => write!(f, "null"),
         }

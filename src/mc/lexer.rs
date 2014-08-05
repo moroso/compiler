@@ -188,7 +188,7 @@ impl fmt::Show for Token {
             IdentTok(ref id)       => format!("{}", id),
             IdentBangTok(ref id)   => format!("{}!", id),
             NumberTok(n, ik)       => format!("{}{}", n, ik),
-            StringTok(ref s)       => format!("\"{}\"", s),
+            StringTok(ref s)       => format!("\"{}\"", s.escape_default()),
 
             _                      => String::from_str(" "),
         };
@@ -305,8 +305,9 @@ impl RuleMatcher<String> for StringRule {
         let matcher = matcher!(r#""((?:\\"|[^"])*)""#);
         match matcher.captures(s) {
            Some(groups) => {
+                use rust_syntax::parse::str_lit;
                 let t = groups.at(0);
-                Some((t.len(), String::from_str(groups.at(1))))
+                Some((t.len(), str_lit(groups.at(1))))
            },
             _ => None
         }
@@ -491,7 +492,7 @@ mod tests {
                     RParen,
                     Plus,
                     NumberTok(1, GenericInt),
-                    StringTok(String::from_str(r#"Hello\" World"#)),
+                    StringTok(String::from_str(r#"Hello" World"#)),
                 }.as_slice());
 
         let lexer2 = lexer_from_str("let x: int = 5;");
