@@ -644,13 +644,7 @@ impl<'a> ASTToIntermediate<'a> {
 
                 // The LHS might be wrapped in a GroupExpr.
                 // Unwrap it.
-                let mut e1val = e1.val.clone();
-                loop {
-                    match e1val {
-                        GroupExpr(e) => e1val = e.val.clone(),
-                        _ => { break; }
-                    }
-                }
+                let unwrapped = self.unwrap_group(&**e1);
 
                 // The tuple elements are as follows:
                 // binop_var is the variable to use on the left-hand side
@@ -663,7 +657,7 @@ impl<'a> ASTToIntermediate<'a> {
                 // finalize does the assignment to the variable; lhs_var
                 //     and width are passed into it.
                 let (binop_var, binop_insts, lhs_var, width,
-                     finalize) = match e1val {
+                     finalize) = match unwrapped.val {
                     PathExpr(ref path) => {
                         let lhs_var = Var {
                             name: self.mangled_path(path),
@@ -987,7 +981,8 @@ impl<'a> ASTToIntermediate<'a> {
                 // AddrOf needs to be special cased when it's applied to
                 // certain kinds of expressions.
                 if op.val == AddrOf {
-                    match e.val {
+                    let unwrapped = self.unwrap_group(&**e);
+                    match unwrapped.val {
                         DotExpr(ref e, ref name) |
                         ArrowExpr(ref e, ref name) => {
                             let (ops,
@@ -1357,5 +1352,17 @@ impl<'a> ASTToIntermediate<'a> {
                        Variable(offs_var)));
 
         (ops, ptr_var, ty_width(ty), ty_is_reference(ty))
+    }
+
+    fn unwrap_group<'a>(&mut self,
+                        grp: &'a Expr) -> &'a Expr {
+        let mut unwrapped = grp;
+        loop {
+            match unwrapped.val {
+                GroupExpr(ref e) => unwrapped = &**e,
+                _ => { break; }
+            }
+        }
+        unwrapped
     }
 }
