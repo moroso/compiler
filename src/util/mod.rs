@@ -55,17 +55,19 @@ pub enum IntKind {
 
 impl IntKind {
     pub fn num_to_string(&self, n: u64) -> String {
-        match *self {
-            GenericInt            => format!("{}", n as i32),
-            SignedInt(AnyWidth)   => format!("{}", n as i32),
-            SignedInt(Width8)     => format!("{}", n as i8),
-            SignedInt(Width16)    => format!("{}", n as i16),
-            SignedInt(Width32)    => format!("{}", n as i32),
-            UnsignedInt(AnyWidth) => format!("{}", n as u32),
-            UnsignedInt(Width8)   => format!("{}", n as u8),
-            UnsignedInt(Width16)  => format!("{}", n as u16),
-            UnsignedInt(Width32)  => format!("{}", n as u32),
-        }
+        let cast = match *self {
+            GenericInt            => format!("(signed long)"),
+            SignedInt(AnyWidth)   => format!("(signed long)"),
+            SignedInt(Width8)     => format!("(signed char)"),
+            SignedInt(Width16)    => format!("(signed short)"),
+            SignedInt(Width32)    => format!("(signed long)"),
+            UnsignedInt(AnyWidth) => format!("(unsigned long)"),
+            UnsignedInt(Width8)   => format!("(unsigned char)"),
+            UnsignedInt(Width16)  => format!("(unsigned short)"),
+            UnsignedInt(Width32)  => format!("(unsigned long)"),
+        };
+
+        format!("{}0x{}U", cast, ::std::fmt::radix(n, 16))
     }
 }
 

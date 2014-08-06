@@ -157,7 +157,7 @@ impl IRTarget {
             }
             s = s.append(match *op {
                 BinOp(ref v, ref op, ref rv1, ref rv2) => {
-                    format!("  {} = (long)(({}) {} ({}));\n",
+                    format!("  {} = (unsigned long)(({}) {} ({}));\n",
                             print_var(interner, global_map, v),
                             print_rvalelem(interner, global_map, rv1),
                             op,
@@ -166,13 +166,13 @@ impl IRTarget {
                 UnOp(ref v, ref op, ref rv) => {
                     match *op {
                         Deref =>
-                            format!("  {} = (long)({} (long*)({}));\n",
+                            format!("  {} = (unsigned long)({} (unsigned long*)({}));\n",
                                     print_var(interner, global_map, v),
                                     op,
                                     print_rvalelem(interner, global_map, rv)),
                         SxbOp |
                         SxhOp =>
-                            format!("  {} = (long)({} ({}));\n",
+                            format!("  {} = (unsigned long)({} ({}));\n",
                                     print_var(interner, global_map, v),
                                     if *op == SxbOp {
                                         "(int8_t)"
@@ -181,26 +181,26 @@ impl IRTarget {
                                     },
                                     print_rvalelem(interner, global_map, rv)),
                         _ =>
-                            format!("  {} = (long)({} ({}));\n",
+                            format!("  {} = (unsigned long)({} ({}));\n",
                                     print_var(interner, global_map, v),
                                     op,
                                     print_rvalelem(interner, global_map, rv))
                     }
                 },
                 Alloca(ref v, ref size) => {
-                    format!("  {} = (long)(alloca({}));\n",
+                    format!("  {} = (unsigned long)(alloca({}));\n",
                             print_var(interner, global_map, v), size)
                 },
                 Call(ref v, ref fname, ref args) => {
                     let mut s = match *fname {
                         Variable(ref fnv) =>
                             if is_function(global_map, fnv) {
-                                format!("  {} = (long){}(",
+                                format!("  {} = (unsigned long){}(",
                                     print_var(interner, global_map, v),
                                     print_var(interner, global_map, fnv),
                                     )
                             } else {
-                                format!("  {} = ((long (*)()){})(",
+                                format!("  {} = ((unsigned long (*)()){})(",
                                         print_var(interner, global_map, v),
                                         print_var(interner, global_map, fnv),
                                         )
@@ -215,7 +215,7 @@ impl IRTarget {
                     s
                 },
                 Load(ref l, ref r, ref size) => {
-                    format!("  {} = (long)*({}*)({});\n",
+                    format!("  {} = (unsigned long)*({}*)({});\n",
                             print_var(interner, global_map, l),
                             match *size {
                                 AnyWidth |
@@ -267,14 +267,14 @@ impl IRTarget {
                 },
                 Func(ref name, ref args, _) => {
                     let mapped_args: Vec<String> = args.iter()
-                        .map(|arg| format!("long {}", print_var(interner,
+                        .map(|arg| format!("unsigned long {}", print_var(interner,
                                                                 global_map,
                                                                 arg)))
                         .collect();
                     let mut s = format!("");
                     for var in vars.iter() {
                         if global_map.find(&var.name).is_none() {
-                            s = s.append(format!("  long {};\n",
+                            s = s.append(format!("  unsigned long {};\n",
                                                  print_var(interner,
                                                            global_map,
                                                            *var))
@@ -286,7 +286,7 @@ impl IRTarget {
 
                     in_func = true;
 
-                    format!("{}\nlong {}({}) {{\n{}",
+                    format!("{}\nunsigned long {}({}) {{\n{}",
                             closer,
                             interner.name_to_str(name),
                             mapped_args.connect(", "),
@@ -352,19 +352,19 @@ impl Target for IRTarget {
         writeln!(f, "{}", "#include <assert.h>");
         writeln!(f, "{}", "#include <string.h>");
 
-        writeln!(f, "{}", "long printf0_(long s) { return printf(\"%s\", (char *)s); }");
-        writeln!(f, "{}", "long printf1_(long s, long a) { return printf((char *)s, a); }");
-        writeln!(f, "{}", "long printf2_(long s, long a, long b) { return printf((char *)s, a, b); }");
-        writeln!(f, "{}", "long printf3_(long s, long a, long b, long c) { return printf((char *)s, a, b, c); }");
-        writeln!(f, "{}", "long print_int(long x) { printf(\"%d\\n\", (int)x); return x; }");
-        writeln!(f, "{}", "long print_char(long x) { printf(\"%c\", (int)x); return x; }");
-        writeln!(f, "{}", "long rt_memcpy(long dest, long src, long n) { return (long)memcpy((void*)dest, (void*)src, n); }");
+        writeln!(f, "{}", "unsigned long printf0_(unsigned long s) { return printf(\"%s\", (unsigned char *)s); }");
+        writeln!(f, "{}", "unsigned long printf1_(unsigned long s, unsigned long a) { return printf((unsigned char *)s, a); }");
+        writeln!(f, "{}", "unsigned long printf2_(unsigned long s, unsigned long a, unsigned long b) { return printf((unsigned char *)s, a, b); }");
+        writeln!(f, "{}", "unsigned long printf3_(unsigned long s, unsigned long a, unsigned long b, unsigned long c) { return printf((unsigned char *)s, a, b, c); }");
+        writeln!(f, "{}", "unsigned long print_int(unsigned long x) { printf(\"%d\\n\", (int)x); return x; }");
+        writeln!(f, "{}", "unsigned long print_char(unsigned long x) { printf(\"%c\", (int)x); return x; }");
+        writeln!(f, "{}", "unsigned long rt_memcpy(unsigned long dest, unsigned long src, unsigned long n) { return (unsigned long)memcpy((void*)dest, (void*)src, n); }");
         writeln!(f, "{}", "extern void abort();");
-        writeln!(f, "{}", "long rt_abort() { abort(); return 0; }");
-        writeln!(f, "{}", "long rt_malloc(long size) { return (long)malloc(size); }");
+        writeln!(f, "{}", "unsigned long rt_abort() { abort(); return 0; }");
+        writeln!(f, "{}", "unsigned long rt_malloc(unsigned long size) { return (unsigned long)malloc(size); }");
         writeln!(f, "{}", "#else");
-        writeln!(f, "{}", "long print_int(long x) { return x; }");
-        writeln!(f, "{}", "long print_char(long x) { return x; }");
+        writeln!(f, "{}", "unsigned long print_int(unsigned long x) { return x; }");
+        writeln!(f, "{}", "unsigned long print_char(unsigned long x) { return x; }");
         writeln!(f, "{}", "#endif");
 
         // Handle alloca
@@ -419,7 +419,7 @@ impl Target for IRTarget {
                 match *inst {
                     Func(ref name, _, is_extern) => {
                         if !declared_builtins.contains(&format!("{}", name)) {
-                            write!(f, "{}long {}();\n",
+                            write!(f, "{}unsigned long {}();\n",
                                    if is_extern { "extern " } else { "" },
                                    session.interner.name_to_str(name));
                         }
@@ -434,9 +434,9 @@ impl Target for IRTarget {
         for (_, item) in global_map.iter() {
             if !item.is_func {
                 if item.is_ref {
-                    writeln!(f, "char {}[{}];", item.name, item.size);
+                    writeln!(f, "unsigned char {}[{}];", item.name, item.size);
                 } else {
-                    writeln!(f, "long {};", item.name);
+                    writeln!(f, "unsigned long {};", item.name);
                 }
             }
         }
