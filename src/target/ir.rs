@@ -7,6 +7,7 @@ use mc::parser::Parser;
 use mc::session::Interner;
 
 use util::{Name, Width32, Width16, Width8, AnyWidth};
+use util::{IntKind, GenericInt, SignedInt, UnsignedInt};
 
 use ir::liveness::LivenessAnalyzer;
 use ir::ast_to_intermediate::ASTToIntermediate;
@@ -72,7 +73,7 @@ fn print_rvalelem(interner: &Ref<Interner>,
         Variable(ref v) => print_var(interner, global_map, v),
         Constant(ref l) => {
             match *l {
-                NumLit(n, _) => format!("{}", n as i32),
+                NumLit(n, ik) => ik.num_to_string(n),
                 NullLit => format!("NULL"),
                 BoolLit(true) => format!("1"),
                 BoolLit(false) => format!("0"),
