@@ -1,0 +1,19 @@
+struct inner {
+    x: u32,
+}
+
+struct outer {
+    z: inner
+}
+
+static h: outer = outer {
+    z: inner {
+        x: 6,
+    }
+};
+
+fn main() -> u32 {
+    print_uint(h.z.x);
+
+    0
+}

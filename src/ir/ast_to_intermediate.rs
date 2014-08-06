@@ -1075,7 +1075,7 @@ impl<'a> ASTToIntermediate<'a> {
                         &defid,
                         name);
 
-                    let ty = {
+                    let ty = &{
                         let def = self.session.defmap.find(&defid).expect(
                             format!("Cannot find defid {}", defid).as_slice());
                         match *def {
@@ -1084,21 +1084,48 @@ impl<'a> ASTToIntermediate<'a> {
                                     fields.iter()
                                     .find(|&&(a, _)| a == *name)
                                     .expect("No struct field with given name");
-                                self.lookup_ty(t.id)
+                                self.lookup_ty(t.id).clone()
                             },
                             _ => fail!(),
                         }
                     };
                     let width = ty_width(ty);
+                    let size = size_of_ty(self.session,
+                                          self.typemap,
+                                          ty);
 
                     ops.push(BinOp(
                         offset_var,
                         PlusOp,
                         Variable(base_var),
                         Constant(NumLit(offs, UnsignedInt(Width32)))));
-                    ops.push(Store(offset_var, expr_var.expect(
-                        "Expression of struct type must have non-unit value"
-                        ), width));
+                    // TODO: the following code is shared between here and
+                    // the code that generates __INIT_GLOBALS. Move it into
+                    // its own function.
+                    if ty_is_reference(ty) {
+                        let new_result_var = self.gen_temp();
+                        ops.push(UnOp(new_result_var.clone(), Identity,
+                                      Variable(offset_var.clone())));
+                        ops.push(UnOp(expr_var.unwrap().clone(), Identity,
+                                      Variable(expr_var.unwrap().clone())));
+                        let len_var = self.gen_temp();
+                        ops.push(UnOp(len_var, Identity,
+                                      Constant(NumLit(size as u64,
+                                                      UnsignedInt(Width32)))));
+                        ops.push(
+                            Call(self.gen_temp(),
+                                 Variable(
+                                     Var { name: self.session.interner.intern(
+                                         "rt_memcpy".to_string()),
+                                           generation: None }),
+                                 vec!(new_result_var,
+                                      expr_var.unwrap().clone(),
+                                      len_var)));
+                    } else {
+                        ops.push(Store(offset_var, expr_var.expect(
+                            "Expression of struct type must have non-unit value"
+                                ), width));
+                    }
                 }
 
                 (ops, Some(base_var))
