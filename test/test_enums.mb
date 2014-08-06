@@ -1,7 +1,6 @@
 enum TestEnum {
     Foo,
     Bar(u8, u32),
-    Baz,
     Quux(u32, *u32),
 }
 

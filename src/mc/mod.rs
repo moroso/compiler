@@ -172,10 +172,10 @@ fn main() {
     let more_wot = option::Some(wot);
     let foo: u32 = match more_wot {
         ::option::Some(wot) => {
-            match wot {
-                Foo{ foo: foo } => foo,
-            }
-        }
+            let Foo { foo: foo } = wot;
+            foo
+        },
+        _ => 1337
     };
 }
 ";

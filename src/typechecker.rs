@@ -1043,6 +1043,46 @@ impl<'a> Typechecker<'a> {
                     e_ty = self.unify_with_cause(arm.pat.id, InvalidPatBinding, e_ty.with_id_of(&**e), pat_ty);
                     ty = self.unify_with_cause(arm.body.id, InvalidMatchResult, ty.with_id_of(expr), body_ty);
                 }
+
+                let eid = match e_ty {
+                    EnumTy(eid, _) => eid,
+                    _ => self.session.error_fatal(e.id, "Match expressions are only valid on enum types"),
+                };
+
+                let mut variants = TreeSet::new();
+                match *self.session.defmap.find(&eid).unwrap() {
+                    EnumDef(_, ref vs, _) => {
+                        for v in vs.iter() {
+                            variants.insert(*v);
+                        }
+                    }
+                    _ => unreachable!(),
+                };
+
+                let mut has_discard_pat = false;
+                for arm in arms.iter() {
+                    match arm.pat.val {
+                        DiscardPat(_) => {
+                            has_discard_pat = true;
+                            break;
+                        }
+                        VariantPat(ref path, _) => {
+                            let vid = self.session.resolver.def_from_path(path);
+
+                            if variants.contains(&vid) {
+                                variants.remove(&vid);
+                            } else {
+                                self.session.error_fatal(arm.pat.id, "Duplicate variant in match arm");
+                            }
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+
+                if !has_discard_pat && !variants.is_empty() {
+                    self.session.error_fatal(expr.id, "Non-exhaustive match");
+                }
+
                 ty
             }
             MacroExpr(..) => fail!(),
