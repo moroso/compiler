@@ -329,7 +329,6 @@ impl<'a> ASTToIntermediate<'a> {
                  vec!(),
                  false));
         for (name, global_item) in global_map.iter() {
-            let size = global_item.size;
             let is_ref = global_item.is_ref;
             let is_func = global_item.is_func;
             let ref en = global_item.expr;
@@ -352,24 +351,8 @@ impl<'a> ASTToIntermediate<'a> {
                     let result_var = Var { name: name.clone(),
                                            generation: None };
                     if ty_is_reference(&ty) {
-                        let new_result_var = self.gen_temp();
-                        res.push(UnOp(new_result_var.clone(), Identity,
-                                      Variable(result_var.clone())));
-                        res.push(UnOp(expr_var.clone(), Identity,
-                                      Variable(expr_var.clone())));
-                        let len_var = self.gen_temp();
-                        res.push(UnOp(len_var, Identity,
-                                      Constant(NumLit(size as u64,
-                                                      UnsignedInt(Width32)))));
-                        res.push(
-                            Call(self.gen_temp(),
-                                 Variable(
-                                     Var { name: self.session.interner.intern(
-                                         "rt_memcpy".to_string()),
-                                           generation: None }),
-                                 vec!(new_result_var,
-                                      expr_var.clone(),
-                                      len_var)));
+                        res.push_all_move(
+                            self.gen_copy(&result_var, &expr_var, &ty));
                     } else {
                         res.push(UnOp(result_var, Identity,
                                       Variable(expr_var)));
@@ -465,6 +448,36 @@ impl<'a> ASTToIntermediate<'a> {
             _ => this_ty
         }
     }
+
+    pub fn gen_copy(&mut self,
+                    dest_var: &Var,
+                    src_var: &Var,
+                    ty: &Ty) -> Vec<Op> {
+        let size = size_of_ty(self.session,
+                              self.typemap,
+                              ty);
+        let mut ops = vec!();
+        let new_result_var = self.gen_temp();
+        ops.push(UnOp(new_result_var.clone(), Identity,
+                      Variable(dest_var.clone())));
+        ops.push(UnOp(src_var.clone(), Identity,
+                      Variable(src_var.clone())));
+        let len_var = self.gen_temp();
+        ops.push(UnOp(len_var, Identity,
+                      Constant(NumLit(size as u64,
+                                      UnsignedInt(Width32)))));
+        ops.push(
+            Call(self.gen_temp(),
+                 Variable(
+                     Var { name: self.session.interner.intern(
+                         "rt_memcpy".to_string()),
+                           generation: None }),
+                 vec!(new_result_var,
+                      src_var.clone(),
+                      len_var)));
+        ops
+    }
+
 
     pub fn convert_expr(&mut self, expr: &Expr) -> (Vec<Op>, Option<Var>) {
         match expr.val {
@@ -1093,37 +1106,16 @@ impl<'a> ASTToIntermediate<'a> {
                         }
                     };
                     let width = ty_width(ty);
-                    let size = size_of_ty(self.session,
-                                          self.typemap,
-                                          ty);
 
                     ops.push(BinOp(
                         offset_var,
                         PlusOp,
                         Variable(base_var),
                         Constant(NumLit(offs, UnsignedInt(Width32)))));
-                    // TODO: the following code is shared between here and
-                    // the code that generates __INIT_GLOBALS. Move it into
-                    // its own function.
+
                     if ty_is_reference(ty) {
-                        let new_result_var = self.gen_temp();
-                        ops.push(UnOp(new_result_var.clone(), Identity,
-                                      Variable(offset_var.clone())));
-                        ops.push(UnOp(expr_var.unwrap().clone(), Identity,
-                                      Variable(expr_var.unwrap().clone())));
-                        let len_var = self.gen_temp();
-                        ops.push(UnOp(len_var, Identity,
-                                      Constant(NumLit(size as u64,
-                                                      UnsignedInt(Width32)))));
-                        ops.push(
-                            Call(self.gen_temp(),
-                                 Variable(
-                                     Var { name: self.session.interner.intern(
-                                         "rt_memcpy".to_string()),
-                                           generation: None }),
-                                 vec!(new_result_var,
-                                      expr_var.unwrap().clone(),
-                                      len_var)));
+                        ops.push_all_move(
+                            self.gen_copy(&offset_var, &expr_var.unwrap(), ty));
                     } else {
                         ops.push(Store(offset_var, expr_var.expect(
                             "Expression of struct type must have non-unit value"
