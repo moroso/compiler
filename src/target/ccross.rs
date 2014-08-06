@@ -120,7 +120,7 @@ impl CCrossCompiler {
                             delimiter: &str) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
             .filter(|x| *x != String::from_str("")).collect();
-        list.connect(format!("{}\n", delimiter).as_slice())
+        list.connect(format!("{}", delimiter).as_slice())
     }
 
     fn mut_visit_list<T>(&mut self, list: &Vec<T>,
@@ -128,7 +128,7 @@ impl CCrossCompiler {
                                     delimiter: &str) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
             .filter(|x| *x != String::from_str("")).collect();
-        list.connect(format!("{}\n", delimiter).as_slice())
+        list.connect(delimiter)
     }
 
     fn visit_binop(&self, op: &BinOp) -> String {
@@ -205,8 +205,8 @@ impl CCrossCompiler {
     }
 
     fn visit_block(&mut self, block: &Block, tail: |Option<String>| -> String) -> String {
-        let items = self.mut_visit_list(&block.val.items, |me, t| me.visit_item(t), "; ");
-        let stmts = self.mut_visit_list(&block.val.stmts, |me, t| me.visit_stmt(t), "; ");
+        let items = self.mut_visit_list(&block.val.items, |me, t| me.visit_item(t), ";\n    ");
+        let stmts = self.mut_visit_list(&block.val.stmts, |me, t| me.visit_stmt(t), ";\n    ");
         let expr = match block.val.expr {
             Some(ref x) => {
                 match x.val {
@@ -217,7 +217,8 @@ impl CCrossCompiler {
             }
             None => tail(None),
         };
-        format!("{{ {} {} {} }}", items, stmts, expr)
+        let out = self.visit_list(&vec!(items, stmts, expr), |_, t: &String| t.clone(), "\n    ");
+        format!("{{\n    {}\n}}", out)
     }
 
     fn visit_item(&mut self, item: &Item) -> String {
@@ -725,7 +726,7 @@ impl CCrossCompiler {
             }, "\n"));
         });
 
-        results.connect("")
+        results.connect("\n")
     }
 }
 
