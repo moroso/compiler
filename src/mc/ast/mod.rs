@@ -462,7 +462,7 @@ pub enum ItemNode {
     EnumItem(Ident, Vec<Variant>, Vec<Ident>),
     TypeItem(Ident, Type, Vec<Ident>),
     ModItem(Ident, Module),
-    StaticItem(Ident, Type, Option<Expr>),
+    StaticItem(Ident, Type, Option<Expr>, bool /* is this extern? */),
     UseItem(Import),
     MacroDefItem(MacroDef),
     ConstItem(Ident, Type, Expr),
@@ -515,8 +515,9 @@ impl Show for ItemNode {
                 }
                 write!(f, "{}", "}")
             }
-            StaticItem(ref name, ref ty, ref expr) => {
-                write!(f, "static {}: {}{};", name,
+            StaticItem(ref name, ref ty, ref expr, is_extern) => {
+                write!(f, "{}static {}: {}{};", name,
+                       if is_extern { "extern " } else { "" },
                        ty,
                        expr.as_ref().map(|e| format!(" = {}", e))
                        .unwrap_or_default())

@@ -248,6 +248,7 @@ impl<'a> ASTToIntermediate<'a> {
                         offset: None,
                         is_ref: false,
                         is_func: true,
+                        is_extern: block.is_none(),
                         expr: None,
                     }
                     ))
@@ -257,8 +258,8 @@ impl<'a> ASTToIntermediate<'a> {
             EnumItem(..) |
             ConstItem(..) |
             UseItem(..) => (vec!(), vec!()),
-            StaticItem(ref id, ref t, ref exp) => {
-                self.static_item_helper(id, t, exp)
+            StaticItem(ref id, ref t, ref exp, is_extern) => {
+                self.static_item_helper(id, t, exp, is_extern)
             }
             _ => fail!("{}", item)
         }
@@ -267,8 +268,9 @@ impl<'a> ASTToIntermediate<'a> {
     fn static_item_helper(&mut self,
                           id: &Ident,
                           t: &Type,
-                          exp: &Option<Expr>) -> (Vec<Vec<Op>>,
-                                                  Vec<StaticIRItem>) {
+                          exp: &Option<Expr>,
+                          is_extern: bool) -> (Vec<Vec<Op>>,
+                                               Vec<StaticIRItem>) {
         let name = self.mangled_ident(id);
         let ty = self.lookup_ty(t.id);
 
@@ -282,6 +284,7 @@ impl<'a> ASTToIntermediate<'a> {
              offset: None,
              is_ref: ty_is_reference(ty),
              is_func: false,
+             is_extern: is_extern,
              expr: exp.clone(),
          }))
     }

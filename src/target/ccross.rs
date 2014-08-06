@@ -280,13 +280,15 @@ impl CCrossCompiler {
                 let ty = self.visit_type(ty);
                 format!("typedef {} {};\n", name.as_slice(), ty.as_slice())
             }
-            StaticItem(ref id, ref ty, ref expr) => {
+            StaticItem(ref id, ref ty, ref expr, is_extern) => {
                 let name_and_type = self.visit_id_and_type(id.id, ty);
                 match *expr {
                     Some(ref e) => format!("{} = {};",
                                            name_and_type,
                                            self.visit_expr(e)),
-                    None => format!("{};", name_and_type)
+                    None => format!("{}{};",
+                                    if is_extern { "extern " } else { "" },
+                                    name_and_type)
                 }
             }
             ModItem(_, ref body) => {

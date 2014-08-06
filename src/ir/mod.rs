@@ -17,6 +17,7 @@ pub struct StaticIRItem {
     pub name: Name,
     pub size: uint,
     pub offset: Option<uint>,
+    pub is_extern: bool,
     pub is_ref: bool, // Should this variable be a pointer to global space, or
                       // is it actually stored in global space?
     pub is_func: bool, // Is this a function? (If so, size and is_ref are

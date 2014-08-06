@@ -187,7 +187,7 @@ impl<'a> Visitor for DefMapVisitor<'a> {
                 self.visit_module(module);
                 self.qualifier.pop();
             }
-            StaticItem(ref ident, ref ty, ref expr) => {
+            StaticItem(ref ident, ref ty, ref expr, _) => {
                 self.session.defmap.table.insert(ident.id, PatDef(Some(ty.clone())));
 
                 self.visit_type(ty);

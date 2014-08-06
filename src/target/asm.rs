@@ -85,6 +85,7 @@ impl Target for AsmTarget {
                      offset: None,
                      is_ref: false,
                      is_func: true,
+                     is_extern: true,
                      expr: None,
                  }).collect();
         staticitems.push_all_move(asm_staticitems);

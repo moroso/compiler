@@ -389,6 +389,7 @@ impl Target for IRTarget {
                      offset: None,
                      is_ref: false,
                      is_func: true,
+                     is_extern: true,
                      expr: None,
                  }).collect();
         staticitems.push_all_move(builtin_staticitems);

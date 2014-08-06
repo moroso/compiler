@@ -1311,7 +1311,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                 let (name, ty) = self.parse_static_decl();
                 self.expect(Semicolon);
                 let end_span = self.cur_span();
-                self.add_id_and_span(StaticItem(name, ty, None),
+                self.add_id_and_span(StaticItem(name, ty, None, true),
                                      start_span.to(end_span))
             }
             _ => self.peek_error("Expected 'fn' or 'static'"),
@@ -1533,12 +1533,12 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                 self.expect(Eq);
                 Some(self.parse_expr())
             },
-            _ => self.peek_error("Non-extern static items require an initial value.")
+            _ => None,
         };
         self.expect(Semicolon);
 
         let end_span = self.cur_span();
-        self.add_id_and_span(StaticItem(name, ty, expr),
+        self.add_id_and_span(StaticItem(name, ty, expr, false),
                              start_span.to(end_span))
     }
 

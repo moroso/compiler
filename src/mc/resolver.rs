@@ -97,7 +97,7 @@ impl Subscope {
                 ModItem(ref ident, _) => {
                     self.insert_ident(TypeAndModNS, ident);
                 }
-                StaticItem(ref ident, _, _) => {
+                StaticItem(ref ident, _, _, _) => {
                     self.insert_ident(ValNS, ident);
                 }
                 ConstItem(ref ident, _, _) => {
@@ -464,7 +464,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
                     for block in block.iter() { me.visit_block(block); }
                 });
             }
-            StaticItem(ref ident, ref ty, ref expr) => {
+            StaticItem(ref ident, ref ty, ref expr, _) => {
                 self.visit_ident(ident);
                 self.visit_type(ty);
                 for e in expr.iter() {
