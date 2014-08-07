@@ -57,6 +57,7 @@ struct CCrossCompiler {
     session: Session,
     typemap: Typemap,
     mangle_map: TreeMap<NodeId, String>,
+    indent: uint,
 }
 
 fn find_structs(module: &Module) -> TreeSet<NodeId> {
@@ -114,7 +115,13 @@ fn find_enum_names(module: &Module) -> TreeMap<NodeId, Name> {
     enum_map
 }
 
+static INDENT_AMT: uint = 4;
+
 impl CCrossCompiler {
+    fn indent(&mut self) { self.indent += INDENT_AMT; }
+    fn unindent(&mut self) { self.indent -= INDENT_AMT; }
+    fn ind(&self) -> String { String::from_char(self.indent, ' ') }
+
     fn visit_list<T>(&self, list: &Vec<T>,
                             visit: |&CCrossCompiler, &T| -> String,
                             delimiter: &str) -> String {
@@ -203,8 +210,12 @@ impl CCrossCompiler {
     }
 
     fn visit_block(&mut self, block: &Block, tail: |Option<String>| -> String) -> String {
-        let items = self.mut_visit_list(&block.val.items, |me, t| me.visit_item(t), ";\n    ");
-        let stmts = self.mut_visit_list(&block.val.stmts, |me, t| me.visit_stmt(t), ";\n    ");
+        self.indent();
+        let delim = format!(";\n{}", self.ind());
+        let items = self.mut_visit_list(&block.val.items, |me, t| me.visit_item(t),
+                                        delim.as_slice());
+        let stmts = self.mut_visit_list(&block.val.stmts, |me, t| me.visit_stmt(t),
+                                        delim.as_slice());
         let expr = match block.val.expr {
             Some(ref x) => {
                 match x.val {
@@ -215,8 +226,12 @@ impl CCrossCompiler {
             }
             None => tail(None),
         };
-        let out = self.visit_list(&vec!(items, stmts, expr), |_, t: &String| t.clone(), "\n    ");
-        format!("{{\n    {}\n}}", out)
+        let delim = format!("\n{}", self.ind());
+        let out = self.visit_list(&vec!(items, stmts, expr), |_, t: &String| t.clone(),
+                                  delim.as_slice());
+        self.unindent();
+
+        format!("{{{}{}\n{}}}", delim, out, self.ind())
     }
 
     fn visit_item(&mut self, item: &Item) -> String {
@@ -527,7 +542,7 @@ impl CCrossCompiler {
                 let cond = self.visit_expr(&**e);
                 let thenpart = self.visit_block_expr(&**b1);
                 let elsepart = self.visit_block_expr(&**b2);
-                format!("(({})?({}):({}))", cond, thenpart, elsepart)
+                format!("(({}) ? ({}) : ({}))", cond, thenpart, elsepart)
             }
             BlockExpr(ref b) => self.visit_block_expr(&**b),
             ReturnExpr(ref e) => {
@@ -539,14 +554,14 @@ impl CCrossCompiler {
             WhileExpr(ref e, ref b) => {
                 let cond = self.visit_expr(&**e);
                 let body = self.visit_block_expr(&**b);
-                format!("while({}) {{\n{};}}\n", cond, body)
+                format!("while ({}) {}", cond, body)
             }
             ForExpr(ref e1, ref e2, ref e3, ref b) => {
                 let e1 = self.visit_expr(&**e1);
                 let e2 = self.visit_expr(&**e2);
                 let e3 = self.visit_expr(&**e3);
                 let body = self.visit_block_expr(&**b);
-                format!("for({};{};{}) {{\n{};}}\n", e1, e2, e3, body)
+                format!("for ({}; {}; {}) {}", e1, e2, e3, body)
             }
             MatchExpr(ref e, ref arms) => {
                 // TODO: allow types other than ints.
@@ -754,6 +769,7 @@ impl Target for CTarget {
             session: mangler.session,
             typemap: typemap,
             mangle_map: mangler.names,
+            indent: 0,
         };
 
         emit_ccross_prelude(f);
