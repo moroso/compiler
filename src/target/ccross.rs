@@ -115,6 +115,15 @@ fn find_enum_names(module: &Module) -> TreeMap<NodeId, Name> {
     enum_map
 }
 
+fn is_block_empty(block: &Block) -> bool {
+    block.val.items.is_empty() && block.val.stmts.is_empty() &&
+        match block.val.expr {
+            Some(WithId {val: UnitExpr, ..}) => true,
+            _ => false
+        }
+}
+
+
 static INDENT_AMT: uint = 4;
 
 impl CCrossCompiler {
@@ -205,17 +214,18 @@ impl CCrossCompiler {
                 let maybe_expr = e.as_ref().map(|e| format!(" = {}", self.visit_expr(e))).unwrap_or_default();
                 format!("{} {};", ty, maybe_expr)
             },
-            ExprStmt(ref e) | SemiStmt(ref e) => { format!("{};", self.visit_expr(e)) },
+            ExprStmt(ref e) | SemiStmt(ref e) => {
+                self.visit_expr_stmt(e)
+            },
         }
     }
 
     fn visit_block(&mut self, block: &Block, tail: |Option<String>| -> String) -> String {
         self.indent();
-        let delim = format!(";\n{}", self.ind());
-        let items = self.mut_visit_list(&block.val.items, |me, t| me.visit_item(t),
-                                        delim.as_slice());
-        let stmts = self.mut_visit_list(&block.val.stmts, |me, t| me.visit_stmt(t),
-                                        delim.as_slice());
+        let delim_s = format!("\n{}", self.ind());
+        let delim = delim_s.as_slice();
+        let items = self.mut_visit_list(&block.val.items, |me, t| me.visit_item(t), delim);
+        let stmts = self.mut_visit_list(&block.val.stmts, |me, t| me.visit_stmt(t), delim);
         let expr = match block.val.expr {
             Some(ref x) => {
                 match x.val {
@@ -226,9 +236,8 @@ impl CCrossCompiler {
             }
             None => tail(None),
         };
-        let delim = format!("\n{}", self.ind());
-        let out = self.visit_list(&vec!(items, stmts, expr), |_, t: &String| t.clone(),
-                                  delim.as_slice());
+
+        let out = self.visit_list(&vec!(items, stmts, expr), |_, t: &String| t.clone(), delim);
         self.unindent();
 
         format!("{{{}{}\n{}}}", delim, out, self.ind())
@@ -443,6 +452,23 @@ impl CCrossCompiler {
             },
             BoolLit(ref b) => format!("{}", if *b { 1u8 } else { 0 }),
             NullLit => String::from_str("NULL"),
+        }
+    }
+
+    fn visit_expr_stmt(&mut self, expr: &Expr) -> String {
+        match expr.val {
+            IfExpr(ref e, ref b1, ref b2) => {
+                let cond = self.visit_expr(&**e);
+                let thenpart = self.visit_block_expr(&**b1);
+                if is_block_empty(&**b2) {
+                    format!("if ({}) {}", cond, thenpart)
+                } else {
+                    let elsepart = self.visit_block_expr(&**b2);
+                    format!("if ({}) {} else {}", cond, thenpart, elsepart)
+                }
+            }
+            ForExpr(..) | WhileExpr(..) => self.visit_expr(expr),
+            _ => format!("{};", self.visit_expr(expr))
         }
     }
 
