@@ -102,19 +102,23 @@ pub fn subst(ops: &mut Vec<Op>,
                 }
             },
             Call(ref lv, ref x, ref params) => {
+                let new_x = if *x == wrapped_var {
+                    new_rvelem.clone()
+                } else {
+                    x.clone()
+                };
                 let new_vars = params.iter().map(
                     |v|
                     if v == orig_var {
                         match *new_rvelem {
-                            Variable(ref v2) =>
-                                v2.clone(),
+                            Variable(ref v2) => v2.clone(),
                             _ => fail!(),
                         }
                     } else {
                         v.clone()
                     }).collect();
 
-                Call(lv.clone(), x.clone(), new_vars)
+                Call(lv.clone(), new_x.clone(), new_vars)
             },
             Load(ref lv, ref rv, ref width) => {
                 let new_rv = if rv == orig_var {

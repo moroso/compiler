@@ -4,8 +4,16 @@ fn print_f_of_int(x: u32, f: fn(u32) -> u32) {
 
 fn addone(x: u32) -> u32 { x+1 }
 
+static func_array: (fn(u32) -> u32)[3];
+
 fn main() -> u32 {
     print_f_of_int(1, addone);
+
+    func_array[0] = addone;
+    let f: fn(u32) -> u32 = func_array[0];
+
+    if f as u32 == 0 { return 0; }
+    print_uint(addone(3));
 
     0
 }
