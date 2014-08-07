@@ -399,6 +399,11 @@ impl CCrossCompiler {
                 format!("struct {}", self.mangle_map.find(&did).unwrap())
             }
             BottomTy => String::from_str("void"),
+            FuncTy(ref d, ref r) => {
+                let ty = self.visit_ty(&r.val);
+                let list = self.visit_list(d, |me, x| me.visit_ty(&x.val), ", ");
+                format!("{} (*)({})", ty, list)
+            },
             _ => fail!("Not supported yet: {}", t),
         }
     }

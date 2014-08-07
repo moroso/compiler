@@ -938,12 +938,12 @@ impl<'a> Typechecker<'a> {
                 let t_ty = self.type_to_ty(t);
 
                 match e_ty.val {
-                    GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) => {}
-                    _ => self.error(expr.id, "Cannot cast expression of non-integral type"),
+                    GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) | FuncTy(..) => {}
+                    _ => self.error(expr.id, "Cannot cast expression of non-integral/pointer type"),
                 }
 
                 match t_ty.val {
-                    GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) => {},
+                    GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) | FuncTy(..) => {},
                     _ => self.error(expr.id, "Cannot cast to non-integral/pointer type"),
                 }
 
