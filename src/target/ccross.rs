@@ -161,19 +161,17 @@ impl CCrossCompiler {
             FuncType(ref d, ref r) => {
                 let ty = self.visit_type(&**r);
                 let list = self.visit_list(d, |me, x| me.visit_type(x), ", ");
-                format!("{}(*{})({})", ty, name, list)
+                format!("{} (*{})({})", ty, name, list)
             },
+            // This might be wrong for nested arrays. Unless our
+            // syntax is the reverse of C's?
             ArrayType(ref t, ref size) => {
-                let ty = self.visit_type(&**t);
-                format!("{} {}[{}]", ty, name, self.visit_expr(&**size))
+                let name = format!("{}[{}]", name, self.visit_expr(&**size));
+                self.visit_string_and_type(name, &**t)
             },
-            NamedType(ref p) => {
-                let resolved_node = self.session.resolver.def_from_path(p);
-                if self.structnames.contains(&resolved_node) {
-                    format!("struct {} {}", self.visit_mangled_path(p), name)
-                } else {
-                    format!("{} {}", self.visit_mangled_path(p), name)
-                }
+            PtrType(ref t) => {
+                let name = format!("*{}", name);
+                self.visit_string_and_type(name, &**t)
             },
             _ => {
                 let ty = self.visit_type(t);
@@ -758,20 +756,6 @@ impl Target for CTarget {
             mangle_map: mangler.names,
         };
 
-/*
-        let mut stderr = stdio::stderr();
-
-        match writeln!(stderr, "{}", module) {
-            Err(e) => fail!("{}", e),
-            _ => {}
-        }
-*/
-        /* what?
-        match writeln!(stderr, "{}", cc.enumitemnames) {
-            Err(e) => fail!("{}", e),
-            _ => {}
-        }
-        */
         emit_ccross_prelude(f);
         writeln!(f, "{}", cc.visit_module(&module));
     }
