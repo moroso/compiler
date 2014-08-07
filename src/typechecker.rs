@@ -261,7 +261,8 @@ impl Ty {
             GenericIntTy |
             IntTy(..) => true,
             UintTy(..) |
-            PtrTy(..) => false,
+            PtrTy(..) |
+            BoolTy => false,
             _ => fail!("Non-integer type {}", self),
         }
     }
