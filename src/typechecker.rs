@@ -265,6 +265,13 @@ impl Ty {
             _ => fail!("Non-integer type {}", self),
         }
     }
+
+    pub fn is_generic(&self) -> bool {
+        match *self {
+            GenericIntTy => true,
+            _ => false,
+        }
+    }
 }
 
 #[deriving(Eq, PartialEq, Clone)]

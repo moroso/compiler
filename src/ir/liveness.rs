@@ -23,7 +23,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
     for u in range(0, len) {
         let opinfo = opinfo.get_mut(u);
         match ops[u] {
-            BinOp(ref lv, _, ref rve1, ref rve2) => {
+            BinOp(ref lv, _, ref rve1, ref rve2, _) => {
                 opinfo.def.insert(lv.clone());
                 seed_rve(opinfo, rve1);
                 seed_rve(opinfo, rve2);

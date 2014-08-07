@@ -1,5 +1,5 @@
 // Constant folding.
-use util::Name;
+use util::{Name, GenericInt};
 use ir::util::subst;
 use std::collections::{TreeSet, TreeMap};
 use mc::ast::*;
@@ -8,15 +8,30 @@ use values::{eval_binop, eval_unop};
 
 pub struct ConstantFolder;
 
-fn fold(op: &BinOpNode, e1: &RValueElem, e2: &RValueElem) ->
-    Option<LitNode>
-{
+fn assert_signedness(l: &LitNode, signed: bool) {
+    match *l {
+        NumLit(_, ref kind) =>
+            if !kind.is_generic() {
+                assert_eq!(signed, kind.is_signed())
+            },
+        _ => {}
+    }
+}
+
+fn fold(op: &BinOpNode, e1: &RValueElem, e2: &RValueElem, signed: bool) ->
+    Option<LitNode> {
     let lit1 = match *e1 {
-        Constant(ref l) => l.clone(),
+        Constant(ref l) => {
+            assert_signedness(l, signed);
+            l.clone()
+        },
         _ => return None,
     };
     let lit2 = match *e2 {
-        Constant(ref l) => l.clone(),
+        Constant(ref l) => {
+            assert_signedness(l, signed);
+            l.clone()
+        }
         _ => return None,
     };
 
@@ -48,8 +63,8 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>,
 
     for (pos, op) in ops.iter().enumerate() {
         match *op {
-            BinOp(ref v, ref op, ref v1, ref v2) => {
-                match fold(op, v1, v2) {
+            BinOp(ref v, ref op, ref v1, ref v2, signed) => {
+                match fold(op, v1, v2, signed) {
                     Some(c) => {
                         changes.push((v.clone(),
                                       Constant(c.clone())));

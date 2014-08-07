@@ -1,8 +1,15 @@
+fn gen_neg_one() -> i32 {
+    -1
+}
+
 fn main() -> u32 {
     print_int((-1) * (-1));
     if (-1 < 0) {
         print_uint(0);
     }
+
+    print_int(gen_neg_one() * gen_neg_one());
+    print_int(gen_neg_one() * -1);
 
     0
 }

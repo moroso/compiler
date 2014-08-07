@@ -156,11 +156,18 @@ impl IRTarget {
                 _ => s = s.append(format!("  // {}", op).as_slice())
             }
             s = s.append(match *op {
-                BinOp(ref v, ref op, ref rv1, ref rv2) => {
-                    format!("  {} = (long)(({}) {} ({}));\n",
+                BinOp(ref v, ref op, ref rv1, ref rv2, signed) => {
+                    let cast = if signed {
+                        "(long)"
+                    } else {
+                        "(unsigned long)"
+                    };
+                    format!("  {} = (long)(({}{}) {} ({}{}));\n",
                             print_var(interner, global_map, v),
+                            cast,
                             print_rvalelem(interner, global_map, rv1),
                             op,
+                            cast,
                             print_rvalelem(interner, global_map, rv2))
                 },
                 UnOp(ref v, ref op, ref rv) => {

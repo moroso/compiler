@@ -78,6 +78,7 @@ ASM_TEST_FILES := \
 	test_recursive_types.mb \
 	test_short_circuit.mb \
 	test_sign_extend.mb \
+	test_signed_ops.mb \
 	test_sizeof.mb \
 	test_string_simple.mb \
 	test_struct.mb \
@@ -87,7 +88,6 @@ ASM_TEST_FILES := \
 	test_unop_on_field_access.mb
 
 #	test_string.mb \
-# test_signed_ops.mb \
 
 IR_TEST_FILES := $(ASM_TEST_FILES) \
 	test_string.mb

@@ -98,7 +98,9 @@ impl<'a> ASTToIntermediate<'a> {
                                     } else {
                                         0xffff
                                     },
-                                    UnsignedInt(Width32))))), Some(res))
+                                    UnsignedInt(Width32))),
+                                false,
+                                )), Some(res))
                 }
             },
             _ => (vec!(), Some(v))
@@ -562,17 +564,28 @@ impl<'a> ASTToIntermediate<'a> {
                                               Variable(var2),
                                               Constant(NumLit(total_size,
                                                               UnsignedInt(
-                                                                  Width32)))));
+                                                                  Width32))),
+                                              false));
                                     var2 = new_var2;
                                 },
                                 _ => {}
                             }
                         }
+
+                        if !(e1ty.is_generic() || e2ty.is_generic()) {
+                            assert_eq!(e1ty.is_signed(), e2ty.is_signed());
+                        }
+                        let signed = if e1ty.is_generic() {
+                            e2ty.is_signed()
+                        } else {
+                            e1ty.is_signed()
+                        };
                         insts1.push(
                             BinOp(new_res.clone(),
                                   op.val.clone(),
                                   Variable(var1),
-                                  Variable(var2)));
+                                  Variable(var2),
+                                  signed));
                         let dest_ty = &self.lookup_ty(expr.id).clone();
                         let (new_ops, new_var) = self.contract(new_res,
                                                                dest_ty);
@@ -596,7 +609,8 @@ impl<'a> ASTToIntermediate<'a> {
                                               Variable(new_var.unwrap()),
                                               Constant(NumLit(total_size,
                                                               UnsignedInt(
-                                                                  Width32)))));
+                                                                  Width32))),
+                                              false));
                                     (insts1, Some(new_result))
                                 },
                                 _ => fail!(
@@ -771,12 +785,23 @@ impl<'a> ASTToIntermediate<'a> {
                             // the value we're adding to.
                             // So, in 'a+=b', this pushes the instructions
                             // necessary to give us the value of 'a'.
+                            let e1ty = (*self.lookup_ty(e1.id)).clone();
+                            let e2ty = (*self.lookup_ty(e2.id)).clone();
+                            if !(e1ty.is_generic() || e2ty.is_generic()) {
+                                assert_eq!(e1ty.is_signed(), e2ty.is_signed());
+                            }
+                            let signed = if e1ty.is_generic() {
+                                e2ty.is_signed()
+                            } else {
+                                e1ty.is_signed()
+                            };
                             res.push_all_move(binop_insts);
                             let binop_result_var = self.gen_temp();
                             res.push(BinOp(binop_result_var,
                                            inner_op.val.clone(),
                                            Variable(binop_var),
-                                           Variable(var2)));
+                                           Variable(var2),
+                                           signed));
                             binop_result_var
                         },
                         // No binop. We can just assign the result of
@@ -1111,7 +1136,8 @@ impl<'a> ASTToIntermediate<'a> {
                         offset_var,
                         PlusOp,
                         Variable(base_var),
-                        Constant(NumLit(offs, UnsignedInt(Width32)))));
+                        Constant(NumLit(offs, UnsignedInt(Width32))),
+                        false));
 
                     if ty_is_reference(ty) {
                         ops.push_all_move(
@@ -1200,7 +1226,8 @@ impl<'a> ASTToIntermediate<'a> {
                         ops.push(BinOp(compare_var, EqualsOp,
                                        Variable(variant_var),
                                        Constant(NumLit(index,
-                                                       UnsignedInt(Width32)))));
+                                                       UnsignedInt(Width32))),
+                                       false));
                         // If not, jump to the next one.
                         ops.push(CondGoto(true,
                                           Variable(compare_var),
@@ -1306,7 +1333,8 @@ impl<'a> ASTToIntermediate<'a> {
             added_addr_var,
             PlusOp,
             Variable(var),
-            Constant(NumLit(offs, UnsignedInt(Width32)))));
+            Constant(NumLit(offs, UnsignedInt(Width32))),
+            false));
 
         (ops, added_addr_var, ty)
     }
@@ -1344,7 +1372,8 @@ impl<'a> ASTToIntermediate<'a> {
             insts.push(BinOp(new_offs_var.clone(),
                              PlusOp,
                              Variable(base_var.clone()),
-                             Constant(NumLit(offs, UnsignedInt(Width32)))));
+                             Constant(NumLit(offs, UnsignedInt(Width32))),
+                             false));
         }
 
         (insts, vars, widths)
@@ -1367,11 +1396,13 @@ impl<'a> ASTToIntermediate<'a> {
                        TimesOp,
                        Variable(idx_var),
                        Constant(NumLit(total_size,
-                                       UnsignedInt(Width32)))));
+                                       UnsignedInt(Width32))),
+                       false));
         ops.push(BinOp(ptr_var,
                        PlusOp,
                        Variable(base_var),
-                       Variable(offs_var)));
+                       Variable(offs_var),
+                       false));
 
         (ops, ptr_var, ty_width(ty), ty_is_reference(ty))
     }

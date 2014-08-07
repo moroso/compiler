@@ -49,7 +49,7 @@ pub fn subst(ops: &mut Vec<Op>,
                          }.clone())
 
                 },
-            BinOp(ref v, ref op, ref rv1, ref rv2) =>
+            BinOp(ref v, ref op, ref rv1, ref rv2, signed) =>
                 if v == orig_var {
                     Nop
                 } else {
@@ -64,7 +64,8 @@ pub fn subst(ops: &mut Vec<Op>,
                               new_rvelem
                           } else {
                               rv2
-                          }.clone())
+                          }.clone(),
+                          signed)
                 },
             Goto(ref u, ref vars) => {
                 Goto(u.clone(), sub_vars(vars, orig_var, new_rvelem))

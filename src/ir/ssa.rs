@@ -279,7 +279,7 @@ impl ToSSA {
                     ssa_rvalelem(gens, rve);
                     v.generation = next_gen(gens, v.name);
                 },
-                BinOp(ref mut v, _, ref mut rve1, ref mut rve2) => {
+                BinOp(ref mut v, _, ref mut rve1, ref mut rve2, _) => {
                     ssa_rvalelem(gens, rve1);
                     ssa_rvalelem(gens, rve2);
                     v.generation = next_gen(gens, v.name);

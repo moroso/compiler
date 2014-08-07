@@ -83,6 +83,7 @@ fn convert_binop<'a>(
     global_map: &TreeMap<Name, StaticIRItem>,
     dest: Reg,
     op: &BinOpNode,
+    signed: bool,
     mut op_l: &'a RValueElem,
     mut op_r: &'a RValueElem,
     offs: u32,
@@ -114,7 +115,7 @@ fn convert_binop<'a>(
             result.push_all_move(before_r);
 
             // TODO: signedness needs to be part of the IR.
-            match binop_to_cmpop(op, false, swapped) {
+            match binop_to_cmpop(op, signed, swapped) {
                 Some((cmptype, negated)) => {
                     result.push(
                         InstNode::comparereg(
@@ -154,7 +155,7 @@ fn convert_binop<'a>(
                                 InstNode::mult(
                                     Pred { inverted: false,
                                            reg: 3 },
-                                    false, // TODO: support signed.
+                                    signed,
                                     dest,
                                     reg_l,
                                     reg_r)),
@@ -163,7 +164,7 @@ fn convert_binop<'a>(
                                 InstNode::div(
                                     Pred { inverted: false,
                                            reg: 3 },
-                                    false, // TODO: support signed.
+                                    signed,
                                     dest,
                                     reg_l,
                                     reg_r)),
@@ -740,13 +741,14 @@ impl IrToAsm {
                                             link_register,
                                             1));
                 },
-                BinOp(ref var, ref op, ref rve1, ref rve2) => {
+                BinOp(ref var, ref op, ref rve1, ref rve2, signed) => {
                     let (lhs_reg, _, after) = var_to_reg(&regmap, global_map,
                                                          var, 0,
                                                          stack_item_offs);
                     result.push_all_move(
-                        convert_binop(&regmap, global_map, lhs_reg, op, rve1,
-                                      rve2, stack_item_offs, session, strings));
+                        convert_binop(&regmap, global_map, lhs_reg, op, signed,
+                                      rve1, rve2, stack_item_offs, session,
+                                      strings));
                     result.push_all_move(after);
                 },
                 UnOp(ref var, ref op, ref rve1) => {

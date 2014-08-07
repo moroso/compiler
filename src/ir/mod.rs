@@ -88,8 +88,8 @@ impl Show for RValueElem {
 pub enum Op {
     // Apply a unary operator
     UnOp(Var, UnOpNode, RValueElem),
-    // Apply a binary operator
-    BinOp(Var, BinOpNode, RValueElem, RValueElem),
+    // Apply a binary operator. We store whether it's signed
+    BinOp(Var, BinOpNode, RValueElem, RValueElem, bool),
     Alloca(Var, u64),
     Call(Var, RValueElem, Vec<Var>),
     // Store to memory address pointed to by first Var.
@@ -118,9 +118,10 @@ impl Show for Op {
             UnOp(ref lv, ref op, ref rve) =>
                 write!(f, "{: >12} := {}({})\n",
                        format!("{}", lv), op, rve),
-            BinOp(ref lv, ref op, ref rve1, ref rve2) =>
-                write!(f, "{: >12} := {} {} {}\n",
-                       format!("{}", lv), rve1, op, rve2),
+            BinOp(ref lv, ref op, ref rve1, ref rve2, signed) =>
+                write!(f, "{: >12} := {} {}{} {}\n",
+                       format!("{}", lv), rve1, op,
+                       if signed { "s" } else { "u" }, rve2),
             Store(ref lv, ref rv, ref size) =>
                 write!(f, "{: >12} :={} {}\n",
                        format!("*{}", lv), size, rv),

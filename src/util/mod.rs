@@ -54,6 +54,21 @@ pub enum IntKind {
 }
 
 impl IntKind {
+    pub fn is_signed(&self) -> bool {
+        match *self {
+            GenericInt |
+            SignedInt(..) => true,
+            UnsignedInt(..) => false,
+        }
+    }
+
+    pub fn is_generic(&self) -> bool {
+        match *self {
+            GenericInt => true,
+            _ => false,
+        }
+    }
+
     pub fn num_to_string(&self, n: u64) -> String {
         match *self {
             GenericInt            => format!("{}", n as i32),
