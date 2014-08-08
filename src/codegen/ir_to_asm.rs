@@ -110,6 +110,7 @@ fn convert_binop<'a>(
 
     match *op_r {
         Variable(ref var) => {
+            assert!(!swapped);
             let (reg_r, before_r, _) = var_to_reg(regmap, global_map, var, 2,
                                                   offs);
             result.push_all_move(before_r);
@@ -199,13 +200,14 @@ fn convert_binop<'a>(
             }
         },
         Constant(ref val) => {
+            // In this case, we may have swapped the order of the operands.
+
             let longval = lit_to_longvalue(val, session, strings);
             let packed = match longval {
                 Immediate(num) => pack_int(num,10),
                 _ => None,
             };
 
-            // TODO: signedness needs to be part of the IR.
             match binop_to_cmpop(op, false, swapped) {
                 Some((cmptype, negated)) => {
                     match packed {
@@ -255,6 +257,8 @@ fn convert_binop<'a>(
                 None =>
                     match *op {
                         TimesOp =>
+                            // We don't need to worry about swappedness here,
+                            // because multiplication commutes.
                             result.push_all_move(vec!(
                                 // TODO: don't always use longs here, and
                                 // refactor the code around this to make
@@ -283,13 +287,23 @@ fn convert_binop<'a>(
                                     MovAluOp,
                                     global_reg),
                                 InstNode::anylong(longval),
-                                InstNode::div(
-                                    Pred { inverted: false,
-                                           reg: 3 },
-                                    signed,
-                                    dest,
-                                    reg_l,
-                                    global_reg))),
+                                if swapped {
+                                    InstNode::div(
+                                        Pred { inverted: false,
+                                               reg: 3 },
+                                        signed,
+                                        dest,
+                                        global_reg,
+                                        reg_l)
+                                } else {
+                                    InstNode::div(
+                                        Pred { inverted: false,
+                                               reg: 3 },
+                                        signed,
+                                        dest,
+                                        reg_l,
+                                        global_reg)
+                                })),
                         ModOp =>
                             result.push_all_move(vec!(
                                 // TODO: don't always use longs here, and
@@ -301,13 +315,23 @@ fn convert_binop<'a>(
                                     MovAluOp,
                                     global_reg),
                                 InstNode::anylong(longval),
-                                InstNode::div(
-                                    Pred { inverted: false,
-                                           reg: 3 },
-                                    signed,
-                                    dest,
-                                    reg_l,
-                                    global_reg),
+                                if swapped {
+                                    InstNode::div(
+                                        Pred { inverted: false,
+                                               reg: 3 },
+                                        signed,
+                                        dest,
+                                        global_reg,
+                                        reg_l)
+                                } else {
+                                    InstNode::div(
+                                        Pred { inverted: false,
+                                               reg: 3 },
+                                        signed,
+                                        dest,
+                                        reg_l,
+                                        global_reg)
+                                },
                                 InstNode::mfhi(
                                     Pred { inverted: false,
                                            reg: 3 },
