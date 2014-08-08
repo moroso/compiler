@@ -207,12 +207,18 @@ impl MacroExpander {
     }
 }
 
+// Some debug code
+fn format_st_vec(v: &Vec<SourceToken<Token>>) -> String {
+    let nv: Vec<Token> = v.iter().map(|t| t.tok.clone()).collect();
+    format!("{}", nv)
+}
+
 impl<'a> MacroExpanderVisitor<'a> {
     fn expand_macro(&mut self,
                     id: &NodeId,
                     name: Name,
                     my_args: Vec<Vec<Token>>) -> Vec<SourceToken<Token>> {
-        use mc::lexer::Eof;
+        use mc::lexer::{Eof, IdentBangTok};
         use mc::parser::Parser;
 
         let span = self.session.parser.span_of(id);
@@ -231,9 +237,40 @@ impl<'a> MacroExpanderVisitor<'a> {
         toks.push(Eof);
 
         let mut stream = toks.move_iter().map(
-            |t| SourceToken { sp: span, tok: t, filename: format!("{}", filename) });
+            |t| SourceToken { sp: span, tok: t, filename: format!("{}", filename) })
+            .peekable();
 
-        stream.collect()
+        // Now it is time for the double expando.
+        // We scan through the token stream looking for macro calls.
+        // If we find one, we parse part of the stream as the call and
+        // recursively expand it.
+        // Is this just totally fucking wrong? It might be.
+        let mut new_toks = vec!();
+        while !stream.is_empty() {
+            // Do some borrow checker gymnastics. Need to find out whether
+            // the next thing is an IdentBangTok without retaining a borrow.
+            let is_macro_call = {
+                match stream.peek().unwrap().tok {
+                    IdentBangTok(_) => true,
+                    _ => false
+                }
+            };
+
+            if is_macro_call {
+                let (name, args) =
+                    Parser::parse_stream(self.session, filename, stream.by_ref(),
+                                         |p| p.parse_macro_call());
+                let mut expanded = self.expand_macro(id, name, args);
+                expanded.pop(); // Remove the EOF
+                //println!("parsed {}", print_thing(&expanded));
+                new_toks.push_all_move(expanded);
+            } else {
+                new_toks.push(stream.next().unwrap());
+            }
+        }
+
+        //println!("expanded to {}", print_thing(&new_toks));
+        new_toks
     }
 
 }
@@ -246,17 +283,13 @@ impl<'a> MutVisitor for MacroExpanderVisitor<'a> {
             MacroExpr(name, ref mut args) => {
                 let mut my_args = vec!();
                 swap(&mut my_args, args);
-
                 let filename = self.session.parser.filename_of(&expr.id);
-
-
                 let stream = self.expand_macro(&expr.id, name, my_args).move_iter();
                 Parser::parse_stream(self.session, filename, stream, |p| p.parse_expr())
             }
             _ => return walk_expr(self, expr),
         };
 
-        self.visit_expr(&mut new_expr);
         ::std::mem::swap(&mut new_expr, expr);
     }
 }

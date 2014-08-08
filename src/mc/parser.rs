@@ -1118,8 +1118,8 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         tokens
     }
 
-    fn parse_macro_expr(&mut self) -> Expr {
-        let start_span = self.cur_span();
+    // Used by macro expansion also
+    pub fn parse_macro_call(&mut self) -> (Name, Vec<Vec<Token>>) {
         let name = match self.eat() {
             IdentBangTok(name) => self.session.interner.intern(name),
             _ => unreachable!(),
@@ -1129,6 +1129,12 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let args = self.parse_list(|p| p.parse_macro_expr_arg(), RParen, true);
         self.expect(RParen);
 
+        (name, args)
+    }
+
+    fn parse_macro_expr(&mut self) -> Expr {
+        let start_span = self.cur_span();
+        let (name, args) = self.parse_macro_call();
         let end_span = self.cur_span();
         self.add_id_and_span(MacroExpr(name, args), start_span.to(end_span))
     }
