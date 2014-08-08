@@ -9,7 +9,7 @@ fn main() -> u32 {
 
     while *pt != 0 {
         print_uint(*pt);
-        pt = pt + 1;
+        pt += 1;
     }
 
     0

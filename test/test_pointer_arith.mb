@@ -20,5 +20,8 @@ fn main() -> u32 {
     print_uint(*(px+3));
     print_uint(py - px);
 
+    px += 2;
+    print_uint(*px);
+
     0
 }

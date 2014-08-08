@@ -480,6 +480,110 @@ impl<'a> ASTToIntermediate<'a> {
         ops
     }
 
+    pub fn binop_helper<'a>(&mut self, op: &'a BinOp,
+                            var1: Var, mut var2: Var,
+                            e1ty: &'a Ty, e2ty: &'a Ty,
+                            insts1: Vec<Op>, insts2: Vec<Op>,
+                            dest_ty: &'a Ty) -> (Vec<Op>, Var) {
+        let mut insts = vec!();
+        insts.push_all_move(insts1);
+
+        match op.val {
+            AndAlsoOp |
+            OrElseOp => {
+                let is_and = op.val == AndAlsoOp;
+                let end_label = self.gen_label();
+                insts.push(CondGoto(is_and, // cond is negated for
+                                     // ands, not for ors.
+                                     Variable(var1),
+                                     end_label,
+                                     TreeSet::new()));
+                insts.push_all_move(insts2);
+                insts.push(UnOp(var1,
+                                 Identity,
+                                 Variable(var2)));
+                insts.push(Goto(end_label, TreeSet::new()));
+                insts.push(Label(end_label, TreeSet::new()));
+                (insts, var1)
+            },
+            _ => {
+                let new_res = self.gen_temp();
+                insts.push_all_move(insts2);
+                if (op.val == PlusOp || op.val == MinusOp) &&
+                    !e2ty.is_ptr() {
+                        // For pointer arithmetic, we want to scale
+                        // by the size of the type being pointed to.
+                        match *e1ty {
+                            PtrTy(ref new_ty) => {
+                                let size = max(size_of_ty(self.session,
+                                                          self.typemap,
+                                                          &new_ty.val),
+                                               1);
+                                let total_size = packed_size(&vec!(size));
+                                let new_var2 = self.gen_temp();
+                                insts.push(
+                                    BinOp(new_var2,
+                                          TimesOp,
+                                          Variable(var2),
+                                          Constant(NumLit(total_size,
+                                                          UnsignedInt(
+                                                              Width32))),
+                                          false));
+                                var2 = new_var2;
+                            },
+                            _ => {}
+                        }
+                    }
+
+                if !(e1ty.is_generic() || e2ty.is_generic()) {
+                    assert_eq!(e1ty.is_signed(), e2ty.is_signed());
+                }
+                let signed = if e1ty.is_generic() {
+                    e2ty.is_signed()
+                } else {
+                    e1ty.is_signed()
+                };
+                insts.push(
+                    BinOp(new_res.clone(),
+                          op.val.clone(),
+                          Variable(var1),
+                          Variable(var2),
+                          signed));
+                let (new_ops, new_var) = self.contract(new_res,
+                                                       dest_ty);
+                insts.push_all_move(new_ops);
+
+                // The only thing we need to deal with now is pointer
+                // differences, where we need to divide by the size
+                // of the type.
+                if op.val == MinusOp && e1ty.is_ptr() && e2ty.is_ptr() {
+                    match *e1ty {
+                        PtrTy(ref new_ty) => {
+                            let size = max(size_of_ty(self.session,
+                                                      self.typemap,
+                                                      &new_ty.val),
+                                           1);
+                            let total_size = packed_size(&vec!(size));
+                            let new_result = self.gen_temp();
+                            insts.push(
+                                BinOp(new_result,
+                                      DivideOp,
+                                      Variable(new_var.unwrap()),
+                                      Constant(NumLit(total_size,
+                                                      UnsignedInt(
+                                                          Width32))),
+                                      false));
+                            (insts, new_result)
+                        },
+                        _ => fail!(
+                            "I was so sure this was a pointer..."),
+                    }
+                } else {
+                    (insts, new_var.unwrap())
+                }
+            }
+        }
+    }
 
     pub fn convert_expr(&mut self, expr: &Expr) -> (Vec<Op>, Option<Var>) {
         match expr.val {
@@ -497,6 +601,8 @@ impl<'a> ASTToIntermediate<'a> {
                 (insts, Some(res_var))
             }
             BinOpExpr(ref op, ref e1, ref e2) => {
+                let dest_ty = &self.lookup_ty(expr.id).clone();
+
                 let mut e1ty = self.lookup_ty(e1.id).clone();
                 let mut e2ty = self.lookup_ty(e2.id).clone();
                 let mut new_e1 = e1;
@@ -519,108 +625,16 @@ impl<'a> ASTToIntermediate<'a> {
                                     " caught this."));
                 }
 
-                let (mut insts1, var1) = self.convert_expr(&**new_e1);
+                let (insts1, var1) = self.convert_expr(&**new_e1);
                 let (insts2, var2) = self.convert_expr(&**new_e2);
                 let var1 = var1.expect(
                     "Binop argument must have a non-unit value");
-                let mut var2 = var2.expect(
+                let var2 = var2.expect(
                     "Binop argument must have a non-unit value");
-                match op.val {
-                    AndAlsoOp |
-                    OrElseOp => {
-                        let is_and = op.val == AndAlsoOp;
-                        let end_label = self.gen_label();
-                        insts1.push(CondGoto(is_and, // cond is negated for
-                                                     // ands, not for ors.
-                                             Variable(var1),
-                                             end_label,
-                                             TreeSet::new()));
-                        insts1.push_all_move(insts2);
-                        insts1.push(UnOp(var1,
-                                         Identity,
-                                         Variable(var2)));
-                        insts1.push(Goto(end_label, TreeSet::new()));
-                        insts1.push(Label(end_label, TreeSet::new()));
-                        (insts1, Some(var1))
-                    },
-                    _ => {
-                        let new_res = self.gen_temp();
-                        insts1.push_all_move(insts2);
-                        if (op.val == PlusOp || op.val == MinusOp) &&
-                            !e2ty.is_ptr() {
-                            // For pointer arithmetic, we want to scale
-                            // by the size of the type being pointed to.
-                            match e1ty {
-                                PtrTy(ref new_ty) => {
-                                    let size = max(size_of_ty(self.session,
-                                                              self.typemap,
-                                                              &new_ty.val),
-                                                   1);
-                                    let total_size = packed_size(&vec!(size));
-                                    let new_var2 = self.gen_temp();
-                                    insts1.push(
-                                        BinOp(new_var2,
-                                              TimesOp,
-                                              Variable(var2),
-                                              Constant(NumLit(total_size,
-                                                              UnsignedInt(
-                                                                  Width32))),
-                                              false));
-                                    var2 = new_var2;
-                                },
-                                _ => {}
-                            }
-                        }
 
-                        if !(e1ty.is_generic() || e2ty.is_generic()) {
-                            assert_eq!(e1ty.is_signed(), e2ty.is_signed());
-                        }
-                        let signed = if e1ty.is_generic() {
-                            e2ty.is_signed()
-                        } else {
-                            e1ty.is_signed()
-                        };
-                        insts1.push(
-                            BinOp(new_res.clone(),
-                                  op.val.clone(),
-                                  Variable(var1),
-                                  Variable(var2),
-                                  signed));
-                        let dest_ty = &self.lookup_ty(expr.id).clone();
-                        let (new_ops, new_var) = self.contract(new_res,
-                                                               dest_ty);
-                        insts1.push_all_move(new_ops);
-
-                        // The only thing we need to deal with now is pointer
-                        // differences, where we need to divide by the size
-                        // of the type.
-                        if op.val == MinusOp && e1ty.is_ptr() && e2ty.is_ptr() {
-                            match e1ty {
-                                PtrTy(ref new_ty) => {
-                                    let size = max(size_of_ty(self.session,
-                                                              self.typemap,
-                                                              &new_ty.val),
-                                                   1);
-                                    let total_size = packed_size(&vec!(size));
-                                    let new_result = self.gen_temp();
-                                    insts1.push(
-                                        BinOp(new_result,
-                                              DivideOp,
-                                              Variable(new_var.unwrap()),
-                                              Constant(NumLit(total_size,
-                                                              UnsignedInt(
-                                                                  Width32))),
-                                              false));
-                                    (insts1, Some(new_result))
-                                },
-                                _ => fail!(
-                                    "I was so sure this was a pointer..."),
-                            }
-                        } else {
-                            (insts1, new_var)
-                        }
-                    }
-                }
+                let (insts, var) = self.binop_helper(
+                    op, var1, var2, &e1ty, &e2ty, insts1, insts2, dest_ty);
+                (insts, Some(var))
             },
             PathExpr(ref path) => {
                 let defid = self.session.resolver.def_from_path(path);
@@ -668,9 +682,7 @@ impl<'a> ASTToIntermediate<'a> {
                           generation: None }))
             },
             AssignExpr(ref op, ref e1, ref e2) => {
-                let (mut res, var2) = self.convert_expr(&**e2);
-                let var2 = var2.expect(
-                    "RHS of assignment must have a non-unit value");
+                let mut res = vec!();
 
                 // The LHS might be wrapped in a GroupExpr.
                 // Unwrap it.
@@ -790,23 +802,30 @@ impl<'a> ASTToIntermediate<'a> {
                             if !(e1ty.is_generic() || e2ty.is_generic()) {
                                 assert_eq!(e1ty.is_signed(), e2ty.is_signed());
                             }
-                            let signed = if e1ty.is_generic() {
-                                e2ty.is_signed()
-                            } else {
-                                e1ty.is_signed()
-                            };
-                            res.push_all_move(binop_insts);
-                            let binop_result_var = self.gen_temp();
-                            res.push(BinOp(binop_result_var,
-                                           inner_op.val.clone(),
-                                           Variable(binop_var),
-                                           Variable(var2),
-                                           signed));
-                            binop_result_var
+
+                            let (res2, var2) = self.convert_expr(&**e2);
+                            let var2 = var2.expect(
+                                "RHS of assignment must have a non-unit value");
+
+                            let dest_ty = &self.lookup_ty(expr.id).clone();
+
+                            let (insts, var) = self.binop_helper(
+                                inner_op,
+                                binop_var, var2,
+                                &e1ty, &e2ty,
+                                binop_insts, res2, dest_ty);
+                            res.push_all_move(insts);
+                            var
                         },
                         // No binop. We can just assign the result of
                         // the rhs directly.
-                        None => var2
+                        None => {
+                            let (res2, var2) = self.convert_expr(&**e2);
+                            res.push_all_move(res2);
+                            let var2 = var2.expect(
+                                "RHS of assignment must have a non-unit value");
+                            var2
+                        }
                     };
                 // This generates a redundant store in some cases, but
                 // the optimizer will eliminate them.
