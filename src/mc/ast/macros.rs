@@ -8,6 +8,7 @@ use std::collections::TreeMap;
 use std::fmt::{Formatter, Show};
 use std::mem::swap;
 use std::ops::Fn;
+use util::lexer::SourceToken;
 
 use super::mut_visitor::*;
 use super::*;
@@ -206,33 +207,50 @@ impl MacroExpander {
     }
 }
 
-impl<'a> MutVisitor for MacroExpanderVisitor<'a> {
-    fn visit_expr(&mut self, expr: &mut Expr) {
+impl<'a> MacroExpanderVisitor<'a> {
+    fn expand_macro(&mut self,
+                    id: &NodeId,
+                    name: Name,
+                    my_args: Vec<Vec<Token>>) -> Vec<SourceToken<Token>> {
         use mc::lexer::Eof;
         use mc::parser::Parser;
-        use util::lexer::SourceToken;
+
+        let span = self.session.parser.span_of(id);
+        let filename = self.session.parser.filename_of(id);
+
+        let mut toks = unsafe {
+            let macro: & &Expander = ::std::mem::transmute(
+                match self.session.expander.macros.find(&name) {
+                    Some(m) => m,
+                    None => self.session.error_fatal(*id, format!("Macro {}! is undefined", name).as_slice()),
+                }
+                );
+            macro.expand(my_args, *id, self.session)
+        };
+
+        toks.push(Eof);
+
+        let mut stream = toks.move_iter().map(
+            |t| SourceToken { sp: span, tok: t, filename: format!("{}", filename) });
+
+        stream.collect()
+    }
+
+}
+
+impl<'a> MutVisitor for MacroExpanderVisitor<'a> {
+    fn visit_expr(&mut self, expr: &mut Expr) {
+        use mc::parser::Parser;
 
         let mut new_expr: Expr = match expr.val {
             MacroExpr(name, ref mut args) => {
                 let mut my_args = vec!();
                 swap(&mut my_args, args);
 
-                let span = self.session.parser.span_of(&expr.id);
                 let filename = self.session.parser.filename_of(&expr.id);
 
-                let mut toks = unsafe {
-                    let macro: & &Expander = ::std::mem::transmute(
-                        match self.session.expander.macros.find(&name) {
-                            Some(m) => m,
-                            None => self.session.error_fatal(expr.id, format!("Macro {}! is undefined", name).as_slice()),
-                        }
-                    );
-                    macro.expand(my_args, expr.id, self.session)
-                };
 
-                toks.push(Eof);
-
-                let stream = toks.move_iter().map(|t| SourceToken { sp: span, tok: t, filename: format!("{}", filename) });
+                let stream = self.expand_macro(&expr.id, name, my_args).move_iter();
                 Parser::parse_stream(self.session, filename, stream, |p| p.parse_expr())
             }
             _ => return walk_expr(self, expr),
