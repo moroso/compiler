@@ -40,18 +40,37 @@ fn expand_line(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec
     vec!(NumberTok(span.get_begin().row as u64, GenericInt))
 }
 
-fn expand_concat(input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> Vec<Token> {
+// This lets you produce some bogus idents.
+// Also this is probably not very useful.
+fn expand_paste(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
+    use mc::lexer::{IdentTok, NumberTok};
+
+    let mut concat = vec!();
+    for mut arg in input.move_iter() {
+        for elem in arg.move_iter() {
+            match elem {
+                IdentTok(s) => concat.push(s),
+                NumberTok(n, _) => concat.push(format!("{}", n)),
+                t => session.error(id, format!("expected ident or num in concat!, found {}", t)),
+            }
+        }
+    }
+
+    vec!(IdentTok(concat.connect("")))
+}
+
+fn expand_concat(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
     use mc::lexer::StringTok;
 
     let mut concat = vec!();
     for mut arg in input.move_iter() {
         match arg.pop() {
             Some(StringTok(s)) => concat.push(s),
-            t => fail!("expected string in concat!, found {}", t),
+            t => session.error(id, format!("expected string in concat!, found {}", t)),
         }
 
         if arg.len() > 0 {
-            fail!("expected comma in concat!")
+            session.error(id, "expected comma in concat!");
         }
     }
 
@@ -59,11 +78,10 @@ fn expand_concat(input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> Vec<Toke
 }
 
 fn expand_stringify(mut input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> Vec<Token> {
-    use mc::lexer::{StringTok, new_mb_lexer, SourceToken, Eof};
-    use mc::parser::Parser;
+    use mc::lexer::StringTok;
 
     if input.len() == 0 {
-        return vec!(StringTok(String::new()));
+      return vec!(StringTok(String::new()));
     }
 
     let mut concat = vec!();
@@ -79,14 +97,40 @@ fn expand_stringify(mut input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> V
     vec!(StringTok(concat.connect(" ")))
 }
 
+fn expand_map_macro(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
+    use mc::lexer::{Comma, LParen, RParen};
+
+    if input.len() < 1 {
+        session.error_fatal(id, "Not enough arguments to map_toks!");
+    }
+    let mut iter = input.move_iter();
+    let prefix = iter.next().unwrap();
+
+    let mut out = vec!();
+    for toks in iter {
+        out.push_all(prefix.as_slice());
+        out.push(LParen);
+        out.push_all_move(toks);
+        out.push(RParen);
+        out.push(Comma);
+    }
+    out.pop(); // pop the trailing comma, if there is one
+
+    out
+}
+
+
+
 type ExpanderFnSig = fn(Vec<Vec<Token>>, NodeId, &mut Session) -> Vec<Token>;
 struct ExpanderFn(ExpanderFnSig);
 
 static builtin_macros: &'static [(&'static str, ExpanderFnSig)] = &[
+    ("paste", expand_paste),
     ("concat", expand_concat),
     ("stringify", expand_stringify),
     ("file", expand_file),
     ("line", expand_line),
+    ("map_macro", expand_map_macro),
 ];
 
 trait Expander {
