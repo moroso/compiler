@@ -1173,7 +1173,9 @@ impl<'a> Typechecker<'a> {
 
         match (op.val, l_ty.val, r_ty.val) {
             // Once again we appease the borrow checker...
-            (PlusOp, ref t, ref mut p@PtrTy(..)) | (PlusOp, ref mut p@PtrTy(..), ref t) if is_integral_ty(t) =>
+            (PlusOp, ref t, ref mut p@PtrTy(..)) |
+            (PlusOp, ref mut p@PtrTy(..), ref t) |
+            (MinusOp, ref mut p@PtrTy(..), ref t) if is_integral_ty(t) =>
                 ::std::mem::replace(p, UnitTy),
             (MinusOp, PtrTy(..), PtrTy(..)) =>
                 UintTy(Width32), //TODO PtrWidth
