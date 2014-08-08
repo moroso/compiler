@@ -90,6 +90,7 @@ pub enum Token {
     RshEq,
     PercentEq,
     Dollar,
+    DotDotDot,
 
     // Literals
     IdentTok(String),
@@ -184,6 +185,7 @@ impl fmt::Show for Token {
             RshEq                  => String::from_str(">>="),
             PercentEq              => String::from_str("%="),
             Dollar                 => String::from_str("$"),
+            DotDotDot              => String::from_str("..."),
 
             IdentTok(ref id)       => format!("{}", id),
             IdentBangTok(ref id)   => format!("{}!", id),
@@ -410,6 +412,7 @@ pub fn new_mb_lexer<S: StrAllocating, B: Buffer>(name: S, buffer: B) -> Lexer<B,
             RshEq        => ">>=",
             PercentEq    => "%=",
             Dollar       => "$",
+            DotDotDot    => "...",
 
             // Literals
             IdentTok     => matcher!(r"[a-zA-Z_]\w*"),

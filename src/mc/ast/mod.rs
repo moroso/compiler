@@ -427,6 +427,7 @@ impl Show for Field {
 pub enum MacroToken {
     MacroTok(Token),
     MacroVar(Name),
+    MacroVarArgs,
 }
 
 #[deriving(Clone, Show, Eq, PartialEq)]

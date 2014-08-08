@@ -101,12 +101,25 @@ impl Expander for ExpanderFn {
 
 impl Expander for WithId<MacroDef> {
     fn expand(&self, input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> Vec<Token> {
+        use mc::lexer::Comma;
+
         let mut output = vec!();
 
         let mut args = TreeMap::new();
-        for (&name, arg) in self.val.args.iter().zip(input.move_iter()) {
+        let mut arg_iter = input.move_iter();
+        for (&name, arg) in self.val.args.iter().zip(arg_iter.by_ref()) {
             args.insert(name, arg);
         }
+        // This is maybe dubious, but we rely on zip not advancing its
+        // second argument if the first is exhausted first to grab the
+        // rest of the args that aren't bound to variables.
+        let mut vararg_toks = vec!();
+        // Collect up any remaining args as a comma delimited token stream
+        for arg in arg_iter {
+            vararg_toks.push_all(arg.as_slice());
+            vararg_toks.push(Comma);
+        }
+        vararg_toks.pop(); // Pop off a trailing comma if it exists
 
         for tok in self.val.body.iter() {
             match *tok {
@@ -115,6 +128,9 @@ impl Expander for WithId<MacroDef> {
                 }
                 MacroTok(ref tok) => {
                     output.push(tok.clone());
+                }
+                MacroVarArgs => {
+                    output.push_all(vararg_toks.as_slice());
                 }
             }
         }

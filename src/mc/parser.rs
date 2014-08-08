@@ -1102,6 +1102,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                     fail!("No such argument `${}`", name);
                 }
             }
+            DotDotDot => tokens.push(MacroVarArgs),
             t => tokens.push(MacroTok(t)),
         }
 
