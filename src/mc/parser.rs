@@ -1150,6 +1150,16 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         self.add_id_and_span(SizeofExpr(ty), start_span.to(end_span))
     }
 
+    fn parse_array_expr(&mut self) -> Expr {
+        let start_span = self.cur_span();
+        self.expect(LBracket);
+        let elems = self.parse_list(|p| p.parse_expr(), RBracket, true);
+        self.expect(RBracket);
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(ArrayExpr(elems), start_span.to(end_span))
+    }
+
     fn parse_simple_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
         let mut expr = match *self.peek() {
@@ -1171,6 +1181,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                 self.add_id_and_span(node, start_span.to(end_span))
             },
             Sizeof                    => self.parse_sizeof_expr(),
+            LBracket                  => self.parse_array_expr(),
             _ => self.peek_error("Expected expression"),
         };
 

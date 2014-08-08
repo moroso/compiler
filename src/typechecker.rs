@@ -1093,6 +1093,16 @@ impl<'a> Typechecker<'a> {
 
                 ty
             }
+            ArrayExpr(ref elems) => {
+                let mut cur_ty = self.expr_to_ty(&elems[0]);
+                for elem in elems.iter().skip(1) {
+                    let new_ty = self.expr_to_ty(elem);
+                    cur_ty = WithId { id: cur_ty.id,
+                                      val: self.unify(cur_ty, new_ty) };
+                }
+
+                ArrayTy(box cur_ty, Some(elems.len() as u64))
+            },
             MacroExpr(..) => fail!(),
         })
     }

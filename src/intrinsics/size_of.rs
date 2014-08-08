@@ -96,9 +96,10 @@ pub fn size_of_ty(session: &Session, typemap: &Typemap, ty: &Ty) -> u64 {
         PtrTy(..) |
         FuncTy(..) => 4,
         UnitTy => 0,
-        ArrayTy(ref t, ref l) => size_of_ty(session,
-                                            typemap,
-                                            &t.val) * l.unwrap(),
+        ArrayTy(ref t, ref l) =>
+            packed_size(&vec!(size_of_ty(session,
+                                         typemap,
+                                         &t.val))) * l.unwrap(),
         TupleTy(ref tys) =>
             packed_size(
                 &tys.iter().map(|t| size_of_ty(session,

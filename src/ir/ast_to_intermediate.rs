@@ -1094,6 +1094,50 @@ impl<'a> ASTToIntermediate<'a> {
                 (insts, None)
             }
             TupleExpr(..) => unimplemented!(),
+            ArrayExpr(ref elems) => {
+                let ty = &self.lookup_ty(expr.id).clone();
+                let (inner_len, nelems, inner_ty) = match *ty {
+                    ArrayTy(ref inner_ty, nelems) => {
+                        (packed_size(&vec!(size_of_ty(self.session,
+                                                      self.typemap,
+                                                      &inner_ty.val))),
+                         nelems.expect("Array needs a size"),
+                         inner_ty.val.clone())
+                    },
+                    _ => fail!("Array constructor has non-array type"),
+                };
+                let is_reference = ty_is_reference(&inner_ty);
+                let total_size = size_of_ty(self.session,
+                                            self.typemap,
+                                            ty);
+                assert_eq!(elems.len() as uint, nelems as uint);
+                assert_eq!(total_size, inner_len * nelems);
+                let result_var = self.gen_temp();
+                let mut ops = vec!(Alloca(result_var, total_size));
+                for (idx, elem) in elems.iter().enumerate() {
+                    let offset_var = self.gen_temp();
+                    let offs = idx as u64 * inner_len;
+
+                    let (new_ops, expr_result) = self.convert_expr(elem);
+                    let expr_result = expr_result.expect(
+                        "Expression in array constructor can't be unit.");
+                    ops.push_all_move(new_ops);
+
+                    ops.push(BinOp(
+                        offset_var,
+                        PlusOp,
+                        Variable(result_var),
+                        Constant(NumLit(offs, UnsignedInt(Width32))),
+                        false));
+                    if is_reference {
+                        self.gen_copy(&offset_var, &expr_result, &inner_ty);
+                    } else {
+                        let width = ty_width(&inner_ty);
+                        ops.push(Store(offset_var, expr_result, width));
+                    }
+                }
+                (ops, Some(result_var))
+            }
             StructExpr(ref p, ref fields) => {
                 // TODO: make this more efficient.
                 let defid = self.session.resolver.def_from_path(p);

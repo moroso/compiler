@@ -534,6 +534,13 @@ impl CCrossCompiler {
                 let op = op.map_or(String::new(), |op| format!("{}", op));
                 format!("({}) {}= ({})", lhs, op, rhs)
             }
+            ArrayExpr(ref elems) => {
+                format!("{{ {} }}",
+                        self.mut_visit_list(
+                            elems,
+                            |me, e| me.visit_expr(e),
+                            ", "))
+            }
             CallExpr(ref f, ref args) => {
                 let res_type = self.visit_ty(self.typemap.types.get(&expr.id.to_uint()));
                 match f.val {

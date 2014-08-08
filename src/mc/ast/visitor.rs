@@ -197,6 +197,9 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
             visitor.visit_expr(&**lv);
             visitor.visit_expr(&**rv);
         }
+        ArrayExpr(ref elems) => {
+            for elem in elems.iter() { visitor.visit_expr(elem); }
+        }
         CallExpr(ref f, ref args) => {
             visitor.visit_expr(&**f);
             for arg in args.iter() { visitor.visit_expr(arg); }

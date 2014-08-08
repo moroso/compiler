@@ -57,6 +57,7 @@ TEST_FILES := $(patsubst test/%,%,$(wildcard test/test_*.mb))
 
 ASM_TEST_FILES := \
 	test_array.mb \
+	test_array_constructor.mb \
 	test_booleans.mb \
 	test_booleans_2.mb \
 	test_break_continue.mb \

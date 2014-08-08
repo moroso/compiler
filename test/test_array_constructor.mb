@@ -1,0 +1,16 @@
+fn main() -> u32 {
+    let arr: u32[5] = [1, 2, 3, 4, 0];
+    let pt: *u32 = &arr[0];
+
+    let i: u8;
+    for(i = 0; i < 5; i += 1) {
+        print_uint(arr[i]);
+    }
+
+    while *pt != 0 {
+        print_uint(*pt);
+        pt = pt + 1;
+    }
+
+    0
+}
