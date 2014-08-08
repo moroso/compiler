@@ -575,7 +575,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                 match *self.peek() {
                     LParen => {
                         self.expect(LParen);
-                        let args = self.parse_list(|p| p.parse_pat_common(allow_types), RParen, false);
+                        let args = self.parse_list(|p| p.parse_pat_common(allow_types), RParen, true);
                         self.expect(RParen);
                         VariantPat(path, args)
                     }
@@ -601,7 +601,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             }
             LParen => {
                 self.expect(LParen);
-                let args = self.parse_list(|p| p.parse_pat_common(allow_types), RParen, false);
+                let args = self.parse_list(|p| p.parse_pat_common(allow_types), RParen, true);
                 self.expect(RParen);
                 TuplePat(args)
             }
@@ -654,7 +654,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             }
             LParen => {
                 self.expect(LParen);
-                let mut inner_types = self.parse_list(|p| p.parse_type(), RParen, false);
+                let mut inner_types = self.parse_list(|p| p.parse_type(), RParen, true);
                 self.expect(RParen);
                 if inner_types.len() == 0 {
                     UnitType
@@ -678,7 +678,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             Fn => {
                 self.expect(Fn);
                 self.expect(LParen);
-                let arglist = self.parse_list(|p| p.parse_type(), RParen, false);
+                let arglist = self.parse_list(|p| p.parse_type(), RParen, true);
                 self.expect(RParen);
                 self.expect(Arrow);
                 FuncType(arglist, box self.parse_type())
@@ -1125,7 +1125,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         };
 
         self.expect(LParen);
-        let args = self.parse_list(|p| p.parse_macro_expr_arg(), RParen, false);
+        let args = self.parse_list(|p| p.parse_macro_expr_arg(), RParen, true);
         self.expect(RParen);
 
         let end_span = self.cur_span();
@@ -1188,7 +1188,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                 }
                 LParen => {
                     self.expect(LParen);
-                    let args = self.parse_list(|p| p.parse_expr(), RParen, false);
+                    let args = self.parse_list(|p| p.parse_expr(), RParen, true);
                     self.expect(RParen);
                     CallExpr(box expr, args)
                 }
@@ -1206,7 +1206,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let start_span = self.cur_span();
 
         self.expect(LParen);
-        let mut inner_exprs = self.with_restriction(NoRestriction, |p| p.parse_list(|p| p.parse_expr(), RParen, false));
+        let mut inner_exprs = self.with_restriction(NoRestriction, |p| p.parse_list(|p| p.parse_expr(), RParen, true));
         self.expect(RParen);
 
         let node = if inner_exprs.len() == 0 {
@@ -1323,7 +1323,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let funcname = self.parse_ident();
         let type_params = self.parse_item_type_params(LParen);
         self.expect(LParen);
-        let args = self.parse_list(|p| p.parse_func_arg(), RParen, false);
+        let args = self.parse_list(|p| p.parse_func_arg(), RParen, true);
         self.expect(RParen);
         let return_type = match *self.peek() {
             Arrow => {
@@ -1383,7 +1383,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let types = match *self.peek() {
             LParen => {
                 self.expect(LParen);
-                let typelist = self.parse_list(|p| p.parse_type(), RParen, false);
+                let typelist = self.parse_list(|p| p.parse_type(), RParen, true);
                 self.expect(RParen);
                 typelist
             },
@@ -1553,7 +1553,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
         self.expect(LParen);
 
-        let args = self.parse_list(|me| me.parse_name(), RParen, false);
+        let args = self.parse_list(|me| me.parse_name(), RParen, true);
 
         let mut args_map = TreeSet::new();
         for arg in args.iter() {
