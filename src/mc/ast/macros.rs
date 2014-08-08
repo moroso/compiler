@@ -46,7 +46,7 @@ fn expand_paste(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Ve
     use mc::lexer::{IdentTok, NumberTok};
 
     let mut concat = vec!();
-    for mut arg in input.move_iter() {
+    for arg in input.move_iter() {
         for elem in arg.move_iter() {
             match elem {
                 IdentTok(s) => concat.push(s),
@@ -89,7 +89,7 @@ fn expand_stringify(mut input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> V
     let ts = input.pop().unwrap();
     concat.push_all_move(ts.move_iter().map(|t| format!("{}", t)).collect());
 
-    for mut ts in input.move_iter() {
+    for ts in input.move_iter() {
         concat.push(String::from_str(","));
         concat.push_all_move(ts.move_iter().map(|t| format!("{}", t)).collect());
     }
