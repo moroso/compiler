@@ -192,7 +192,10 @@ impl fmt::Show for Token {
             NumberTok(n, ik)       => format!("{}{}", n, ik),
             StringTok(ref s)       => format!("\"{}\"", s.escape_default()),
 
-            _                      => String::from_str(" "),
+            WS                     => String::from_str(" "),
+            Eof                    => String::from_str("<EOF>"),
+            BeginComment           => String::from_str("/*"),
+            EndComment             => String::from_str("*/"),
         };
 
         write!(f, "{}", s)
