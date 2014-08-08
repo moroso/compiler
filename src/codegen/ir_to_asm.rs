@@ -168,6 +168,22 @@ fn convert_binop<'a>(
                                     dest,
                                     reg_l,
                                     reg_r)),
+                        ModOp => {
+                            result.push(
+                                InstNode::div(
+                                    Pred { inverted: false,
+                                           reg: 3 },
+                                    signed,
+                                    dest,
+                                    reg_l,
+                                    reg_r));
+                            result.push(
+                                InstNode::mfhi(
+                                    Pred { inverted: false,
+                                           reg: 3 },
+                                    dest
+                                ));
+                        }
                         _ => 
                             result.push(
                                 InstNode::alu2reg(
@@ -252,7 +268,7 @@ fn convert_binop<'a>(
                                 InstNode::mult(
                                     Pred { inverted: false,
                                            reg: 3 },
-                                    false, // TODO: support signed.
+                                    signed,
                                     dest,
                                     reg_l,
                                     global_reg))),
@@ -270,10 +286,33 @@ fn convert_binop<'a>(
                                 InstNode::div(
                                     Pred { inverted: false,
                                            reg: 3 },
-                                    false, // TODO: support signed.
+                                    signed,
                                     dest,
                                     reg_l,
                                     global_reg))),
+                        ModOp =>
+                            result.push_all_move(vec!(
+                                // TODO: don't always use longs here, and
+                                // refactor the code around this to make
+                                // the different cases easier to handle.
+                                InstNode::alu1long(
+                                    Pred { inverted: false,
+                                           reg: 3},
+                                    MovAluOp,
+                                    global_reg),
+                                InstNode::anylong(longval),
+                                InstNode::div(
+                                    Pred { inverted: false,
+                                           reg: 3 },
+                                    signed,
+                                    dest,
+                                    reg_l,
+                                    global_reg),
+                                InstNode::mfhi(
+                                    Pred { inverted: false,
+                                           reg: 3 },
+                                    dest)
+                                    )),
                         _ =>
                             match packed {
                                 Some((val, rot)) =>

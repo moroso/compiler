@@ -71,6 +71,7 @@ ASM_TEST_FILES := \
 	test_globals.mb \
 	test_indexing.mb \
 	test_long.mb \
+	test_mod.mb \
 	test_modules.mb \
 	test_nested_struct.mb \
 	test_param_types.mb \

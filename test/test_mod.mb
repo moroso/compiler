@@ -1,0 +1,9 @@
+fn ident(x: u32) -> u32 { x }
+
+fn main() -> u32 {
+    print_uint(4 % 3);
+    print_uint(ident(4) % 3);
+    print_uint(ident(4) % ident(3));
+
+    0
+}
