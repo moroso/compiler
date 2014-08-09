@@ -7,7 +7,8 @@ use mc::session::Session;
 use package::Package;
 use target::Target;
 use target::NameMangler;
-use util::Name;
+use util::{Width32, Width16, Width8, AnyWidth, Width, UnsignedInt, Name,
+           SignedInt, GenericInt};
 use intrinsics::size_of;
 
 use std::collections::treemap::{TreeSet, TreeMap};
@@ -444,10 +445,19 @@ impl CCrossCompiler {
 
     fn visit_lit(&self, lit: &Lit) -> String {
         match lit.val {
-            // Is always outputting as hex correct?
-            // I'm not totally sure, actually.
-            // We might get sign fucked.
-            NumLit(ref n, _) => format!("0x{:x}/*{}*/", *n, n),
+            NumLit(ref n, ref k) => {
+                match *k {
+                    UnsignedInt(..) => format!("0x{:x}/*{}*/", *n, n),
+                    GenericInt |
+                    SignedInt(AnyWidth) |
+                    SignedInt(Width32) =>
+                        format!("(int32_t)0x{:x}/*{}*/", *n, n),
+                    SignedInt(Width16) =>
+                        format!("(int16_t)0x{:x}/*{}*/", *n, n),
+                    SignedInt(Width8) =>
+                        format!("(int8_t)0x{:x}/*{}*/", *n, n),
+                }
+            },
             // I'm sorry about the cast in the following.
             StringLit(ref s) => {
                 let parts: Vec<String> = s.as_slice().bytes()

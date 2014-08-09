@@ -1,5 +1,5 @@
-use util::{Width32, Width16, Width8, AnyWidth, Width, UnsignedInt, Name};
-
+use util::{Width32, Width16, Width8, AnyWidth, Width, UnsignedInt, Name,
+           SignedInt, GenericInt};
 use mc::session::Session;
 use mc::ast::defmap::{StructDef, EnumDef, VariantDef, ConstDef};
 
@@ -47,6 +47,23 @@ fn ty_width(ty: &Ty) -> Width {
         IntTy(w) |
         UintTy(w) => w.clone(),
         _ => Width32,
+    }
+}
+
+/// Do whatever sign extending we need to do to our constants.
+fn adjust_constant(c: &LitNode) -> LitNode {
+    match *c {
+        NumLit(n, ref k) => {
+            match *k {
+                UnsignedInt(..) => NumLit(n, k.clone()),
+                GenericInt |
+                SignedInt(AnyWidth) |
+                SignedInt(Width32) => NumLit(n as i32 as u64, k.clone()),
+                SignedInt(Width16) => NumLit(n as i16 as u64, k.clone()),
+                SignedInt(Width8)  => NumLit(n as i8 as u64, k.clone()),
+            }
+        }
+        _ => c.clone()
     }
 }
 
@@ -593,8 +610,9 @@ impl<'a> ASTToIntermediate<'a> {
                     // A NULL is just a 0.
                     NullLit => NumLit(0,
                                       UnsignedInt(Width32)),
-                    _ => lit.val.clone(),
+                    _ => adjust_constant(&lit.val),
                 };
+
                 let insts = vec!(
                     UnOp(res_var.clone(), Identity, Constant(new_lit))
                     );

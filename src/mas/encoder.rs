@@ -119,6 +119,7 @@ pub fn encode(inst: &InstNode) -> u32 {
         },
         ALU1RegShInst(pred,
                       rd, // Rd
+                      aluop,
                       rs, // Rs
                       shifttype,
                       rt // Rt
@@ -127,6 +128,7 @@ pub fn encode(inst: &InstNode) -> u32 {
             (1<<21) |
             encode_pred(&pred) |
             encode_rd(&rd) |
+            encode_aluop(&aluop) |
             encode_rs(&rs) |
             encode_rt(&rt) |
             encode_shift_type(&shifttype)

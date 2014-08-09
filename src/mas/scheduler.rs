@@ -16,7 +16,7 @@ fn destreg(inst: &InstNode) -> Option<Reg> {
         ALU2RegInst(_, _, r, _, _, _, _) |
         ALU2LongInst(_, _, r, _) |
         ALU1LongInst(_, _, r) |
-        ALU1RegShInst(_, r, _, _, _) |
+        ALU1RegShInst(_, r, _, _, _, _) |
         LoadInst(_, _, r, _, _) |
         MfcInst(_, r, _) |
         MfhiInst(_, r) |
@@ -34,7 +34,7 @@ fn pred(inst: &InstNode) -> Option<Pred> {
         ALU2RegInst(p, _, _, _, _, _, _) |
         ALU2LongInst(p, _, _, _) |
         ALU1LongInst(p, _, _) |
-        ALU1RegShInst(p, _, _, _, _) |
+        ALU1RegShInst(p, _, _, _, _, _) |
         LoadInst(p, _, _, _, _) |
         MfcInst(p, _, _) |
         MfhiInst(p, _) |
@@ -73,7 +73,7 @@ fn srcreg1(inst: &InstNode) -> Option<Reg> {
         ALU2ShortInst(_, _, _, r, _, _) |
         ALU2RegInst(_, _, _, r, _, _, _) |
         ALU2LongInst(_, _, _, r) |
-        ALU1RegShInst(_, _, r, _, _) |
+        ALU1RegShInst(_, _, _, r, _, _) |
         LoadInst(_, _, _, r, _) |
         StoreInst(_, _, r, _, _) |
         CompareShortInst(_, _, r, _, _, _) |
@@ -94,7 +94,7 @@ fn srcreg2(inst: &InstNode) -> Option<Reg> {
     match *inst {
         ALU1RegInst(_, _, _, r, _, _) |
         ALU2RegInst(_, _, _, _, r, _, _) |
-        ALU1RegShInst(_, _, _, _, r) |
+        ALU1RegShInst(_, _, _, _, _, r) |
         StoreInst(_, _, _, _, r) |
         CompareRegInst(_, _, _, _, r, _, _) |
         MultInst(_, _, _, _, r) |

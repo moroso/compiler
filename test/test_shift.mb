@@ -1,0 +1,27 @@
+fn identu(x: u32) -> u32 { x }
+fn identi(x: i32) -> i32 { x }
+
+fn main() -> u32 {
+    print_uint(1u32 << 4);
+    print_int(1i32 << 4);
+    print_uint(0xffffffffu32 >> 4);
+    print_int(0xffffffffi32 >> 4);
+
+    print_uint(identu(1) << 4u32);
+    print_uint(1u32 << identu(4));
+    print_int(identi(1) << 4i32);
+    print_int(1i32 << identi(4));
+
+    print_uint(identu(0xffffffff) >> 4u32);
+    print_uint(0xffffffffu32 >> identu(4));
+    print_int(identi(0xffffffff) >> 4i32);
+    print_int(0xffffffffi32 >> identi(4));
+
+    print_uint(identu(1) << identu(4));
+    print_int(identi(1) << identi(4));
+
+    print_uint(identu(0xffffffff) >> identu(4));
+    print_int(identi(0xffffffff) >> identi(4));
+
+    0
+}

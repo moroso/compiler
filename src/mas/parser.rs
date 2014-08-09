@@ -169,11 +169,12 @@ impl<T: Buffer> AsmParser<T> {
 
     /// Parse either a register by itself, or a register with a shift
     /// (e.g. (r7 << 3) ).
-    fn parse_reg_maybe_shift(&mut self) -> (Reg, (ShiftType, u8)) {
+    fn parse_reg_maybe_shift(&mut self) -> (Reg, ShiftType,
+                                            Result<u8, Reg>) {
         let tok = self.eat();
         match tok {
             // Bare register.
-            Reg(reg) => (reg, (from_int(0).unwrap(), 0)),
+            Reg(reg) => (reg, from_int(0).unwrap(), Ok(0)),
 
             // Something parenthesized.
             LParen => {
@@ -186,7 +187,7 @@ impl<T: Buffer> AsmParser<T> {
                 match inner_tok {
                     // There's just the one register, that for some reason
                     // is in parentheses.
-                    RParen => (reg, (from_int(0).unwrap(), 0)),
+                    RParen => (reg, from_int(0).unwrap(), Ok(0)),
 
                     // There's a shift.
                     Shift(shifttype) => {
@@ -196,8 +197,12 @@ impl<T: Buffer> AsmParser<T> {
                                     num, 5);
                                 self.expect(RParen);
 
-                                (reg, (shifttype, num as u8))
+                                (reg, shifttype, Ok(num as u8))
                             },
+                            Reg(reg2) => {
+                                self.expect(RParen);
+                                (reg, shifttype, Err(reg2))}
+                            ,
                             _ => self.error("Need a shift amount"),
                         }
                     },
@@ -266,8 +271,10 @@ impl<T: Buffer> AsmParser<T> {
                         match *self.peek() {
                             LParen | Reg(..) => {
                                 let (rs,
-                                     (shifttype, shiftamt)
-                                     ) = self.parse_reg_maybe_shift();
+                                     shifttype,
+                                     shiftamt) = self.parse_reg_maybe_shift();
+                                let shiftamt = shiftamt.ok()
+                                    .expect("Shifts by registers not allowed");
                                 InstNode::alu2reg(
                                     pred,
                                     op,
@@ -312,6 +319,7 @@ impl<T: Buffer> AsmParser<T> {
                                         InstNode::alu1regsh(
                                             pred,
                                             rd,
+                                            MovAluOp,
                                             reg,
                                             shift,
                                             reg2),
@@ -390,15 +398,27 @@ impl<T: Buffer> AsmParser<T> {
             _ => {
                 // The only option left is that we're applying a unary op
                 // to a *shifted* register.
-                let (reg, (shifttype, shiftamt)) = self.parse_reg_maybe_shift();
-                InstNode::alu1reg(
-                    pred,
-                    op.unwrap_or(MovAluOp),
-                    rd,
-                    reg,
-                    shifttype,
-                    shiftamt
-                    )
+                let (reg, shifttype, shiftamt) = self.parse_reg_maybe_shift();
+                match shiftamt {
+                    Ok(amt) =>
+                        InstNode::alu1reg(
+                            pred,
+                            op.unwrap_or(MovAluOp),
+                            rd,
+                            reg,
+                            shifttype,
+                            amt
+                                ),
+                    Err(reg2) =>
+                        InstNode::alu1regsh(
+                            pred,
+                            rd,
+                            op.unwrap_or(MovAluOp),
+                            reg,
+                            shifttype,
+                            reg2
+                            )
+                }
             }
         }
     }
@@ -552,8 +572,10 @@ impl<T: Buffer> AsmParser<T> {
                     op)
             },
             _ => {
-                let (reg_rt,
-                     (shifttype, shiftamt)) = self.parse_reg_maybe_shift();
+                let (reg_rt, shifttype, shiftamt) =
+                    self.parse_reg_maybe_shift();
+                let shiftamt = shiftamt.ok().expect(
+                    "Shifts by regisers are not allowed here");
                 InstNode::comparereg(
                     pred,
                     dest_pred,
@@ -1141,6 +1163,7 @@ mod tests {
                    ALU1RegShInst(Pred { inverted: false,
                                         reg: 3 },
                                  Reg { index: 6 },
+                                 MovAluOp,
                                  Reg { index: 7 },
                                  SllShift,
                                  Reg { index: 8 }));
@@ -1149,6 +1172,7 @@ mod tests {
                    ALU1RegShInst(Pred { inverted: false,
                                         reg: 3 },
                                  Reg { index: 6 },
+                                 MovAluOp,
                                  Reg { index: 7 },
                                  SrlShift,
                                  Reg { index: 8 }));
@@ -1157,6 +1181,34 @@ mod tests {
                    ALU1RegShInst(Pred { inverted: true,
                                         reg: 2 },
                                  Reg { index: 6 },
+                                 MovAluOp,
+                                 Reg { index: 7 },
+                                 SraShift,
+                                 Reg { index: 8 }));
+
+        assert_eq!(inst_from_str("r6 <- ~(r7 << r8)"),
+                   ALU1RegShInst(Pred { inverted: false,
+                                        reg: 3 },
+                                 Reg { index: 6 },
+                                 MvnAluOp,
+                                 Reg { index: 7 },
+                                 SllShift,
+                                 Reg { index: 8 }));
+
+        assert_eq!(inst_from_str("r6 <- ~(r7 >>u r8)"),
+                   ALU1RegShInst(Pred { inverted: false,
+                                        reg: 3 },
+                                 Reg { index: 6 },
+                                 MvnAluOp,
+                                 Reg { index: 7 },
+                                 SrlShift,
+                                 Reg { index: 8 }));
+
+        assert_eq!(inst_from_str("!p2 -> r6 <- ~(r7 >>s r8)"),
+                   ALU1RegShInst(Pred { inverted: true,
+                                        reg: 2 },
+                                 Reg { index: 6 },
+                                 MvnAluOp,
                                  Reg { index: 7 },
                                  SraShift,
                                  Reg { index: 8 }));

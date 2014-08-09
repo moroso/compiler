@@ -224,6 +224,7 @@ pub enum InstNode {
                  ),
     ALU1RegShInst(Pred,
                   Reg, // Rd
+                  AluOp,
                   Reg, // Rs
                   ShiftType,
                   Reg // Rt
@@ -436,16 +437,19 @@ impl InstNode {
     }
     pub fn alu1regsh(pred: Pred,
                      rd: Reg, // Rd
+                     aluop: AluOp,
                      rs: Reg, // Rs
                      shifttype: ShiftType,
                      rt: Reg // Rt
                      ) -> InstNode {
         assert_pred(pred);
         assert_reg(rd);
+        assert!(aluop.is_unary());
         assert_reg(rs);
         assert_reg(rt);
         ALU1RegShInst(pred,
                       rd,
+                      aluop,
                       rs,
                       shifttype,
                       rt)

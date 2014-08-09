@@ -90,6 +90,7 @@ ASM_TEST_FILES := \
 	test_unop_on_field_access.mb
 
 #	test_string.mb \
+# 	test_shift.mb \
 
 IR_TEST_FILES := $(ASM_TEST_FILES) \
 	test_string.mb

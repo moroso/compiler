@@ -184,7 +184,25 @@ fn convert_binop<'a>(
                                            reg: 3 },
                                     dest
                                 ));
-                        }
+                        },
+                        LeftShiftOp |
+                        RightShiftOp =>
+                            result.push(
+                                InstNode::alu1regsh(
+                                    Pred { inverted: false,
+                                           reg: 3 },
+                                    dest,
+                                    MovAluOp,
+                                    reg_l,
+                                    if *op == LeftShiftOp {
+                                        SllShift
+                                    } else if signed {
+                                        SraShift
+                                    } else {
+                                        SrlShift
+                                    },
+                                    reg_r
+                                    )),
                         _ => 
                             result.push(
                                 InstNode::alu2reg(
@@ -337,6 +355,52 @@ fn convert_binop<'a>(
                                            reg: 3 },
                                     dest)
                                     )),
+                        LeftShiftOp |
+                        RightShiftOp =>
+                            if swapped {
+                                result.push_all_move(vec!(
+                                    InstNode::alu1long(
+                                        Pred { inverted: false,
+                                               reg: 3},
+                                        MovAluOp,
+                                        global_reg),
+                                    InstNode::anylong(longval),
+                                    InstNode::alu1regsh(
+                                        Pred { inverted: false,
+                                               reg: 3 },
+                                        dest,
+                                        MovAluOp,
+                                        global_reg,
+                                        if *op == LeftShiftOp {
+                                            SllShift
+                                        } else if signed {
+                                            SraShift
+                                        } else {
+                                            SrlShift
+                                        },
+                                        reg_l
+                                            )))
+                            } else {
+                                let val = match longval {
+                                    Immediate(v) => v as u8,
+                                    _ => fail!("Expected an immediate"),
+                                };
+                                result.push(
+                                    InstNode::alu1reg(
+                                        Pred { inverted: false,
+                                               reg: 3 },
+                                        MovAluOp,
+                                        dest,
+                                        reg_l,
+                                        if *op == LeftShiftOp {
+                                            SllShift
+                                        } else if signed {
+                                            SraShift
+                                        } else {
+                                            SrlShift
+                                        },
+                                        val));
+                            },
                         _ =>
                             match packed {
                                 Some((val, rot)) =>
