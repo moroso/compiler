@@ -319,6 +319,22 @@ impl RuleMatcher<String> for StringRule {
     }
 }
 
+struct CharRule;
+impl RuleMatcher<(u64, IntKind)> for CharRule {
+    fn find(&self, s: &str) -> Option<(uint, (u64, IntKind))> {
+        let matcher = matcher!(r#"'((?:\\["nrt'\\]|\\[xX][0-9a-fA-F]+|[^']))'"#);
+        match matcher.captures(s) {
+           Some(groups) => {
+               use rust_syntax::parse::char_lit;
+               let t = groups.at(0);
+               let (c, _) = char_lit(groups.at(1));
+               Some((t.len(), (c as u64, UnsignedInt(Width8))))
+           },
+            _ => None
+        }
+    }
+}
+
 pub fn new_mb_lexer<S: StrAllocating, B: Buffer>(name: S, buffer: B) -> Lexer<B, Token> {
     let lang = Language {
         eof: Eof,
@@ -421,6 +437,7 @@ pub fn new_mb_lexer<S: StrAllocating, B: Buffer>(name: S, buffer: B) -> Lexer<B,
             IdentTok     => matcher!(r"[a-zA-Z_]\w*"),
             IdentBangTok => IdentBangRule,
             NumberTok    => NumberRule,
+            NumberTok    => CharRule,
             StringTok    => StringRule
         },
 

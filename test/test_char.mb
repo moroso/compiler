@@ -1,0 +1,9 @@
+fn main() -> u32 {
+    let temp: u8 = '1';
+    print_uint('0' as u32);
+    print_uint(temp as u32);
+    print_uint('\n' as u32);
+    print_uint('\x30' as u32);
+
+    0
+}

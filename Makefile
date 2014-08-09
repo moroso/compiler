@@ -63,6 +63,7 @@ ASM_TEST_FILES := \
 	test_break_continue.mb \
 	test_casts.mb \
 	test_call.mb \
+	test_char.mb \
 	test_const.mb \
 	test_enums.mb \
 	test_for_loop.mb \
