@@ -20,12 +20,18 @@ impl RegisterColorer {
         print!("must colors: {}\n", must_colors);
         let mut coloring: TreeMap<Var, RegisterColor> =
             FromIterator::from_iter(must_colors.move_iter());
+        // Make a list of all variables that have to go on the stack.
+        // (mem_vars contains all variables that need to go in memory,
+        // but some of these are global).
+        let new_mem_vars = mem_vars.move_iter().filter(
+            |name| global_map.find(name).is_none());
         let mem_locs: TreeMap<Name, uint> = FromIterator::from_iter(
-            mem_vars.move_iter().enumerate().map(|(x,y)| (y,x)));
+            new_mem_vars.enumerate().map(|(x,y)| (y,x)));
 
         let mut freq_vec: Vec<(&Var, &u32)> = frequencies.iter().collect();
         freq_vec.sort_by(|&(_, a), &(_, b)| b.cmp(a));
 
+        // First, decide what must go on the stack..
         for &(var, _) in freq_vec.iter() {
             let maybe_pos = mem_locs.find(&var.name);
             match maybe_pos {
@@ -40,8 +46,10 @@ impl RegisterColorer {
             match global_info {
                 Some(ref info) => {
                     // It's a global variable. No work to do!
-                    assert!(coloring.find(var).is_none(),
-                            "Already colored a global variable");
+                    assert!(
+                        coloring.find(var).is_none(),
+                        format!("Already colored a global variable {} as {}",
+                                var, coloring.find(var)));
                     // Global functions get registers.
                     if !info.is_func {
                         // Anything else gets the global color.

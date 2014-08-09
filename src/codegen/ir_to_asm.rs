@@ -467,7 +467,34 @@ fn convert_unop<'a>(
                     },
                     GlobalColor => unimplemented!(),
                     GlobalReferenceColor => unimplemented!(),
-                    RegColor(..) => fail!("Cannot take the address of a reg."),
+                    RegColor(ref reg) => {
+                        // If we're taking the address of something with a
+                        // register color, it had better be a global function.
+                        // In that case, the address if the function is stored
+                        // in that register, and we can just copy it to the
+                        // destination.
+                        let global_info = global_map.find(&v.name);
+                        match global_info {
+                            Some(ref gi) => {
+                                assert!(gi.is_func);
+                                if dest == *reg {
+                                    return vec!();
+                                } else {
+                                    return vec!(
+                                        InstNode::alu1reg(
+                                            Pred { inverted: false,
+                                                   reg: 3 },
+                                            MovAluOp,
+                                            dest,
+                                            reg.clone(),
+                                            SllShift,
+                                            0))
+                                }
+                            },
+                            None =>
+                                fail!("Cannot take the address of a reg.")
+                        }
+                    },
                 }
             },
             _ => fail!("Cannot take the address of a constant."),
