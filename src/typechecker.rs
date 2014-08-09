@@ -894,7 +894,7 @@ impl<'a> Typechecker<'a> {
 
                 match a_ty.val {
                     ArrayTy(ty, _) | PtrTy(ty) => ty.val,
-                    _ => unreachable!(),
+                    ty => self.error_fatal(expr.id, format!("Cannot index into a {}", ty))
                 }
             }
             IfExpr(ref c, ref tb, ref fb) => {
