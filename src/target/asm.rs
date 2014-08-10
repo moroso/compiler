@@ -32,10 +32,12 @@ use util::Name;
 use std::io::{Writer, stdio, File, BufferedReader};
 use std::collections::TreeSet;
 
-pub struct AsmTarget;
+pub struct AsmTarget {
+    verbose: bool,
+}
 
 // TODO: move this somewhere common.
-fn print_bin<T: Writer>(n: u32, stream: &mut T) {
+fn print_bin(n: u32, stream: &mut Writer) {
     // Write in little-endian format.
     (stream.write(vec!(
         (n >>  0) as u8,
@@ -46,8 +48,15 @@ fn print_bin<T: Writer>(n: u32, stream: &mut T) {
 }
 
 impl Target for AsmTarget {
-    fn new(_args: Vec<String>) -> AsmTarget {
-        AsmTarget
+    fn new(args: Vec<String>) -> AsmTarget {
+        let mut verbose = false;
+        for arg in args.iter() {
+            if *arg == String::from_str("verbose") {
+                print!("Enabling verbose mode.\n");
+                verbose = true;
+            }
+        }
+        AsmTarget { verbose: verbose }
     }
 
     #[allow(unused_must_use)]
@@ -92,7 +101,9 @@ impl Target for AsmTarget {
 
 
         let global_map = ASTToIntermediate::allocate_globals(staticitems);
-        print!("Global map: {}\n", global_map);
+        if self.verbose {
+            print!("Global map: {}\n", global_map);
+        }
         let global_initializer = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,
@@ -130,66 +141,49 @@ impl Target for AsmTarget {
                 },
                 _ => fail!()
             }
-            ToSSA::to_ssa(insts, true);
-            ConstantFolder::fold(insts, &global_map, true);
+            ToSSA::to_ssa(insts, self.verbose);
+            ConstantFolder::fold(insts, &global_map, self.verbose);
             let opinfo = LivenessAnalyzer::analyze(insts);
-            for a in opinfo.iter() {
-                write!(f, "{}\n", a);
+            if self.verbose {
+                for a in opinfo.iter() {
+                    print!("{}\n", a);
+                }
+                print!("{}\n", insts);
+                let (conflict_map, counts, must_colors, mem_vars) =
+                    ConflictAnalyzer::conflicts(insts, &opinfo);
+                print!("conflicts: {}\ncounts: {}\nmust: {}\nin mem: {}\n",
+                       conflict_map, counts, must_colors, mem_vars);
+                print!("{}\n",
+                       RegisterColorer::color(conflict_map, counts,
+                                              must_colors, mem_vars,
+                                              &global_map,
+                                              num_usable_vars as uint));
             }
-            write!(f, "{}\n", insts);
-            let (conflict_map, counts, must_colors, mem_vars) =
-                ConflictAnalyzer::conflicts(insts, &opinfo);
-            write!(f, "conflicts: {}\ncounts: {}\nmust: {}\nin mem: {}\n",
-                   conflict_map, counts, must_colors, mem_vars);
-            write!(f, "{}\n",
-                   RegisterColorer::color(conflict_map, counts,
-                                          must_colors, mem_vars,
-                                          &global_map,
-                                          num_usable_vars as uint));
-
             let (asm_insts, labels) = IrToAsm::ir_to_asm(insts,
                                                          &global_map,
                                                          &mut session,
                                                          &mut strings);
 
-            for (pos, inst) in asm_insts.iter().enumerate() {
+            if self.verbose {
+                for (pos, inst) in asm_insts.iter().enumerate() {
+                    for (k, v) in labels.iter() {
+                        if *v == pos {
+                            print!("{}:\n", k);
+                        }
+                    }
+                    print!("   {}\n", inst);
+                }
                 for (k, v) in labels.iter() {
-                    if *v == pos {
+                    if *v == asm_insts.len() {
                         print!("{}:\n", k);
                     }
-                }
-                write!(f, "   {}\n", inst);
-            }
-            for (k, v) in labels.iter() {
-                if *v == asm_insts.len() {
-                    print!("{}:\n", k);
                 }
             }
 
             let (packets, new_labels) = schedule(&asm_insts,
                                                  &labels,
-                                                 true);
-            /*
-            print!("New labels: {}\n", new_labels);
-            for (pos, packet) in packets.iter().enumerate() {
-                for (k, v) in new_labels.iter() {
-                    if *v == pos {
-                        print!("{}:\n", k);
-                    }
-                }
+                                                 self.verbose);
 
-                print!("    {}, {}, {}, {},\n",
-                       packet[0],
-                       packet[1],
-                       packet[2],
-                       packet[3])
-            }
-            for (k, v) in new_labels.iter() {
-                if *v == packets.len() {
-                    print!("{}:\n", k);
-                }
-            }
-            */
             items.push((packets, new_labels));
         }
 
@@ -197,43 +191,44 @@ impl Target for AsmTarget {
 
         let (mut all_packets, all_labels) = link(items);
 
-        for (pos, packet) in all_packets.iter().enumerate() {
+        if self.verbose {
+            for (pos, packet) in all_packets.iter().enumerate() {
+                for (k, v) in all_labels.iter() {
+                    if *v == pos {
+                        print!("    {}:\n", k);
+                    }
+                }
+
+                print!("{:04x}        {}, {}, {}, {},\n",
+                       pos * 16,
+                       packet[0],
+                       packet[1],
+                       packet[2],
+                       packet[3])
+            }
             for (k, v) in all_labels.iter() {
-                if *v == pos {
-                    print!("    {}:\n", k);
+                if *v == all_packets.len() {
+                    print!("{}:\n", k);
                 }
             }
-
-            print!("{:04x}        {}, {}, {}, {},\n",
-                   pos * 16,
-                   packet[0],
-                   packet[1],
-                   packet[2],
-                   packet[3])
         }
-        for (k, v) in all_labels.iter() {
-            if *v == all_packets.len() {
-                print!("{}:\n", k);
+
+        labels::resolve_labels(&mut all_packets, &all_labels);
+        if self.verbose {
+            for packet in all_packets.iter() {
+                print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",
+                       encode(&packet[0]),
+                       encode(&packet[1]),
+                       encode(&packet[2]),
+                       encode(&packet[3]))
             }
         }
 
-
-        labels::resolve_labels(&mut all_packets, &all_labels);
         for packet in all_packets.iter() {
-            print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",
-                   encode(&packet[0]),
-                   encode(&packet[1]),
-                   encode(&packet[2]),
-                   encode(&packet[3]))
-        }
-
-        let mut stderr = stdio::stderr();
-
-        for packet in all_packets.iter() {
-            print_bin(encode(&packet[0]), &mut stderr);
-            print_bin(encode(&packet[1]), &mut stderr);
-            print_bin(encode(&packet[2]), &mut stderr);
-            print_bin(encode(&packet[3]), &mut stderr);
+            print_bin(encode(&packet[0]), f);
+            print_bin(encode(&packet[1]), f);
+            print_bin(encode(&packet[2]), f);
+            print_bin(encode(&packet[3]), f);
         }
     }
 

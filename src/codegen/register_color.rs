@@ -17,7 +17,6 @@ impl RegisterColorer {
                  global_map: &TreeMap<Name, StaticIRItem>,
                  num_colors: uint
                  ) -> TreeMap<Var, RegisterColor> {
-        print!("must colors: {}\n", must_colors);
         let mut coloring: TreeMap<Var, RegisterColor> =
             FromIterator::from_iter(must_colors.move_iter());
         // Make a list of all variables that have to go on the stack.

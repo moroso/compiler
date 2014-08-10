@@ -132,11 +132,11 @@ test/asm-results: $(addprefix test/,$(patsubst %.mb,asm-results/%.txt,$(ASM_TEST
 
 test/c/%.c: test/%.mb mbc
 	@mkdir -p $(dir $@)
-	@./mbc --target c $< > $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
+	@./mbc --target c $< -o $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
 
 test/ir-c/%.c: test/%.mb mbc
 	@mkdir -p $(dir $@)
-	@./mbc --target ir $< > $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
+	@./mbc --target ir $< -o $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
 
 test/c-bin/%: test/c/%.c test/%.txt
 	@echo Running $(patsubst test/c/%.c,%,$<)...
@@ -151,7 +151,7 @@ test/ir-c-bin/%: test/ir-c/%.c test/%.txt
 test/asm-bin/%.bin: test/%.mb mbc
 	@echo Running $(patsubst test/ir-c/%.c,%,$<) '(ASM and sim)'...
 	@mkdir -p $(dir $@)
-	@./mbc --target asm $< 2> $@ >$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
+	@./mbc --target asm $< -o $@ >$(addsuffix .log,$@) || (cat $(addsuffix .log,$@); rm $@; false)
 
 test/c-results/%.txt: test/c-bin/%
 	@mkdir -p $(dir $@)
