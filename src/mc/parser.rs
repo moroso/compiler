@@ -101,7 +101,7 @@ fn can_start_item(t: &Token) -> bool {
 fn can_start_expr(t: &Token) -> bool {
     match *t {
         If | Return | Break | Continue |
-        Match | For | While |
+        Match | For | While | Do |
         True | False | Null |
         LBrace | LParen |
         ColonColon | IdentTok(..) |
@@ -792,6 +792,17 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         self.add_id_and_span(WhileExpr(box cond, box body), start_span.to(end_span))
     }
 
+    fn parse_do_while_expr(&mut self) -> Expr {
+        let start_span = self.cur_span();
+        self.expect(Do);
+        let body = self.parse_block();
+        self.expect(While);
+        let cond = self.parse_expr_no_structs();
+        let end_span = self.cur_span();
+        self.add_id_and_span(DoWhileExpr(box cond, box body),
+                             start_span.to(end_span))
+    }
+
     fn parse_for_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
         self.expect(For);
@@ -1170,6 +1181,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             Match                     => self.parse_match_expr(),
             For                       => self.parse_for_expr(),
             While                     => self.parse_while_expr(),
+            Do                        => self.parse_do_while_expr(),
             LBrace                    => self.parse_block_expr(),
             LParen                    => self.parse_paren_expr(),
             ColonColon | IdentTok(..) => self.parse_path_or_struct_expr(),

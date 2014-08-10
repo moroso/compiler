@@ -286,6 +286,7 @@ pub enum ExprNode {
     BreakExpr,
     ContinueExpr,
     WhileExpr(Box<Expr>, Box<Block>),
+    DoWhileExpr(Box<Expr>, Box<Block>),
     ForExpr(Box<Expr>, Box<Expr>, Box<Expr>, Box<Block>),
     MatchExpr(Box<Expr>, Vec<MatchArm>),
     MacroExpr(Name, Vec<Vec<Token>>),
@@ -316,6 +317,7 @@ impl Show for ExprNode {
             BreakExpr                           => write!(f, "break"),
             ContinueExpr                        => write!(f, "continue"),
             WhileExpr(ref e, ref b)             => write!(f, "while {} {}", e, b),
+            DoWhileExpr(ref e, ref b)           => write!(f, "do {} while {}", b, e),
             ForExpr(ref e1, ref e2, ref e3, ref b) => write!(f, "for ({};{};{}) {}", e1, e2, e3, b),
             MatchExpr(ref e, ref items) => {
                 try!(write!(f, "match {} {{\n", e));

@@ -98,9 +98,16 @@ fn assign_vars(interner: &Ref<Interner>,
             name: var.name.clone(),
             generation: Some(*label.find(&var.name).unwrap())
         };
-        s = s.append(format!("  {} = {};\n",
-                             print_var(interner, global_map, &new_var),
-                             print_var(interner, global_map, var)).as_slice());
+        match global_map.find(&var.name) {
+            // We don't want to do assignments when global functions are
+            // involved.
+            Some(ref i) if i.is_func => {},
+            _ =>
+                s = s.append(
+                    format!("  {} = {};\n",
+                            print_var(interner, global_map, &new_var),
+                            print_var(interner, global_map, var)).as_slice()),
+        }
     }
     s
 }

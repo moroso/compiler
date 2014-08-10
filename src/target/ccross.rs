@@ -604,6 +604,11 @@ impl CCrossCompiler {
                 let body = self.visit_block_expr(&**b);
                 format!("while ({}) {}", cond, body)
             }
+            DoWhileExpr(ref e, ref b) => {
+                let cond = self.visit_expr(&**e);
+                let body = self.visit_block_expr(&**b);
+                format!("do {} while ({})", body, cond)
+            }
             ForExpr(ref e1, ref e2, ref e3, ref b) => {
                 let e1 = self.visit_expr(&**e1);
                 let e2 = self.visit_expr(&**e2);

@@ -221,6 +221,7 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
         }
         BreakExpr => {}
         ContinueExpr => {}
+        DoWhileExpr(ref e, ref b) |
         WhileExpr(ref e, ref b) => {
             visitor.visit_expr(&**e);
             visitor.visit_block(&**b);

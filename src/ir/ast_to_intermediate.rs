@@ -393,12 +393,15 @@ impl<'a> ASTToIntermediate<'a> {
     // break_label and continue_label will be used as the labels that are
     //   appropriate for a break statement or a continue statement within
     //   the block.
+    // If middle_label is non-None, it will be added as a label after the
+    //   condition but before the block. (This is for do .. while loops).
     fn while_helper(&mut self,
                     e: &Expr,
                     block_insts: Vec<Op>,
                     iter_insts: Option<Vec<Op>>,
                     break_label: uint,
-                    continue_label: uint) -> (Vec<Op>, Option<Var>) {
+                    continue_label: uint,
+                    middle_label: Option<uint>) -> (Vec<Op>, Option<Var>) {
         // In the case of a while loop, a "continue" should go all the way
         // back to the beginning. But in the case of a for loop, the beginning
         // label will be different, and "continue" will jump to the end of
@@ -419,6 +422,12 @@ impl<'a> ASTToIntermediate<'a> {
         res.push(CondGoto(true,
                           Variable(cond_var),
                           end_label, TreeSet::new()));
+        match middle_label {
+            Some(l) => res.push_all_move(
+                vec!(Goto(l, TreeSet::new()),
+                     Label(l, TreeSet::new()))),
+            None => {},
+        }
         res.push_all_move(block_insts);
         match iter_insts {
             Some(insts) => {
@@ -901,7 +910,28 @@ impl<'a> ASTToIntermediate<'a> {
                                   block_insts,
                                   None,
                                   break_label,
-                                  continue_label)
+                                  continue_label,
+                                  None)
+            },
+            DoWhileExpr(ref e, ref b) => {
+                let break_label = self.gen_label();
+                let continue_label = self.gen_label();
+                let middle_label = self.gen_label();
+                self.break_labels.push(break_label);
+                self.continue_labels.push(continue_label);
+                let (block_insts, _) = self.convert_block(&**b);
+                self.break_labels.pop();
+                self.continue_labels.pop();
+                let (loop_insts, var) = 
+                    self.while_helper(&**e,
+                                      block_insts,
+                                      None,
+                                      break_label,
+                                      continue_label,
+                                      Some(middle_label));
+                let mut insts = vec!(Goto(middle_label, TreeSet::new()));
+                insts.push_all_move(loop_insts);
+                (insts, var)
             },
             ForExpr(ref init, ref cond, ref iter, ref body) => {
                 let (mut init_insts, _) = self.convert_expr(&**init);
@@ -917,7 +947,8 @@ impl<'a> ASTToIntermediate<'a> {
                                                           block_insts,
                                                           Some(iter_insts),
                                                           break_label,
-                                                          continue_label);
+                                                          continue_label,
+                                                          None);
                 init_insts.push_all_move(loop_insts);
                 (init_insts, var)
             }

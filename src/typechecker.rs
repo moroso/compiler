@@ -1023,6 +1023,7 @@ impl<'a> Typechecker<'a> {
                     _ => unreachable!(),
                 }
             }
+            DoWhileExpr(ref e, ref b) |
             WhileExpr(ref e, ref b) => {
                 let e_ty = self.expr_to_ty(&**e);
 

@@ -1,0 +1,14 @@
+fn main() -> u32 {
+    let i = 0;
+    do {
+        i+=1;
+        print_uint(i);
+    } while i < 0;
+
+    do {
+        i+=1;
+        print_uint(i+10);
+    } while i < 4;
+
+    0
+}

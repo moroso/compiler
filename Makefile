@@ -65,6 +65,7 @@ ASM_TEST_FILES := \
 	test_call.mb \
 	test_char.mb \
 	test_const.mb \
+	test_do_while.mb \
 	test_enums.mb \
 	test_for_loop.mb \
 	test_func_prototypes.mb \
