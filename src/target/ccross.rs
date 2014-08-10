@@ -171,6 +171,11 @@ impl CCrossCompiler {
         self.visit_string_and_type(name, t)
     }
 
+    fn visit_name_and_ty(&self, name: Name, t: &Ty) -> String {
+        let name = String::from_str(self.session.interner.name_to_str(&name));
+        self.visit_string_and_ty(name, t)
+    }
+
     fn visit_string_and_type(&mut self, name: String, t: &Type) -> String {
         match t.val {
             // We have to special case this, because of the way things of
@@ -197,6 +202,36 @@ impl CCrossCompiler {
         }
     }
 
+    fn visit_string_and_ty(&self, name: String, t: &Ty) -> String {
+        match *t {
+            // We have to special case this, because of the way things of
+            // a function pointer type are declared in C.
+            FuncTy(ref d, ref r) => {
+                let ty = self.visit_ty(&r.val);
+                let list = self.visit_list(d, |me, x| me.visit_ty(&x.val), ", ");
+                format!("{} (*{})({})", ty, name, list)
+            },
+            // This might be wrong for nested arrays. Unless our
+            // syntax is the reverse of C's?
+            ArrayTy(ref t, size) => {
+                let size_str = match size {
+                    None => format!(""),
+                    Some(n) => format!("{}", n)
+                };
+                let name = format!("{}[{}]", name, size_str);
+                self.visit_string_and_ty(name, &t.val)
+            },
+            PtrTy(ref t) => {
+                let name = format!("*{}", name);
+                self.visit_string_and_ty(name, &t.val)
+            },
+            _ => {
+                let ty = self.visit_ty(t);
+                format!("{} {}", ty, name)
+            }
+        }
+    }
+
     fn visit_stmt(&mut self, stmt: &Stmt) -> String {
         match stmt.val {
             LetStmt(ref pat, ref e) => {
@@ -204,11 +239,14 @@ impl CCrossCompiler {
                     IdentPat(ref i, ref t) => (i, t),
                     _ => fail!("Only IdentPats are supported right now"),
                 };
-                let name = self.visit_ident(i);
+
                 let ty = match *t {
                     Some(ref ty) => self.visit_name_and_type(i.val.name, ty),
                     None => match *e {
-                        Some(ref expr) => format!("{} {}", self.visit_ty(self.typemap.types.get(&expr.id.to_uint())), name),
+                        Some(ref expr) =>
+                            self.visit_name_and_ty(
+                                i.val.name,
+                                self.typemap.types.get(&expr.id.to_uint())),
                         None => fail!("Must specify a type."),
                     }
                 };
