@@ -225,9 +225,9 @@ pub enum InstNode {
     ALU1RegShInst(Pred,
                   Reg, // Rd
                   AluOp,
-                  Reg, // Rs
+                  Reg, // Rt
                   ShiftType,
-                  Reg // Rt
+                  Reg // Rs
                   ),
     LongInst(LongValue),
     NopInst,
@@ -438,9 +438,9 @@ impl InstNode {
     pub fn alu1regsh(pred: Pred,
                      rd: Reg, // Rd
                      aluop: AluOp,
-                     rs: Reg, // Rs
+                     rt: Reg, // Rt
                      shifttype: ShiftType,
-                     rt: Reg // Rt
+                     rs: Reg // Rs
                      ) -> InstNode {
         assert_pred(pred);
         assert_reg(rd);
@@ -450,9 +450,9 @@ impl InstNode {
         ALU1RegShInst(pred,
                       rd,
                       aluop,
-                      rs,
+                      rt,
                       shifttype,
-                      rt)
+                      rs)
     }
     pub fn long(val: u32) -> InstNode {
         LongInst(Immediate(val))

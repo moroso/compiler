@@ -80,6 +80,7 @@ ASM_TEST_FILES := \
 	test_pointer_arith.mb \
 	test_recursion.mb \
 	test_recursive_types.mb \
+	test_shift.mb \
 	test_short_circuit.mb \
 	test_sign_extend.mb \
 	test_signed_ops.mb \
@@ -93,7 +94,7 @@ ASM_TEST_FILES := \
 	test_unop_on_field_access.mb
 
 #	test_string.mb \
-# 	test_shift.mb \
+# 	
 
 IR_TEST_FILES := $(ASM_TEST_FILES) \
 	test_string.mb
