@@ -69,7 +69,7 @@ fn find_structs(module: &Module) -> TreeSet<NodeId> {
             StructItem(ref id, _, _) => { struct_set.insert(id.id); },
             ModItem(_, ref submod) => {
                 let inner_structs = find_structs(submod);
-                struct_set.extend(inner_structs.iter().map(|x| *x));
+                struct_set.extend(inner_structs.move_iter());
             }
             _ => {},
         }
@@ -78,8 +78,6 @@ fn find_structs(module: &Module) -> TreeSet<NodeId> {
     struct_set
 }
 
-// TODO: this doesn't actually support the module system but since the
-// kernel doesn't use enums I can't be bothered to fix it.
 fn find_enum_item_names(module: &Module)
                         -> TreeMap<Name, (Ident, Vec<Variant>, uint)> {
     let mut enum_map = TreeMap::new();
@@ -94,6 +92,10 @@ fn find_enum_item_names(module: &Module)
                     pos += 1;
                 }
             },
+            ModItem(_, ref submod) => {
+                let inner_enums = find_enum_item_names(submod);
+                enum_map.extend(inner_enums.move_iter());
+            }
             _ => {},
         }
     }
@@ -109,6 +111,10 @@ fn find_enum_names(module: &Module) -> TreeMap<NodeId, Name> {
             EnumItem(ref id, _, _) => {
                 enum_map.insert(item.id, id.val.name);
             },
+            ModItem(_, ref submod) => {
+                let inner_enums = find_enum_names(submod);
+                enum_map.extend(inner_enums.move_iter());
+            }
             _ => {}
         }
     }
