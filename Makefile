@@ -86,6 +86,7 @@ ASM_TEST_FILES := \
 	test_sizeof.mb \
 	test_string_simple.mb \
 	test_struct.mb \
+	test_struct_func.mb \
 	test_struct_init.mb \
 	test_struct_offs.mb \
 	test_struct_yo_dawg.mb \

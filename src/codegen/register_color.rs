@@ -75,7 +75,8 @@ impl RegisterColorer {
             // created any inconsistencies.
             let cur_color = coloring.find(var).map(|&x|x);
             if cur_color.is_some() {
-                assert!(!adjacent_colors.contains(&cur_color));
+                assert!(!adjacent_colors.contains(&cur_color),
+                        "var {} has an adjacent color {}", var, cur_color);
                 continue;
             }
 

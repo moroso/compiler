@@ -66,8 +66,14 @@ pub fn relation_op(lhs: &LitNode, rhs: &LitNode,
                    s: |i64, i64| -> bool) -> LitNode {
     match *lhs {
         NumLit(n1, kind1) => match *rhs {
-            NumLit(n2, kind2) if kind1 == kind2 => {
-                let signed = kind1.is_signed();
+            NumLit(n2, kind2) if kind1 == kind2
+                || kind1.is_generic()
+                || kind2.is_generic() => {
+                let signed = if kind1.is_generic() {
+                    kind2.is_signed()
+                } else {
+                    kind1.is_signed()
+                };
                 let f = if signed {
                     |x: u64, y: u64| s(x as i64, y as i64)
                 } else {
@@ -75,9 +81,9 @@ pub fn relation_op(lhs: &LitNode, rhs: &LitNode,
                 };
                 BoolLit(f(n1, n2))
             },
-            _ => fail!(),
+            _ => fail!("Can't fold rhs {}", rhs),
         },
-        _ => fail!(),
+        _ => fail!("Can't fold lhs {}", lhs),
     }
 }
 

@@ -486,9 +486,10 @@ impl<'a> ASTToIntermediate<'a> {
                               ty);
         let mut ops = vec!();
         let new_result_var = self.gen_temp();
+        let new_src_var = self.gen_temp();
         ops.push(UnOp(new_result_var.clone(), Identity,
                       Variable(dest_var.clone())));
-        ops.push(UnOp(src_var.clone(), Identity,
+        ops.push(UnOp(new_src_var.clone(), Identity,
                       Variable(src_var.clone())));
         let len_var = self.gen_temp();
         ops.push(UnOp(len_var, Identity,
@@ -501,7 +502,7 @@ impl<'a> ASTToIntermediate<'a> {
                          "rt_memcpy".to_string()),
                            generation: None }),
                  vec!(new_result_var,
-                      src_var.clone(),
+                      new_src_var.clone(),
                       len_var)));
         ops
     }
@@ -715,6 +716,8 @@ impl<'a> ASTToIntermediate<'a> {
                 // Unwrap it.
                 let unwrapped = self.unwrap_group(&**e1);
 
+                let rhs_ty = self.lookup_ty(e2.id).clone();
+
                 // The tuple elements are as follows:
                 // binop_var is the variable to use on the left-hand side
                 //     of a binary operation, if we decide to.
@@ -854,9 +857,15 @@ impl<'a> ASTToIntermediate<'a> {
                             var2
                         }
                     };
-                // This generates a redundant store in some cases, but
-                // the optimizer will eliminate them.
-                res.push(finalize(lhs_var, final_var, width));
+                if ty_is_reference(&rhs_ty) {
+                    res.push_all_move(
+                        self.gen_copy(&lhs_var, &final_var, &rhs_ty));
+                } else {
+                    // This generates a redundant store in some cases, but
+                    // the optimizer will eliminate them.
+                    res.push(finalize(lhs_var, final_var, width));
+                }
+
 
                 (res, Some(final_var))
             }
@@ -1023,25 +1032,57 @@ impl<'a> ASTToIntermediate<'a> {
                 let new_var = new_var.expect(
                     "Function pointer had no non-unit value");
                 ops.push_all_move(new_ops);
-                let result_var = self.gen_temp();
+                let mut result_var = self.gen_temp();
 
                 // We add in a bunch of dummy assignments, so that we can
                 // be sure that registers are assigned correctly. Many of
-                // these will be optimized away later.
+                // these will be optimized away later. In the case of types
+                // that are stored as references, we perform copies.
                 let new_vars = Vec::from_fn(vars.len(),
                                             |_| self.gen_temp());
+                let mut move_ops = vec!();
                 for (idx, var) in vars.iter().enumerate() {
-                    ops.push(UnOp(new_vars[idx], Identity,
-                                  Variable(var.clone())));
+                    let var_ty = self.lookup_ty(args[idx].id).clone();
+                    if ty_is_reference(&var_ty) {
+                        // The type is a reference type, and so lhs_var and
+                        // final_var are pointers. Memcpy time!
+                        let len = size_of_ty(self.session,
+                                             self.typemap,
+                                             &var_ty);
+
+                        ops.push(Alloca(new_vars[idx], len));
+                        ops.push_all_move(self.gen_copy(&new_vars[idx],
+                                                        var,
+                                                        &var_ty));
+                        move_ops.push(UnOp(new_vars[idx], Identity,
+                                           Variable(new_vars[idx].clone())));
+                    } else {
+                        move_ops.push(UnOp(new_vars[idx], Identity,
+                                           Variable(var.clone())));
+                    }
                 }
+                ops.push_all_move(move_ops);
                 ops.push(Call(result_var.clone(),
                               Variable(new_var),
                               new_vars.move_iter().collect()));
-                // We add one more dummy assignment, for the result.
+                let this_ty = self.lookup_ty(expr.id).clone();
+                // We add one more dummy assignment, for the result, or a
+                // copy in the case of something in memory.
                 ops.push(UnOp(result_var.clone(), Identity,
                               Variable(result_var.clone())));
-                let this_ty = self.lookup_ty(expr.id);
-                match *this_ty {
+
+                if ty_is_reference(&this_ty) {
+                    let len = size_of_ty(self.session,
+                                         self.typemap,
+                                         &this_ty);
+                    let new_result_var = self.gen_temp();
+                    ops.push(Alloca(new_result_var.clone(), len));
+                    ops.push_all_move(self.gen_copy(&new_result_var,
+                                                    &result_var,
+                                                    &this_ty));
+                    result_var = new_result_var;
+                }
+                match this_ty {
                     UnitTy => (ops, None),
                     _ => (ops, Some(result_var))
                 }

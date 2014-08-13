@@ -1,0 +1,34 @@
+struct foo {
+    x: u32,
+    y: u8,
+    z: u32,
+}
+
+fn blarz(z: foo) -> foo {
+    z.x = 5;
+
+    z
+}
+
+fn main() -> u32 {
+    let a: foo = foo { x: 1, y: 2, z: 3 };
+    let b = blarz(a);
+    let c = b;
+    let d: foo;
+    d = c;
+
+    print_uint(d.x);
+    print_uint(d.y as u32);
+    print_uint(d.z);
+    print_uint(a.x);
+    print_uint(a.y as u32);
+    print_uint(a.z);
+
+    let e: foo;
+    e = blarz(a);
+    print_uint(e.x);
+    print_uint(e.y as u32);
+    print_uint(e.z);
+
+    0
+}
