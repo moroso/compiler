@@ -1,0 +1,208 @@
+// Prototype Mb implementation of printf.
+
+// Create an array initializer containing all of its arguments,
+// cast to u32. To make sure it is non-empty and can be type-inferred,
+// it has an extra 0 placed at the end. This means it will always be
+// one element larger than its number of "actual" elements.
+//
+// This is used to implement *printf! in terms of v*printf functions.
+macro __args_to_array!() { [ map_macro!(__args_to_array_cast!, ..., 0) ] }
+macro __args_to_array_cast!(x) { $x as u32 }
+
+macro printf!(s) { {
+    let ___v = __args_to_array!(...);
+    vprintf($s, &___v[0] as **())
+} }
+
+
+/// Implementation of vprintf
+
+
+fn is_digit(c: u8) -> bool { c >= '0' && c <= '9' }
+fn _atoi(s: *u8, endptr: **u8) -> u32 {
+    let n = 0;
+    while is_digit(*s) {
+        n = 10*n + (*s - '0');
+        s += 1;
+    }
+    if endptr != null { *endptr = s; }
+    n
+}
+
+// Formatting flags.
+const FMT_FLAG_NEGATIVE: u32 = 0x01;
+const FMT_FLAG_ZERO_PAD: u32 = 0x02;
+const FMT_FLAG_LEFT_JUSTIFY: u32 = 0x04;
+const FMT_FLAG_HEX_CAPS: u32 = 0x08;
+
+// 32 binary digits + minus sign
+const FMT_UINT_BUF_SIZE: u32 = 34;
+
+// Core numeric formatting routine. Handles arbitrary bases (2-16),
+// right justification with spaces or zeros, inserting minus signs.
+//
+fn _format_uint(n: u32, base: u32, width: u32, flags: u32, out: *u8) -> *u8 {
+    let chars = if flags & FMT_FLAG_HEX_CAPS == 0 {"0123456789abcdef"} else {"0123456789ABCDEF"};
+
+    let s = out + FMT_UINT_BUF_SIZE - 1;
+    let o = s;
+
+    while true {
+        *o = chars[n % base];
+        n /= base;
+        o -= 1;
+        if n == 0 { break; }
+    }
+
+    // Zero pad
+    if flags & FMT_FLAG_ZERO_PAD != 0 {
+        let neg_adjust = if flags & FMT_FLAG_NEGATIVE != 0 { 1 } else { 0 };
+        while s - o + neg_adjust < width {
+            *o = '0';
+            o -= 1;
+        }
+    }
+
+    // Minus sign?
+    if flags & FMT_FLAG_NEGATIVE != 0 {
+        *o = '-';
+        o -= 1;
+    }
+
+    // If we aren't zero padding or left justifying, space pad to right justify.
+    if flags & (FMT_FLAG_ZERO_PAD|FMT_FLAG_LEFT_JUSTIFY) == 0 {
+        while s - o < width {
+            *o = ' ';
+            o -= 1;
+        }
+    }
+
+    o + 1
+}
+
+macro __out!(c) { print_char($c as i32) }
+
+// All the variables have underscore names for the silly reason that
+// soon this will be converted to a macro and I want to help avoid
+// name collisions with invoking code.
+fn vprintf(fmt: *u8, args: **()) {
+    let _s: *u8;
+    let _i = 0;
+    let _tmpbuf: u8[FMT_UINT_BUF_SIZE];
+
+    for (_s = fmt; *_s != 0; _s += 1) {
+        let _flags = 0;
+        let _width = 0;
+
+        if *_s != '%' { __out!(*_s); continue; }
+        _s += 1;
+
+        // Handle "%%"
+        if *_s == '%' { __out!(*_s); continue; }
+
+        // parse flags
+        while true {
+            if *_s == '0' {
+                _flags |= FMT_FLAG_ZERO_PAD;
+                _s += 1;
+            } else if *_s == '-' {
+                _flags |= FMT_FLAG_LEFT_JUSTIFY;
+                _s += 1;
+            } else {
+                break;
+            }
+        }
+
+        // parse width
+        if is_digit(*_s) {
+            _width = _atoi(_s, &_s);
+        } else if *_s == '*' {
+            _width = args[_i] as u32;
+            _i += 1;
+            _s += 1;
+        }
+
+
+        let _arg = args[_i] as u32;
+        _i += 1;
+
+        let _c = *_s;
+
+        // Handle non numeric cases: characters and strings
+        if _c == 'c' {
+            __out!(_arg as u8);
+            continue;
+        } else if _c == 's' {
+            let _sp: *u8;
+            for (_sp = _arg as *u8; *_sp != 0; _sp += 1) {
+                __out!(*_sp);
+            }
+            continue;
+        }
+
+        // Handle numeric ones
+        let _base = if _c == 'd' {
+            let _arg_s = _arg as i32;
+            if _arg_s < 0 {
+                _flags |= FMT_FLAG_NEGATIVE;
+                _arg = -_arg_s as u32;
+            }
+            10
+        } else if _c == 'u' {
+            10
+        } else if _c == 'o' {
+            8
+        } else if _c == 'x' {
+            16
+        } else if _c == 'X' {
+            _flags |= FMT_FLAG_HEX_CAPS;
+            16
+        } else if _c == 'b' {
+            2
+        } else if _c == 'p' {
+            __out!('0');
+            __out!('x');
+            _flags |= FMT_FLAG_ZERO_PAD;
+            _width = 8; // WOOP
+            16
+        } else {
+            assert!(false);
+            0
+        };
+
+        let _p = _format_uint(_arg, _base, _width, _flags, &_tmpbuf[0]);
+        let _n = &_tmpbuf[0] + FMT_UINT_BUF_SIZE - _p;
+        while _p < &_tmpbuf[0] + FMT_UINT_BUF_SIZE {
+            __out!(*_p);
+            _p += 1;
+        }
+
+        if _flags & FMT_FLAG_LEFT_JUSTIFY != 0 {
+            while _n < _width {
+                __out!(' ');
+                _n += 1;
+            }
+        }
+
+    }
+}
+
+
+/////// This is testing code that doesn't belong here at all!
+fn main() -> i32 {
+    printf!("hello, world\n");
+
+    printf!("num: %d %d %x %X %b %c %s\n",
+            12, -12, 0xdeadbeef, 0xdeadbeef, 0xcc, 'A', "weeelp");
+
+    printf!("padding: |%4d| |%04d| |%4d| |%04d| |%-4d| |%-4d|\n",
+            12, 12, -12, -12, 12, -12);
+
+    printf!("int_min: %d\n", 0x80000000);
+    printf!("pointer? %p\n", 0x1337);
+
+    printf!("dynamic padding: |%*d|\n", 4, 12);
+
+
+    0
+}
