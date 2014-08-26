@@ -484,7 +484,7 @@ impl Target for IRTarget {
             convert_time += end-start;
         }
 
-        writeln!(f, "{}", "int main() { __INIT_GLOBALS(); return (int)MANGLEDmain(); }");
+        writeln!(f, "{}", "int main() { _INIT_GLOBALS(); return (int)__main(); }");
 
         writeln!(f, "// ssa:{} fold:{} convert:{}",
                  ssa_time as f32 / 1000000000f32,

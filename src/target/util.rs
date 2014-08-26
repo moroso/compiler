@@ -27,16 +27,17 @@ impl NameMangler {
         let name = String::from_str(
             self.session.interner.name_to_str(&id.val.name));
         self.path.push(name.clone());
-        let pre_mangled_path = self.path.connect("_");
-        // We add "MANGLED" to the beginning of everything for now,
-        // to make it really obvious if we forget to mangle something.
+        let pre_mangled_path = self.path.connect("__");
+        // We add "__" to the beginning of everything to make it
+        // really obvious if we forget to mangle something and to
+        // avoid colliding with C.
         let mangled_name =
             if !self.mangle_main &&
             pre_mangled_path == String::from_str("main") {
                 // ... except main, which we don't want to mangle!
                 String::from_str("main")
             } else {
-                format!("MANGLED{}", pre_mangled_path)
+                format!("__{}", pre_mangled_path)
             };
         self.path.pop();
         self.names.insert(id.id, mangled_name);

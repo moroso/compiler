@@ -344,7 +344,7 @@ impl<'a> ASTToIntermediate<'a> {
                            global_map: &TreeMap<Name,
                            StaticIRItem>) -> Vec<Op> {
         let mut res = vec!(
-            Func(self.session.interner.intern("__INIT_GLOBALS".to_string()),
+            Func(self.session.interner.intern("_INIT_GLOBALS".to_string()),
                  vec!(),
                  false));
         for (name, global_item) in global_map.iter() {
@@ -931,7 +931,7 @@ impl<'a> ASTToIntermediate<'a> {
                 let (block_insts, _) = self.convert_block(&**b);
                 self.break_labels.pop();
                 self.continue_labels.pop();
-                let (loop_insts, var) = 
+                let (loop_insts, var) =
                     self.while_helper(&**e,
                                       block_insts,
                                       None,

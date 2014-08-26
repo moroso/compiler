@@ -1,11 +1,10 @@
 _start:
-        { bl __INIT_GLOBALS; r30 <- 0x1000; }
-        { bl MANGLEDmain; }
+        { bl _INIT_GLOBALS; r30 <- 0x1000; }
+        { bl __main; }
         { r30 <- 0; }
         { break 0x1f; }
 
-MANGLEDprelude_print_int:
-MANGLEDprelude_print_uint:
+__prelude__print_int:
         { r1 <- r30; }
         { r30 <- 1; }
         { break 0x1f; }
@@ -21,44 +20,43 @@ memcpy_loop:
            { p0 -> b r31 + 1; }
 
 // TODO: the following are placeholders.
-MANGLEDprelude_printf3_:
-MANGLEDprelude_printf2_:
-MANGLEDprelude_printf1_:
-MANGLEDprelude_printf0_:
-MANGLEDprelude_print_char:
-MANGLEDprelude_print_newline:
-MANGLEDprelude_rt_abort:
-MANGLEDprelude_rt_malloc:
-MANGLEDutils_buddy_alloc_machine_phys_frames:
-MANGLEDcontext_actually_switch_contexts_with_asm:
-MANGLEDdrivers_timer_outb:
-MANGLEDentry_idt_base:
-MANGLEDentry_entry_stubs:
-MANGLEDentry_pic_acknowledge_any_master:
-MANGLEDentry_leave_kernel:
-MANGLEDfs_fs_img_start:
-MANGLEDfs_fs_img_end:
-MANGLEDkernel_main_get_cr0:
-MANGLEDkernel_main_get_cr2:
-MANGLEDkernel_main_get_cr3:
-MANGLEDkernel_main_get_cr4:
-MANGLEDkernel_main_set_cr0:
-MANGLEDkernel_main_set_cr3:
-MANGLEDkernel_main_set_cr4:
-MANGLEDkernel_main_get_esp:
-MANGLEDkernel_main_set_esp0:
-MANGLEDkernel_main_enable_interrupts:
-MANGLEDloader_get_eflags:
-MANGLEDstructures_VM_invalidate_tlb:
-MANGLEDstructures_VM_get_cr0:
-MANGLEDstructures_VM_get_cr2:
-MANGLEDstructures_VM_get_cr3:
-MANGLEDstructures_VM_get_cr4:
-MANGLEDstructures_VM_set_cr0:
-MANGLEDstructures_VM_set_cr3:
-MANGLEDstructures_VM_set_cr4:
-MANGLEDuser_syslib_syscall_0:
-MANGLEDuser_syslib_syscall_1:
-MANGLEDuser_syslib_syscall_2:
-MANGLEDuser_syslib_syscall_3:
+__prelude__printf3_:
+__prelude__printf2_:
+__prelude__printf1_:
+__prelude__printf0_:
+__prelude__print_char:
+__prelude__rt_abort:
+__prelude__rt_malloc:
+__utils__buddy_alloc__machine_phys_frames:
+__context__actually_switch_contexts_with_asm:
+__drivers__timer_outb:
+__entry__idt_base:
+__entry__entry_stubs:
+__entry__pic_acknowledge_any_master:
+__entry__leave_kernel:
+__fs__fs_img_start:
+__fs__fs_img_end:
+__kernel_main__get_cr0:
+__kernel_main__get_cr2:
+__kernel_main__get_cr3:
+__kernel_main__get_cr4:
+__kernel_main__set_cr0:
+__kernel_main__set_cr3:
+__kernel_main__set_cr4:
+__kernel_main__get_esp:
+__kernel_main__set_esp0:
+__kernel_main__enable_interrupts:
+__loader__get_eflags:
+__structures__VM__invalidate_tlb:
+__structures__VM__get_cr0:
+__structures__VM__get_cr2:
+__structures__VM__get_cr3:
+__structures__VM__get_cr4:
+__structures__VM__set_cr0:
+__structures__VM__set_cr3:
+__structures__VM__set_cr4:
+__user__syslib__syscall_0:
+__user__syslib__syscall_1:
+__user__syslib__syscall_2:
+__user__syslib__syscall_3:
         { b r31 + 1; }
