@@ -257,7 +257,7 @@ impl CCrossCompiler {
                     }
                 };
                 let maybe_expr = e.as_ref().map(|e| format!(" = {}", self.visit_expr(e))).unwrap_or_default();
-                format!("{} {};", ty, maybe_expr)
+                format!("{}{};", ty, maybe_expr)
             },
             ExprStmt(ref e) | SemiStmt(ref e) => {
                 self.visit_expr_stmt(e)
@@ -527,6 +527,7 @@ impl CCrossCompiler {
                 }
             }
             ForExpr(..) | WhileExpr(..) => self.visit_expr(expr),
+            BlockExpr(ref b) => self.visit_block_expr(&**b),
             _ => format!("{};", self.visit_expr(expr))
         }
     }
@@ -636,7 +637,10 @@ impl CCrossCompiler {
                 let elsepart = self.visit_block_expr(&**b2);
                 format!("(({}) ? ({}) : ({}))", cond, thenpart, elsepart)
             }
-            BlockExpr(ref b) => self.visit_block_expr(&**b),
+            BlockExpr(ref b) => {
+                let expr = self.visit_block_expr(&**b);
+                format!("({})", expr)
+            }
             ReturnExpr(ref e) => {
                 let expr = self.visit_expr(&**e);
                 format!("return/*expr*/ {};", expr)
