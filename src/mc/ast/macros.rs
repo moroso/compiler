@@ -166,18 +166,24 @@ impl Expander for WithId<MacroDef> {
         }
         vararg_toks.pop(); // Pop off a trailing comma if it exists
 
+        let mut skip_comma = false;
         for tok in self.val.body.iter() {
+            let mut is_empty_varargs = false;
             match *tok {
                 MacroVar(name) => {
                     output.push_all(args.find(&name).unwrap().as_slice());
                 }
+                // We skip a comma that occurs after an empty ...
+                MacroTok(Comma) if skip_comma => {}
                 MacroTok(ref tok) => {
                     output.push(tok.clone());
                 }
                 MacroVarArgs => {
                     output.push_all(vararg_toks.as_slice());
+                    is_empty_varargs = vararg_toks.is_empty();
                 }
             }
+            skip_comma = is_empty_varargs;
         }
 
         output
