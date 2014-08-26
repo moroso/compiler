@@ -6,22 +6,22 @@
 // one element larger than its number of "actual" elements.
 //
 // This is used to implement *printf! in terms of v*printf functions.
-macro __args_to_array!() { [ map_macro!(__args_to_array_cast!, ..., 0) ] }
-macro __args_to_array_cast!(x) { $x as u32 }
+macro varargs!() { [ map_macro!(__varargs_cast!, ..., 0) ] }
+macro __varargs_cast!(x) { $x as u32 }
 
-macro printf!(s) { {
-    let ___v = __args_to_array!(...);
-    vprintf($s, &___v[0] as **())
+// Takes a vararg packet before the leading arguments to the vprintf
+// function, since we don't have a way to pick the *last* argument...
+// The arguments to vprintf are given as macro varargs.
+macro call_printf!(vprintf, args) { {
+    let ___v = $args;
+    $vprintf(..., &___v[0] as **())
 } }
 
-
-/// Implementation of vprintf
-
-
-fn is_digit(c: u8) -> bool { c >= '0' && c <= '9' }
+/// Implementation of the core printf engine.
+fn _is_digit(c: u8) -> bool { c >= '0' && c <= '9' }
 fn _atoi(s: *u8, endptr: **u8) -> u32 {
     let n = 0;
-    while is_digit(*s) {
+    while _is_digit(*s) {
         n = 10*n + (*s - '0');
         s += 1;
     }
@@ -86,12 +86,13 @@ fn _format_uint(n: u32, base: u32, width: u32, flags: u32, out: *u8) -> *u8 {
     o + 1
 }
 
-macro __out!(c) { print_char($c as i32) }
+// Core printf macro. Takes the fmt string, the arguments, and an out
+// macro that will be invoked with characters to printf.
+macro do_printf!(fmt, args, out) { {
+    // All the variable names have underscore names to help avoid name
+    // collisions with invoking code.
+    let _args: **() = $args;
 
-// All the variables have underscore names for the silly reason that
-// soon this will be converted to a macro and I want to help avoid
-// name collisions with invoking code.
-fn vprintf(fmt: *u8, _args: **()) {
     let _s: *u8;
     let _i = 0;
     let _tmpbuf: u8[FMT_UINT_BUF_SIZE];
@@ -100,11 +101,11 @@ fn vprintf(fmt: *u8, _args: **()) {
         let _flags = 0;
         let _width = 0;
 
-        if *_s != '%' { __out!(*_s); continue; }
+        if *_s != '%' { $out(*_s); continue; }
         _s += 1;
 
         // Handle "%%"
-        if *_s == '%' { __out!(*_s); continue; }
+        if *_s == '%' { $out(*_s); continue; }
 
         // parse flags
         while true {
@@ -120,7 +121,7 @@ fn vprintf(fmt: *u8, _args: **()) {
         }
 
         // parse width
-        if is_digit(*_s) {
+        if _is_digit(*_s) {
             _width = _atoi(_s, &_s);
         } else if *_s == '*' {
             _width = _args[_i] as u32;
@@ -136,12 +137,12 @@ fn vprintf(fmt: *u8, _args: **()) {
 
         // Handle non numeric cases: characters and strings
         if _c == 'c' {
-            __out!(_arg as u8);
+            $out(_arg as u8);
             continue;
         } else if _c == 's' {
             let _sp: *u8;
             for (_sp = _arg as *u8; *_sp != 0; _sp += 1) {
-                __out!(*_sp);
+                $out(*_sp);
             }
             continue;
         }
@@ -166,8 +167,8 @@ fn vprintf(fmt: *u8, _args: **()) {
         } else if _c == 'b' {
             2
         } else if _c == 'p' {
-            __out!('0');
-            __out!('x');
+            $out('0');
+            $out('x');
             _flags |= FMT_FLAG_ZERO_PAD;
             _width = 8; // WOOP
             16
@@ -179,20 +180,30 @@ fn vprintf(fmt: *u8, _args: **()) {
         let _p = _format_uint(_arg, _base, _width, _flags, &_tmpbuf[0]);
         let _n = &_tmpbuf[0] + FMT_UINT_BUF_SIZE - _p;
         while _p < &_tmpbuf[0] + FMT_UINT_BUF_SIZE {
-            __out!(*_p);
+            $out(*_p);
             _p += 1;
         }
 
         if _flags & FMT_FLAG_LEFT_JUSTIFY != 0 {
             while _n < _width {
-                __out!(' ');
+                $out(' ');
                 _n += 1;
             }
         }
 
     }
-}
+} }
 
+///////
+// Now we can implement some actual *printf functions in terms of
+// all that stuff.
+macro __vprintf_out!(c) { n += 1; print_char($c as i32) }
+fn vprintf(fmt: *u8, args: **()) -> i32 {
+    let n = 0;
+    do_printf!(fmt, args, __vprintf_out!);
+    n
+}
+macro printf!(s) { call_printf!(vprintf, varargs!(...), $s) }
 
 /////// This is testing code that doesn't belong here at all!
 fn main() -> i32 {
