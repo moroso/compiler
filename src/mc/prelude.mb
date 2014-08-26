@@ -1,7 +1,1 @@
-use prelude::{print_int,print_char};
-use prelude::rt_malloc;
-use prelude::rt_abort;
-
-use prelude::{printf0_,printf1_,printf2_,printf3_};
-
-use prelude::{print_uint,print_newline};
+use prelude::*;
