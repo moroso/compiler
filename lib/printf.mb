@@ -36,23 +36,29 @@ const FMT_FLAG_LEFT_JUSTIFY: u32 = 0x04;
 const FMT_FLAG_HEX_CAPS: u32 = 0x08;
 
 // 32 binary digits + minus sign
-const FMT_UINT_BUF_SIZE: u32 = 34;
+const FMT_UINT_BUF_SIZE: u32 = 32+1;
 
 // Core numeric formatting routine. Handles arbitrary bases (2-16),
 // right justification with spaces or zeros, inserting minus signs.
 //
+// The output behavior of this function is sort of weird. out should
+// point to a FMT_UINT_BUF_SIZE size buffer. Since digits are
+// generated starting with the least significant, we fill the buffer
+// starting from the back and return a pointer to the start of the
+// formatted number.
+// The buffer is not null terminated.
 fn _format_uint(n: u32, base: u32, width: u32, flags: u32, out: *u8) -> *u8 {
     let chars = if flags & FMT_FLAG_HEX_CAPS == 0 {"0123456789abcdef"} else {"0123456789ABCDEF"};
 
     let s = out + FMT_UINT_BUF_SIZE - 1;
     let o = s;
 
-    while true {
+    // Generate the digits backwards from the end of the string.
+    do {
         *o = chars[n % base];
         n /= base;
         o -= 1;
-        if n == 0 { break; }
-    }
+    } while n > 0;
 
     // Zero pad
     if flags & FMT_FLAG_ZERO_PAD != 0 {
@@ -85,7 +91,7 @@ macro __out!(c) { print_char($c as i32) }
 // All the variables have underscore names for the silly reason that
 // soon this will be converted to a macro and I want to help avoid
 // name collisions with invoking code.
-fn vprintf(fmt: *u8, args: **()) {
+fn vprintf(fmt: *u8, _args: **()) {
     let _s: *u8;
     let _i = 0;
     let _tmpbuf: u8[FMT_UINT_BUF_SIZE];
@@ -117,13 +123,13 @@ fn vprintf(fmt: *u8, args: **()) {
         if is_digit(*_s) {
             _width = _atoi(_s, &_s);
         } else if *_s == '*' {
-            _width = args[_i] as u32;
+            _width = _args[_i] as u32;
             _i += 1;
             _s += 1;
         }
 
 
-        let _arg = args[_i] as u32;
+        let _arg = _args[_i] as u32;
         _i += 1;
 
         let _c = *_s;
