@@ -1541,7 +1541,7 @@ mod tests {
     use mc::ast::NodeId;
     use mc::ast::visitor::Visitor;
     use mc::parser::ast_from_str;
-    use mc::session::Session;
+    use mc::session::{Session, Options};
 
     use super::Typechecker;
 
@@ -1549,7 +1549,7 @@ mod tests {
 
     #[test]
     fn basic_tyck_test() {
-        let mut session = Session::new();
+        let mut session = Session::new(Options::new());
         let tree = session.parse_package_str(r"
 enum Option<T> {
     Some(T),

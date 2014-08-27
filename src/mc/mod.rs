@@ -170,7 +170,7 @@ mod tests {
         use std::io;
         let bytes = Vec::from_slice(s.as_bytes());
         let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
-        Package::from_buffer("<input>", buffer)
+        Package::from_buffer(super::session::Options::new(), "<input>", buffer)
     }
 
     #[test]

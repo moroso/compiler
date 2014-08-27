@@ -174,7 +174,7 @@ mod tests {
                 ));
         let lexer = new_mb_lexer("<stdin>", buffer);
 
-        let mut session = Session::new();
+        let mut session = Session::new(Options::new());
         let ast = Parser::parse_with(&mut session, lexer, |p| p.parse_type());
 
         let mut typeck = Typechecker::new(&session);
@@ -238,7 +238,7 @@ mod tests {
 
     // Asserts that the structure described by `t` has size `expected_size`.
     fn test_sizeof_structure_helper(t: &str, expected_size: u64) {
-        let mut session = Session::new();
+        let mut session = Session::new(Options::new());
         let module = session.parse_package_str(t);
 
         let mut typeck = Typechecker::new(&session);
