@@ -173,7 +173,7 @@ macro do_printf!(fmt, args, out) { {
             _width = 8; // WOOP
             16
         } else {
-            assert!(false);
+            ::prelude::rt_abort();
             0
         };
 
@@ -197,13 +197,13 @@ macro do_printf!(fmt, args, out) { {
 ///////
 // Now we can implement some actual *printf functions in terms of
 // all that stuff.
-macro __vprintf_out!(c) { n += 1; print_char($c as i32) }
+macro __vprintf_out!(c) { n += 1; ::prelude::print_char($c as i32) }
 fn vprintf(fmt: *u8, args: **()) -> i32 {
     let n = 0;
     do_printf!(fmt, args, __vprintf_out!);
     n
 }
-macro printf!(fmt) { call_printf!(vprintf, varargs!(...), $fmt) }
+macro printf!(fmt) { call_printf!(::printf::vprintf, varargs!(...), $fmt) }
 
 macro __vsnprintf_out!(c) { {
     if n+1 < size {
@@ -224,50 +224,19 @@ fn vsnprintf(out: *u8, size: u32, fmt: *u8, args: **()) -> i32 {
 
     n as i32
 }
-macro snprintf!(s, size, fmt) { call_printf!(vsnprintf, varargs!(...), $s, $size, $fmt) }
-
-
-/////// This is testing code that doesn't belong here at all!
-fn printf_test() {
-    printf!("hello, world: %%\n");
-
-    printf!("num: %d %d %x %X %b %c %s\n",
-            12, -12, 0xdeadbeef, 0xdeadbeef, 0xcc, 'A', "weeelp");
-
-    printf!("padding: |%4d| |%04d| |%4d| |%04d| |%-4d| |%-4d|\n",
-            12, 12, -12, -12, 12, -12);
-
-    printf!("int_min: %d\n", 0x80000000);
-    printf!("pointer? %p\n", 0x1337);
-
-    printf!("dynamic padding: |%*d|\n", 4, 12);
-
-}
-
-fn snprintf_test() {
-    printf!("========== snprintf time ===========\n");
-
-    let abuf: u8[100];
-    let buf = &abuf[0];
-
-    let n = snprintf!(buf, 100,
-                      "num: %d %d %x %X %b %c %s",
-                      12, -12, 0xdeadbeef, 0xdeadbeef, 0xcc, 'A', "weeelp");
-    printf!("%d %s\n", n, buf);
-
-    n = snprintf!(buf, 28,
-                  "num: %d %d %x %X %b %c %s",
-                  12, -12, 0xdeadbeef, 0xdeadbeef, 0xcc, 'A', "weeelp");
-    printf!("%d %s\n", n, buf);
-
-    // Test an annoying special case - size == 0 - nothing written
-    n = snprintf!(buf, 0, "BBBB");
-    printf!("%-2d %s\n", n, buf);
+macro snprintf!(s, size, fmt) {
+    call_printf!(::printf::vsnprintf, varargs!(...), $s, $size, $fmt)
 }
 
 
-fn main() -> i32 {
-    printf_test();
-    snprintf_test();
-    0
+// This is here because it needs to use printf! and because
+// the IR compiler is too slow compiling printf right now.
+macro assert!(cond) {
+    if !($cond) {
+        printf!("Assertion failed: %s (%s:%d)\n",
+                 stringify!($cond),
+                 file!(),
+                 line!()+1);
+        rt_abort();
+    }
 }
