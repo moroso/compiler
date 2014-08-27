@@ -30,7 +30,7 @@ pub fn get_cur_rel_path() -> Path {
 }
 
 pub struct Options {
-    pub search_paths: HashMap<String, String>,
+    pub search_paths: HashMap<String, Path>,
 }
 
 pub struct Session {

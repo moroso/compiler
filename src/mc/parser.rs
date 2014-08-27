@@ -1530,7 +1530,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                             // It is based on the invocation location.
                             // (And may well be absolute, even!)
                             match self.session.options.search_paths.find(&String::from_str(name)) {
-                                Some(filename) => FilePath::new(filename.clone()),
+                                Some(path) => path.clone(),
                                 None =>
                                     self.error(format!("no such module: neither {} nor {} exist.",
                                                        filename1.display(), filename2.display()),

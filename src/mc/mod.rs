@@ -42,14 +42,14 @@ macro_rules! targets {
 
 
 fn parse_search_paths(opts: &mut Options, matches: &getopts::Matches) -> bool {
+    // Pull libraries out of the command line
     for string in matches.opt_strs("lib").move_iter() {
         let parts: Vec<&str> = string.as_slice().split_str(":").collect();
         let (module, file) = match parts.as_slice() {
             [ module, file ] => (module, file),
             _ => { return false; }
         };
-        opts.search_paths.insert(String::from_str(module), String::from_str(file));
-
+        opts.search_paths.insert(String::from_str(module), Path::new(file));
     }
 
     true
