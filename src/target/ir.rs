@@ -363,13 +363,8 @@ impl Target for IRTarget {
         writeln!(f, "{}", "#ifndef MB_FREESTANDING");
         writeln!(f, "{}", "#include <stdio.h>");
         writeln!(f, "{}", "#include <stdlib.h>");
-        writeln!(f, "{}", "#include <assert.h>");
         writeln!(f, "{}", "#include <string.h>");
 
-        writeln!(f, "{}", "long printf0_(long s) { return printf(\"%s\", (char *)s); }");
-        writeln!(f, "{}", "long printf1_(long s, long a) { return printf((char *)s, a); }");
-        writeln!(f, "{}", "long printf2_(long s, long a, long b) { return printf((char *)s, a, b); }");
-        writeln!(f, "{}", "long printf3_(long s, long a, long b, long c) { return printf((char *)s, a, b, c); }");
         writeln!(f, "{}", "long print_int(long x) { printf(\"%d\\n\", (int)x); return x; }");
         writeln!(f, "{}", "long print_char(long x) { printf(\"%c\", (int)x); return x; }");
         writeln!(f, "{}", "long rt_memcpy(long dest, long src, long n) { return (long)memcpy((void*)dest, (void*)src, n); }");

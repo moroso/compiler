@@ -3,9 +3,3 @@ extern fn print_char(x: i32) -> i32;
 extern fn rt_malloc<T>(i: u32) -> *T;
 extern fn rt_abort() -> !;
 fn print_uint(x: u32) { print_int(x as i32); }
-
-//// A bunch of hacky stuff
-extern fn printf0_(s: *u8) -> i32;
-extern fn printf1_(s: *u8, a: u32) -> i32;
-extern fn printf2_(s: *u8, a: u32, b: u32) -> i32;
-extern fn printf3_(s: *u8, a: u32, b: u32, c: u32) -> i32;

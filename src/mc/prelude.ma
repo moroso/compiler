@@ -20,10 +20,6 @@ memcpy_loop:
            { p0 -> b r31 + 1; }
 
 // TODO: the following are placeholders.
-__prelude__printf3_:
-__prelude__printf2_:
-__prelude__printf1_:
-__prelude__printf0_:
 __prelude__print_char:
 __prelude__rt_abort:
 __prelude__rt_malloc:
