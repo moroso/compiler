@@ -15,10 +15,10 @@ extern crate time;
 extern crate debug;
 
 #[cfg(mc)]
-use front = mc;
+use mc as front;
 
 #[cfg(mas)]
-use front = mas;
+use mc as front;
 
 mod util;
 mod typechecker;

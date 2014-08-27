@@ -1,5 +1,3 @@
-use getopts::{getopts, reqopt, optopt, optflag};
-use getopts::OptionMissing;
 use std::ascii::StrAsciiExt;
 
 use std::io::stdio;

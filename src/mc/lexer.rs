@@ -485,7 +485,7 @@ impl<A, B> TokenMaker<(A, B), Token> for fn(A, B) -> Token {
 mod tests {
     use util::GenericInt;
 
-    use ST = super::SourceToken;
+    use super::SourceToken as ST;
     use super::super::ast;
 
     use std::vec::Vec;

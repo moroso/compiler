@@ -32,7 +32,7 @@ use super::lexer::*;
 
 use values::*;
 
-use FilePath = std::path::Path;
+use std::path::Path as FilePath;
 
 type FuncProto = (Ident, Vec<FuncArg>, Type, Vec<Ident>);
 type StaticDecl = (Ident, Type);
@@ -978,7 +978,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
         macro_rules! optable {
             ($($rows:expr),+,) => (optable!($($rows),+));
-            ($($rows:expr),*) => (OpTable { rows: [$($rows),+] });
+            ($($rows:expr),*) => (OpTable { rows: &[$($rows),+] });
         }
 
         static optable: OpTable = optable! {
@@ -1005,6 +1005,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let start_span = self.cur_span();
         let lv = self.parse_binop_expr();
 
+        let peeked_span = self.peek_span();
         let op = match *self.peek() {
             PlusEq    => Some(PlusOp),
             MinusEq   => Some(MinusOp),
@@ -1018,7 +1019,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             PercentEq => Some(ModOp),
             Eq        => None,
             _         => return lv,
-        }.map(|op| self.add_id_and_span(op, self.peek_span()));
+        }.map(|op| self.add_id_and_span(op, peeked_span));
 
         self.eat();
         let e = self.parse_expr();

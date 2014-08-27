@@ -64,9 +64,9 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
 
     for op in ops.mut_iter() {
         match *op {
-            Goto(ref i, ref mut vars) |
-            CondGoto(_, _, ref i, ref mut vars) => {
-                let ref live_vars = *label_vars.get(i);
+            Goto(i, ref mut vars) |
+            CondGoto(_, _, i, ref mut vars) => {
+                let ref live_vars = label_vars[i];
                 vars.extend(live_vars.iter().map(|x| (*x).clone()));
             },
             _ => {}
@@ -119,16 +119,16 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
     // Next step: based on the list of jumps to each label, figure out
     // which variables can be eliminated/substituted. We record those
     // in the "substitutions" and "vars_at_labels_to_clear" tables.
-    for (ref idx, ref item) in jump_table.iter() {
+    for (idx, ref item) in jump_table.iter() {
         if item.len() == 0 {
             // This label is not jumped to at all. We can entirely
             // remove it.
-            labels_to_remove.insert(idx.clone());
+            labels_to_remove.insert(idx);
             changed = true;
         } else if item.len() == 1 {
             // If we're here, we only jump to this label from one place.
             // We can entirely remove the variables, with a substitution.
-            let label_vars = label_table.get(idx);
+            let ref label_vars = label_table[idx];
             for var in label_vars.iter() {
                 let new_gen = *(**item)[0].find(&var.name).unwrap();
                 substitutions.insert((var.clone(),
@@ -137,7 +137,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
                 changed = true;
             }
             if label_vars.len() > 0 {
-                vars_at_labels_to_clear.insert(*idx, label_vars.clone());
+                vars_at_labels_to_clear.insert(idx, label_vars.clone());
                 changed = true;
             }
         } else {
@@ -146,7 +146,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
             // than the generation in the label, we can do a substitution
             // and eliminate the variable.
 
-            let label_vars = label_table.get(idx);
+            let ref label_vars = label_table[idx];
             let mut vars_to_clear = TreeSet::new();
 
             for var in label_vars.iter() {
@@ -182,7 +182,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
             }
 
             if vars_to_clear.len() > 0 {
-                vars_at_labels_to_clear.insert(*idx, vars_to_clear.clone());
+                vars_at_labels_to_clear.insert(idx, vars_to_clear.clone());
             }
 
         }

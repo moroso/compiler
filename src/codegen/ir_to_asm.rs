@@ -963,7 +963,7 @@ impl IrToAsm {
                             0));
                     result.push_all_move(assign_vars(&regmap, global_map,
                                                      &true_pred,
-                                                     labels.get(label),
+                                                     &labels[*label],
                                                      vars, stack_item_offs));
                     result.push(
                         InstNode::branchimm(
@@ -975,7 +975,7 @@ impl IrToAsm {
                 Goto(ref label, ref vars) => {
                     result.push_all_move(assign_vars(&regmap, global_map,
                                                      &true_pred,
-                                                     labels.get(label),
+                                                     &labels[*label],
                                                      vars, stack_item_offs));
                     // Don't emit redundant jumps.
                     let next = &ops[pos+1];

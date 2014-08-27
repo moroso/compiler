@@ -227,7 +227,7 @@ impl MutVisitor for MacroCollector {
 
 impl MacroExpander {
     pub fn new() -> MacroExpander {
-        use tls_interner = mc::session::interner;
+        use mc::session::interner as tls_interner;
 
         let interner = tls_interner.get().unwrap();
         let mut macros = TreeMap::new();
