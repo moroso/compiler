@@ -16,7 +16,6 @@ use std::slice::CloneableVector;
 pub struct SourceToken<T> {
     pub tok: T,
     pub sp: Span,
-    pub filename: String, // sorry Kevin
 }
 
 /// A single rule for the lexer. This includes a `matcher`, which matches
@@ -150,7 +149,6 @@ impl<B: Buffer, T: Eq> Iterator<SourceToken<T>> for Lexer<B, T> {
                                 return Some(SourceToken {
                                     tok: tok,
                                     sp: sp,
-                                    filename: self.name.clone(),
                                 })
                             }
                         }
@@ -164,18 +162,13 @@ impl<B: Buffer, T: Eq> Iterator<SourceToken<T>> for Lexer<B, T> {
                     return self.eof.take().map(|eof| SourceToken {
                         tok: eof,
                         sp: mk_sp(self.pos, 0),
-                        filename: self.name.clone(),
                     });
                 }
             }
 
             // Fetch a new line, now that we're done with the previous one.
-            self.line = self.lines.next().map(|(row, line, file)| {
+            self.line = self.lines.next().map(|(row, line)| {
                 self.pos = SourcePos { row: row, col: 0 };
-                match file {
-                    Some(x) => self.name = x,
-                    None => ()
-                }
                 line
             });
         }
@@ -247,11 +240,8 @@ impl<B: Buffer> BufferLines<B> {
     }
 }
 
-/* There is a really bad hack to get filenames out.
- * I'm sorry, Kevin. I'll take it out when the module
- * system works. */
-impl<B: Buffer> Iterator<(uint, String, Option<String>)> for BufferLines<B> {
-    fn next(&mut self) -> Option<(uint, String, Option<String>)> {
+impl<B: Buffer> Iterator<(uint, String)> for BufferLines<B> {
+    fn next(&mut self) -> Option<(uint, String)> {
         use std::num::from_str_radix;
 
         self.buffer.read_line().ok().map(|l| {
@@ -260,18 +250,15 @@ impl<B: Buffer> Iterator<(uint, String, Option<String>)> for BufferLines<B> {
                 let s = l.as_slice();
                 if s.char_at(0) == '#' {
                     let s2: &str = s.split_str(" ").nth(1).unwrap_or("");
-                    let s3 = s.split_str(" ").nth(2).unwrap_or("").
-                        replace("\"", "").replace("\n", "");
-
                     let i = from_str_radix::<uint>(s2, 10).unwrap_or(1);
                     self.lineno = i - 1;
-                    return (0, String::from_str(""), Some(s3))
+                    return (0, String::from_str(""))
                 }
             }
 
             let n = self.lineno;
             self.lineno += 1;
-            (n, l, None)
+            (n, l)
         })
     }
 }

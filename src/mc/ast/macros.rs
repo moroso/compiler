@@ -287,7 +287,7 @@ impl<'a> MacroExpanderVisitor<'a> {
         toks.push(Eof);
 
         let mut stream = toks.move_iter().map(
-            |t| SourceToken { sp: span, tok: t, filename: format!("{}", filename) })
+            |t| SourceToken { sp: span, tok: t })
             .peekable();
 
         // Now it is time for the double expando.

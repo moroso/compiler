@@ -282,10 +282,8 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     fn advance(&mut self) {
         self.next = self.tokens.next();
 
-        match self.next {
-            None => fail!("Tried to advance past EOF"),
-            Some(ref x) =>
-                self.name = self.session.interner.intern(x.filename.clone())
+        if self.next.is_none() {
+            fail!("Tried to advance past EOF")
         }
     }
 
