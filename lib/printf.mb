@@ -100,6 +100,7 @@ macro do_printf!(fmt, args, out) { {
     for (_s = fmt; *_s != 0; _s += 1) {
         let _flags = 0;
         let _width = 0;
+        let _precision: u32 = ~0; // "infinity"
 
         if *_s != '%' { $out(*_s); continue; }
         _s += 1;
@@ -129,6 +130,20 @@ macro do_printf!(fmt, args, out) { {
             _s += 1;
         }
 
+        // Parse precision
+        if *_s == '.' {
+            _s += 1;
+            // Ew, duplication from above
+            if _is_digit(*_s) {
+                _precision = _atoi(_s, &_s);
+            } else if *_s == '*' {
+                _precision = _args[_i] as u32;
+                _i += 1;
+                _s += 1;
+            }
+        }
+
+
 
         let _arg = _args[_i] as u32;
         _i += 1;
@@ -137,12 +152,15 @@ macro do_printf!(fmt, args, out) { {
 
         // Handle non numeric cases: characters and strings
         if _c == 'c' {
+            // I don't bother with width for chars // because who cares.
             $out(_arg as u8);
             continue;
         } else if _c == 's' {
-            let _sp: *u8;
-            for (_sp = _arg as *u8; *_sp != 0; _sp += 1) {
-                $out(*_sp);
+            // TODO: width
+            let _sp = _arg as *u8;
+            let _i: u32;
+            for (_i = 0; _sp[_i] != 0 && _i < _precision; _i += 1) {
+                $out(_sp[_i]);
             }
             continue;
         }
