@@ -20,7 +20,7 @@
 use span::{SourcePos, Span, mk_sp};
 use util::Name;
 
-use super::session::Session;
+use super::session::{Session, Options};
 use super::session::get_cur_rel_path;
 
 use std::{io, mem, num, vec};
@@ -186,7 +186,7 @@ fn binop_token(op: BinOpNode) -> Token {
 
 // Convenience function for testing
 pub fn ast_from_str<U>(s: &str, f: |&mut StreamParser<Lexer<::std::io::BufferedReader<::std::io::MemReader>, Token>>| -> U) -> (Session, U) {
-    let mut session = Session::new();
+    let mut session = Session::new(Options::new());
     let tree = Parser::parse_with(&mut session, lexer_from_str(s), f);
     (session, tree)
 }
@@ -1524,18 +1524,30 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                     let filename2 = base.join(FilePath::new(format!("{}/mod.mb", name)));
 
                     let filename = match (filename1.exists(), filename2.exists()) {
-                        (true,  true)  => self.error(format!("ambiguous module name: both {} and {} exist.",
-                                                             filename1.display(), filename2.display()),
-                                                     start_span.get_begin()),
-                        (false, false) => self.error(format!("no such module: neither {} nor {} exist.",
-                                                             filename1.display(), filename2.display()),
-                                                     start_span.get_begin()),
                         (true,  false) => filename1,
                         (false, true)  => filename2,
+                        (false, false) => {
+                            // Both missing, so check our search path.
+                            // Search path does *not* use the current relative path.
+                            // It is based on the invocation location.
+                            // (And may well be absolute, even!)
+                            match self.session.options.search_paths.find(&String::from_str(name)) {
+                                Some(filename) => FilePath::new(filename.clone()),
+                                None =>
+                                    self.error(format!("no such module: neither {} nor {} exist.",
+                                                       filename1.display(), filename2.display()),
+                                               start_span.get_begin())
+                            }
+                        }
+                        (true,  true)  =>
+                            self.error(format!("ambiguous module name: both {} and {} exist.",
+                                               filename1.display(), filename2.display()),
+                                       start_span.get_begin()),
                     };
 
                     ::std::io::File::open(&filename).unwrap_or_else(|e| {
-                        self.error(format!("failed to open {}: {}", filename.display(), e), start_span.get_begin())
+                        self.error(format!("failed to open {}: {}",
+                                           filename.display(), e), start_span.get_begin())
                     })
                 };
 

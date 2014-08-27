@@ -2,10 +2,10 @@ use package::Package;
 use target::{Target, CTarget, IRTarget, AsmTarget};
 
 use self::ast::visitor::Visitor;
-use self::session::Session;
+use self::session::{Session, Options};
 
 use getopts;
-use getopts::{getopts, reqopt, optopt, optflag};
+use getopts::{getopts, reqopt, optopt, optflag, optmulti};
 use getopts::OptionMissing;
 use std::ascii::StrAsciiExt;
 use std::io::{BufferedReader, File, Writer, stdio};
@@ -25,8 +25,8 @@ impl Target for NullTarget {
     fn compile(&self, _: Package, _: &mut Writer) { }
 }
 
-fn package_from_stdin() -> Package {
-    Package::from_buffer("<stdin>", stdio::stdin())
+fn package_from_stdin(opts: Options) -> Package {
+    Package::from_buffer(opts, "<stdin>", stdio::stdin())
 }
 
 fn new_target<T: Target>(args: Vec<String>) -> T {
@@ -41,6 +41,20 @@ macro_rules! targets {
 }
 
 
+fn parse_search_paths(opts: &mut Options, matches: &getopts::Matches) -> bool {
+    for string in matches.opt_strs("lib").move_iter() {
+        let parts: Vec<&str> = string.as_slice().split_str(":").collect();
+        let (module, file) = match parts.as_slice() {
+            [ module, file ] => (module, file),
+            _ => { return false; }
+        };
+        opts.search_paths.insert(String::from_str(module), String::from_str(file));
+
+    }
+
+    true
+}
+
 pub fn main() {
     let args = os::args();
     let arg0 = &args[0];
@@ -51,6 +65,7 @@ pub fn main() {
         optflag("d", "dep-files", "Generate dependency files"),
         optflag("v", "verbose", "Enable verbose output."),
         optflag("h", "help", "Show this help message."),
+        optmulti("l", "lib", "Specify a library location", "<foo:/path/to/foo.mb>"),
     ];
 
     let bail = |error: Option<&str>| {
@@ -101,6 +116,11 @@ pub fn main() {
         }
     };
 
+    let mut options = Options::new();
+    if !parse_search_paths(&mut options, &matches) {
+        bail(Some("Bogus library specification"));
+    }
+
     let name = if matches.free.len() == 0 {
         "-"
     } else if matches.free.len() == 1 {
@@ -110,11 +130,11 @@ pub fn main() {
     };
 
     let package = if name == "-" {
-        package_from_stdin()
+        package_from_stdin(options)
     } else {
         let path = Path::new(name);
         let file = File::open(&path).unwrap_or_else(|e| fail!("{}", e));
-        Package::from_file(file)
+        Package::from_file(options, file)
     };
 
     // FIXME: Hm, maybe should use a MemWriter, gather the buffer,

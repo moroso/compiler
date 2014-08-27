@@ -29,7 +29,12 @@ pub fn get_cur_rel_path() -> Path {
     cur_rel_path.get().unwrap().clone()
 }
 
+pub struct Options {
+    pub search_paths: HashMap<String, String>,
+}
+
 pub struct Session {
+    pub options: Options,
     pub defmap: DefMap,
     pub resolver: Resolver,
     pub parser: Parser,
@@ -40,6 +45,13 @@ pub struct Session {
 pub struct Interner {
     strings: RefCell<HashMap<String, Name>>,
 }
+
+impl Options {
+    pub fn new() -> Options {
+        Options { search_paths: HashMap::new() }
+    }
+}
+
 
 impl Interner {
     pub fn new() -> Interner {
@@ -77,7 +89,7 @@ impl Interner {
 }
 
 impl Session {
-    pub fn new() -> Session {
+    pub fn new(opts: Options) -> Session {
         // XXX this is such a massive hack omg
         if interner.get().is_none() {
             interner.replace(Some(Interner::new()));
@@ -89,6 +101,7 @@ impl Session {
         let interner_ref = interner.get().unwrap();
 
         Session {
+            options: opts,
             defmap: DefMap::new(),
             resolver: Resolver::new(),
             parser: Parser::new(),
