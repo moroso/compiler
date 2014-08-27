@@ -242,20 +242,7 @@ impl<B: Buffer> BufferLines<B> {
 
 impl<B: Buffer> Iterator<(uint, String)> for BufferLines<B> {
     fn next(&mut self) -> Option<(uint, String)> {
-        use std::num::from_str_radix;
-
         self.buffer.read_line().ok().map(|l| {
-            // *Super* hacky handling of the line num directives produced by cpp
-            {
-                let s = l.as_slice();
-                if s.char_at(0) == '#' {
-                    let s2: &str = s.split_str(" ").nth(1).unwrap_or("");
-                    let i = from_str_radix::<uint>(s2, 10).unwrap_or(1);
-                    self.lineno = i - 1;
-                    return (0, String::from_str(""))
-                }
-            }
-
             let n = self.lineno;
             self.lineno += 1;
             (n, l)
