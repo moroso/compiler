@@ -128,19 +128,6 @@ impl Target for AsmTarget {
         let mut strings: TreeSet<Name> = TreeSet::new();
 
         for insts in result.mut_iter() {
-            match (*insts)[0] {
-                Func(ref n, _, _) => {
-                    // We override certain functions with asm versions in
-                    // prelude.ma. This is a temporary hack.
-                    match format!("{}", n).as_slice() {
-                        "MANGLEDprelude_print_uint" |
-                        "MANGLEDprelude_print_int" |
-                        "MANGLEDprelude_print_newline" => continue,
-                        _ => {},
-                    }
-                },
-                _ => fail!()
-            }
             ToSSA::to_ssa(insts, self.verbose);
             ConstantFolder::fold(insts, &global_map, self.verbose);
             let opinfo = LivenessAnalyzer::analyze(insts);
