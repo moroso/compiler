@@ -94,7 +94,7 @@ ASM_TEST_FILES := \
 	test_unop_on_field_access.mb
 
 #	test_string.mb \
-# 	
+#
 
 IR_TEST_FILES := $(ASM_TEST_FILES) \
 	test_string.mb
@@ -144,7 +144,7 @@ test/ir-c/%.c: test/%.mb mbc
 test/c-bin/%: test/c/%.c test/%.txt
 	@echo Running $(patsubst test/c/%.c,%,$<)...
 	@mkdir -p $(dir $@)
-	@gcc $< -o $@ || (cat $<; false)
+	@gcc -m32 $< -o $@ || (cat $<; false)
 
 test/ir-c-bin/%: test/ir-c/%.c test/%.txt
 	@echo Running $(patsubst test/ir-c/%.c,%,$<) '(IR cross-compiler)'...
