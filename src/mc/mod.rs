@@ -41,6 +41,18 @@ macro_rules! targets {
 }
 
 
+fn setup_builtin_search_paths(opts: &mut Options) {
+    // Unless it gets overridden, pull out a prelude based on the
+    // install location of the binary. This is kind of dubious.
+    match os::self_exe_path() {
+        None => {}, /* whatever? */
+        Some(exe_path) => {
+            let prelude_location = exe_path.join(Path::new("lib/prelude.mb"));
+            opts.search_paths.insert(String::from_str("prelude"), prelude_location);
+        }
+    }
+}
+
 fn parse_search_paths(opts: &mut Options, matches: &getopts::Matches) -> bool {
     // Pull libraries out of the command line
     for string in matches.opt_strs("lib").move_iter() {
@@ -117,6 +129,7 @@ pub fn main() {
     };
 
     let mut options = Options::new();
+    setup_builtin_search_paths(&mut options);
     if !parse_search_paths(&mut options, &matches) {
         bail(Some("Bogus library specification"));
     }
