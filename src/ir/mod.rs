@@ -155,3 +155,14 @@ pub struct OpInfo {
     pub def: TreeSet<Var>, // Which variables are defined here?
     pub succ: TreeSet<uint>, // Instructions which can follow this one.
 }
+
+impl OpInfo {
+    fn new() -> OpInfo {
+        OpInfo {
+            live: TreeSet::new(),
+            used: TreeSet::new(),
+            def: TreeSet::new(),
+            succ: TreeSet::new(),
+        }
+    }
+}

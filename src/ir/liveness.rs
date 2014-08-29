@@ -150,8 +150,7 @@ fn propagate_once(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) -> bool {
         // Making this dummy structure is sort of unfortunate.
         // There are ways around it, but it is better than the old
         // clone!
-        let mut this_opinfo = OpInfo {live: TreeSet::new(), used: TreeSet::new(),
-                                      def: TreeSet::new(), succ: TreeSet::new(),};
+        let mut this_opinfo = OpInfo::new();
         // This working relies on instructions not being able to be their own
         // successor. If they were, then we'd be emptying information we need.
         swap(&mut this_opinfo, opinfo.get_mut(u));
@@ -182,14 +181,7 @@ impl LivenessAnalyzer {
     // defs.
     pub fn unanalyzed_opinfo(ops: &Vec<Op>) -> Vec<OpInfo> {
         let len = ops.len();
-        let mut opinfo = Vec::from_fn(len,
-                                  |_| OpInfo {
-                                      live: TreeSet::new(),
-                                      used: TreeSet::new(),
-                                      def: TreeSet::new(),
-                                      succ: TreeSet::new(),
-                                  }
-                                  );
+        let mut opinfo = Vec::from_fn(len, |_| OpInfo::new());
         seed(ops, &mut opinfo);
 
         opinfo
