@@ -178,7 +178,9 @@ fn propagate(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
 }
 
 impl LivenessAnalyzer {
-    pub fn analyze(ops: &Vec<Op>) -> Vec<OpInfo> {
+    // Gives back the seeded data. This is mostly useful for getting
+    // defs.
+    pub fn unanalyzed_opinfo(ops: &Vec<Op>) -> Vec<OpInfo> {
         let len = ops.len();
         let mut opinfo = Vec::from_fn(len,
                                   |_| OpInfo {
@@ -189,6 +191,12 @@ impl LivenessAnalyzer {
                                   }
                                   );
         seed(ops, &mut opinfo);
+
+        opinfo
+    }
+
+    pub fn analyze(ops: &Vec<Op>) -> Vec<OpInfo> {
+        let mut opinfo = LivenessAnalyzer::unanalyzed_opinfo(ops);
         propagate(ops, &mut opinfo);
 
         opinfo

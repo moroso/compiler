@@ -122,7 +122,7 @@ impl IRTarget {
         let mut s = "".to_string();
         let mut vars = TreeSet::new();
         let mut labels: SmallIntMap<TreeMap<Name, uint>> = SmallIntMap::new();
-        let opinfo = LivenessAnalyzer::analyze(ops);
+        let opinfo = LivenessAnalyzer::unanalyzed_opinfo(ops);
         // Find all variables we need to declare. This is all variables
         // that are defined anywhere, except in the very first instruction
         // (which must be a function definition instruction).
