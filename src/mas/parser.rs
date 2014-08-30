@@ -9,8 +9,8 @@ use std::num::from_int;
 use span::{SourcePos, Span, mk_sp};
 use std::collections::TreeMap;
 
-pub struct AsmParser<T> {
-    tokens: Peekable<SourceToken<Token>, Lexer<T, Token>>,
+pub struct AsmParser<'a, T> {
+    tokens: Peekable<SourceToken<Token>, Lexer<'a, T, Token>>,
     last_span: Span,
     error_on_misplaced_inst: bool,
 }
@@ -93,10 +93,10 @@ pub fn classify_inst(inst: &InstNode) -> InstType {
     }
 }
 
-impl<T: Buffer> AsmParser<T> {
+impl<'a, T: Buffer> AsmParser<'a, T> {
 
-    pub fn new(tokens: Peekable<SourceToken<Token>, Lexer<T, Token>>
-           ) -> AsmParser<T> {
+    pub fn new(tokens: Peekable<SourceToken<Token>, Lexer<'a, T, Token>>
+           ) -> AsmParser<'a, T> {
         AsmParser {
             tokens: tokens,
             last_span: mk_sp(SourcePos::new(), 0),

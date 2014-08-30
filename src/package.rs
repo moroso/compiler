@@ -3,9 +3,9 @@ use mc::ast::visitor::Visitor;
 use mc::session::{Session, Options};
 use typechecker::{Typechecker, Typemap};
 
-pub struct Package {
+pub struct Package<'a> {
     pub module:  Module,
-    pub session: Session,
+    pub session: Session<'a>,
     pub typemap: Typemap,
 }
 
@@ -30,8 +30,8 @@ impl<'a, T: Buffer> Parsable for NamedBuffer<'a, T> {
     }
 }
 
-impl Package {
-    pub fn from_buffer<T: Buffer>(opts: Options, name: &str, buffer: T) -> Package {
+impl<'a> Package<'a> {
+    pub fn from_buffer<T: Buffer>(opts: Options, name: &str, buffer: T) -> Package<'a> {
         let nb = NamedBuffer {
             name: name,
             buffer: buffer,
@@ -40,11 +40,11 @@ impl Package {
         Package::new(opts, nb)
     }
 
-    pub fn from_file(opts: Options, file: ::std::io::File) -> Package {
+    pub fn from_file(opts: Options, file: ::std::io::File) -> Package<'a> {
         Package::new(opts, file)
     }
 
-    fn new<T: Parsable>(opts: Options, parsable: T) -> Package {
+    fn new<T: Parsable>(opts: Options, parsable: T) -> Package<'a> {
         let mut session = Session::new(opts);
         let module = parsable.parse(&mut session);
         let typemap = {

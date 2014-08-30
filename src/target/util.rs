@@ -3,17 +3,17 @@ use mc::ast::*;
 use mc::session::Session;
 use std::collections::treemap::TreeMap;
 
-pub struct NameMangler {
+pub struct NameMangler<'a> {
     pub names: TreeMap<NodeId, String>,
-    pub session: Session,
+    pub session: Session<'a>,
     path: Vec<String>,
     mangle_main: bool,
     mangle_externs: bool,
 }
 
-impl NameMangler {
+impl<'a> NameMangler<'a> {
     pub fn new(session: Session, module: &Module,
-               mangle_main: bool, mangle_externs: bool) -> NameMangler {
+               mangle_main: bool, mangle_externs: bool) -> NameMangler<'a> {
         let mut mangler = NameMangler { names: TreeMap::new(),
                                         path: vec!(),
                                         session: session,
@@ -45,7 +45,7 @@ impl NameMangler {
     }
 }
 
-impl Visitor for NameMangler {
+impl<'a> Visitor for NameMangler<'a> {
     fn visit_item(&mut self, item: &Item) {
         match item.val {
             ModItem(ref id, ref body) => {

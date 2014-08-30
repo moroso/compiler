@@ -25,7 +25,7 @@ impl Target for NullTarget {
     fn compile(&self, _: Package, _: &mut Writer) { }
 }
 
-fn package_from_stdin(opts: Options) -> Package {
+fn package_from_stdin<'a>(opts: Options) -> Package<'a> {
     Package::from_buffer(opts, "<stdin>", stdio::stdin())
 }
 

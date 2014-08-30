@@ -125,7 +125,7 @@ struct ModuleCollector {
 }
 
 struct ModuleResolver<'a> {
-    session: &'a mut Session,
+    session: &'a mut Session<'a>,
     scope: Vec<Subscope>,
     tree: TreeMap<NodeId, ModuleScope>,
     root: uint,

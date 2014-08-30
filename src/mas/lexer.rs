@@ -79,9 +79,9 @@ pub enum Token {
     EndComment,
 }
 
-pub fn new_asm_lexer<T: Buffer, S: StrAllocating>(
+pub fn new_asm_lexer<'a, T: Buffer, S: StrAllocating>(
     name: S,
-    buffer: T) -> Lexer<T, Token> {
+    buffer: T) -> Lexer<'a, T, Token> {
 
     macro_rules! lexer_rules {
         ( $( $c:expr => $m:expr ),*) => (

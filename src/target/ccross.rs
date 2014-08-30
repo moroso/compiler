@@ -45,11 +45,11 @@ pub fn emit_ccross_prelude(f: &mut Writer) {
     writeln!(f, "{}", "#endif");
 }
 
-struct CCrossCompiler {
+struct CCrossCompiler<'a> {
     structnames: TreeSet<NodeId>,
     enumitemnames: TreeMap<Name, (Ident, Vec<Variant>, uint)>,
     enumnames: TreeMap<NodeId, Name>,
-    session: Session,
+    session: Session<'a>,
     typemap: Typemap,
     mangle_map: TreeMap<NodeId, String>,
     indent: uint,
@@ -127,7 +127,7 @@ fn is_block_empty(block: &Block) -> bool {
 
 static INDENT_AMT: uint = 4;
 
-impl CCrossCompiler {
+impl<'a> CCrossCompiler<'a> {
     fn indent(&mut self) { self.indent += INDENT_AMT; }
     fn unindent(&mut self) { self.indent -= INDENT_AMT; }
     fn ind(&self) -> String { String::from_char(self.indent, ' ') }

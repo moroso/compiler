@@ -33,12 +33,12 @@ pub struct Options {
     pub search_paths: HashMap<String, Path>,
 }
 
-pub struct Session {
+pub struct Session<'a> {
     pub options: Options,
     pub defmap: DefMap,
     pub resolver: Resolver,
     pub parser: Parser,
-    pub expander: MacroExpander,
+    pub expander: MacroExpander<'a>,
     pub interner: local_data::Ref<Interner>,
 }
 
@@ -88,8 +88,8 @@ impl Interner {
     }
 }
 
-impl Session {
-    pub fn new(opts: Options) -> Session {
+impl<'a> Session<'a> {
+    pub fn new(opts: Options) -> Session<'a> {
         // XXX this is such a massive hack omg
         if interner.get().is_none() {
             interner.replace(Some(Interner::new()));
@@ -179,7 +179,7 @@ impl Session {
     pub fn parse_package_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
         use super::ast::mut_visitor::MutVisitor;
 
-        struct PreludeInjector<'a> { session: &'a mut Session }
+        struct PreludeInjector<'a> { session: &'a mut Session<'a> }
         impl<'a> MutVisitor for PreludeInjector<'a> {
             fn visit_module(&mut self, module: &mut Module) {
                 use super::ast::mut_visitor::walk_module;

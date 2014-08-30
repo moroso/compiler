@@ -57,7 +57,7 @@ pub struct DefMap {
 }
 
 struct DefMapVisitor<'a> {
-    session: &'a mut Session,
+    session: &'a mut Session<'a>,
     qualifier: Vec<Name>,
 }
 
@@ -72,7 +72,7 @@ impl DefMap {
         self.table.find(id)
     }
 
-    pub fn record(session: &mut Session, module: &Module) {
+    pub fn record<'a>(session: &mut Session<'a>, module: &Module) {
         let mut visitor = DefMapVisitor {
             session: session,
             qualifier: vec!(),

@@ -13,12 +13,12 @@ use util::lexer::SourceToken;
 use super::mut_visitor::*;
 use super::*;
 
-pub struct MacroExpander {
-    macros: TreeMap<Name, Box<Expander>>,
+pub struct MacroExpander<'a> {
+    macros: TreeMap<Name, Box<Expander + 'a>>,
 }
 
 struct MacroExpanderVisitor<'a> {
-    session: &'a mut Session,
+    session: &'a mut Session<'a>,
 }
 
 fn expand_file(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
@@ -225,8 +225,8 @@ impl MutVisitor for MacroCollector {
     }
 }
 
-impl MacroExpander {
-    pub fn new() -> MacroExpander {
+impl<'a> MacroExpander<'a> {
+    pub fn new() -> MacroExpander<'a> {
         use mc::session::interner as tls_interner;
 
         let interner = tls_interner.get().unwrap();

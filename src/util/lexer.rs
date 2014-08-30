@@ -47,25 +47,25 @@ impl<A, T: RuleMatcher<A>, U: TokenMaker<A, V>, V> LexerRuleT<V> for LexerRule<T
     }
 }
 
-pub struct Language<T> {
+pub struct Language<'a, T> {
     pub eof: T,
     pub ws: T,
     pub begin_comment: T,
     pub end_comment: T,
-    pub rules: Vec<Box<LexerRuleT<T>>>,
-    pub comment_rules: Vec<Box<LexerRuleT<T>>>,
+    pub rules: Vec<Box<LexerRuleT<T> + 'a>>,
+    pub comment_rules: Vec<Box<LexerRuleT<T> + 'a>>,
 }
 
-pub struct Lexer<B, T> {
+pub struct Lexer<'a, B, T> {
     lines: BufferLines<B>,
     line: Option<String>,
     pos: SourcePos,
     name: String,
     // Ordinary rules.
-    rules: Vec<Box<LexerRuleT<T>>>,
+    rules: Vec<Box<LexerRuleT<T> + 'a>>,
     // Rules specifically for when we're within a comment. We need this
     // for handling multi-line comments.
-    comment_rules: Vec<Box<LexerRuleT<T>>>,
+    comment_rules: Vec<Box<LexerRuleT<T> + 'a>>,
     comment_nest: uint,
     // We set this to Some(Eof) and take it when we hit EOF
     eof: Option<T>,
@@ -74,12 +74,13 @@ pub struct Lexer<B, T> {
     endcomment: T,
 }
 
-impl<B: Buffer, T> Lexer<B, T> {
+impl<'a, B: Buffer, T> Lexer<'a, B, T> {
     pub fn get_name(&self) -> String {
         self.name.clone()
     }
 
-    pub fn new<S: StrAllocating>(lang: Language<T>, name: S, buffer: B) -> Lexer<B, T> {
+    pub fn new<S: StrAllocating>(lang: Language<T>,
+                                 name: S, buffer: B) -> Lexer<'a, B, T> {
         Lexer {
             pos:  SourcePos::new(),
             line: Some(String::new()),
@@ -97,7 +98,7 @@ impl<B: Buffer, T> Lexer<B, T> {
 }
 
 // The meat of the lexer (read this as a stateful flat-map)
-impl<B: Buffer, T: Eq> Iterator<SourceToken<T>> for Lexer<B, T> {
+impl<'a, B: Buffer, T: Eq> Iterator<SourceToken<T>> for Lexer<'a, B, T> {
     fn next(&mut self) -> Option<SourceToken<T>> {
         loop {
             match self.line {

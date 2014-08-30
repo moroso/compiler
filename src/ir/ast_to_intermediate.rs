@@ -18,7 +18,7 @@ use std::cmp::max;
 pub struct ASTToIntermediate<'a> {
     var_count: uint,
     label_count: uint,
-    session: &'a mut Session,
+    session: &'a mut Session<'a>,
     typemap: &'a mut Typemap,
     manglemap: &'a TreeMap<NodeId, String>,
     continue_labels: Vec<uint>,

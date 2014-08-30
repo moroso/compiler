@@ -51,13 +51,13 @@ struct ConstCollector<'a> {
     graph: ConstGraph,
     nodes: TreeMap<NodeId, VertexIndex>,
     consts: TreeMap<NodeId, &'a Expr>,
-    session: &'a Session,
+    session: &'a Session<'a>,
 }
 
 struct ConstGraphBuilder<'a> {
     graph: &'a mut ConstGraph,
     nodes: &'a TreeMap<NodeId, VertexIndex>,
-    session: &'a Session,
+    session: &'a Session<'a>,
 }
 
 type Constant = LitNode;
@@ -420,7 +420,7 @@ pub struct Typemap {
 pub struct Typechecker<'a> {
     defs: TreeMap<NodeId, BoundsId>,
     generics: Vec<TreeMap<NodeId, WithId<Ty>>>,
-    session: &'a Session,
+    session: &'a Session<'a>,
     next_bounds_id: uint,
     exits: Vec<WithId<Ty>>,
     typemap: Typemap,

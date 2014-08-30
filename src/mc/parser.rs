@@ -59,7 +59,7 @@ pub struct StreamParser<'a, T> {
     /// The span corresponding to the last token we consumed from the stream.
     last_span: Span,
     /// The session in which we're parsing this stream
-    session: &'a mut Session,
+    session: &'a mut Session<'a>,
     /// Any parsing restriction in the current context
     restriction: Restriction,
     /// Path to current source file
@@ -185,7 +185,7 @@ fn binop_token(op: BinOpNode) -> Token {
 }
 
 // Convenience function for testing
-pub fn ast_from_str<U>(s: &str, f: |&mut StreamParser<Lexer<::std::io::BufferedReader<::std::io::MemReader>, Token>>| -> U) -> (Session, U) {
+pub fn ast_from_str<'a, U>(s: &str, f: |&mut StreamParser<Lexer<::std::io::BufferedReader<::std::io::MemReader>, Token>>| -> U) -> (Session<'a>, U) {
     let mut session = Session::new(Options::new());
     let tree = Parser::parse_with(&mut session, lexer_from_str(s), f);
     (session, tree)
