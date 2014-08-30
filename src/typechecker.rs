@@ -1542,6 +1542,7 @@ mod tests {
     use mc::ast::visitor::Visitor;
     use mc::parser::ast_from_str;
     use mc::session::{Session, Options};
+    use mc::setup_builtin_search_paths;
 
     use super::Typechecker;
 
@@ -1549,7 +1550,9 @@ mod tests {
 
     #[test]
     fn basic_tyck_test() {
-        let mut session = Session::new(Options::new());
+        let mut opts = Options::new();
+        setup_builtin_search_paths(&mut opts);
+        let mut session = Session::new(opts);
         let tree = session.parse_package_str(r"
 enum Option<T> {
     Some(T),

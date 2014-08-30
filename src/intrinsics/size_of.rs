@@ -163,6 +163,7 @@ mod tests {
     use std::io::stdio;
 
     use mc::session::*;
+    use mc::setup_builtin_search_paths;
 
     use super::*;
 
@@ -182,7 +183,7 @@ mod tests {
 
         let typemap = typeck.get_typemap();
 
-        let ty = typemap.types.get(&ast.id.to_uint());
+        let ty = &typemap.types[ast.id.to_uint()];
         assert_eq!(size_of_ty(&session, &typemap, ty), expected_size);
     }
 
@@ -238,7 +239,9 @@ mod tests {
 
     // Asserts that the structure described by `t` has size `expected_size`.
     fn test_sizeof_structure_helper(t: &str, expected_size: u64) {
-        let mut session = Session::new(Options::new());
+        let mut opts = Options::new();
+        setup_builtin_search_paths(&mut opts);
+        let mut session = Session::new(opts);
         let module = session.parse_package_str(t);
 
         let mut typeck = Typechecker::new(&session);

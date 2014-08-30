@@ -41,7 +41,7 @@ macro_rules! targets {
 }
 
 
-fn setup_builtin_search_paths(opts: &mut Options) {
+pub fn setup_builtin_search_paths(opts: &mut Options) {
     // Unless it gets overridden, pull out a prelude based on the
     // install location of the binary. This is kind of dubious.
     match os::self_exe_path() {
@@ -174,7 +174,7 @@ pub fn main() {
 #[cfg(test)]
 mod tests {
     use package::Package;
-    use super::NullTarget;
+    use super::{NullTarget, setup_builtin_search_paths};
     use target::Target;
     use std::io::stdio;
 
@@ -183,7 +183,9 @@ mod tests {
         use std::io;
         let bytes = Vec::from_slice(s.as_bytes());
         let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
-        Package::from_buffer(super::session::Options::new(), "<input>", buffer)
+        let mut opts = super::session::Options::new();
+        setup_builtin_search_paths(&mut opts);
+        Package::from_buffer(opts, "<input>", buffer)
     }
 
     #[test]
