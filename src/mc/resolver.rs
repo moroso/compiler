@@ -259,7 +259,7 @@ impl<'a> ModuleResolver<'a> {
 
     /// Adds the given name to the given namespace as the given node_id in the current scope
     fn add_to_scope(&mut self, ns: NS, name: Name, node_id: NodeId) {
-        let subscope = self.scope.mut_last().take_unwrap();
+        let subscope = self.scope.mut_last().take().unwrap();
         subscope.insert(ns, name, node_id);
     }
 

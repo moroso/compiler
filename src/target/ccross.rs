@@ -381,7 +381,7 @@ impl<'a> CCrossCompiler<'a> {
                 let did = self.session.resolver.def_from_path(path);
                 let is_param = {
                     // Is this type a type parameter?
-                    let d = self.session.defmap.find(&did).take_unwrap();
+                    let d = self.session.defmap.find(&did).take().unwrap();
                     match *d {
                         GenericDef => true,
                         _ => false,

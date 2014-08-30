@@ -283,7 +283,7 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
                     GenericInt
                 };
 
-                Some((groups.at(0).len(), (from_str_radix(num_str, radix).take_unwrap(), kind)))
+                Some((groups.at(0).len(), (from_str_radix(num_str, radix).take().unwrap(), kind)))
             },
             _ => None
         }

@@ -579,7 +579,7 @@ impl<'a> Typechecker<'a> {
     }
 
     fn get_bounds(&self, bid: BoundsId) -> TyBounds {
-        self.typemap.bounds.find(&bid.to_uint()).take_unwrap().clone()
+        self.typemap.bounds.find(&bid.to_uint()).take().unwrap().clone()
     }
 
     fn update_bounds(&mut self, bid: BoundsId, bounds: TyBounds) {
@@ -593,7 +593,7 @@ impl<'a> Typechecker<'a> {
     }
 
     fn get_bound_ty(&mut self, nid: NodeId) -> Ty {
-        let bid = *self.defs.find(&nid).take_unwrap();
+        let bid = *self.defs.find(&nid).take().unwrap();
         match self.get_bounds(bid) {
             Concrete(ty) => ty,
             _ => BoundTy(bid),
@@ -623,7 +623,7 @@ impl<'a> Typechecker<'a> {
             PtrType(ref t) => PtrTy(box self.type_to_ty(&**t)),
             NamedType(ref path) => {
                 let nid = self.session.resolver.def_from_path(path);
-                match *self.session.defmap.find(&nid).take_unwrap() {
+                match *self.session.defmap.find(&nid).take().unwrap() {
                     StructDef(_, _, ref tps) => {
                         let tys = self.tps_to_tys(
                             t.id, tps, &path.val.elems.last().unwrap().val.tps, false);
@@ -688,9 +688,9 @@ impl<'a> Typechecker<'a> {
             }
             VariantPat(ref path, ref pats) => {
                 let nid = self.session.resolver.def_from_path(path);
-                match *self.session.defmap.find(&nid).take_unwrap() {
+                match *self.session.defmap.find(&nid).take().unwrap() {
                     VariantDef(_, ref enum_nid, ref args) => {
-                        let tps = match *self.session.defmap.find(enum_nid).take_unwrap() {
+                        let tps = match *self.session.defmap.find(enum_nid).take().unwrap() {
                             EnumDef(_, _, ref tps) => tps,
                             _ => self.error_fatal(nid, "Nonsensical enum id for variant"),
                         };
@@ -718,7 +718,7 @@ impl<'a> Typechecker<'a> {
             }
             StructPat(ref path, ref fps) => {
                 let nid = self.session.resolver.def_from_path(path);
-                match *self.session.defmap.find(&nid).take_unwrap() {
+                match *self.session.defmap.find(&nid).take().unwrap() {
                     StructDef(_, ref fields, ref tps) => {
                         let tp_tys = self.tps_to_tys(
                             pat.id, tps, &path.val.elems.last().unwrap().val.tps, true);
@@ -759,7 +759,7 @@ impl<'a> Typechecker<'a> {
     fn func_def_to_ty(&mut self, arg_ids: &Vec<NodeId>, ret_t: &Type) -> Ty {
         let ret_ty = self.type_to_ty(ret_t);
         let arg_tys = arg_ids.iter().map(|arg_id| {
-            match *self.session.defmap.find(arg_id).take_unwrap() {
+            match *self.session.defmap.find(arg_id).take().unwrap() {
                 FuncArgDef(ref t) => self.type_to_ty(t),
                 _ => self.session.bug_span(*arg_id, "Nonsensical arg id for func def"),
             }
@@ -779,7 +779,7 @@ impl<'a> Typechecker<'a> {
             GroupExpr(ref e) => self.expr_to_ty(&**e).val,
             PathExpr(ref path) => {
                 let nid = self.session.resolver.def_from_path(path);
-                match *self.session.defmap.find(&nid).take_unwrap() {
+                match *self.session.defmap.find(&nid).take().unwrap() {
                     FuncDef(ref args, ref t, ref tps) => {
                         let tp_tys = self.tps_to_tys(
                             expr.id, tps, &path.val.elems.last().unwrap().val.tps, true);
@@ -794,7 +794,7 @@ impl<'a> Typechecker<'a> {
                         self.type_to_ty(t).val
                     }
                     VariantDef(_, ref enum_nid, ref args) => {
-                        let tps = match *self.session.defmap.find(enum_nid).take_unwrap() {
+                        let tps = match *self.session.defmap.find(enum_nid).take().unwrap() {
                             EnumDef(_, _, ref tps) => tps,
                             _ => self.error_fatal(expr.id, "Nonsensical enum id for variant"),
                         };
@@ -834,7 +834,7 @@ impl<'a> Typechecker<'a> {
             }
             StructExpr(ref path, ref flds) => {
                 let nid = self.session.resolver.def_from_path(path);
-                let (fields, tps) = match *self.session.defmap.find(&nid).take_unwrap() {
+                let (fields, tps) = match *self.session.defmap.find(&nid).take().unwrap() {
                     StructDef(_, ref fields, ref tps) => (fields, tps),
                     _ => self.error_fatal(expr.id,
                                           format!("{} does not name a struct", path)),
@@ -973,7 +973,7 @@ impl<'a> Typechecker<'a> {
                                            format!("Expression is not a structure, got {}", ty)),
                 };
 
-                match *self.session.defmap.find(&nid).take_unwrap() {
+                match *self.session.defmap.find(&nid).take().unwrap() {
                     StructDef(ref name, ref fields, ref tps) => {
                         let mut gs = TreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
@@ -1002,7 +1002,7 @@ impl<'a> Typechecker<'a> {
                 };
 
                 // FIXME: code duplication with above
-                match *self.session.defmap.find(&nid).take_unwrap() {
+                match *self.session.defmap.find(&nid).take().unwrap() {
                     StructDef(ref name, ref fields, ref tps) => {
                         let mut gs = TreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
@@ -1466,7 +1466,7 @@ impl<'a> Visitor for Typechecker<'a> {
                         let mut ty = me.type_to_ty(t).val;
                         let diverges = ty == BottomTy;
                         for i in range(0, me.exits.len()).rev() {
-                            let exit_ty = me.exits.swap_remove(i).take_unwrap();
+                            let exit_ty = me.exits.swap_remove(i).take().unwrap();
                             ty = me.unify_with_cause(item.id, InvalidReturn, ty.with_id_of(item), exit_ty);
                         }
 

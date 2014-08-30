@@ -312,7 +312,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             self.advance();
         }
 
-        let st = self.next.take_unwrap();
+        let st = self.next.take().unwrap();
         self.last_span = st.sp;
         st.tok
     }
