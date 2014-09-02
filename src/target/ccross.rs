@@ -294,9 +294,9 @@ impl<'a> CCrossCompiler<'a> {
                 let lit = WithId { id: id.id, val: lit };
                 format!("#define {} (({}){})\n", name, ty, self.visit_lit(&lit))
             }
-            FuncItem(ref name, ref args, ref t, ref block, _) => {
-                match *block {
-                    Some(ref block) => {
+            FuncItem(ref name, ref args, ref t, ref def, _) => {
+                match *def {
+                    LocalFn(ref block) => {
                         let ty = self.visit_type(t);
                         let name = self.visit_ident(name);
                         let args = self.mut_visit_list(
@@ -311,7 +311,7 @@ impl<'a> CCrossCompiler<'a> {
 
                         format!("{} {}({}) {}", ty, name, args, block)
                     }
-                    None => String::new(),
+                    ExternFn(..) => String::new(),
                 }
             }
             StructItem(ref id, ref fields, _) => {
@@ -773,7 +773,7 @@ impl<'a> CCrossCompiler<'a> {
 
             for item in module.val.items.iter() {
                 match item.val {
-                    FuncItem(ref name, ref args, ref t, ref b, _) => {
+                    FuncItem(ref name, ref args, ref t, ref d, _) => {
                         let ty = me.visit_type(t);
                         let name = me.visit_ident(name);
                         // This is a terrible hack.
@@ -787,11 +787,11 @@ impl<'a> CCrossCompiler<'a> {
                             |me, x| me.visit_func_arg(x),
                             ", ");
 
-                        match *b {
-                            Some(_) =>
+                        match *d {
+                            LocalFn(_) =>
                                 results.push(format!("{} {}({});\n",
                                                      ty, name, args)),
-                            None =>
+                            ExternFn(_) =>
                                 results.push(format!("extern {} {}({});\n",
                                                      ty, name, args))
                         }

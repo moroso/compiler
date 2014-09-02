@@ -222,10 +222,10 @@ impl<'a> ASTToIntermediate<'a> {
         match item.val {
             FuncItem(ref id, ref args, _, ref block, _) => {
                 let (new_ops, v) = match *block {
-                    Some(ref block) => self.convert_block(block),
+                    LocalFn(ref block) => self.convert_block(block),
                     // For extern functions, we'll generate a Func() op,
                     // but nothing else.
-                    None => (vec!(), Some(self.gen_temp()))
+                    ExternFn(..) => (vec!(), Some(self.gen_temp()))
                 };
 
                 let vars: Vec<Var> = args
@@ -242,8 +242,8 @@ impl<'a> ASTToIntermediate<'a> {
                                     Variable(var.clone()))).collect();
 
                 let mut ops = vec!(Func(self.mangled_ident(id), vars,
-                                        block.is_none()));
-                if block.is_some() {
+                                        block.is_extern()));
+                if block.is_local() {
                     ops.push_all_move(var_stores);
                     ops.push_all_move(new_ops);
 
@@ -267,7 +267,7 @@ impl<'a> ASTToIntermediate<'a> {
                         offset: None,
                         is_ref: false,
                         is_func: true,
-                        is_extern: block.is_none(),
+                        is_extern: block.is_extern(),
                         expr: None,
                     }
                     ))

@@ -461,8 +461,30 @@ pub struct ImportNode {
 }
 
 #[deriving(Eq, PartialEq, Clone)]
+pub enum FuncDef {
+    LocalFn(Block),
+    ExternFn(Name),
+}
+
+impl FuncDef {
+    pub fn is_local(&self) -> bool {
+        match *self {
+            LocalFn(..) => true,
+            ExternFn(..) => false,
+        }
+    }
+
+    pub fn is_extern(&self) -> bool {
+        match *self {
+            LocalFn(..) => false,
+            ExternFn(..) => true,
+        }
+    }
+}
+
+#[deriving(Eq, PartialEq, Clone)]
 pub enum ItemNode {
-    FuncItem(Ident, Vec<FuncArg>, Type, Option<Block>, Vec<Ident>),
+    FuncItem(Ident, Vec<FuncArg>, Type, FuncDef, Vec<Ident>),
     StructItem(Ident, Vec<Field>, Vec<Ident>),
     EnumItem(Ident, Vec<Variant>, Vec<Ident>),
     TypeItem(Ident, Type, Vec<Ident>),
@@ -476,12 +498,19 @@ pub enum ItemNode {
 impl Show for ItemNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
-            FuncItem(ref id, ref args, ref t, ref def, ref tps) => {
+            FuncItem(ref id, ref args, ref t, LocalFn(ref block), ref tps) => {
                 try!(write!(f, "fn {}", id));
                 if tps.len() > 0 {
                     try!(write!(f, "<{}>", tps));
                 }
-                write!(f, "({}) -> {} {}", args, t, def)
+                write!(f, "({}) -> {} {}", args, t, block)
+            },
+            FuncItem(ref id, ref args, ref t, ExternFn(ref abi), ref tps) => {
+                try!(write!(f, "extern \"{}\" fn {}", abi, id));
+                if tps.len() > 0 {
+                    try!(write!(f, "<{}>", tps));
+                }
+                write!(f, "({}) -> {};", args, t)
             },
             StructItem(ref id, ref fields, ref tps) => {
                 try!(write!(f, "struct {}", id));

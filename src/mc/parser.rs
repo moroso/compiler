@@ -1328,15 +1328,27 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     fn parse_extern_item(&mut self) -> Item {
         let start_span = self.cur_span();
         self.expect(Extern);
+
+        let abi = match *self.peek() {
+            StringTok(..) => match self.eat() { StringTok(s) => Some(s), _ => unreachable!() },
+            _ => None,
+        };
+
         match *self.peek() {
             Fn => {
                 let (funcname, args, return_type, type_params) = self.parse_func_prototype();
                 self.expect(Semicolon);
                 let end_span = self.cur_span();
-                self.add_id_and_span(FuncItem(funcname, args, return_type, None, type_params),
+                let abi = self.session.interner.intern(abi.unwrap_or(String::from_str("C")));
+                self.add_id_and_span(FuncItem(funcname, args, return_type,
+                                              ExternFn(abi), type_params),
                                      start_span.to(end_span))
             }
             Static => {
+                if abi != None {
+                    self.peek_error("ABI specifiers are invalid on extern static items");
+                }
+
                 let (name, ty) = self.parse_static_decl();
                 self.expect(Semicolon);
                 let end_span = self.cur_span();
@@ -1378,9 +1390,9 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     fn parse_func_item(&mut self) -> Item {
         let start_span = self.cur_span();
         let (funcname, args, return_type, type_params) = self.parse_func_prototype();
-        let body = Some(self.parse_block());
+        let body = self.parse_block();
         let end_span = self.cur_span();
-        self.add_id_and_span(FuncItem(funcname, args, return_type, body, type_params),
+        self.add_id_and_span(FuncItem(funcname, args, return_type, LocalFn(body), type_params),
                              start_span.to(end_span))
     }
 

@@ -27,8 +27,8 @@ pub enum Def {
     GenericDef,
 
     /// Function definition, with the NodeIds of the args, the return
-    /// type, and the NodeIds of any type parameters
-    FuncDef(Vec<NodeId>, Type, Vec<NodeId>),
+    /// type, the extern ABI if any, and the NodeIds of any type parameters
+    FuncDef(Vec<NodeId>, Type, Option<Name>, Vec<NodeId>),
 
     /// Function argument definition (maybe this should be replaced with PatDef?)
     FuncArgDef(Type),
@@ -139,10 +139,19 @@ impl<'a> Visitor for DefMapVisitor<'a> {
                     tp.id
                 }).collect();
 
-                self.session.defmap.table.insert(ident.id, FuncDef(arg_def_ids, t.clone(), tp_def_ids));
+                let abi = match *def {
+                    LocalFn(..) => None,
+                    ExternFn(abi) => Some(abi),
+                };
+
+                self.session.defmap.table.insert(ident.id, FuncDef(arg_def_ids, t.clone(), abi, tp_def_ids));
 
                 self.qualifier.push(ident.val.name);
-                for def in def.iter() { self.visit_block(def); }
+
+                match *def {
+                    LocalFn(ref block) => self.visit_block(block),
+                    ExternFn(..) => {}
+                }
                 self.qualifier.pop();
             },
             StructItem(ref ident, ref fields, ref tps) => {
@@ -235,7 +244,7 @@ mod tests {
         DefMap::record(&mut session, &tree);
 
         assert_eq!(format!("{}", session.defmap.find(&NodeId(0))).as_slice(),
-                   "Some(FuncDef([NodeId(2)], (), [NodeId(1)]))");
+                   "Some(FuncDef([NodeId(2)], (), None, [NodeId(1)]))");
         assert_eq!(format!("{}", session.defmap.find(&NodeId(7))).as_slice(),
                    "Some(PatDef(None))");
     }

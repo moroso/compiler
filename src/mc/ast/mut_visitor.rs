@@ -24,7 +24,10 @@ pub fn walk_item<T: MutVisitor>(visitor: &mut T, item: &mut Item) {
             visitor.visit_ident(id);
             for arg in args.mut_iter() { visitor.visit_func_arg(arg); }
             visitor.visit_type(t);
-            for def in def.mut_iter() { visitor.visit_block(def); }
+            match *def {
+                LocalFn(ref mut block) => visitor.visit_block(block),
+                ExternFn(..) => {}
+            }
             for id in tps.mut_iter() { visitor.visit_ident(id); }
         },
         StructItem(ref mut id, ref mut fields, ref mut tps) => {

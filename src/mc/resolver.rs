@@ -451,7 +451,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
             UseItem(ref import) => {
                 self.handle_use(import);
             }
-            FuncItem(_, ref args, ref t, ref block, ref tps) => {
+            FuncItem(_, ref args, ref t, ref def, ref tps) => {
                 self.descend(None, |me| {
                     for tp in tps.iter() {
                         me.add_ident_to_scope(TypeAndModNS, tp);
@@ -461,7 +461,10 @@ impl<'a> Visitor for ModuleResolver<'a> {
                         me.visit_type(&arg.argtype);
                         me.add_ident_to_scope(ValNS, &arg.ident);
                     }
-                    for block in block.iter() { me.visit_block(block); }
+                    match *def {
+                        LocalFn(ref block) => me.visit_block(block),
+                        ExternFn(..) => {}
+                    }
                 });
             }
             StaticItem(ref ident, ref ty, ref expr, _) => {

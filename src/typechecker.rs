@@ -780,7 +780,7 @@ impl<'a> Typechecker<'a> {
             PathExpr(ref path) => {
                 let nid = self.session.resolver.def_from_path(path);
                 match *self.session.defmap.find(&nid).take().unwrap() {
-                    FuncDef(ref args, ref t, ref tps) => {
+                    FuncDef(ref args, ref t, _, ref tps) => {
                         let tp_tys = self.tps_to_tys(
                             expr.id, tps, &path.val.elems.last().unwrap().val.tps, true);
                         let mut gs = TreeMap::new();
@@ -1449,33 +1449,32 @@ impl<'a> Visitor for Typechecker<'a> {
     fn visit_item(&mut self, item: &Item) {
         match item.val {
             UseItem(..) => {}
-            FuncItem(_, _, ref t, ref b, ref tps) => {
-                for b in b.iter() {
-                    let tp_ids = tps.iter().map(|tp| tp.id).collect();
-                    let tp_tys = self.tps_to_tys(item.id, &tp_ids, &None, true);
-                    let mut gs = TreeMap::new();
-                    for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
-                        gs.insert(tp.id, tp_ty.clone());
+            FuncItem(_, _, ref t, LocalFn(ref b), ref tps) => {
+                let tp_ids = tps.iter().map(|tp| tp.id).collect();
+                let tp_tys = self.tps_to_tys(item.id, &tp_ids, &None, true);
+                let mut gs = TreeMap::new();
+                for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
+                    gs.insert(tp.id, tp_ty.clone());
+                }
+
+                self.with_generics(gs, |me| {
+                    me.exits.clear();
+                    let ty = me.block_to_ty(b);
+                    me.exits.push(ty);
+
+                    let mut ty = me.type_to_ty(t).val;
+                    let diverges = ty == BottomTy;
+                    for i in range(0, me.exits.len()).rev() {
+                        let exit_ty = me.exits.swap_remove(i).take().unwrap();
+                        ty = me.unify_with_cause(item.id, InvalidReturn, ty.with_id_of(item), exit_ty);
                     }
 
-                    self.with_generics(gs, |me| {
-                        me.exits.clear();
-                        let ty = me.block_to_ty(b);
-                        me.exits.push(ty);
-
-                        let mut ty = me.type_to_ty(t).val;
-                        let diverges = ty == BottomTy;
-                        for i in range(0, me.exits.len()).rev() {
-                            let exit_ty = me.exits.swap_remove(i).take().unwrap();
-                            ty = me.unify_with_cause(item.id, InvalidReturn, ty.with_id_of(item), exit_ty);
-                        }
-
-                        if diverges && ty != BottomTy {
-                            me.error(item.id, "diverging function may return");
-                        }
-                    });
-                }
+                    if diverges && ty != BottomTy {
+                        me.error(item.id, "diverging function may return");
+                    }
+                });
             }
+            FuncItem(..) => {}
             ModItem(_, ref module) => {
                 self.visit_module(module);
             }

@@ -59,12 +59,12 @@ impl<'a> Visitor for NameMangler<'a> {
             StructItem(ref id, _, _) |
             EnumItem(ref id, _, _) |
             ConstItem(ref id, _, _) |
-            FuncItem(ref id, _, _, Some(_), _) => {
+            FuncItem(ref id, _, _, LocalFn(..), _) => {
                 self.mangle_id(id, item);
             },
             // Extern things don't get managled.
             StaticItem(ref id, _, None, true) |
-            FuncItem(ref id, _, _, None, _) => {
+            FuncItem(ref id, _, _, ExternFn(..), _) => {
                 if self.mangle_externs {
                     self.mangle_id(id, item);
                 } else {
