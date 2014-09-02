@@ -20,7 +20,7 @@ fn main() -> u32 {
     print_uint(a.y as u32);
     print_uint(a.z);
     a.y = 7;
-    print_uint(b->y);
+    print_int(b->y as i32);
 
     0
 }
