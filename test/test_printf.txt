@@ -1,0 +1,10 @@
+hello, world: %
+num: 12 -12 deadbeef DEADBEEF 11001100 A weeelp
+padding: |  12| |0012| | -12| |-012| |12  | |-12 |
+int_min: -2147483648
+pointer? 0x00001337
+dynamic padding: |  12|
+========== snprintf time ===========
+47 num: 12 -12 deadbeef DEADBEEF 11001100 A weeelp
+47 num: 12 -12 deadbeef DEADBE
+4  num: 12 -12 deadbeef DEADBE

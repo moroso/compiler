@@ -10,6 +10,13 @@ __prelude__print_int:
         { break 0x1f; }
         { b r31 + 1; r30 <- r1; }
 
+__prelude__print_char:
+        { r1 <- r30; }
+        { r30 <- 2; }
+        { break 0x1f; }
+        { b r31 + 1; r30 <- r1; }
+
+
 // TODO: there's room for optimization here.
 rt_memcpy: { p1 <- r2 == 0 }
            { p1 -> b r31 + 1; }
@@ -20,7 +27,6 @@ memcpy_loop:
            { p0 -> b r31 + 1; }
 
 // TODO: the following are placeholders.
-__prelude__print_char:
 __prelude__rt_abort:
 __prelude__rt_malloc:
 __utils__buddy_alloc__machine_phys_frames:

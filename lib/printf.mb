@@ -221,7 +221,7 @@ fn vprintf(fmt: *u8, args: **()) -> i32 {
     do_printf!(fmt, args, __vprintf_out!);
     n
 }
-macro printf!(fmt) { call_printf!(::printf::vprintf, varargs!(...), $fmt) }
+macro printf!(fmt) { call_printf!(::prelude::printf::vprintf, varargs!(...), $fmt) }
 
 macro __vsnprintf_out!(c) { {
     if n+1 < size {
@@ -243,7 +243,7 @@ fn vsnprintf(out: *u8, size: u32, fmt: *u8, args: **()) -> i32 {
     n as i32
 }
 macro snprintf!(s, size, fmt) {
-    call_printf!(::printf::vsnprintf, varargs!(...), $s, $size, $fmt)
+    call_printf!(::prelude::printf::vsnprintf, varargs!(...), $s, $size, $fmt)
 }
 
 

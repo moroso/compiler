@@ -1,0 +1,43 @@
+fn printf_test() {
+    printf!("hello, world: %%\n");
+
+    printf!("num: %d %d %x %X %b %c %s\n",
+            12, -12, 0xdeadbeef, 0xdeadbeef, 0xcc, 'A', "weeelp");
+
+    printf!("padding: |%4d| |%04d| |%4d| |%04d| |%-4d| |%-4d|\n",
+            12, 12, -12, -12, 12, -12);
+
+    printf!("int_min: %d\n", 0x80000000);
+    printf!("pointer? %p\n", 0x1337);
+
+    printf!("dynamic padding: |%*d|\n", 4, 12);
+
+}
+
+fn snprintf_test() {
+    printf!("========== snprintf time ===========\n");
+
+    let abuf: u8[100];
+    let buf = &abuf[0];
+
+    let n = snprintf!(buf, 100,
+                      "num: %d %d %x %X %b %c %s",
+                      12, -12, 0xdeadbeef, 0xdeadbeef, 0xcc, 'A', "weeelp");
+    printf!("%d %s\n", n, buf);
+
+    n = snprintf!(buf, 28,
+                  "num: %d %d %x %X %b %c %s",
+                  12, -12, 0xdeadbeef, 0xdeadbeef, 0xcc, 'A', "weeelp");
+    printf!("%d %s\n", n, buf);
+
+    // Test an annoying special case - size == 0 - nothing written
+    n = snprintf!(buf, 0, "BBBB");
+    printf!("%-2d %s\n", n, buf);
+}
+
+
+fn main() -> i32 {
+    printf_test();
+    snprintf_test();
+    0
+}
