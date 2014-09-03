@@ -247,6 +247,16 @@ pub fn schedule_dummy(insts: &Vec<InstNode>,
                                    TreeMap<String, uint>) {
     let mut packets = vec!();
 
+    let mut modified_labels: TreeMap<String, uint> = TreeMap::new();
+    let mut jump_target_dict: TreeMap<uint, Vec<&String>> = TreeMap::new();
+    for (label, pos) in labels.iter() {
+        if jump_target_dict.contains_key(pos) {
+            jump_target_dict.find_mut(pos).unwrap().push(label);
+        } else {
+            jump_target_dict.insert(*pos, vec!(label));
+        }
+    }
+
     for i in range(0, insts.len()) {
         match insts[i] {
             LongInst(..) => continue,
@@ -258,6 +268,11 @@ pub fn schedule_dummy(insts: &Vec<InstNode>,
             CompareLongInst(..) => true,
             _ => false,
         };
+        update_labels(&jump_target_dict,
+                      &mut modified_labels,
+                      i,
+                      packets.len());
+
         if is_long {
             packets.push([insts[i].clone(), insts[i+1].clone(), NopInst,
                           NopInst]);
@@ -266,7 +281,7 @@ pub fn schedule_dummy(insts: &Vec<InstNode>,
         }
     }
 
-    (packets, labels.clone())
+    (packets, modified_labels)
 }
 
 pub fn schedule(insts: &Vec<InstNode>,
