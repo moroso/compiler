@@ -1,5 +1,5 @@
 _start:
-        { bl _INIT_GLOBALS; r30 <- 0x1000; }
+        { bl _INIT_GLOBALS; r30 <- 0x80000; }
         { bl __main; }
         { r30 <- 0; }
         { break 0x1f; }
