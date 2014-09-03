@@ -357,12 +357,12 @@ impl Target for IRTarget {
         // I wish that this was actually the same as the ccross one, but it differs slightly.
         // We could probably get this merged.
         writeln!(f, "{}", "#include <stdint.h>");
+        writeln!(f, "{}", "#include <stdlib.h>");
         writeln!(f, "{}", "typedef unsigned int uint_t;");
         writeln!(f, "{}", "typedef int int_t;");
 
         writeln!(f, "{}", "#ifndef MB_FREESTANDING");
         writeln!(f, "{}", "#include <stdio.h>");
-        writeln!(f, "{}", "#include <stdlib.h>");
         writeln!(f, "{}", "#include <string.h>");
 
         writeln!(f, "{}", "long print_int(long x) { printf(\"%d\\n\", (int)x); return x; }");

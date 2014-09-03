@@ -27,12 +27,12 @@ use values::*;
 pub fn emit_ccross_prelude(f: &mut Writer) {
     // This freestanding stuff is a hack but hey, so is the rest of this?
     writeln!(f, "{}", "#include <stdint.h>");
+    writeln!(f, "{}", "#include <stdlib.h>");
     writeln!(f, "{}", "typedef unsigned int uint_t;");
     writeln!(f, "{}", "typedef int int_t;");
 
     writeln!(f, "{}", "#ifndef MB_FREESTANDING");
     writeln!(f, "{}", "#include <stdio.h>");
-    writeln!(f, "{}", "#include <stdlib.h>");
 
     writeln!(f, "{}", "int32_t print_int(int32_t x) { printf(\"%d\\n\", (int)x); return x; }");
     writeln!(f, "{}", "int32_t print_char(int32_t x) { putchar((int)x); return x; }");
