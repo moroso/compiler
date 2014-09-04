@@ -1,0 +1,11 @@
+fn _is_digit(c: u8) -> bool { c >= '0' && c <= '9' }
+
+fn main() -> u32 {
+    if _is_digit('d') {
+        print_uint(5);
+    } else {
+        print_uint(6);
+    }
+
+    0
+}

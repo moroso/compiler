@@ -679,7 +679,17 @@ fn assign_vars(regmap: &TreeMap<Var, RegisterColor>,
                offs: u32) -> Vec<InstNode> {
     let mut result = vec!();
 
+    let mut reg_transformations: TreeMap<Reg, (Reg,
+                                               Vec<InstNode>,
+                                               Vec<InstNode>)> = TreeMap::new();
+    let mut rev_map: TreeMap<Reg, Reg> = TreeMap::new();
+
     for var in vars.iter() {
+        // Globals don't need assignments.
+        if global_map.find(&var.name).is_some() {
+            continue;
+        }
+
         let new_var = Var {
             name: var.name.clone(),
             generation: Some(*gens.find(&var.name).unwrap())
@@ -688,20 +698,111 @@ fn assign_vars(regmap: &TreeMap<Var, RegisterColor>,
                                                  offs);
         let (dest_reg, _, dest_insts) = var_to_reg(regmap, global_map,
                                                    &new_var, 1, offs);
-        result.push_all_move(src_insts);
         if src_reg != dest_reg {
-            result.push(
-                InstNode::alu1reg(
-                    pred.clone(),
-                    MovAluOp,
-                    dest_reg,
-                    src_reg,
-                    SllShift,
-                    0));
+            rev_map.insert(dest_reg.clone(), src_reg.clone());
+            reg_transformations.insert(src_reg,
+                                       (dest_reg.clone(),
+                                        src_insts,
+                                        dest_insts));
         }
-        result.push_all_move(dest_insts);
     }
 
+    // This is a little like a toposort, except that we might have cycles we need
+    // to break.
+    while !reg_transformations.is_empty() {
+        // See if there's any assignment rA->rB where rB is not also the source
+        // of an assignment. If so, it's safe to store rA in rB.
+        let res = reg_transformations.iter().find(|&(_, &(dest, _, _))|
+                                                  !reg_transformations.contains_key(
+                                                      &dest)).map(|(x, y)|
+                                                                  (x.clone(),
+                                                                   y.clone()));
+
+        match res {
+            Some((src_reg, (dest_reg, ref src_insts, ref dest_insts))) =>
+            {
+                // There's a leaf; it's safe to just assign it.
+                reg_transformations.remove(&src_reg);
+                result.push_all(src_insts.as_slice());
+                result.push(
+                    InstNode::alu1reg(
+                        pred.clone(),
+                        MovAluOp,
+                        dest_reg,
+                        src_reg,
+                        SllShift,
+                        0));
+                result.push_all(dest_insts.as_slice());
+            },
+            None => {
+                // This is more exciting! There's a cycle. We need to
+                // use a temp register to break it, and then follow
+                // the cycle around.
+
+                // Start with any assignment at all. They're all part
+                // of cycles.
+                let (src_reg, (dest_reg, src_insts, dest_insts)) =
+                    reg_transformations.iter().find(|_|true)
+                    .map(|(x, y)| (x.clone(), y.clone())).unwrap();
+                reg_transformations.remove(&src_reg);
+                result.push_all(src_insts.as_slice());
+                result.push(
+                    InstNode::alu1reg(
+                        pred.clone(),
+                        MovAluOp,
+                        global_reg.clone(),
+                        src_reg.clone(),
+                        SllShift,
+                        0));
+
+                // global_reg now contains the value that should
+                // ultimately go into dest_reg.
+
+                let mut this_src = &src_reg;
+                loop {
+                    // Find the register that's stored into our
+                    // previous source register. That source register
+                    // has been moved to its destination (or the temp
+                    // register), so it's safe to move over it now.
+                    this_src = rev_map.find(this_src).unwrap();
+
+                    // If the register we're trying to move from is
+                    // the original register we were moving from,
+                    // we're at the end of the loop. Its *actual*
+                    // value is in the temp register.
+                    if *this_src == src_reg {
+                        break;
+                    }
+
+                    let (this_dest, src_insts, dest_insts)
+                        = reg_transformations.find(this_src).unwrap().clone();
+                    reg_transformations.remove(this_src);
+                    result.push_all_move(src_insts);
+                    result.push(
+                        InstNode::alu1reg(
+                            pred.clone(),
+                            MovAluOp,
+                            this_dest,
+                            this_src.clone(),
+                            SllShift,
+                            0));
+                    result.push_all_move(dest_insts);
+                }
+
+                // Now it's just a matter of assigning the temporary
+                // variable to the original destination.
+                result.push(
+                    InstNode::alu1reg(
+                        pred.clone(),
+                        MovAluOp,
+                        dest_reg,
+                        global_reg.clone(),
+                        SllShift,
+                        0));
+                result.push_all_move(dest_insts);
+            }
+        }
+    }
     result
 }
 
@@ -962,7 +1063,8 @@ impl IrToAsm {
                             1,
                             0));
                     result.push_all_move(assign_vars(&regmap, global_map,
-                                                     &true_pred,
+                                                     &Pred { inverted: *negated,
+                                                             reg: 0 },
                                                      &labels[*label],
                                                      vars, stack_item_offs));
                     result.push(

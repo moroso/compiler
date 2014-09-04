@@ -1,0 +1,28 @@
+fn t() -> bool { false }
+
+fn main() -> u32 {
+    let a: u32 = 0;
+    let b: u32 = 1;
+    let d: u32 = 3;
+    let c: u32 = 2;
+
+    let x = !t();
+    let y: u32;
+
+    if x {
+        a = 0;
+        b = 1;
+        d = 3;
+        c = 2;
+        y = 0;
+    }
+
+
+    print_uint(y);
+    print_uint(a);
+    print_uint(c);
+    print_uint(b);
+    print_uint(d);
+
+    0
+}

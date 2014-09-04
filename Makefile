@@ -64,6 +64,7 @@ ASM_TEST_FILES := \
 	test_casts.mb \
 	test_call.mb \
 	test_char.mb \
+	test_conditionals.mb \
 	test_const.mb \
 	test_do_while.mb \
 	test_enums.mb \
@@ -80,6 +81,7 @@ ASM_TEST_FILES := \
 	test_pointer_arith.mb \
 	test_recursion.mb \
 	test_recursive_types.mb \
+	test_reg_clobber.mb \
 	test_shift.mb \
 	test_short_circuit.mb \
 	test_sign_extend.mb \
