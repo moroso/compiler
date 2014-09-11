@@ -1,0 +1,12 @@
+fn main() -> u32 {
+    let x: u32 = 0;
+    let y: *u8 = &x as *u8;
+
+    *y = 1;
+    *(y+1) = 2;
+    *(y+3) = 4;
+    *(y+2) = 3;
+    print_uint(x);
+
+    0
+}

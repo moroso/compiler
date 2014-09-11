@@ -167,7 +167,7 @@ impl Target for AsmTarget {
                 }
             }
 
-            let (packets, new_labels) = schedule(&asm_insts,
+            let (packets, new_labels) = schedule_dummy(&asm_insts,
                                                  &labels,
                                                  self.verbose);
 

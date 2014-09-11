@@ -878,9 +878,11 @@ impl IrToAsm {
         for (inst, op) in ops.iter().enumerate() {
             match *op {
                 Alloca(ref var, size) => {
+                    // We must be aligned on 4-byte boundaries.
+                    let size_adjust = (4 - (size % 4)) % 4;
                     if !global_map.find(&var.name).is_some() {
                         stack_item_map.insert(inst, stack_item_offs);
-                        stack_item_offs += size as u32;
+                        stack_item_offs += (size + size_adjust) as u32;
                     }
                 },
                 Call(..) => { has_call = true; }

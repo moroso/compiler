@@ -1,0 +1,9 @@
+fn main() -> u32 {
+    let i = 0;
+    while i < 3 {
+        print_uint(i);
+        i += 1;
+    }
+
+    0
+}

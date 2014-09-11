@@ -79,6 +79,7 @@ ASM_TEST_FILES := \
 	test_nested_struct.mb \
 	test_param_types.mb \
 	test_pointer_arith.mb \
+	test_ptr_width.mb \
 	test_recursion.mb \
 	test_recursive_types.mb \
 	test_reg_clobber.mb \
@@ -93,7 +94,8 @@ ASM_TEST_FILES := \
 	test_struct_init.mb \
 	test_struct_offs.mb \
 	test_struct_yo_dawg.mb \
-	test_unop_on_field_access.mb
+	test_unop_on_field_access.mb \
+	test_while.mb
 
 #	test_string.mb \
 #
