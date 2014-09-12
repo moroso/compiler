@@ -226,7 +226,7 @@ fn convert_binop<'a>(
                 _ => None,
             };
 
-            match binop_to_cmpop(op, false, swapped) {
+            match binop_to_cmpop(op, signed, swapped) {
                 Some((cmptype, negated)) => {
                     match packed {
                         Some((val, rot)) =>
