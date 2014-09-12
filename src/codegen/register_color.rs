@@ -34,8 +34,10 @@ impl RegisterColorer {
         for &(var, _) in freq_vec.iter() {
             let maybe_pos = mem_locs.find(&var.name);
             match maybe_pos {
-                Some(i) => { coloring.insert(var.clone(),
-                                             StackColor(*i as int)); },
+                // We don't want to override any "must colors", but otherwise want to put every generation
+                // of a given variable in the same place on the stack.
+                Some(i) if coloring.find(var).is_none() => { coloring.insert(var.clone(),
+                                                                             StackColor(*i as int)); },
                 _ => {},
             }
         }

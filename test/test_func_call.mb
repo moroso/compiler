@@ -8,6 +8,7 @@ fn inner(a: u8, b: u32, c: u32, d: u32, e: u32, f: u32,
     let x3: u32 = 6;
     let p0: *u8 = &x0;
     let p1: *u32 = &x1;
+    let p2: *u8 = &a;
 
     print_uint(a as u32);
     print_uint(b);
