@@ -80,6 +80,7 @@ ASM_TEST_FILES := \
 	test_nested_struct.mb \
 	test_param_types.mb \
 	test_pointer_arith.mb \
+	test_printf.mb \
 	test_ptr_width.mb \
 	test_recursion.mb \
 	test_recursive_types.mb \
@@ -173,7 +174,7 @@ test/ir-c-results/%.txt: test/ir-c-bin/%
 
 test/asm-results/%.txt: test/asm-bin/%.bin
 	@mkdir -p $(dir $@)
-	@timeout $(SIM_DURATION) $(CPU_SIM) < $< |grep 'HAS VALUE' |sed 's/.*VALUE //;s/ .*//' > $@
+	@((timeout $(SIM_DURATION) $(CPU_SIM) < $< |grep 'HAS VALUE' |sed 's/.*VALUE //;s/ .*//') 2>&1) > $@
 	@diff $@ $(patsubst test/asm-results/%.txt,test/%.txt,$@)
 
 .PHONY: all docs clean run-tests check
