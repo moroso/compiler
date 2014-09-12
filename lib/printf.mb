@@ -53,6 +53,10 @@ fn _format_uint(n: u32, base: u32, width: u32, flags: u32, out: *u8) -> *u8 {
     let s = out + FMT_UINT_BUF_SIZE - 1;
     let o = s;
 
+    ::prelude::print_uint(12345 as u32);
+    ::prelude::print_uint(out as u32);
+    ::prelude::print_uint(s as u32);
+
     // Generate the digits backwards from the end of the string.
     do {
         *o = chars[n % base];
@@ -83,6 +87,10 @@ fn _format_uint(n: u32, base: u32, width: u32, flags: u32, out: *u8) -> *u8 {
         }
     }
 
+    ::prelude::print_uint(1111111 as u32);
+    ::prelude::print_uint(o as u32);
+    ::prelude::print_uint(s as u32);
+
     o + 1
 }
 
@@ -102,8 +110,12 @@ macro do_printf!(fmt, args, out) { {
         let _width = 0;
         let _precision: u32 = ~0; // "infinity"
 
+        ::prelude::print_uint(_s as u32);
+
         if *_s != '%' { $out(*_s); continue; }
         _s += 1;
+
+        ::prelude::print_uint(_s as u32);
 
         // Handle "%%"
         if *_s == '%' { $out(*_s); continue; }
@@ -121,6 +133,8 @@ macro do_printf!(fmt, args, out) { {
             }
         }
 
+        ::prelude::print_uint(_s as u32);
+
         // parse width
         if _is_digit(*_s) {
             _width = _atoi(_s, &_s);
@@ -129,6 +143,8 @@ macro do_printf!(fmt, args, out) { {
             _i += 1;
             _s += 1;
         }
+
+        ::prelude::print_uint(_s as u32);
 
         // Parse precision
         if *_s == '.' {
@@ -143,7 +159,7 @@ macro do_printf!(fmt, args, out) { {
             }
         }
 
-
+        ::prelude::print_uint(_s as u32);
 
         let _arg = _args[_i] as u32;
         _i += 1;
@@ -195,12 +211,29 @@ macro do_printf!(fmt, args, out) { {
             0
         };
 
+        ::prelude::print_uint(1 as u32);
+        ::prelude::print_uint(_s as u32);
+        ::prelude::print_uint(&_s as u32);
+        ::prelude::print_uint(666 as u32);
+        ::prelude::print_uint(_s as u32);
+        ::prelude::print_uint((*((&_s) as *u8+-1)) as u32);
+        ::prelude::print_uint((*((&_s) as *u8)) as u32);
+        ::prelude::print_uint((*((&_s) as *u8+1)) as u32);
+        ::prelude::print_uint((*((&_s) as *u8+2)) as u32);
+        ::prelude::print_uint((*((&_s) as *u8+3)) as u32);
         let _p = _format_uint(_arg, _base, _width, _flags, &_tmpbuf[0]);
+        ::prelude::print_uint(667 as u32);
+        ::prelude::print_uint(*(&_s as *u8) as u32);
+        ::prelude::print_uint(_s as u32);
+        ::prelude::print_uint(2 as u32);
         let _n = &_tmpbuf[0] + FMT_UINT_BUF_SIZE - _p;
+        ::prelude::print_uint(_s as u32);
         while _p < &_tmpbuf[0] + FMT_UINT_BUF_SIZE {
             $out(*_p);
             _p += 1;
         }
+
+        ::prelude::print_uint(_s as u32);
 
         if _flags & FMT_FLAG_LEFT_JUSTIFY != 0 {
             while _n < _width {
@@ -208,6 +241,9 @@ macro do_printf!(fmt, args, out) { {
                 _n += 1;
             }
         }
+
+        ::prelude::print_uint(_s as u32);
+        ::prelude::print_uint(31337 as u32);
 
     }
 } }

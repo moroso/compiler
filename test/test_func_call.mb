@@ -1,0 +1,47 @@
+// Test calling functions when there's likely to be a lot of spilling.
+
+fn inner(a: u8, b: u32, c: u32, d: u32, e: u32, f: u32,
+         g: u32, h: u32, i: u32, j: u32, k: u32) -> u32 {
+    let x0: u8 = 3;
+    let x1: u32 = 4;
+    let x2: u32 = 5;
+    let x3: u32 = 6;
+    let p0: *u8 = &x0;
+    let p1: *u32 = &x1;
+
+    print_uint(a as u32);
+    print_uint(b);
+    print_uint(c);
+    print_uint(d);
+    print_uint(e);
+    print_uint(f);
+    print_uint(g);
+    print_uint(h);
+    print_uint(i);
+    print_uint(j);
+    print_uint(k);
+
+    print_uint(x0 as u32);
+    print_uint(x1);
+    print_uint(x2);
+    print_uint(x3);
+
+    0
+}
+
+fn main() -> u32 {
+    let x0: u8 = 3;
+    let x1: u32 = 4;
+    let x2: u32 = 5;
+    let x3: u32 = 6;
+    let p0: *u8 = &x0;
+    let p1: *u32 = &x1;
+
+    inner(1,2,3,4,5,6,7,8,9,10,11);
+    print_uint(x0 as u32);
+    print_uint(x1);
+    print_uint(x2);
+    print_uint(x3);
+
+    0
+}

@@ -79,6 +79,28 @@ impl ConflictAnalyzer {
                 }
             }
 
+            // If we define a variable somewhere, it conflicts with
+            // all variables that are live in instructions immediately
+            // following it.
+            for succ in info.succ.iter() {
+                let ref succinfo = opinfo[*succ];
+                for var1 in succinfo.live.iter() {
+                    for var2 in info.def.iter() {
+                        if var1 != var2 {
+                            if !conflict_map.contains_key(var1) {
+                                conflict_map.insert(*var1, TreeSet::<Var>::new());
+                            }
+                            if !conflict_map.contains_key(var2) {
+                                conflict_map.insert(*var2, TreeSet::<Var>::new());
+                            }
+
+                            conflict_map.find_mut(var1).unwrap().insert(*var2);
+                            conflict_map.find_mut(var2).unwrap().insert(*var1);
+                        }
+                    }
+                }
+            }
+
             for used_var in info.used.iter().chain(info.def.iter()) {
                 let new_count = counts.find(used_var).unwrap_or(&0) + 1;
                 counts.insert(*used_var, new_count);

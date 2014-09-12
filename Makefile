@@ -69,6 +69,7 @@ ASM_TEST_FILES := \
 	test_do_while.mb \
 	test_enums.mb \
 	test_for_loop.mb \
+	test_func_call.mb \
 	test_func_prototypes.mb \
 	test_func_ptr.mb \
 	test_globals.mb \
