@@ -930,6 +930,7 @@ impl IrToAsm {
         let load32_op = LsuOp { store: false, width: LsuWidthL };
 
         let mut result = vec!();
+        let mut num_saved = 0;
         for (pos, op) in ops.iter().enumerate() {
             match *op {
                 Func(ref name, _, is_extern) => {
@@ -946,6 +947,7 @@ impl IrToAsm {
                                             link_register
                                             )
                                 );
+                        num_saved = 1;
                     }
 
                     // Save all callee-save registers
@@ -959,6 +961,7 @@ impl IrToAsm {
                                              x * 4) as i32,
                                             Reg { index: i })
                                 );
+                        num_saved = x + 1 + (if has_call { 1 } else { 0 });
                     }
                 },
                 Return(ref rve) => {
@@ -1137,7 +1140,7 @@ impl IrToAsm {
                     let total_vars = vars.len();
 
                     let stack_arg_offs = stack_item_offs as int +
-                                         (max_stack_index + 1) * 4;
+                                         (max_stack_index + num_saved as int) * 4;
 
                     // This is where the stack pointer should end up pointing.
                     // We always reserve at least num_param_regs slots: either
