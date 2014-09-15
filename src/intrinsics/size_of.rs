@@ -245,7 +245,7 @@ mod tests {
         let module = session.parse_package_str(t);
 
         let mut typeck = Typechecker::new(&session);
-        typeck.visit_module(&module);
+        typeck.typecheck(&module);
 
         assert_eq!(size_of_def(&session, &typeck.get_typemap(), &NodeId(0)), expected_size);
     }
