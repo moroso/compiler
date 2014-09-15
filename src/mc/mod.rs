@@ -168,7 +168,7 @@ pub fn main() {
         deps::output_deps(&package, &target);
     }
 
-    target.compile(package, writer);
+    target.compile(package, &mut *writer);
 }
 
 #[cfg(test)]
@@ -215,6 +215,6 @@ fn main() {
 }
 ";
         let package = package_from_str(src);
-        NullTarget.compile(package, box stdio::stdout() as Box<Writer>);
+        NullTarget.compile(package, &mut stdio::stdout() as &mut Writer);
     }
 }
