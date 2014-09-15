@@ -39,7 +39,8 @@ const FMT_FLAG_HEX_CAPS: u32 = 0x08;
 const FMT_UINT_BUF_SIZE: u32 = 32+1;
 
 // Print out values for debugging.
-macro debug_spew!(x) { ::prelude::print_uint($x as u32) }
+//macro debug_spew!(x) { ::prelude::print_uint($x as u32) }
+macro debug_spew!(x) { () }
 
 // Core numeric formatting routine. Handles arbitrary bases (2-16),
 // right justification with spaces or zeros, inserting minus signs.
