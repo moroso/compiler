@@ -489,6 +489,59 @@ impl<'a> Typechecker<'a> {
         }
     }
 
+    // Do we want ty_str and friends to be some sort of trait, like rustc does?
+    fn ty_str(&self, t: &Ty) -> String {
+        match *t {
+            BoolTy => format!("bool"),
+            GenericIntTy => format!("<int>"),
+            IntTy(w) => format!("i{}", w),
+            UintTy(w) => format!("u{}", w),
+            UnitTy => format!("()"),
+            PtrTy(ref t) => format!("*{}", self.ty_str_(&**t)),
+            // This is probably kind of wrong
+            ArrayTy(ref t, size) => {
+                let s = size.map_or(format!(""), |n| format!("{}", n));
+                format!("{}[{}]", self.ty_str_(&**t), s)
+            }
+            TupleTy(ref ts) => {
+                let vs: Vec<String> = ts.iter().map(|t| self.ty_str_(t)).collect();
+                format!("({})", vs.connect(", "))
+            }
+            FuncTy(ref ts, ref t) => {
+                let vs: Vec<String> = ts.iter().map(|t| self.ty_str_(t)).collect();
+                if t.val == UnitTy {
+                    format!("fn ({})", vs.connect(", "))
+                } else {
+                    format!("fn ({}) -> {}", vs.connect(", "), self.ty_str_(&**t))
+                }
+            }
+            StructTy(id, ref ts) |
+            EnumTy(id, ref ts) => {
+                let path = self.session.pathmap.find(&id).expect("missing id for struct/enum");
+                let s = path.connect("::");
+                let vs: Vec<String> = ts.iter().map(|t| self.ty_str_(t)).collect();
+                if vs.is_empty() {
+                    s
+                } else {
+                    format!("{}<{}>", s, vs.connect(", "))
+                }
+            }
+            BoundTy(id) => {
+                self.tybounds_str(&self.get_bounds(id))
+            }
+            BottomTy => format!("!")
+        }
+    }
+    fn ty_str_(&self, t: &WithId<Ty>) -> String { self.ty_str(&t.val) }
+
+    fn tybounds_str(&self, t: &TyBounds) -> String {
+        match *t {
+            Concrete(ref t) => self.ty_str(t),
+            Constrained(ref ks) => format!("<kinds {}>", ks),
+            Unconstrained => format!("<unconstrained>"),
+        }
+    }
+
     fn expr_to_const(&self, e: &Expr) -> Constant {
         let c = constant_fold(self.session, &self.typemap.consts, e);
         self.unwrap_const(c)
@@ -894,7 +947,8 @@ impl<'a> Typechecker<'a> {
 
                 match a_ty.val {
                     ArrayTy(ty, _) | PtrTy(ty) => ty.val,
-                    ty => self.error_fatal(expr.id, format!("Cannot index into a {}", ty))
+                    ty => self.error_fatal(expr.id,
+                                           format!("Cannot index into a {}", self.ty_str(&ty)))
                 }
             }
             IfExpr(ref c, ref tb, ref fb) => {
@@ -970,7 +1024,8 @@ impl<'a> Typechecker<'a> {
                 let (nid, tp_tys) = match e_ty.val { //self.unify(BottomTy, e_ty) {
                     StructTy(nid, tp_tys) => (nid, tp_tys),
                     ty => self.error_fatal(e.id,
-                                           format!("Expression is not a structure, got {}", ty)),
+                                           format!("Expression is not a structure, got {}",
+                                                   self.ty_str(&ty))),
                 };
 
                 match *self.session.defmap.find(&nid).take().unwrap() {
@@ -1155,7 +1210,7 @@ impl<'a> Typechecker<'a> {
                         if !t1.val.kinds().contains(ks) {
                             self.type_error(
                                 format!("Expected type with bounds {} but found type {}",
-                                        bounds, t1.val));
+                                        self.tybounds_str(&bounds.val), self.ty_str_(&t1)));
                         }
                         t1.val
                     }
@@ -1383,13 +1438,15 @@ impl<'a> Typechecker<'a> {
         match current_unify {
             Some((ref full_ty1, ref full_ty2)) => {
                 self.type_error_with_notes(
-                    format!("Expected type {} but found type {}", full_ty1.val, full_ty2.val), vec!(
-                    (ty1.id, format!("note: expected type: {}", ty1.val)),
-                    (ty2.id, format!("note: but got type: {}", ty2.val))
+                    format!("Expected type {} but found type {}",
+                            self.ty_str_(full_ty1), self.ty_str_(full_ty2)), vec!(
+                    (ty1.id, format!("note: expected type: {}", self.ty_str_(ty1))),
+                    (ty2.id, format!("note: but got type: {}", self.ty_str_(ty2)))
                 ))
             }
             _ => {
-                self.type_error(format!("Expected type {} but found type {}", ty1.val, ty2.val))
+                self.type_error(format!("Expected type {} but found type {}",
+                                        self.ty_str_(ty1), self.ty_str_(ty2)))
             }
         }
     }
