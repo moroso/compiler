@@ -27,6 +27,8 @@ use std::{io, mem, num, vec};
 use std::collections::{HashMap, TreeMap, TreeSet};
 use std::iter::Peekable;
 
+use std::io::fs::PathExtensions;
+
 use super::ast::*;
 use super::lexer::*;
 
