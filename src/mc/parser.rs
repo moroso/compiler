@@ -639,7 +639,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         Parse a type.
         */
         let start_span = self.cur_span();
-        let mut node = match *self.peek() {
+        let node = match *self.peek() {
             IntTypeTok(ik) => {
                 self.eat();
                 IntType(ik)
@@ -686,23 +686,25 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             _ => self.peek_error("Expected *, opening paren, a type name, or fn"),
         };
 
-        let mut result;
-        while {
-            let end_span = self.cur_span();
-            result = self.add_id_and_span(node, start_span.to(end_span));
-            true
-        } {
-            node = match *self.peek() {
-                LBracket => {
-                    self.expect(LBracket);
-                    let d = self.parse_expr();
-                    self.expect(RBracket);
-                    ArrayType(box result, box d)
-                }
-                _ => return result
-            }
+        let mut dims = vec!();
+        while *self.peek() == LBracket {
+            self.expect(LBracket);
+            let dim = self.parse_expr();
+            self.expect(RBracket);
+            dims.push(dim);
         }
-        unreachable!()
+
+        // XXX this span is bogus but so is our array type syntax :P
+        let end_span = self.cur_span();
+        let sp = start_span.to(end_span);
+
+        let mut result = self.add_id_and_span(node, sp);
+        while !dims.is_empty() {
+            let dim = dims.pop().unwrap();
+            result = self.add_id_and_span(ArrayType(box result, box dim), sp);
+        }
+
+        result
     }
 
     pub fn parse_let_stmt(&mut self) -> Stmt {
