@@ -1,4 +1,4 @@
-RUST_FLAGS ?=
+RUST_FLAGS ?= -O
 
 CPU_SIM ?= ../cpu/sim/cpu_sim/cpu_sim
 
@@ -103,8 +103,8 @@ ASM_TEST_FILES := \
 #	test_string.mb \
 #
 
-IR_TEST_FILES := $(ASM_TEST_FILES) \
-	test_string.mb
+IR_TEST_FILES := $(ASM_TEST_FILES)
+#	test_string.mb
 
 mbc: $(addprefix src/,$(MC_FILES))
 	rustc $(RUST_FLAGS) $< --cfg mc -o $@ -g
@@ -130,7 +130,7 @@ doc/%/index.html: %.rs
 test: test/c test/c-bin test/c-results test/ir-c-results test/asm-results
 
 test/c: $(addprefix test/,$(patsubst %.mb,c/%.c,$(TEST_FILES)))
-test/ir-c: $(addprefix test/,$(patsubst %.mb,c/%.c,$(IR_TEST_FILES)))
+test/ir-c: $(addprefix test/,$(patsubst %.mb,ir-c/%.c,$(IR_TEST_FILES)))
 
 test/c-bin: $(addprefix test/,$(patsubst %.mb,c-bin/%,$(TEST_FILES)))
 test/ir-c-bin: $(addprefix test/,$(patsubst %.mb,ir-c-bin/%,$(IR_TEST_FILES)))
@@ -142,10 +142,12 @@ test/asm-results: $(addprefix test/,$(patsubst %.mb,asm-results/%.txt,$(ASM_TEST
 
 test/c/%.c: test/%.mb mbc
 	@mkdir -p $(dir $@)
+	@echo -e " MBC\t$<"
 	@./mbc --target c $< -o $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
 
 test/ir-c/%.c: test/%.mb mbc
 	@mkdir -p $(dir $@)
+	@echo -e " MBC\t$<"
 	@./mbc --target ir $< -o $@ 2>$(addsuffix .log,$@) || (cat $@; cat $(addsuffix .log,$@); rm $@; false)
 
 test/c-bin/%: test/c/%.c test/%.txt
