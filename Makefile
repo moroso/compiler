@@ -32,6 +32,7 @@ MC_FILES := \
 	mas/scheduler.rs \
 	mas/util.rs \
 	mc/ast/defmap.rs \
+	mc/ast/pathmap.rs \
 	mc/ast/macros.rs \
 	mc/ast/mod.rs \
 	mc/ast/mut_visitor.rs \

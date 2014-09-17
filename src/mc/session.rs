@@ -10,6 +10,7 @@ use mc::ast::NodeId;
 
 use super::ast::Module;
 use super::ast::defmap::DefMap;
+use super::ast::pathmap::PathMap;
 use super::resolver::Resolver;
 use super::parser::Parser;
 use super::lexer::new_mb_lexer;
@@ -36,6 +37,7 @@ pub struct Options {
 pub struct Session<'a> {
     pub options: Options,
     pub defmap: DefMap,
+    pub pathmap: PathMap,
     pub resolver: Resolver,
     pub parser: Parser,
     pub expander: MacroExpander<'a>,
@@ -103,6 +105,7 @@ impl<'a> Session<'a> {
         Session {
             options: opts,
             defmap: DefMap::new(),
+            pathmap: PathMap::new(),
             resolver: Resolver::new(),
             parser: Parser::new(),
             expander: MacroExpander::new(),
@@ -199,6 +202,7 @@ impl<'a> Session<'a> {
 
         MacroExpander::expand_macros(self, &mut module);
         DefMap::record(self, &module);
+        PathMap::record(self, &module);
         Resolver::resolve(self, &module);
         module
     }

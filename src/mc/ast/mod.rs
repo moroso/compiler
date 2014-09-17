@@ -8,6 +8,7 @@ pub mod visitor;
 pub mod mut_visitor;
 pub mod defmap;
 pub mod macros;
+pub mod pathmap;
 
 #[deriving(Clone, Eq)]
 pub struct WithId<T> {
