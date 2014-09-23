@@ -1,20 +1,20 @@
 // Prototype Mb implementation of printf.
 
 // Create an array initializer containing all of its arguments,
-// cast to u32. To make sure it is non-empty and can be type-inferred,
-// it has an extra 0 placed at the end. This means it will always be
+// cast to *(). To make sure it is non-empty and can be type-inferred,
+// it has an extra null placed at the end. This means it will always be
 // one element larger than its number of "actual" elements.
 //
 // This is used to implement *printf! in terms of v*printf functions.
-macro varargs!() { [ map_macro!(__varargs_cast!, ..., 0) ] }
-macro __varargs_cast!(x) { $x as u32 }
+macro varargs!() { [ map_macro!(__varargs_cast!, ..., null) ] }
+macro __varargs_cast!(x) { $x as *() }
 
 // Takes a vararg packet before the leading arguments to the vprintf
 // function, since we don't have a way to pick the *last* argument...
 // The arguments to vprintf are given as macro varargs.
 macro call_printf!(vprintf, args) { {
     let ___v = $args;
-    $vprintf(..., &___v[0] as **())
+    $vprintf(..., &___v[0])
 } }
 
 /// Implementation of the core printf engine.
