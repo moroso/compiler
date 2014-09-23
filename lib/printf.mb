@@ -38,10 +38,6 @@ const FMT_FLAG_HEX_CAPS: u32 = 0x08;
 // 32 binary digits + minus sign
 const FMT_UINT_BUF_SIZE: u32 = 32+1;
 
-// Print out values for debugging.
-//macro debug_spew!(x) { ::prelude::print_uint($x as u32) }
-macro debug_spew!(x) { () }
-
 // Core numeric formatting routine. Handles arbitrary bases (2-16),
 // right justification with spaces or zeros, inserting minus signs.
 //
@@ -56,10 +52,6 @@ fn _format_uint(n: u32, base: u32, width: u32, flags: u32, out: *u8) -> *u8 {
 
     let s = out + FMT_UINT_BUF_SIZE - 1;
     let o = s;
-
-    debug_spew!(12345);
-    debug_spew!(out);
-    debug_spew!(s);
 
     // Generate the digits backwards from the end of the string.
     do {
@@ -91,10 +83,6 @@ fn _format_uint(n: u32, base: u32, width: u32, flags: u32, out: *u8) -> *u8 {
         }
     }
 
-    debug_spew!(1111111);
-    debug_spew!(o);
-    debug_spew!(s);
-
     o + 1
 }
 
@@ -114,12 +102,8 @@ macro do_printf!(fmt, args, out) { {
         let _width = 0;
         let _precision: u32 = ~0; // "infinity"
 
-        debug_spew!(_s);
-
         if *_s != '%' { $out(*_s); continue; }
         _s += 1;
-
-        debug_spew!(_s);
 
         // Handle "%%"
         if *_s == '%' { $out(*_s); continue; }
@@ -137,8 +121,6 @@ macro do_printf!(fmt, args, out) { {
             }
         }
 
-        debug_spew!(_s);
-
         // parse width
         if _is_digit(*_s) {
             _width = _atoi(_s, &_s);
@@ -147,8 +129,6 @@ macro do_printf!(fmt, args, out) { {
             _i += 1;
             _s += 1;
         }
-
-        debug_spew!(_s);
 
         // Parse precision
         if *_s == '.' {
@@ -162,8 +142,6 @@ macro do_printf!(fmt, args, out) { {
                 _s += 1;
             }
         }
-
-        debug_spew!(_s);
 
         let _arg = _args[_i] as u32;
         _i += 1;
@@ -215,29 +193,12 @@ macro do_printf!(fmt, args, out) { {
             0
         };
 
-        debug_spew!(1);
-        debug_spew!(_s);
-        debug_spew!(&_s);
-        debug_spew!(666);
-        debug_spew!(_s);
-        debug_spew!((*((&_s) as *u8+-1)));
-        debug_spew!((*((&_s) as *u8)));
-        debug_spew!((*((&_s) as *u8+1)));
-        debug_spew!((*((&_s) as *u8+2)));
-        debug_spew!((*((&_s) as *u8+3)));
         let _p = _format_uint(_arg, _base, _width, _flags, &_tmpbuf[0]);
-        debug_spew!(667);
-        debug_spew!(*(&_s as *u8));
-        debug_spew!(_s);
-        debug_spew!(2);
         let _n = &_tmpbuf[0] + FMT_UINT_BUF_SIZE - _p;
-        debug_spew!(_s);
         while _p < &_tmpbuf[0] + FMT_UINT_BUF_SIZE {
             $out(*_p);
             _p += 1;
         }
-
-        debug_spew!(_s);
 
         if _flags & FMT_FLAG_LEFT_JUSTIFY != 0 {
             while _n < _width {
@@ -245,10 +206,6 @@ macro do_printf!(fmt, args, out) { {
                 _n += 1;
             }
         }
-
-        debug_spew!(_s);
-        debug_spew!(31337);
-
     }
 } }
 
