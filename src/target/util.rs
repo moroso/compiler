@@ -58,6 +58,7 @@ impl<'a> Visitor for NameMangler<'a> {
             StructItem(ref id, _, _) |
             EnumItem(ref id, _, _) |
             ConstItem(ref id, _, _) |
+            TypeItem(ref id, _, _) |
             FuncItem(ref id, _, _, LocalFn(..), _) => {
                 self.mangle_id(id, item);
             },

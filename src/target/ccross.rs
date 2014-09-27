@@ -349,7 +349,7 @@ impl<'a> CCrossCompiler<'a> {
             TypeItem(ref id, ref ty, _) => {
                 let name = self.visit_ident(id);
                 let ty = self.visit_type(ty);
-                format!("typedef {} {};\n", &name[..], &ty[..])
+                format!("typedef {} {};\n", &ty[..], &name[..])
             }
             StaticItem(ref id, ref ty, ref expr, is_extern) => {
                 let name_and_type = self.visit_id_and_type(id.id, ty);
