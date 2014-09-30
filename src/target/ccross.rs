@@ -45,6 +45,8 @@ pub fn emit_ccross_prelude(f: &mut Write) {
     writeln!(f, "{}", "int32_t print_int(int32_t x) { return x; }");
     writeln!(f, "{}", "int32_t print_char(int32_t x) { return x; }");
     writeln!(f, "{}", "#endif");
+    writeln!(f, "{}", "");
+    writeln!(f, "{}", "");
 }
 
 struct CCrossCompiler<'a> {
@@ -302,7 +304,7 @@ impl<'a> CCrossCompiler<'a> {
                     .expect("finding const in map")
                     .clone().ok().expect("getting const value"); // wee
                 let lit = WithId { id: id.id, val: lit };
-                format!("#define {} (({}){})\n", name, ty, self.visit_lit(&lit))
+                format!("#define {} (({}){})", name, ty, self.visit_lit(&lit))
             }
             FuncItem(ref name, ref args, ref t, ref def, _) => {
                 match *def {
@@ -319,7 +321,7 @@ impl<'a> CCrossCompiler<'a> {
                             }
                         });
 
-                        format!("{} {}({}) {}", ty, name, args, block)
+                        format!("{} {}({}) {}\n", ty, name, args, block)
                     }
                     ExternFn(..) => String::new(),
                 }
@@ -795,7 +797,14 @@ impl<'a> CCrossCompiler<'a> {
             }
         }
 
+        let len = results.len();
         f(self, results, module);
+        // If something got added inside this module, add a blank line
+        // to keep seperation between stuff that came from different
+        // modules.
+        if results.len() > len {
+            results.push(String::from_str(""));
+        }
     }
 
     fn visit_module(&mut self, module: &Module) -> String {
@@ -803,22 +812,22 @@ impl<'a> CCrossCompiler<'a> {
 
         // Typedefs
         self.visit_module_worker(&mut results, module, &|me, results, module| {
-            results.push(me.mut_visit_list(&module.val.items, |me, item| {
+            for item in module.val.items.iter() {
                 match item.val {
-                    TypeItem(..) => me.visit_item(item),
-                    _ => "".to_string(),
+                    TypeItem(..) => results.push(me.visit_item(item)),
+                    _ => (),
                 }
-            }, "\n"));
+            }
         });
 
         // Constants
         self.visit_module_worker(&mut results, module, &|me, results, module| {
-            results.push(me.mut_visit_list(&module.val.items, |me, item| {
+            for item in module.val.items.iter() {
                 match item.val {
-                    ConstItem(..) => me.visit_item(item),
-                    _ => "".to_string(),
+                    ConstItem(..) => results.push(me.visit_item(item)),
+                    _ => (),
                 }
-            }, "\n"));
+            }
         });
 
         // Now print struct prototypes.
@@ -828,7 +837,7 @@ impl<'a> CCrossCompiler<'a> {
                     StructItem(ref id, _, _) |
                     EnumItem(ref id, _, _) => {
                         let name = me.visit_ident(id);
-                        results.push(format!("struct {};\n", name));
+                        results.push(format!("struct {};", name));
                     },
                     _ => {}
                 }
@@ -856,10 +865,10 @@ impl<'a> CCrossCompiler<'a> {
 
                         match *d {
                             LocalFn(_) =>
-                                results.push(format!("{} {}({});\n",
+                                results.push(format!("{} {}({});",
                                                      ty, name, args)),
                             ExternFn(_) =>
-                                results.push(format!("extern {} {}({});\n",
+                                results.push(format!("extern {} {}({});",
                                                      ty, name, args))
                         }
                     },
@@ -885,26 +894,26 @@ impl<'a> CCrossCompiler<'a> {
         let structs = self.sort_structs(struct_map);
         results.push(self.mut_visit_list(&structs, |me, item| {
             me.visit_item(item)
-        }, "\n"));
+        }, "\n\n"));
 
         // Now globals
         self.visit_module_worker(&mut results, module, &|me, results, module| {
-            results.push(me.mut_visit_list(&module.val.items, |me, item| {
+            for item in module.val.items.iter() {
                 match item.val {
-                    StaticItem(..) => me.visit_item(item),
-                    _ => "".to_string(),
+                    StaticItem(..) => results.push(me.visit_item(item)),
+                    _ => ()
                 }
-            }, "\n"));
+            }
         });
 
         // And functions
         self.visit_module_worker(&mut results, module, &|me, results, module| {
-            results.push(me.mut_visit_list(&module.val.items, |me, item| {
+            for item in module.val.items.iter() {
                 match item.val {
-                    FuncItem(..) => me.visit_item(item),
-                    _ => "".to_string(),
+                    FuncItem(..) => results.push(me.visit_item(item)),
+                    _ => ()
                 }
-            }, "\n"));
+            }
         });
 
         results.connect("\n")
