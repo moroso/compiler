@@ -11,6 +11,8 @@ pub trait GraphExt<V> {
 }
 
 impl<V: Copy+Eq+Ord+Debug, E: Debug> GraphExt<V> for Graph<V, E> {
+    // Returns a list in which a node appears *after* anything it had
+    // an edge to.
     fn toposort(&self) -> Result<Vec<V>, V> {
         use rustc_data_structures::graph::Graph;
 

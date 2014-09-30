@@ -1,0 +1,20 @@
+// Make sure that we can handle structs declared in the "wrong" order
+
+struct foo {
+    bar: bar
+}
+
+struct baz {
+    val: u32
+}
+
+struct bar {
+    baz: baz
+}
+
+fn main() -> u32 {
+    let foo = foo { bar: bar { baz: baz { val: 12 } } };
+    print_uint(foo.bar.baz.val);
+
+    0
+}

@@ -23,6 +23,7 @@ use mc::ast::defmap::*;
 use typechecker::*;
 use values::*;
 
+use util::graph::{Graph, VertexIndex, GraphExt};
 
 #[allow(unused_must_use)]
 pub fn emit_ccross_prelude(f: &mut Write) {
@@ -718,6 +719,65 @@ impl<'a> CCrossCompiler<'a> {
         }
     }
 
+    // Topologically sort structs and enums so that structs come
+    // *after* structs that they physically include.
+    fn sort_structs(&mut self, mut map: TreeMap<NodeId, Item>) -> Vec<Item> {
+        let mut graph: Graph<NodeId, ()> = Graph::new();
+        let mut nodes: TreeMap<NodeId, VertexIndex> = TreeMap::new();
+
+        fn add_type_edge(graph: &mut Graph<NodeId, ()>, nodes: &TreeMap<NodeId, VertexIndex>,
+                         srcidx: &VertexIndex, ty: &Ty) {
+            match *ty {
+                StructTy(included_id, _) | EnumTy(included_id, _) => {
+                    // The structural type given by "included_id" is part of
+                    // id, so we need an edge from id to included_id
+                    let destidx = nodes.find(&included_id)
+                        .expect("expected destidx in struct graph");
+                    graph.add_edge(*srcidx, *destidx, ());
+                }
+                _ => {}
+            }
+        }
+
+        // First build the graph nodes
+        for (id, _) in map.iter() {
+            let vid = graph.add_node(*id);
+            nodes.insert(*id, vid);
+        }
+
+        // Now collect all the edges
+        for (id, item) in map.iter() {
+            let srcidx = nodes.find(id).expect("expected srcidx in struct graph");
+
+            match item.val {
+                StructItem(_, ref fields, _) => {
+                    for field in fields.iter() {
+                        let ty = &self.typemap.types[field.fldtype.id.to_uint()];
+                        add_type_edge(&mut graph, &nodes, srcidx, ty);
+                    }
+
+                }
+                EnumItem(_, ref variants, _) => {
+                    for variant in variants.iter() {
+                        for arg in variant.args.iter() {
+                            let ty = &self.typemap.types[arg.id.to_uint()];
+                            add_type_edge(&mut graph, &nodes, srcidx, ty);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let order = match graph.toposort() {
+            Ok(order) => order,
+            // FIXME: really this should be a *typechecking* error
+            Err(nid)  => self.session.error_fatal(nid, "Recursive struct definitions"),
+        };
+
+        order.into_iter().map(|id| map.pop(&id).unwrap()).collect()
+    }
+
     // Visit a module and all of its submodules, applying a worker function.
     // We need this so we can print out all the modules, then all the structs,
     // etc.
@@ -809,16 +869,23 @@ impl<'a> CCrossCompiler<'a> {
         });
 
         // Structs and enums.
-        // FIXME: need to topo sort structs
-        self.visit_module_worker(&mut results, module, &|me, results, module| {
-            results.push(me.mut_visit_list(&module.val.items, |me, item| {
+        // First we collect all of the structs in a map which we then
+        // toposort by struct inclusion so that C can handle them.
+        let mut struct_map = TreeMap::new();
+        self.visit_module_worker(&mut results, module, &|_, _, module| {
+            for item in module.val.items.iter() {
                 match item.val {
-                    StructItem(..) |
-                    EnumItem(..) => me.visit_item(item),
-                    _ => "".to_string(),
+                    StructItem(ref id, _, _) | EnumItem(ref id, _, _) => {
+                        struct_map.insert(id.id, item.clone());
+                    }
+                    _ => {}
                 }
-            }, "\n"));
+            }
         });
+        let structs = self.sort_structs(struct_map);
+        results.push(self.mut_visit_list(&structs, |me, item| {
+            me.visit_item(item)
+        }, "\n"));
 
         // Now globals
         self.visit_module_worker(&mut results, module, &|me, results, module| {
