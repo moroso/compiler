@@ -414,24 +414,14 @@ impl Target for IRTarget {
         };
         result.push(global_initializer);
 
-        // Another hack! We don't want to emit "extern" declarations for some
-        // of these functions.
-        let declared_builtins: BTreeSet<String> = FromIterator::from_iter(
-            vec!("abort", "malloc", "calloc")
-                .into_iter()
-                .map(|x| x.to_string())
-            );
-
         // Print function prototypes.
         for insts in result.iter() {
             for inst in insts.iter() {
                 match *inst {
                     Op::Func(ref name, _, is_extern) => {
-                        if !declared_builtins.contains(&format!("{}", name)) {
-                            write!(f, "{}long {}();\n",
-                                   if is_extern { "extern " } else { "" },
-                                   session.interner.name_to_str(name));
-                        }
+                        write!(f, "{}long {}();\n",
+                               if is_extern { "extern " } else { "" },
+                               session.interner.name_to_str(name));
                     },
                     _ => {}
                 }

@@ -852,12 +852,6 @@ impl<'a> CCrossCompiler<'a> {
                     FuncItem(ref name, ref args, ref t, ref d, _) => {
                         let ty = me.visit_type(t);
                         let name = me.visit_ident(name);
-                        // This is a terrible hack.
-                        if &name[..] == "malloc" ||
-                            &name[..] == "calloc" ||
-                            &name[..] == "assert" {
-                                continue;
-                            }
                         let args = me.mut_visit_list(
                             args,
                             |me, x| me.visit_func_arg(x),
