@@ -22,19 +22,27 @@ impl<V: Copy+Eq+Ord+Debug, E: Debug> GraphExt<V> for Graph<V, E> {
 
         // there's gotta be a better way to do this :(
         fn visit<V: Copy+Eq+Ord+Debug, E: Debug>(graph: &Graph<V, E>,
-                               vid: VertexIndex,
-                               visiting: &mut BTreeSet<V>,
-                               visited: &mut BTreeSet<V>,
-                               list: &mut Vec<V>)
-                               -> Option<V> {
+                                                 vid: VertexIndex,
+                                                 visiting: &mut BTreeSet<V>,
+                                                 visited: &mut BTreeSet<V>,
+                                                 list: &mut Vec<V>)
+                                                 -> Option<V> {
             let vertex = graph.node_data(vid);
 
             if visiting.contains(vertex) {
                 return Some(*vertex);
             }
 
+            let mut err = None;
             if !visited.contains(vertex) {
                 visiting.insert(*vertex);
+                for (_, e) in graph.outgoing_edges(vid) {
+                    visit(graph, e.target(), visiting, visited, list);
+                }
+                graph.each_outgoing_edge(vid, |_, e| {
+                    visit(graph, e.target(), visiting, visited, list);
+                    true
+                });
                 for (_, e) in graph.outgoing_edges(vid) {
                     visit(graph, e.target(), visiting, visited, list);
                 }
@@ -43,7 +51,7 @@ impl<V: Copy+Eq+Ord+Debug, E: Debug> GraphExt<V> for Graph<V, E> {
                 list.push(*vertex);
             }
 
-            None
+            err
         }
 
         let mut err = None;
@@ -51,16 +59,17 @@ impl<V: Copy+Eq+Ord+Debug, E: Debug> GraphExt<V> for Graph<V, E> {
             let vertex = self.node_data(vid);
             if !visited.contains(vertex) {
                 err = visit(self, vid, &mut visiting, &mut visited, &mut list);
-                if err.is_some() {
-                    return false
-                }
             }
-            true
+            err.is_none()
         });
 
-        assert!(list.len() == visited.len());
-        assert!(list.len() == self.all_nodes().len());
-
-        Ok(list)
+        match err {
+            None => {
+                assert!(list.len() == visited.len());
+                assert!(list.len() == self.all_nodes().len());
+                Ok(list)
+            }
+            Some(x) => Err(x)
+        }
    }
 }

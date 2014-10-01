@@ -51,6 +51,7 @@ MC_FILES := \
 	target/mod.rs \
 	target/util.rs \
 	util/lexer.rs \
+	util/graph.rs \
 	util/mod.rs \
 
 TEST_FILES := $(patsubst test/%,%,$(wildcard test/test_*.mb))
