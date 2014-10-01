@@ -335,7 +335,7 @@ impl Target for IRTarget {
         let mangler = NameMangler::new(session, &module, true, false);
         let mut session = mangler.session;
 
-        let (mut result, mut staticitems) = {
+        let (mut result, staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,
                                                        &mangler.names);
@@ -379,30 +379,6 @@ impl Target for IRTarget {
         writeln!(f, "{}", "#ifndef alloca");
         writeln!(f, "{}", "#define alloca(size) __builtin_alloca(size)");
         writeln!(f, "{}", "#endif");
-
-        // TODO: this is a hack. Eventually we should extract names from
-        // any included files.
-        let builtin_staticitems: Vec<StaticIRItem>
-            = vec!("print_char",
-                                       "print_int",
-                                       "printf0_",
-                                       "printf1_",
-                                       "printf2_",
-                                       "printf3_",
-                                       "assert")
-            .iter()
-            .map(|x|
-                 StaticIRItem {
-                     name: session.interner.intern(
-                         x.to_string()),
-                     size: 0,
-                     offset: None,
-                     is_ref: false,
-                     is_func: true,
-                     is_extern: true,
-                     expr: None,
-                 }).collect();
-        staticitems.extend(builtin_staticitems.into_iter());
 
         let global_map = ASTToIntermediate::allocate_globals(staticitems);
         let global_initializer = {
