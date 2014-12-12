@@ -1,3 +1,4 @@
+mod printf_internal;
 mod printf;
 
 extern fn print_int(x: i32) -> i32;

@@ -1,0 +1,210 @@
+
+// Create an array initializer containing all of its arguments,
+// cast to *(). To make sure it is non-empty and can be type-inferred,
+// it has an extra null placed at the end. This means it will always be
+// one element larger than its number of "actual" elements.
+//
+// This is used to implement *printf! in terms of v*printf functions.
+macro varargs!() { [ map_macro!(__varargs_cast!, ..., null) ] }
+macro __varargs_cast!(x) { $x as *() }
+
+// Takes a vararg packet before the leading arguments to the vprintf
+// function, since we don't have a way to pick the *last* argument...
+// The arguments to vprintf are given as macro varargs.
+macro call_printf!(vprintf, args) { {
+    let ___v = $args;
+    $vprintf(..., &___v[0])
+} }
+
+/// Implementation of the core printf engine.
+fn _is_digit(c: u8) -> bool { c >= '0' && c <= '9' }
+fn _atoi(s: *u8, endptr: **u8) -> u32 {
+    let n = 0;
+    while _is_digit(*s) {
+        n = 10*n + (*s - '0');
+        s += 1;
+    }
+    if endptr != null { *endptr = s; }
+    n
+}
+
+// Formatting flags.
+const FMT_FLAG_NEGATIVE: u32 = 0x01;
+const FMT_FLAG_ZERO_PAD: u32 = 0x02;
+const FMT_FLAG_LEFT_JUSTIFY: u32 = 0x04;
+const FMT_FLAG_HEX_CAPS: u32 = 0x08;
+
+// 32 binary digits + minus sign
+const FMT_UINT_BUF_SIZE: u32 = 32+1;
+
+// Core numeric formatting routine. Handles arbitrary bases (2-16),
+// right justification with spaces or zeros, inserting minus signs.
+//
+// The output behavior of this function is sort of weird. out should
+// point to a FMT_UINT_BUF_SIZE size buffer. Since digits are
+// generated starting with the least significant, we fill the buffer
+// starting from the back and return a pointer to the start of the
+// formatted number.
+// The buffer is not null terminated.
+fn _format_uint(n: u32, base: u32, width: u32, flags: u32, out: *u8) -> *u8 {
+    let chars = if flags & FMT_FLAG_HEX_CAPS == 0 {"0123456789abcdef"} else {"0123456789ABCDEF"};
+
+    let s = out + FMT_UINT_BUF_SIZE - 1;
+    let o = s;
+
+    // Generate the digits backwards from the end of the string.
+    do {
+        *o = chars[n % base];
+        n /= base;
+        o -= 1;
+    } while n > 0;
+
+    // Zero pad
+    if flags & FMT_FLAG_ZERO_PAD != 0 {
+        let neg_adjust = if flags & FMT_FLAG_NEGATIVE != 0 { 1 } else { 0 };
+        while s - o + neg_adjust < width {
+            *o = '0';
+            o -= 1;
+        }
+    }
+
+    // Minus sign?
+    if flags & FMT_FLAG_NEGATIVE != 0 {
+        *o = '-';
+        o -= 1;
+    }
+
+    // If we aren't zero padding or left justifying, space pad to right justify.
+    if flags & (FMT_FLAG_ZERO_PAD|FMT_FLAG_LEFT_JUSTIFY) == 0 {
+        while s - o < width {
+            *o = ' ';
+            o -= 1;
+        }
+    }
+
+    o + 1
+}
+
+// Core printf macro. Takes the fmt string, the arguments, and an out
+// macro that will be invoked with characters to printf.
+macro do_printf!(fmt, args, out) { {
+    // All the variable names have underscore names to help avoid name
+    // collisions with invoking code.
+    let _args: **() = $args;
+
+    let _s: *u8;
+    let _i = 0;
+    let _tmpbuf: u8[::prelude::printf_internal::FMT_UINT_BUF_SIZE];
+
+    for (_s = fmt; *_s != 0; _s += 1) {
+        let _flags = 0;
+        let _width = 0;
+        let _precision: u32 = ~0; // "infinity"
+
+        if *_s != '%' { $out(*_s); continue; }
+        _s += 1;
+
+        // Handle "%%"
+        if *_s == '%' { $out(*_s); continue; }
+
+        // parse flags
+        while true {
+            if *_s == '0' {
+                _flags |= ::prelude::printf_internal::FMT_FLAG_ZERO_PAD;
+                _s += 1;
+            } else if *_s == '-' {
+                _flags |= ::prelude::printf_internal::FMT_FLAG_LEFT_JUSTIFY;
+                _s += 1;
+            } else {
+                break;
+            }
+        }
+
+        // parse width
+        if ::prelude::printf_internal::_is_digit(*_s) {
+            _width = ::prelude::printf_internal::_atoi(_s, &_s);
+        } else if *_s == '*' {
+            _width = _args[_i] as u32;
+            _i += 1;
+            _s += 1;
+        }
+
+        // Parse precision
+        if *_s == '.' {
+            _s += 1;
+            // Ew, duplication from above
+            if ::prelude::printf_internal::_is_digit(*_s) {
+                _precision = ::prelude::printf_internal::_atoi(_s, &_s);
+            } else if *_s == '*' {
+                _precision = _args[_i] as u32;
+                _i += 1;
+                _s += 1;
+            }
+        }
+
+        let _arg = _args[_i] as u32;
+        _i += 1;
+
+        let _c = *_s;
+
+        // Handle non numeric cases: characters and strings
+        if _c == 'c' {
+            // I don't bother with width for chars // because who cares.
+            $out(_arg as u8);
+            continue;
+        } else if _c == 's' {
+            // TODO: width
+            let _sp = _arg as *u8;
+            let _i: u32;
+            for (_i = 0; _sp[_i] != 0 && _i < _precision; _i += 1) {
+                $out(_sp[_i]);
+            }
+            continue;
+        }
+
+        // Handle numeric ones
+        let _base = if _c == 'd' {
+            let _arg_s = _arg as i32;
+            if _arg_s < 0 {
+                _flags |= ::prelude::printf_internal::FMT_FLAG_NEGATIVE;
+                _arg = -_arg_s as u32;
+            }
+            10
+        } else if _c == 'u' {
+            10
+        } else if _c == 'o' {
+            8
+        } else if _c == 'x' {
+            16
+        } else if _c == 'X' {
+            _flags |= ::prelude::printf_internal::FMT_FLAG_HEX_CAPS;
+            16
+        } else if _c == 'b' {
+            2
+        } else if _c == 'p' {
+            $out('0');
+            $out('x');
+            _flags |= ::prelude::printf_internal::FMT_FLAG_ZERO_PAD;
+            _width = 8; // WOOP
+            16
+        } else {
+            ::prelude::rt_abort();
+            0
+        };
+
+        let _p = ::prelude::printf_internal::_format_uint(
+            _arg, _base, _width, _flags, &_tmpbuf[0]);
+        let _n = &_tmpbuf[0] + ::prelude::printf_internal::FMT_UINT_BUF_SIZE - _p;
+        while _p < &_tmpbuf[0] + ::prelude::printf_internal::FMT_UINT_BUF_SIZE {
+            $out(*_p);
+            _p += 1;
+        }
+
+        if _flags & ::prelude::printf_internal::FMT_FLAG_LEFT_JUSTIFY != 0 {
+            while _n < _width {
+                $out(' ');
+                _n += 1;
+            }
+        }
+    }
+} }
