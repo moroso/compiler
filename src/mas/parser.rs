@@ -512,7 +512,8 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
     pub fn parse_long(&mut self) -> InstNode {
         match self.eat() {
             Token::NumLit(n) => InstNode::long(n),
-            _ => self.error("Must have a numeric literal for long."),
+            Token::IdentTok(name) => InstNode::long_label(name),
+            _ => self.error("Must have a numeric literal or label for long."),
         }
     }
 
