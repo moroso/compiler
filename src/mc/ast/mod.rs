@@ -4,6 +4,18 @@ use super::lexer::Token;
 use std::fmt;
 use std::fmt::{Formatter, Show};
 
+pub use self::PatNode::*;
+pub use self::TypeNode::*;
+pub use self::BinOpNode::*;
+pub use self::UnOpNode::*;
+pub use self::LitNode::*;
+pub use self::ExprNode::*;
+pub use self::StmtNode::*;
+pub use self::MacroToken::*;
+pub use self::ImportSpec::*;
+pub use self::FuncDef::*;
+pub use self::ItemNode::*;
+
 pub mod visitor;
 pub mod mut_visitor;
 pub mod defmap;
@@ -30,7 +42,7 @@ impl<T: Show> Show for WithId<T> {
 
 macro_rules! with_id {
     ( $( $s:ident => $n:ident ),* ) => ( $( pub type $s = WithId<$n>; )* );
-    ( $( $s:ident => $n:ident ),+, ) => ( with_id!($( $s => $n ),+) );
+    ( $( $s:ident => $n:ident ),+, ) => ( with_id! { $( $s => $n ),+ } );
 }
 
 with_id! {

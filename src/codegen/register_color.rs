@@ -2,7 +2,7 @@
 
 use mas::ast::Reg;
 use ir::*;
-use std::collections::{TreeMap, TreeSet};
+use std::collections::{BTreeMap, BTreeSet};
 use util::Name;
 use codegen::*;
 
@@ -10,21 +10,21 @@ pub struct RegisterColorer;
 
 impl RegisterColorer {
     /// Greedy register allocator, favoring variables that are used more often.
-    pub fn color(conflicts: TreeMap<Var, TreeSet<Var>>,
-                 frequencies: TreeMap<Var, u32>,
-                 must_colors: TreeMap<Var, RegisterColor>,
-                 mem_vars: TreeSet<Name>,
-                 global_map: &TreeMap<Name, StaticIRItem>,
+    pub fn color(conflicts: BTreeMap<Var, BTreeSet<Var>>,
+                 frequencies: BTreeMap<Var, u32>,
+                 must_colors: BTreeMap<Var, RegisterColor>,
+                 mem_vars: BTreeSet<Name>,
+                 global_map: &BTreeMap<Name, StaticIRItem>,
                  num_colors: uint
-                 ) -> TreeMap<Var, RegisterColor> {
-        let mut coloring: TreeMap<Var, RegisterColor> =
+                 ) -> BTreeMap<Var, RegisterColor> {
+        let mut coloring: BTreeMap<Var, RegisterColor> =
             FromIterator::from_iter(must_colors.move_iter());
         // Make a list of all variables that have to go on the stack.
         // (mem_vars contains all variables that need to go in memory,
         // but some of these are global).
         let new_mem_vars = mem_vars.move_iter().filter(
             |name| global_map.find(name).is_none());
-        let mem_locs: TreeMap<Name, uint> = FromIterator::from_iter(
+        let mem_locs: BTreeMap<Name, uint> = FromIterator::from_iter(
             new_mem_vars.enumerate().map(|(x,y)| (y,x)));
 
         let mut freq_vec: Vec<(&Var, &u32)> = frequencies.iter().collect();
@@ -60,12 +60,12 @@ impl RegisterColorer {
                 },
                 _ => {},
             }
-            let empty_treeset = TreeSet::<Var>::new();
+            let empty_treeset = BTreeSet::<Var>::new();
             let ref adjacent_vars =
                 conflicts
                 .find(var)
                 .unwrap_or(&empty_treeset);
-            let adjacent_colors: TreeSet<Option<RegisterColor>>
+            let adjacent_colors: BTreeSet<Option<RegisterColor>>
                 = FromIterator::from_iter(adjacent_vars.iter()
                                           .map(|var|
                                                coloring
@@ -122,7 +122,7 @@ impl RegisterColorer {
 mod tests {
     use super::*;
     use ir::*;
-    use std::collections::{TreeMap, TreeSet};
+    use std::collections::{BTreeMap, BTreeSet};
     use util::Name;
     use mas::ast::Reg;
     use codegen::*;
@@ -133,17 +133,17 @@ mod tests {
 
     #[test]
     fn test_color_with_no_conflicts() {
-        let conflicts: TreeMap<Var, TreeSet<Var>> = TreeMap::new();
-        let mut frequencies: TreeMap<Var, u32> = TreeMap::new();
+        let conflicts: BTreeMap<Var, BTreeSet<Var>> = BTreeMap::new();
+        let mut frequencies: BTreeMap<Var, u32> = BTreeMap::new();
 
         for n in range(0u32, 10) {
             frequencies.insert(var(n), 1);
         }
 
         let coloring = RegisterColorer::color(conflicts, frequencies,
-                                              TreeMap::new(),
-                                              TreeSet::new(),
-                                              &TreeMap::<Name,
+                                              BTreeMap::new(),
+                                              BTreeSet::new(),
+                                              &BTreeMap::<Name,
                                                          StaticIRItem>::new(),
                                               10);
         for (idx, (_, &color)) in coloring.iter().enumerate() {
@@ -153,13 +153,13 @@ mod tests {
 
     #[test]
     fn test_color_with_all_conflicts() {
-        let mut conflicts: TreeMap<Var, TreeSet<Var>> = TreeMap::new();
-        let mut frequencies: TreeMap<Var, u32> = TreeMap::new();
+        let mut conflicts: BTreeMap<Var, BTreeSet<Var>> = BTreeMap::new();
+        let mut frequencies: BTreeMap<Var, u32> = BTreeMap::new();
 
         for n in range(0u32, 20) {
             frequencies.insert(var(n), (25 - n) as u32);
 
-            let mut conflict_set = TreeSet::<Var>::new();
+            let mut conflict_set = BTreeSet::<Var>::new();
             for m in range(0u32, 20) {
                 if n != m {
                     conflict_set.insert(var(m));
@@ -169,9 +169,9 @@ mod tests {
         }
 
         let coloring = RegisterColorer::color(conflicts, frequencies,
-                                              TreeMap::new(),
-                                              TreeSet::new(),
-                                              &TreeMap::<Name,
+                                              BTreeMap::new(),
+                                              BTreeSet::new(),
+                                              &BTreeMap::<Name,
                                                          StaticIRItem>::new(),
                                               10);
         for i in range(0u32, 8) {
@@ -190,13 +190,13 @@ mod tests {
 
     #[test]
     fn test_color_with_some_conflicts() {
-        let mut conflicts: TreeMap<Var, TreeSet<Var>> = TreeMap::new();
-        let mut frequencies: TreeMap<Var, u32> = TreeMap::new();
+        let mut conflicts: BTreeMap<Var, BTreeSet<Var>> = BTreeMap::new();
+        let mut frequencies: BTreeMap<Var, u32> = BTreeMap::new();
 
         for n in range(0u32, 20) {
             frequencies.insert(var(n), (25 - n) as u32);
 
-            let mut conflict_set = TreeSet::<Var>::new();
+            let mut conflict_set = BTreeSet::<Var>::new();
             // Each variable conflicts with the adjacent ones.
             for m in range(0u32, 20) {
                 if n - m == 1 || m - n == 1 {
@@ -207,9 +207,9 @@ mod tests {
         }
 
         let coloring = RegisterColorer::color(conflicts, frequencies,
-                                              TreeMap::new(),
-                                              TreeSet::new(),
-                                              &TreeMap::<Name,
+                                              BTreeMap::new(),
+                                              BTreeSet::new(),
+                                              &BTreeMap::<Name,
                                                          StaticIRItem>::new(),
                                               10);
         for i in range(0u32, 20) {

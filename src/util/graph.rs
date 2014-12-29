@@ -2,7 +2,7 @@ pub use rustc::middle::graph::{Graph, Edge, EdgeIndex};
 pub use rustc::middle::graph::Node      as Vertex;
 pub use rustc::middle::graph::NodeIndex as VertexIndex;
 
-use collections::TreeSet;
+use collections::BTreeSet;
 
 pub trait GraphExt<V, E> {
     fn toposort(&self) -> Result<Vec<V>, V>;
@@ -11,14 +11,14 @@ pub trait GraphExt<V, E> {
 impl<V: Copy+Eq+Ord, E> GraphExt<V, E> for Graph<V, E> {
     fn toposort(&self) -> Result<Vec<V>, V> {
         let mut list = vec!();
-        let mut visiting = TreeSet::new();
-        let mut visited = TreeSet::new();
+        let mut visiting = BTreeSet::new();
+        let mut visited = BTreeSet::new();
 
         // there's gotta be a better way to do this :(
         fn visit<V: Copy+Eq+Ord, E>(graph: &Graph<V, E>,
                                vid: VertexIndex,
-                               visiting: &mut TreeSet<V>,
-                               visited: &mut TreeSet<V>,
+                               visiting: &mut BTreeSet<V>,
+                               visited: &mut BTreeSet<V>,
                                list: &mut Vec<V>)
                                -> Option<V> {
             let vertex = graph.node_data(vid);

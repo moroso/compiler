@@ -2,14 +2,14 @@
 /// labels, and "link" them.
 
 use mas::ast::*;
-use collections::TreeMap;
+use collections::BTreeMap;
 use mas::labels::resolve_labels;
 
-pub fn link(parts: Vec<(Vec<[InstNode, ..4]>, TreeMap<String, uint>)>
-            ) -> (Vec<[InstNode, ..4]>, TreeMap<String, uint>) {
+pub fn link(parts: Vec<(Vec<[InstNode, ..4]>, BTreeMap<String, uint>)>
+            ) -> (Vec<[InstNode, ..4]>, BTreeMap<String, uint>) {
     let mut result = vec!();
     let mut pos = 0;
-    let mut all_labels = TreeMap::new();
+    let mut all_labels = BTreeMap::new();
 
     for (insts, labels) in parts.move_iter() {
         let this_len = insts.len();

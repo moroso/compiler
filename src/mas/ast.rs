@@ -8,6 +8,16 @@ use std::fmt;
 use std::fmt::{Formatter, Show};
 use mas::util::fits_in_bits;
 
+pub use self::CoReg::*;
+pub use self::AluOp::*;
+pub use self::CompareType::*;
+pub use self::ShiftType::*;
+pub use self::LsuWidth::*;
+pub use self::FlushType::*;
+pub use self::JumpTarget::*;
+pub use self::LongValue::*;
+pub use self::InstNode::*;
+
 // A predicate that is always true.
 pub static true_pred: Pred = Pred {
     inverted: false,
@@ -684,11 +694,19 @@ impl InstNode {
     }
 }
 
-pub type InstPacket = [InstNode, ..4];
+pub struct InstPacket([InstNode, ..4]);
+
+impl Index<uint, InstNode> for InstPacket {
+    fn index<'a>(&'a self, i: &uint) -> &'a InstNode {
+        let InstPacket(ref packet) = *self;
+        &packet[*i]
+    }
+}
 
 impl Show for InstPacket {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let InstPacket(ref packet) = *self;
         write!(f, "{{ {}; {}; {}; {} }}",
-               self[0], self[1], self[2], self[3])
+               packet[0], packet[1], packet[2], packet[3])
     }
 }

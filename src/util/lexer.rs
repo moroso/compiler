@@ -8,7 +8,10 @@ use span::{Span, SourcePos, mk_sp};
 
 use regex::Regex;
 use std::{io, option, iter};
-use std::slice::CloneableVector;
+
+use std::str::StrExt;
+use std::io::IoResult;
+use std::io::stdio::StdinReader;
 
 /// A token together with a Span, to keep track of where in the source file
 /// it was.
@@ -74,13 +77,29 @@ pub struct Lexer<'a, B, T> {
     endcomment: T,
 }
 
-impl<'a, B: Buffer, T> Lexer<'a, B, T> {
+pub trait BufReader {
+    fn read_line(&mut self) -> IoResult<String>;
+}
+
+impl<B> BufReader for B where B: Buffer {
+    fn read_line(&mut self) -> IoResult<String> {
+        self.read_line()
+    }
+}
+
+impl BufReader for StdinReader {
+    fn read_line(&mut self) -> IoResult<String> {
+        self.read_line()
+    }
+}
+
+impl<'a, B: BufReader, T> Lexer<'a, B, T> {
     pub fn get_name(&self) -> String {
         self.name.clone()
     }
 
-    pub fn new<S: StrAllocating>(lang: Language<T>,
-                                 name: S, buffer: B) -> Lexer<'a, B, T> {
+    pub fn new<Sized? S: StrExt>(lang: Language<T>,
+                          name: &S, buffer: B) -> Lexer<'a, B, T> {
         Lexer {
             pos:  SourcePos::new(),
             line: Some(String::new()),
@@ -98,7 +117,7 @@ impl<'a, B: Buffer, T> Lexer<'a, B, T> {
 }
 
 // The meat of the lexer (read this as a stateful flat-map)
-impl<'a, B: Buffer, T: Eq> Iterator<SourceToken<T>> for Lexer<'a, B, T> {
+impl<'a, B: BufReader, T: Eq> Iterator<SourceToken<T>> for Lexer<'a, B, T> {
     fn next(&mut self) -> Option<SourceToken<T>> {
         loop {
             match self.line {
@@ -134,7 +153,7 @@ impl<'a, B: Buffer, T: Eq> Iterator<SourceToken<T>> for Lexer<'a, B, T> {
                         self.pos.col += longest;
 
                         match best {
-                            None => fail!("Unexpected input at {} ({} line {} col {})",
+                            None => panic!("Unexpected input at {} ({} line {} col {})",
                                           line.slice_from(self.pos.col),
                                           self.name,
                                           self.pos.row + 1,
@@ -157,7 +176,7 @@ impl<'a, B: Buffer, T: Eq> Iterator<SourceToken<T>> for Lexer<'a, B, T> {
                 }
                 None => {
                     if self.comment_nest > 0 {
-                        fail!("Unterminated multiline comment found in input stream");
+                        panic!("Unterminated multiline comment found in input stream");
                     }
 
                     return self.eof.take().map(|eof| SourceToken {
@@ -216,15 +235,15 @@ impl<T: MaybeArg> RuleMatcher<T> for Regex {
 // Utility trait to optionally grab the match as an argument
 // (useful to avoid unnecessary string copies when we will just throw the result away anyway)
 trait MaybeArg {
-    fn maybe_arg<T: StrAllocating>(arg: T) -> Self;
+    fn maybe_arg<Sized? T: StrExt>(arg: &T) -> Self;
 }
 
 impl MaybeArg for () {
-    fn maybe_arg<T: StrAllocating>(_: T) { }
+    fn maybe_arg<Sized? T: StrExt>(_: &T) { }
 }
 
 impl MaybeArg for String {
-    fn maybe_arg<T: StrAllocating>(s: T) -> String { s.into_string() }
+    fn maybe_arg<Sized? T: StrExt>(s: &T) -> String { s.into_string() }
 }
 
 struct BufferLines<B> {
@@ -232,7 +251,7 @@ struct BufferLines<B> {
     buffer: B,
 }
 
-impl<B: Buffer> BufferLines<B> {
+impl<B: BufReader> BufferLines<B> {
     fn new(buffer: B) -> BufferLines<B> {
         BufferLines {
             lineno: 0,
@@ -241,7 +260,7 @@ impl<B: Buffer> BufferLines<B> {
     }
 }
 
-impl<B: Buffer> Iterator<(uint, String)> for BufferLines<B> {
+impl<B: BufReader> Iterator<(uint, String)> for BufferLines<B> {
     fn next(&mut self) -> Option<(uint, String)> {
         self.buffer.read_line().ok().map(|l| {
             let n = self.lineno;

@@ -1,18 +1,18 @@
 use mc::ast::visitor::{Visitor, walk_item};
 use mc::ast::*;
 use mc::session::Session;
-use std::collections::treemap::TreeMap;
+use std::collections::BTreeMap;
 
 // This is a bit too similar to the mangler. I should get rid of the mangler.
 
 pub struct PathMap {
-    table: TreeMap<NodeId, Vec<String>>,
+    table: BTreeMap<NodeId, Vec<String>>,
 }
 
 impl PathMap {
     pub fn new() -> PathMap {
         PathMap {
-            table: TreeMap::new(),
+            table: BTreeMap::new(),
         }
     }
 

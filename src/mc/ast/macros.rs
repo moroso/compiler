@@ -1,10 +1,10 @@
-use util::Name;
+use util::{Name, Width, IntKind};
 use span::Span;
 use mc::lexer::Token;
 use mc::session::Session;
 
 use std::fmt;
-use std::collections::TreeMap;
+use std::collections::BTreeMap;
 use std::fmt::{Formatter, Show};
 use std::mem::swap;
 use std::ops::Fn;
@@ -14,7 +14,7 @@ use super::mut_visitor::*;
 use super::*;
 
 pub struct MacroExpander<'a> {
-    macros: TreeMap<Name, Box<Expander + 'a>>,
+    macros: BTreeMap<Name, Box<Expander + 'a>>,
 }
 
 struct MacroExpanderVisitor<'a> {
@@ -22,50 +22,41 @@ struct MacroExpanderVisitor<'a> {
 }
 
 fn expand_file(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
-    use mc::lexer::StringTok;
-
     assert!(input.len() == 0);
 
     let filename = session.parser.filename_of(&id);
-    vec!(StringTok(format!("{}", filename)))
+    vec!(Token::StringTok(format!("{}", filename)))
 }
 
 fn expand_line(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
-    use util::GenericInt;
-    use mc::lexer::NumberTok;
-
     assert!(input.len() == 0);
 
     let span = session.parser.span_of(&id);
-    vec!(NumberTok(span.get_begin().row as u64, GenericInt))
+    vec!(Token::NumberTok(span.get_begin().row as u64, IntKind::GenericInt))
 }
 
 // This lets you produce some bogus idents.
 // Also this is probably not very useful.
 fn expand_paste(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
-    use mc::lexer::{IdentTok, NumberTok};
-
     let mut concat = vec!();
     for arg in input.move_iter() {
         for elem in arg.move_iter() {
             match elem {
-                IdentTok(s) => concat.push(s),
-                NumberTok(n, _) => concat.push(format!("{}", n)),
+                Token::IdentTok(s) => concat.push(s),
+                Token::NumberTok(n, _) => concat.push(format!("{}", n)),
                 t => session.error(id, format!("expected ident or num in concat!, found {}", t)),
             }
         }
     }
 
-    vec!(IdentTok(concat.connect("")))
+    vec!(Token::IdentTok(concat.connect("")))
 }
 
 fn expand_concat(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
-    use mc::lexer::StringTok;
-
     let mut concat = vec!();
     for mut arg in input.move_iter() {
         match arg.pop() {
-            Some(StringTok(s)) => concat.push(s),
+            Some(Token::StringTok(s)) => concat.push(s),
             t => session.error(id, format!("expected string in concat!, found {}", t)),
         }
 
@@ -74,14 +65,12 @@ fn expand_concat(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> V
         }
     }
 
-    vec!(StringTok(concat.connect("")))
+    vec!(Token::StringTok(concat.connect("")))
 }
 
 fn expand_stringify(mut input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> Vec<Token> {
-    use mc::lexer::StringTok;
-
     if input.len() == 0 {
-      return vec!(StringTok(String::new()));
+      return vec!(Token::StringTok(String::new()));
     }
 
     let mut concat = vec!();
@@ -94,12 +83,10 @@ fn expand_stringify(mut input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> V
         concat.push_all_move(ts.move_iter().map(|t| format!("{}", t)).collect());
     }
 
-    vec!(StringTok(concat.connect(" ")))
+    vec!(Token::StringTok(concat.connect(" ")))
 }
 
 fn expand_map_macro(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
-    use mc::lexer::{Comma, LParen, RParen};
-
     if input.len() < 1 {
         session.error_fatal(id, "Not enough arguments to map_toks!");
     }
@@ -109,10 +96,10 @@ fn expand_map_macro(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -
     let mut out = vec!();
     for toks in iter {
         out.push_all(prefix.as_slice());
-        out.push(LParen);
+        out.push(Token::LParen);
         out.push_all_move(toks);
-        out.push(RParen);
-        out.push(Comma);
+        out.push(Token::RParen);
+        out.push(Token::Comma);
     }
     out.pop(); // pop the trailing comma, if there is one
 
@@ -146,11 +133,9 @@ impl Expander for ExpanderFn {
 
 impl Expander for WithId<MacroDef> {
     fn expand(&self, input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> Vec<Token> {
-        use mc::lexer::Comma;
-
         let mut output = vec!();
 
-        let mut args = TreeMap::new();
+        let mut args = BTreeMap::new();
         let mut arg_iter = input.move_iter();
         for (&name, arg) in self.val.args.iter().zip(arg_iter.by_ref()) {
             args.insert(name, arg);
@@ -162,7 +147,7 @@ impl Expander for WithId<MacroDef> {
         // Collect up any remaining args as a comma delimited token stream
         for arg in arg_iter {
             vararg_toks.push_all(arg.as_slice());
-            vararg_toks.push(Comma);
+            vararg_toks.push(Token::Comma);
         }
         vararg_toks.pop(); // Pop off a trailing comma if it exists
 
@@ -174,7 +159,7 @@ impl Expander for WithId<MacroDef> {
                     output.push_all(args.find(&name).unwrap().as_slice());
                 }
                 // We skip a comma that occurs after an empty ...
-                MacroTok(Comma) if skip_comma => {}
+                MacroTok(Token::Comma) if skip_comma => {}
                 MacroTok(ref tok) => {
                     output.push(tok.clone());
                 }
@@ -230,7 +215,7 @@ impl<'a> MacroExpander<'a> {
         use mc::session::interner as tls_interner;
 
         let interner = tls_interner.get().unwrap();
-        let mut macros = TreeMap::new();
+        let mut macros = BTreeMap::new();
 
         for &(s, e) in builtin_macros.iter() {
             let name = interner.intern(String::from_str(s));
@@ -268,7 +253,6 @@ impl<'a> MacroExpanderVisitor<'a> {
                     id: &NodeId,
                     name: Name,
                     my_args: Vec<Vec<Token>>) -> Vec<SourceToken<Token>> {
-        use mc::lexer::{Eof, IdentBangTok};
         use mc::parser::Parser;
 
         let span = self.session.parser.span_of(id);
@@ -284,7 +268,7 @@ impl<'a> MacroExpanderVisitor<'a> {
             macro.expand(my_args, *id, self.session)
         };
 
-        toks.push(Eof);
+        toks.push(Token::Eof);
 
         let mut stream = toks.move_iter().map(
             |t| SourceToken { sp: span, tok: t })
@@ -301,7 +285,7 @@ impl<'a> MacroExpanderVisitor<'a> {
             // the next thing is an IdentBangTok without retaining a borrow.
             let is_macro_call = {
                 match stream.peek().unwrap().tok {
-                    IdentBangTok(_) => true,
+                    Token::IdentBangTok(_) => true,
                     _ => false
                 }
             };

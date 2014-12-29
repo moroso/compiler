@@ -1,5 +1,5 @@
 use ir::*;
-use std::collections::{TreeMap, TreeSet};
+use std::collections::{BTreeMap, BTreeSet};
 use util::Name;
 use mc::ast::AddrOf;
 use codegen::*;
@@ -15,24 +15,24 @@ impl ConflictAnalyzer {
     /// Assumes the IR is already in SSA form.
     pub fn conflicts(ops: &Vec<Op>,
                      opinfo: &Vec<OpInfo>
-                     ) -> (TreeMap<Var, TreeSet<Var>>,
-                           TreeMap<Var, u32>,
-                           TreeMap<Var, RegisterColor>,
+                     ) -> (BTreeMap<Var, BTreeSet<Var>>,
+                           BTreeMap<Var, u32>,
+                           BTreeMap<Var, RegisterColor>,
                            // This is a set of Names, because
                            // we spill *every* generation of
                            // the variable.
-                           TreeSet<Name>) {
-        let mut conflict_map = TreeMap::<Var, TreeSet<Var>>::new();
-        let mut counts = TreeMap::<Var, u32>::new();
-        let mut referenced_vars = TreeSet::<Name>::new();
-        let mut must_colors = TreeMap::new();
+                           BTreeSet<Name>) {
+        let mut conflict_map = BTreeMap::<Var, BTreeSet<Var>>::new();
+        let mut counts = BTreeMap::<Var, u32>::new();
+        let mut referenced_vars = BTreeSet::<Name>::new();
+        let mut must_colors = BTreeMap::new();
 
         for op in ops.iter() {
             match *op {
                 UnOp(_, AddrOf, ref rve) => {
                     match *rve {
                         Variable(ref v) => { referenced_vars.insert(v.name); },
-                        _ => fail!("Should have a variable here."),
+                        _ => panic!("Should have a variable here."),
                     }
                 },
                 Call(ref v, _, ref args) => {
@@ -67,10 +67,10 @@ impl ConflictAnalyzer {
                 for var2 in info.live.iter() {
                     if var1 != var2 {
                         if !conflict_map.contains_key(var1) {
-                            conflict_map.insert(*var1, TreeSet::<Var>::new());
+                            conflict_map.insert(*var1, BTreeSet::<Var>::new());
                         }
                         if !conflict_map.contains_key(var2) {
-                            conflict_map.insert(*var2, TreeSet::<Var>::new());
+                            conflict_map.insert(*var2, BTreeSet::<Var>::new());
                         }
 
                         conflict_map.find_mut(var1).unwrap().insert(*var2);
@@ -88,10 +88,10 @@ impl ConflictAnalyzer {
                     for var2 in info.def.iter() {
                         if var1 != var2 {
                             if !conflict_map.contains_key(var1) {
-                                conflict_map.insert(*var1, TreeSet::<Var>::new());
+                                conflict_map.insert(*var1, BTreeSet::<Var>::new());
                             }
                             if !conflict_map.contains_key(var2) {
-                                conflict_map.insert(*var2, TreeSet::<Var>::new());
+                                conflict_map.insert(*var2, BTreeSet::<Var>::new());
                             }
 
                             conflict_map.find_mut(var1).unwrap().insert(*var2);

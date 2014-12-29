@@ -6,8 +6,6 @@ use self::session::{Session, Options};
 
 use getopts;
 use getopts::{getopts, reqopt, optopt, optflag, optmulti};
-use getopts::OptionMissing;
-use std::ascii::StrAsciiExt;
 use std::io::{BufferedReader, File, Writer, stdio};
 
 use std::os;
@@ -146,7 +144,7 @@ pub fn main() {
         package_from_stdin(options)
     } else {
         let path = Path::new(name);
-        let file = File::open(&path).unwrap_or_else(|e| fail!("{}", e));
+        let file = File::open(&path).unwrap_or_else(|e| panic!("{}", e));
         Package::from_file(options, file)
     };
 
@@ -158,7 +156,7 @@ pub fn main() {
         None => box stdio::stdout() as Box<Writer>,
         Some(name) => {
             let path = Path::new(name);
-            let file = File::create(&path).unwrap_or_else(|e| fail!("{}", e));
+            let file = File::create(&path).unwrap_or_else(|e| panic!("{}", e));
             box file as Box<Writer>
         }
     };
@@ -181,7 +179,7 @@ mod tests {
     fn package_from_str(s: &str) -> Package {
         use std::str::StrSlice;
         use std::io;
-        let bytes = Vec::from_slice(s.as_bytes());
+        let bytes = s.as_bytes().to_vec();
         let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
         let mut opts = super::session::Options::new();
         setup_builtin_search_paths(&mut opts);

@@ -3,10 +3,12 @@ use mc::session::Session;
 
 use std::fmt;
 use std::fmt::{Formatter, Show};
-use std::collections::TreeMap;
+use std::collections::BTreeMap;
 
 use super::visitor::*;
 use super::*;
+
+pub use self::Def::*;
 
 /// DefMap maps a NodeId to a Def, where a Def is anything that can be defined
 /// by an Ident.  This can be used by the Resolver to map the usages of Idents
@@ -53,7 +55,7 @@ pub enum Def {
 }
 
 pub struct DefMap {
-    table: TreeMap<NodeId, Def>,
+    table: BTreeMap<NodeId, Def>,
 }
 
 struct DefMapVisitor<'a> {
@@ -64,7 +66,7 @@ struct DefMapVisitor<'a> {
 impl DefMap {
     pub fn new() -> DefMap {
         DefMap {
-            table: TreeMap::new(),
+            table: BTreeMap::new(),
         }
     }
 
@@ -236,7 +238,7 @@ mod tests {
     use mc::ast::NodeId;
     use mc::ast::visitor::Visitor;
     use mc::parser::ast_from_str;
-    use std::collections::TreeMap;
+    use std::collections::BTreeMap;
 
     #[test]
     fn compare_canonicalized() {
