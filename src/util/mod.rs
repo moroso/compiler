@@ -1,4 +1,4 @@
-use std::collections::TreeMap;
+use std::collections::BTreeMap;
 use std::fmt::{Show, Formatter};
 
 use std::fmt;
@@ -38,10 +38,10 @@ pub enum Width {
 impl Show for Width {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", match *self {
-            AnyWidth => "",
-            Width32 => "32",
-            Width16 => "16",
-            Width8  => "8",
+            Width::AnyWidth => "",
+            Width::Width32 => "32",
+            Width::Width16 => "16",
+            Width::Width8  => "8",
         })
     }
 }
@@ -56,30 +56,30 @@ pub enum IntKind {
 impl IntKind {
     pub fn is_signed(&self) -> bool {
         match *self {
-            GenericInt |
-            SignedInt(..) => true,
-            UnsignedInt(..) => false,
+            IntKind::GenericInt |
+            IntKind::SignedInt(..) => true,
+            IntKind::UnsignedInt(..) => false,
         }
     }
 
     pub fn is_generic(&self) -> bool {
         match *self {
-            GenericInt => true,
+            IntKind::GenericInt => true,
             _ => false,
         }
     }
 
     pub fn num_to_string(&self, n: u64) -> String {
         match *self {
-            GenericInt            => format!("{}", n as i32),
-            SignedInt(AnyWidth)   => format!("{}", n as i32),
-            SignedInt(Width8)     => format!("{}", n as i8),
-            SignedInt(Width16)    => format!("{}", n as i16),
-            SignedInt(Width32)    => format!("{}", n as i32),
-            UnsignedInt(AnyWidth) => format!("{}", n as u32),
-            UnsignedInt(Width8)   => format!("{}", n as u8),
-            UnsignedInt(Width16)  => format!("{}", n as u16),
-            UnsignedInt(Width32)  => format!("{}", n as u32),
+            IntKind::GenericInt                   => format!("{}", n as i32),
+            IntKind::SignedInt(Width::AnyWidth)   => format!("{}", n as i32),
+            IntKind::SignedInt(Width::Width8)     => format!("{}", n as i8),
+            IntKind::SignedInt(Width::Width16)    => format!("{}", n as i16),
+            IntKind::SignedInt(Width::Width32)    => format!("{}", n as i32),
+            IntKind::UnsignedInt(Width::AnyWidth) => format!("{}", n as u32),
+            IntKind::UnsignedInt(Width::Width8)   => format!("{}", n as u8),
+            IntKind::UnsignedInt(Width::Width16)  => format!("{}", n as u16),
+            IntKind::UnsignedInt(Width::Width32)  => format!("{}", n as u32),
         }
     }
 }
@@ -87,9 +87,9 @@ impl IntKind {
 impl Show for IntKind {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
-            GenericInt     => write!(f, ""),
-            SignedInt(w)   => write!(f, "i{}", w),
-            UnsignedInt(w) => write!(f, "u{}", w),
+            IntKind::GenericInt     => write!(f, ""),
+            IntKind::SignedInt(w)   => write!(f, "i{}", w),
+            IntKind::UnsignedInt(w) => write!(f, "u{}", w),
         }
     }
 }

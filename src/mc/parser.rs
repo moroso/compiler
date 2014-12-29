@@ -19,16 +19,18 @@
 
 use span::{SourcePos, Span, mk_sp};
 use util::Name;
+use util::lexer::BufReader;
 
 use super::session::{Session, Options};
 use super::session::get_cur_rel_path;
 
 use std::{io, mem, num, vec};
-use std::collections::{HashMap, TreeMap, TreeSet};
+use std::collections::{HashMap, BTreeMap, BTreeSet};
 use std::iter::Peekable;
 
 use std::io::fs::PathExtensions;
 
+use super::ast;
 use super::ast::*;
 use super::lexer::*;
 
@@ -36,8 +38,8 @@ use values::*;
 
 use std::path::Path as FilePath;
 
-type FuncProto = (Ident, Vec<FuncArg>, Type, Vec<Ident>);
-type StaticDecl = (Ident, Type);
+type FuncProto = (Ident, Vec<FuncArg>, ast::Type, Vec<Ident>);
+type StaticDecl = (Ident, ast::Type);
 
 /// Context associated with a full parsing session
 pub struct Parser {
@@ -45,9 +47,9 @@ pub struct Parser {
     /// next number to assign to an identifier.
     next_id: uint,
     /// Tracks the corresponding source position of each AST node.
-    spanmap: TreeMap<NodeId, Span>,
+    spanmap: BTreeMap<NodeId, Span>,
     /// Tracks the corresponding file name of each AST node.
-    filemap: TreeMap<NodeId, Name>,
+    filemap: BTreeMap<NodeId, Name>,
 }
 
 /// The state for parsing a stream of tokens into an AST node
@@ -158,7 +160,7 @@ fn unop_token(op: UnOpNode) -> Token {
         BitNot => Tilde,
         SxbOp |
         SxhOp |
-        Identity => fail!("Op {} should never come up in the language.",
+        Identity => panic!("Op {} should never come up in the language.",
                           op),
     }
 }
@@ -197,8 +199,8 @@ impl Parser {
     pub fn new() -> Parser {
         Parser {
             next_id: 0,
-            spanmap: TreeMap::new(),
-            filemap: TreeMap::new(),
+            spanmap: BTreeMap::new(),
+            filemap: BTreeMap::new(),
         }
     }
 
@@ -213,7 +215,7 @@ impl Parser {
     }
 
     /// Get all of the files used by this parse.
-    pub fn get_all_filenames(&self) -> TreeSet<Name> {
+    pub fn get_all_filenames(&self) -> BTreeSet<Name> {
         FromIterator::from_iter(self.filemap.iter().map(|(_,v)| *v))
     }
 
@@ -223,11 +225,11 @@ impl Parser {
         NodeId(id)
     }
 
-    pub fn parse<T: Buffer>(session: &mut Session, lexer: Lexer<T, Token>) -> Module {
+    pub fn parse<T: BufReader>(session: &mut Session, lexer: Lexer<T, Token>) -> Module {
         Parser::parse_with(session, lexer, |p| p.parse_module())
     }
 
-    pub fn parse_with<T: Buffer, U>(session: &mut Session,
+    pub fn parse_with<T: BufReader, U>(session: &mut Session,
                                     lexer: Lexer<T, Token>,
                                     f: |&mut StreamParser<Lexer<T, Token>>| -> U) -> U {
         let name = session.interner.intern(lexer.get_name());
@@ -270,7 +272,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             tokens: tokens,
             session: session,
             last_span: mk_sp(SourcePos::new(), 0),
-            restriction: NoRestriction,
+            restriction: Restriction::NoRestriction,
             source: FilePath::new("."),
         }
     }
@@ -285,7 +287,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         self.next = self.tokens.next();
 
         if self.next.is_none() {
-            fail!("Tried to advance past EOF")
+            panic!("Tried to advance past EOF")
         }
     }
 
@@ -337,7 +339,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let s = format!("Parse error: {}\n    at {} {}\n",
                         message.as_slice(), path, pos);
         let _ = io::stderr().write_str(s.as_slice());
-        fail!()
+        panic!()
     }
 
     /// A convenience function to generate an error message when we've
@@ -410,7 +412,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         self.add_id_and_span(ident, span)
     }
 
-    fn parse_type_params(&mut self) -> Vec<Type> {
+    fn parse_type_params(&mut self) -> Vec<ast::Type> {
         self.expect(Less);
         let ps = self.parse_list(|p| p.parse_type(), Greater, false);
         self.expect(Greater);
@@ -634,7 +636,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         }
     }
 
-    pub fn parse_type(&mut self) -> Type {
+    pub fn parse_type(&mut self) -> ast::Type {
         /*
         Parse a type.
         */
@@ -726,7 +728,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             },
             Eq => {
                 self.expect(Eq);
-                let var_value = self.with_restriction(NoRestriction, |p| p.parse_expr());
+                let var_value = self.with_restriction(Restriction::NoRestriction, |p| p.parse_expr());
                 self.expect(Semicolon);
                 Some(var_value)
             },
@@ -906,7 +908,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             | WhileExpr(..)
             | MatchExpr(..)
             | BlockExpr(..)
-              => self.restriction == ExprStmtRestriction,
+              => self.restriction == Restriction::ExprStmtRestriction,
             _ => false,
         }
     }
@@ -932,7 +934,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let op = self.add_id_and_span(op, span);
 
         match assoc {
-            RightAssoc => {
+            Assoc::RightAssoc => {
                 let r_span = self.cur_span();
                 let r = parse_simpler_expr(self);
                 let r = self.maybe_parse_binop(ops, assoc, parse_simpler_expr, r, r_span);
@@ -940,13 +942,13 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                 let end_span = self.cur_span();
                 self.add_id_and_span(node, start_span.to(end_span))
             }
-            LeftAssoc => {
+            Assoc::LeftAssoc => {
                 let r = parse_simpler_expr(self);
                 let node = BinOpExpr(op, box e, box r);
                 let e = self.add_id_and_span(node, start_span);
                 self.maybe_parse_binop(ops, assoc, parse_simpler_expr, e, start_span)
             }
-            NonAssoc => {
+            Assoc::NonAssoc => {
                 let r = parse_simpler_expr(self);
                 let node = BinOpExpr(op, box e, box r);
                 let end_span = self.cur_span();
@@ -972,12 +974,12 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
         macro_rules! left {
             ($($ops:expr),+,) => (left!($($ops),+));
-            ($($ops:expr),*) => (row!(LeftAssoc, [$($ops),+]));
+            ($($ops:expr),*) => (row!(Assoc::LeftAssoc, [$($ops),+]));
         }
 
         macro_rules! non {
             ($($ops:expr),+,) => (non!($($ops),+));
-            ($($ops:expr),*) => (row!(NonAssoc, [$($ops),+]));
+            ($($ops:expr),*) => (row!(Assoc::NonAssoc, [$($ops),+]));
         }
 
         macro_rules! optable {
@@ -1002,7 +1004,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn parse_expr_no_structs(&mut self) -> Expr {
-        self.with_restriction(NoAmbiguousLBraceRestriction, |p| p.parse_expr())
+        self.with_restriction(Restriction::NoAmbiguousLBraceRestriction, |p| p.parse_expr())
     }
 
     pub fn parse_expr(&mut self) -> Expr {
@@ -1036,7 +1038,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let start_span = self.cur_span();
         let path = self.parse_path();
         let node = match *self.peek() {
-            LBrace if self.restriction != NoAmbiguousLBraceRestriction => {
+            LBrace if self.restriction != Restriction::NoAmbiguousLBraceRestriction => {
                 self.expect(LBrace);
                 let fields = self.parse_list(|p| {
                     let name = p.parse_name();
@@ -1090,7 +1092,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         tokens
     }
 
-    fn eat_macro_token_tree(&mut self, args: &TreeSet<Name>) -> Vec<MacroToken> {
+    fn eat_macro_token_tree(&mut self, args: &BTreeSet<Name>) -> Vec<MacroToken> {
         let mut tokens = vec!();
 
         macro_rules! get_token_tree {
@@ -1113,7 +1115,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                 if args.contains(&name) {
                     tokens.push(MacroVar(name));
                 } else {
-                    fail!("No such argument `${}`", name);
+                    panic!("No such argument `${}`", name);
                 }
             }
             DotDotDot => tokens.push(MacroVarArgs),
@@ -1239,7 +1241,8 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let start_span = self.cur_span();
 
         self.expect(LParen);
-        let mut inner_exprs = self.with_restriction(NoRestriction, |p| p.parse_list(|p| p.parse_expr(), RParen, true));
+        let mut inner_exprs = self.with_restriction(Restriction::NoRestriction,
+                                                    |p| p.parse_list(|p| p.parse_expr(), RParen, true));
         self.expect(RParen);
 
         let node = if inner_exprs.len() == 0 {
@@ -1266,7 +1269,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             Let => self.parse_let_stmt(),
             _ => {
                 let start_span = self.cur_span();
-                let expr = self.with_restriction(ExprStmtRestriction, |p| p.parse_expr());
+                let expr = self.with_restriction(Restriction::ExprStmtRestriction, |p| p.parse_expr());
                 match *self.peek() {
                     Semicolon => {
                         self.expect(Semicolon);
@@ -1612,7 +1615,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
         let args = self.parse_list(|me| me.parse_name(), RParen, true);
 
-        let mut args_map = TreeSet::new();
+        let mut args_map = BTreeSet::new();
         for arg in args.iter() {
             args_map.insert(*arg);
         }

@@ -1,6 +1,6 @@
 // Liveness analysis
 
-use std::collections::TreeSet;
+use std::collections::BTreeSet;
 use std::cmp::Eq;
 use std::mem::swap;
 

@@ -7,11 +7,12 @@ use mc::session::Session;
 use package::Package;
 use target::Target;
 use target::NameMangler;
-use util::{Width32, Width16, Width8, AnyWidth, Width, UnsignedInt, Name,
-           SignedInt, GenericInt};
+
+use util::{IntKind, Name, Width};
+
 use intrinsics::size_of;
 
-use std::collections::treemap::{TreeSet, TreeMap};
+use std::collections::{BTreeSet, BTreeMap};
 
 use util;
 use std::io::Writer;
@@ -46,17 +47,17 @@ pub fn emit_ccross_prelude(f: &mut Writer) {
 }
 
 struct CCrossCompiler<'a> {
-    structnames: TreeSet<NodeId>,
-    enumitemnames: TreeMap<Name, (Ident, Vec<Variant>, uint)>,
-    enumnames: TreeMap<NodeId, Name>,
+    structnames: BTreeSet<NodeId>,
+    enumitemnames: BTreeMap<Name, (Ident, Vec<Variant>, uint)>,
+    enumnames: BTreeMap<NodeId, Name>,
     session: Session<'a>,
     typemap: Typemap,
-    mangle_map: TreeMap<NodeId, String>,
+    mangle_map: BTreeMap<NodeId, String>,
     indent: uint,
 }
 
-fn find_structs(module: &Module) -> TreeSet<NodeId> {
-    let mut struct_set = TreeSet::new();
+fn find_structs(module: &Module) -> BTreeSet<NodeId> {
+    let mut struct_set = BTreeSet::new();
 
     for item in module.val.items.iter() {
         match item.val {
@@ -73,8 +74,8 @@ fn find_structs(module: &Module) -> TreeSet<NodeId> {
 }
 
 fn find_enum_item_names(module: &Module)
-                        -> TreeMap<Name, (Ident, Vec<Variant>, uint)> {
-    let mut enum_map = TreeMap::new();
+                        -> BTreeMap<Name, (Ident, Vec<Variant>, uint)> {
+    let mut enum_map = BTreeMap::new();
 
     for item in module.val.items.iter() {
         match item.val {
@@ -97,8 +98,8 @@ fn find_enum_item_names(module: &Module)
     enum_map
 }
 
-fn find_enum_names(module: &Module) -> TreeMap<NodeId, Name> {
-    let mut enum_map = TreeMap::new();
+fn find_enum_names(module: &Module) -> BTreeMap<NodeId, Name> {
+    let mut enum_map = BTreeMap::new();
 
     for item in module.val.items.iter() {
         match item.val {
@@ -237,7 +238,7 @@ impl<'a> CCrossCompiler<'a> {
             LetStmt(ref pat, ref e) => {
                 let (i, t) = match pat.val {
                     IdentPat(ref i, ref t) => (i, t),
-                    _ => fail!("Only IdentPats are supported right now"),
+                    _ => panic!("Only IdentPats are supported right now"),
                 };
 
                 let ty = match *t {
@@ -247,7 +248,7 @@ impl<'a> CCrossCompiler<'a> {
                             self.visit_name_and_ty(
                                 i.val.name,
                                 &self.typemap.types[expr.id.to_uint()]),
-                        None => fail!("Must specify a type."),
+                        None => panic!("Must specify a type."),
                     }
                 };
                 let maybe_expr = e.as_ref().map(|e| format!(" = {}", self.visit_expr(e))).unwrap_or_default();
@@ -411,9 +412,9 @@ impl<'a> CCrossCompiler<'a> {
             BoolType => String::from_str("int"),
             UnitType => String::from_str("void"),
             DivergingType => String::from_str("void"), // this probably is okay
-            IntType(util::UnsignedInt(w)) => format!("uint{}_t", w),
-            IntType(util::SignedInt(w)) => format!("int{}_t", w),
-            IntType(util::GenericInt) => String::from_str("int"),
+            IntType(IntKind::UnsignedInt(w)) => format!("uint{}_t", w),
+            IntType(IntKind::SignedInt(w)) => format!("int{}_t", w),
+            IntType(IntKind::GenericInt) => String::from_str("int"),
         }
     }
 
@@ -430,7 +431,7 @@ impl<'a> CCrossCompiler<'a> {
             BoundTy(ref bound_id) => {
                 match self.typemap.bounds[bound_id.to_uint()] {
                     Concrete(ref ty) => self.visit_ty(ty),
-                    ref bounds => fail!("Type is not fully constrained: {}", bounds),
+                    ref bounds => panic!("Type is not fully constrained: {}", bounds),
                 }
             }
             EnumTy(did, _) |
@@ -443,7 +444,7 @@ impl<'a> CCrossCompiler<'a> {
                 let list = self.visit_list(d, |me, x| me.visit_ty(&x.val), ", ");
                 format!("{} (*)({})", ty, list)
             },
-            _ => fail!("Not supported yet: {}", t),
+            _ => panic!("Not supported yet: {}", t),
         }
     }
 
@@ -485,14 +486,14 @@ impl<'a> CCrossCompiler<'a> {
         match lit.val {
             NumLit(ref n, ref k) => {
                 match *k {
-                    UnsignedInt(..) => format!("0x{:x}/*{}*/", *n, n),
-                    GenericInt |
-                    SignedInt(AnyWidth) |
-                    SignedInt(Width32) =>
-                        format!("(int32_t)0x{:x}/*{}*/", *n, n),
-                    SignedInt(Width16) =>
-                        format!("(int16_t)0x{:x}/*{}*/", *n, n),
-                    SignedInt(Width8) =>
+                    IntKind::UnsignedInt(..) => format!("0x{:x}/*{}*/", *n, n),
+                    IntKind::GenericInt |
+                    IntKind::SignedInt(Width::AnyWidth) |
+                    IntKind::SignedInt(Width::Width32) =>
+                                 format!("(int32_t)0x{:x}/*{}*/", *n, n),
+                    IntKind::SignedInt(Width::Width16) =>
+                                 format!("(int16_t)0x{:x}/*{}*/", *n, n),
+                    IntKind::SignedInt(Width::Width8) =>
                         format!("(int8_t)0x{:x}/*{}*/", *n, n),
                 }
             },
@@ -531,7 +532,7 @@ impl<'a> CCrossCompiler<'a> {
             UnitExpr => String::from_str("({})"),
             LitExpr(ref l) => self.visit_lit(l),
             SizeofExpr(ref t) => format!("sizeof({})", self.visit_type(t)),
-            TupleExpr(..) => fail!("Tuples not yet supported."),
+            TupleExpr(..) => panic!("Tuples not yet supported."),
             GroupExpr(ref e) => format!("({})", self.visit_expr(&**e)),
             PathExpr(ref p) => {
                self.visit_mangled_path(p)
@@ -668,7 +669,7 @@ impl<'a> CCrossCompiler<'a> {
                 let arms = self.mut_visit_list(arms, |me, arm| {
                     let (path, vars) = match arm.pat.val {
                         VariantPat(ref path, ref args) => (path, args),
-                        _ => fail!("Only VariantPats are supported in match arms for now")
+                        _ => panic!("Only VariantPats are supported in match arms for now")
                     };
 
                     let body = me.visit_expr(&arm.body);
@@ -684,7 +685,7 @@ impl<'a> CCrossCompiler<'a> {
                         let ty = me.visit_type(&this_variant.args[n - 1]);
                         let varname = match var.val {
                             IdentPat(ref id, _) => me.session.interner.name_to_str(&id.val.name),
-                            _ => fail!("Only IdentPats are supported in the arguments of a VariantPat in a match arm for now"),
+                            _ => panic!("Only IdentPats are supported in the arguments of a VariantPat in a match arm for now"),
                         };
                         format!("{} {} = {}.val.{}.field{};",
                                 ty, varname, expr.as_slice(), name, n - 1)

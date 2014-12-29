@@ -7,9 +7,9 @@ use mas::ast::*;
 use mas::util::pack_int;
 use mc::ast::*;
 use mc::session::Session;
-use util::{Width, Width32, Width16, Width8, Name};
+use util::{Width, Name};
 use std::mem::swap;
-use std::collections::{TreeMap, TreeSet, SmallIntMap};
+use std::collections::{BTreeMap, BTreeSet, VecMap};
 use std::iter::range_inclusive;
 use std::cmp::max;
 
@@ -17,7 +17,7 @@ pub struct IrToAsm;
 
 fn lit_to_longvalue(lit: &LitNode,
                     session: &mut Session,
-                    strings: &mut TreeSet<Name>) -> LongValue {
+                    strings: &mut BTreeSet<Name>) -> LongValue {
     match *lit {
         NumLit(num, _) => Immediate(num as u32),
         StringLit(ref s) => {
@@ -56,7 +56,7 @@ fn binop_to_cmpop(op: &BinOpNode,
                 Some((if signed { CmpLES } else { CmpLEU }, *op != LessEqOp ))
             },
         AndAlsoOp |
-        OrElseOp => fail!("AndAlso and OrElse should not appear in IR."),
+        OrElseOp => panic!("AndAlso and OrElse should not appear in IR."),
         _ => None,
     }
 }
@@ -72,15 +72,15 @@ fn binop_to_aluop(op: &BinOpNode, swapped: bool) -> Option<AluOp> {
         // times, divide, and mod are special, and won't be handled here.
         // comparison ops are also not handled here.
         // Shifts are also special.
-        _ => fail!("Unimplemented op: {}", op), // TODO: this should eventually
+        _ => panic!("Unimplemented op: {}", op), // TODO: this should eventually
                                                 // return None.
     }
 }
 
 /// Convert a binop into the internal asm representation.
 fn convert_binop<'a>(
-    regmap: &TreeMap<Var, RegisterColor>,
-    global_map: &TreeMap<Name, StaticIRItem>,
+    regmap: &BTreeMap<Var, RegisterColor>,
+    global_map: &BTreeMap<Name, StaticIRItem>,
     dest: Reg,
     op: &BinOpNode,
     signed: bool,
@@ -88,7 +88,7 @@ fn convert_binop<'a>(
     mut op_r: &'a RValueElem,
     offs: u32,
     session: &mut Session,
-    strings: &mut TreeSet<Name>) -> Vec<InstNode> {
+    strings: &mut BTreeSet<Name>) -> Vec<InstNode> {
 
     let mut result = vec!();
     let mut swapped = false;
@@ -100,7 +100,7 @@ fn convert_binop<'a>(
 
     let var_l = match *op_l {
         Variable(var) => var,
-        _ => fail!("Trying to apply a binary operation to two constants. Did you remember to do the constant folding pass?"),
+        _ => panic!("Trying to apply a binary operation to two constants. Did you remember to do the constant folding pass?"),
     };
 
     let (reg_l, before_l, _) = var_to_reg(regmap, global_map, &var_l, 1, offs);
@@ -383,7 +383,7 @@ fn convert_binop<'a>(
                             } else {
                                 let val = match longval {
                                     Immediate(v) => v as u8,
-                                    _ => fail!("Expected an immediate"),
+                                    _ => panic!("Expected an immediate"),
                                 };
                                 result.push(
                                     InstNode::alu1reg(
@@ -439,14 +439,14 @@ fn convert_binop<'a>(
 }
 
 fn convert_unop<'a>(
-    regmap: &TreeMap<Var, RegisterColor>,
-    global_map: &TreeMap<Name, StaticIRItem>,
+    regmap: &BTreeMap<Var, RegisterColor>,
+    global_map: &BTreeMap<Name, StaticIRItem>,
     dest: Reg,
     op: &UnOpNode,
     rhs: &'a RValueElem,
     offs: u32,
     session: &mut Session,
-    strings: &mut TreeSet<Name>) -> Vec<InstNode> {
+    strings: &mut BTreeSet<Name>) -> Vec<InstNode> {
 
     let pred = Pred {
         inverted: false,
@@ -492,18 +492,18 @@ fn convert_unop<'a>(
                                 }
                             },
                             None =>
-                                fail!("Cannot take the address of a reg.")
+                                panic!("Cannot take the address of a reg.")
                         }
                     },
                 }
             },
-            _ => fail!("Cannot take the address of a constant."),
+            _ => panic!("Cannot take the address of a constant."),
         }
     }
 
     let reg_op = match *op {
         Deref |
-        AddrOf => fail!("Should not have & or * in IR."),
+        AddrOf => panic!("Should not have & or * in IR."),
         Negate => |x| vec!(InstNode::alu2short(pred, RsbAluOp, dest, x, 0, 0)),
         LogNot => |x| vec!(InstNode::alu2short(pred, XorAluOp, dest, x, 1, 0)),
         BitNot => |x| vec!(InstNode::alu1reg(pred, MvnAluOp, dest, x,
@@ -524,7 +524,7 @@ fn convert_unop<'a>(
             before_r
         },
         Constant(ref val) => {
-            if *op != Identity { fail!("Should have been constant folded. {}",
+            if *op != Identity { panic!("Should have been constant folded. {}",
                                        op) };
 
             let mut result = vec!();
@@ -560,10 +560,10 @@ fn convert_unop<'a>(
 
 fn width_to_lsuwidth(width: &Width) -> LsuWidth {
     match *width {
-        Width32 => LsuWidthL,
-        Width16 => LsuWidthH,
-        Width8  => LsuWidthB,
-        _ => fail!(),
+        Width::Width32 => LsuWidthL,
+        Width::Width16 => LsuWidthH,
+        Width::Width8  => LsuWidthB,
+        _ => panic!(),
     }
 }
 
@@ -574,8 +574,8 @@ fn width_to_lsuwidth(width: &Width) -> LsuWidth {
 // while another register with the same spill_pos is active.
 // offs is where variables on the stack start (so, after all structs
 // and such that are allocated on the stack).
-fn var_to_reg(regmap: &TreeMap<Var, RegisterColor>,
-              global_map: &TreeMap<Name, StaticIRItem>,
+fn var_to_reg(regmap: &BTreeMap<Var, RegisterColor>,
+              global_map: &BTreeMap<Name, StaticIRItem>,
               var: &Var,
               spill_pos: u8,
               offs: u32) -> (Reg, Vec<InstNode>, Vec<InstNode>) {
@@ -671,18 +671,18 @@ fn var_to_reg(regmap: &TreeMap<Var, RegisterColor>,
     }
 }
 
-fn assign_vars(regmap: &TreeMap<Var, RegisterColor>,
-               global_map: &TreeMap<Name, StaticIRItem>,
+fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
+               global_map: &BTreeMap<Name, StaticIRItem>,
                pred: &Pred,
-               gens: &TreeMap<Name, uint>,
-               vars: &TreeSet<Var>,
+               gens: &BTreeMap<Name, uint>,
+               vars: &BTreeSet<Var>,
                offs: u32) -> Vec<InstNode> {
     let mut result = vec!();
 
-    let mut reg_transformations: TreeMap<Reg, (Reg,
+    let mut reg_transformations: BTreeMap<Reg, (Reg,
                                                Vec<InstNode>,
-                                               Vec<InstNode>)> = TreeMap::new();
-    let mut rev_map: TreeMap<Reg, Reg> = TreeMap::new();
+                                               Vec<InstNode>)> = BTreeMap::new();
+    let mut rev_map: BTreeMap<Reg, Reg> = BTreeMap::new();
 
     for var in vars.iter() {
         // Globals don't need assignments.
@@ -815,9 +815,9 @@ impl IrToAsm {
     }
 
     pub fn strings_to_asm(session: &Session,
-                          strings: &TreeSet<Name>) -> (Vec<[InstNode, ..4]>,
-                                                       TreeMap<String, uint>) {
-        let mut labels = TreeMap::new();
+                          strings: &BTreeSet<Name>) -> (Vec<[InstNode, ..4]>,
+                                                       BTreeMap<String, uint>) {
+        let mut labels = BTreeMap::new();
         let mut insts: Vec<[InstNode, ..4]> = vec!();
         for &Name(s) in strings.iter() {
             let mut packetpos = 0u;
@@ -856,10 +856,10 @@ impl IrToAsm {
     }
 
     pub fn ir_to_asm(ops: &Vec<Op>,
-                     global_map: &TreeMap<Name, StaticIRItem>,
+                     global_map: &BTreeMap<Name, StaticIRItem>,
                      session: &mut Session,
-                     strings: &mut TreeSet<Name>
-                     ) -> (Vec<InstNode>, TreeMap<String, uint>) {
+                     strings: &mut BTreeSet<Name>
+                     ) -> (Vec<InstNode>, BTreeMap<String, uint>) {
         let opinfo = LivenessAnalyzer::analyze(ops);
         let (conflicts, counts, must_colors, mem_vars) =
             ConflictAnalyzer::conflicts(ops, &opinfo);
@@ -872,7 +872,7 @@ impl IrToAsm {
         // Figure out where objects on the stack will go.
         // stack_item_map is a map from instruction index (for an alloca
         // instruction) to a stack offset.
-        let mut stack_item_map: TreeMap<uint, u32> = TreeMap::new();
+        let mut stack_item_map: BTreeMap<uint, u32> = BTreeMap::new();
         // Start at 4, to skip over the saved return value.
         let mut stack_item_offs: u32 = 4;
         for (inst, op) in ops.iter().enumerate() {
@@ -904,16 +904,16 @@ impl IrToAsm {
                                                     _ => 0,
                                                 }).max().unwrap_or(0);
 
-        let mut targets: TreeMap<String, uint> = TreeMap::new();
+        let mut targets: BTreeMap<String, uint> = BTreeMap::new();
 
-        let mut labels: SmallIntMap<TreeMap<Name, uint>> = SmallIntMap::new();
+        let mut labels: VecMap<BTreeMap<Name, uint>> = VecMap::new();
         // Find out which variables are used at each label.
         // TODO: merge this in with the loop above, so we don't iterate over
         // the instruction list as many times?
         for op in ops.iter() {
             match *op {
                 Label(ref idx, ref vars) => {
-                    let mut varmap: TreeMap<Name, uint> = TreeMap::new();
+                    let mut varmap: BTreeMap<Name, uint> = BTreeMap::new();
                     for var in vars.iter() {
                         varmap.insert(var.name.clone(),
                                       var.generation.expect(
@@ -1151,7 +1151,7 @@ impl IrToAsm {
                     // actually use them.
                     let ref this_opinfo = opinfo[pos];
                     let ref live_vars = this_opinfo.live;
-                    let mut reg_set: TreeSet<Reg> = TreeSet::new();
+                    let mut reg_set: BTreeSet<Reg> = BTreeSet::new();
                     // Make a list of the registers we actually need to save.
                     for var in live_vars.iter() {
                         match *regmap.find(var).expect(
@@ -1237,7 +1237,7 @@ impl IrToAsm {
                     let func_var = match *f {
                         Variable(v) => v,
                         // TODO
-                        _ => fail!(),
+                        _ => panic!(),
                     };
 
                     let reg_opt = match global_map.find(&func_var.name) {

@@ -1,5 +1,7 @@
-pub use codegen::ir_to_asm::IrToAsm;
 use mas::ast::Reg;
+
+pub use codegen::ir_to_asm::IrToAsm;
+pub use self::RegisterColor::*;
 
 pub mod register_color;
 pub mod ir_to_asm;

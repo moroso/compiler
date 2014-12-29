@@ -1,5 +1,3 @@
-use std::ascii::StrAsciiExt;
-
 use std::io::stdio;
 use std::os;
 
@@ -9,8 +7,8 @@ use self::encoder::encode;
 
 use getopts;
 use getopts::{getopts, reqopt, optopt, optflag};
-use getopts::OptionMissing;
 use std::io::Writer;
+use std::iter::IteratorExt;
 
 pub mod lexer;
 pub mod parser;
@@ -50,10 +48,10 @@ pub fn main() {
         }
 
         let brief = format!("Usage: {} [OPTIONS]", arg0);
-        println!("{}", getopts::usage(brief.as_slice(), opts));
+        println!("{}", getopts::usage(brief.as_slice(), opts[]));
     };
 
-    let matches = match getopts(args.tail(), opts) {
+    let matches = match getopts(args.tail(), opts[]) {
         Ok(m) => m,
         Err(e) => return bail(Some(format!("{}", e).as_slice())),
     };
@@ -90,7 +88,7 @@ pub fn main() {
                        print_bin(encode(&packet[2]), &mut stdout);
                        print_bin(encode(&packet[3]), &mut stdout);
             }
-            _ => fail!()
+            _ => panic!()
         }
     }
 }

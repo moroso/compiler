@@ -2,11 +2,15 @@ use mc::session::Interner;
 use mc::session::Session;
 use util::Name;
 
-use std::collections::{SmallIntMap, TreeMap};
+use std::collections::{VecMap, BTreeMap};
 use std::slice;
 
 use mc::ast::*;
 use mc::ast::visitor::*;
+
+pub use self::NS::*;
+
+use self::ModuleScope::*;
 
 //#[allow(non_camel_case_types)] leaving the warning so we remember to patch rust later
 pub enum NS {
@@ -21,16 +25,13 @@ enum ModuleScope {
 }
 
 struct Subscope {
-    // XXX: We want SmallIntMap but it didn't derive Clone until
-    // very very recently so I'm making this a TreeMap until we
-    // need to do a compiler upgrade for some other reason.
-    names: TreeMap<Name, TreeMap<uint, NodeId>>,
+    names: VecMap<BTreeMap<uint, NodeId>>,
 }
 
 impl Subscope {
     fn new() -> Subscope {
         Subscope {
-            names: TreeMap::new()
+            names: BTreeMap::new()
         }
     }
 
@@ -38,9 +39,7 @@ impl Subscope {
         let ns = ns as uint;
 
         if !self.names.contains_key(&name) {
-            // See above.
-            //self.names.insert(name, SmallIntMap::new());
-            self.names.insert(name, TreeMap::new());
+            self.names.insert(name as uint, VecMap::new());
         }
 
         let names = self.names.find_mut(&name).unwrap();
@@ -56,14 +55,14 @@ impl Subscope {
         for item in items.iter() {
             match item.val {
                 UseItem(ref import) => {
-                    use std::collections::TreeSet;
+                    use std::collections::BTreeSet;
                     use std::iter::FromIterator;
 
                     let filter = match import.val.import {
                         ImportNames(ref ids) =>
                             FromIterator::from_iter(ids.iter().map(|ref id| id.val.name)),
                         ImportAll =>
-                            TreeSet::new(),
+                            BTreeSet::new(),
                     };
 
                     let allow = match import.val.import {
@@ -117,24 +116,24 @@ impl Subscope {
 }
 
 pub struct Resolver {
-    table: TreeMap<NodeId, NodeId>,
+    table: BTreeMap<NodeId, NodeId>,
 }
 
 struct ModuleCollector {
-    tree: TreeMap<NodeId, ModuleScope>,
+    tree: BTreeMap<NodeId, ModuleScope>,
 }
 
 struct ModuleResolver<'a> {
     session: &'a mut Session<'a>,
     scope: Vec<Subscope>,
-    tree: TreeMap<NodeId, ModuleScope>,
+    tree: BTreeMap<NodeId, ModuleScope>,
     root: uint,
 }
 
 impl Resolver {
     pub fn new() -> Resolver {
         Resolver {
-            table: TreeMap::new(),
+            table: BTreeMap::new(),
         }
     }
 
@@ -168,8 +167,8 @@ impl Resolver {
 }
 
 impl ModuleCollector {
-    fn collect(module: &Module) -> (Subscope, TreeMap<NodeId, ModuleScope>) {
-        let mut collector = ModuleCollector { tree: TreeMap::new() };
+    fn collect(module: &Module) -> (Subscope, BTreeMap<NodeId, ModuleScope>) {
+        let mut collector = ModuleCollector { tree: BTreeMap::new() };
         collector.visit_module(module);
         let mut root = Subscope::new();
         root.insert_items(&module.val.items, |_| vec!());
@@ -308,7 +307,7 @@ impl<'a> ModuleResolver<'a> {
             }
 
             if !found {
-                let mut path = Vec::from_slice(elems);
+                let mut path = elems.to_vec();
                 path.push(ident.clone());
                 self.fail_resolve(ident.id, path.as_slice());
             }
@@ -519,7 +518,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
                 // Find the subscope we're about to descend into and swap it out of the tree
                 let subscope = match self.tree.swap(ident.id, OnBranch(idx)) {
                     Some(OffBranch(subscope)) => subscope,
-                    _ => fail!(),
+                    _ => panic!(),
                 };
 
                 // Add the subscope to the scope branch
@@ -559,7 +558,7 @@ mod tests {
     use super::super::ast::NodeId;
     use super::super::ast::visitor::Visitor;
     use super::super::parser::ast_from_str;
-    use std::collections::TreeMap;
+    use std::collections::BTreeMap;
 
     #[test]
     fn basic_resolver_test() {

@@ -1,10 +1,6 @@
 use mas::ast::*;
-use mas::parser::{classify_inst,
-                  ALUInstType,
-                  ControlType,
-                  MemoryType,
-                  LongType};
-use collections::{TreeSet, TreeMap, PriorityQueue};
+use mas::parser::{classify_inst, InstType};
+use collections::{BTreeSet, BTreeMap, BinaryHeap};
 use std::iter::range_inclusive;
 
 // Return Rd.
@@ -223,8 +219,8 @@ fn compatible(packet: &[InstNode, ..4], inst: &InstNode) -> bool {
     packet.iter().all(|x| compatible_insts(x, inst))
 }
 
-fn update_labels(label_map: &TreeMap<uint, Vec<&String>>,
-                 new_label_list: &mut TreeMap<String, uint>,
+fn update_labels(label_map: &BTreeMap<uint, Vec<&String>>,
+                 new_label_list: &mut BTreeMap<String, uint>,
                  orig_pos: uint,
                  new_pos: uint) {
     let labels = label_map.find(&orig_pos);
@@ -242,13 +238,13 @@ fn update_labels(label_map: &TreeMap<uint, Vec<&String>>,
 
 /// Dummy scheduler: one instruction per packet.
 pub fn schedule_dummy(insts: &Vec<InstNode>,
-                      labels: &TreeMap<String, uint>,
+                      labels: &BTreeMap<String, uint>,
                       _: bool) -> (Vec<[InstNode, ..4]>,
-                                   TreeMap<String, uint>) {
+                                   BTreeMap<String, uint>) {
     let mut packets = vec!();
 
-    let mut modified_labels: TreeMap<String, uint> = TreeMap::new();
-    let mut jump_target_dict: TreeMap<uint, Vec<&String>> = TreeMap::new();
+    let mut modified_labels: BTreeMap<String, uint> = BTreeMap::new();
+    let mut jump_target_dict: BTreeMap<uint, Vec<&String>> = BTreeMap::new();
     for (label, pos) in labels.iter() {
         if jump_target_dict.contains_key(pos) {
             jump_target_dict.find_mut(pos).unwrap().push(label);
@@ -285,13 +281,13 @@ pub fn schedule_dummy(insts: &Vec<InstNode>,
 }
 
 pub fn schedule(insts: &Vec<InstNode>,
-                labels: &TreeMap<String, uint>,
+                labels: &BTreeMap<String, uint>,
                 debug: bool) -> (Vec<[InstNode, ..4]>,
-                                 TreeMap<String, uint>) {
+                                 BTreeMap<String, uint>) {
     let mut packets: Vec<[InstNode, ..4]> = vec!();
 
-    let mut modified_labels: TreeMap<String, uint> = TreeMap::new();
-    let mut jump_target_dict: TreeMap<uint, Vec<&String>> = TreeMap::new();
+    let mut modified_labels: BTreeMap<String, uint> = BTreeMap::new();
+    let mut jump_target_dict: BTreeMap<uint, Vec<&String>> = BTreeMap::new();
     for (label, pos) in labels.iter() {
         if jump_target_dict.contains_key(pos) {
             jump_target_dict.find_mut(pos).unwrap().push(label);
@@ -329,8 +325,8 @@ pub fn schedule(insts: &Vec<InstNode>,
         }
 
         // Start by building the instruction DAG.
-        let mut edges: TreeSet<(uint, uint)> = TreeSet::new();
-        let mut all: TreeSet<uint> =
+        let mut edges: BTreeSet<(uint, uint)> = BTreeSet::new();
+        let mut all: BTreeSet<uint> =
             FromIterator::from_iter(range(start, end));
         let mut this_packet: [InstNode, ..4] =
             [NopInst, NopInst, NopInst, NopInst];
@@ -354,9 +350,9 @@ pub fn schedule(insts: &Vec<InstNode>,
         // Scheduling involves essentially a topological sort of this DAG.
 
         while !all.is_empty() {
-            let non_schedulables: TreeSet<uint> = FromIterator::from_iter(
+            let non_schedulables: BTreeSet<uint> = FromIterator::from_iter(
                 edges.iter().map(|&(_, x)| x));
-            let leaves: TreeSet<uint> = FromIterator::from_iter(
+            let leaves: BTreeSet<uint> = FromIterator::from_iter(
                 all.iter()
                     .map(|&x| x)
                     .filter(|x| !non_schedulables.contains(x)));
@@ -367,8 +363,8 @@ pub fn schedule(insts: &Vec<InstNode>,
                     for idx in range_inclusive(
                         0,
                         match classify_inst(inst) {
-                            ControlType => 0u,
-                            MemoryType => 1,
+                            InstType::ControlType => 0u,
+                            InstType::MemoryType => 1,
                             _ => 3
                         }).rev() {
                         // Does this expect a long after it?

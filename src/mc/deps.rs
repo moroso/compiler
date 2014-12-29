@@ -17,6 +17,6 @@ pub fn output_deps(package: &Package, target: &String) {
 
     match writeln!(file, "{}: {}\n{}", target, vec.connect(" "), vec.connect(":\n").append(":")) {
         Ok(()) => (), // succeeded
-        Err(e) => fail!("Failed to generate dependency file: {}", e),
+        Err(e) => panic!("Failed to generate dependency file: {}", e),
     }
 }

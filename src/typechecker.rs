@@ -1,10 +1,9 @@
 use mc::resolver::Resolver;
 use mc::session::Session;
-use util::{IntKind, GenericInt, SignedInt, UnsignedInt};
-use util::{Width, AnyWidth, Width8, Width16, Width32};
+use util::{IntKind, Width};
 use span::Span;
 
-use std::collections::{SmallIntMap, TreeMap, EnumSet, TreeSet};
+use std::collections::{VecMap, BTreeMap, EnumSet, BTreeSet};
 use std::collections::enum_set::CLike;
 
 use std::fmt;
@@ -17,6 +16,12 @@ use mc::ast::defmap::*;
 use mc::ast::visitor::*;
 
 use values;
+
+pub use self::Ty::*;
+pub use self::TyBounds::*;
+
+use self::Kind::*;
+use self::ErrorCause::*;
 
 #[deriving(Eq, PartialEq, Show, Clone)]
 struct BoundsId(uint);
@@ -49,20 +54,20 @@ type ConstGraph = Graph<NodeId, ()>;
 
 struct ConstCollector<'a> {
     graph: ConstGraph,
-    nodes: TreeMap<NodeId, VertexIndex>,
-    consts: TreeMap<NodeId, &'a Expr>,
+    nodes: BTreeMap<NodeId, VertexIndex>,
+    consts: BTreeMap<NodeId, &'a Expr>,
     session: &'a Session<'a>,
 }
 
 struct ConstGraphBuilder<'a> {
     graph: &'a mut ConstGraph,
-    nodes: &'a TreeMap<NodeId, VertexIndex>,
+    nodes: &'a BTreeMap<NodeId, VertexIndex>,
     session: &'a Session<'a>,
 }
 
 type Constant = LitNode;
 type ConstantResult = Result<Constant, (NodeId, &'static str)>;
-pub type ConstantMap = TreeMap<NodeId, ConstantResult>;
+pub type ConstantMap = BTreeMap<NodeId, ConstantResult>;
 
 fn constant_fold(session: &Session, map: &ConstantMap, expr: &Expr)
                   -> ConstantResult {
@@ -119,8 +124,8 @@ impl<'a> Visitor for ConstCollector<'a> {
 impl<'a> ConstCollector<'a> {
     fn new(session: &'a Session) -> ConstCollector<'a> {
         ConstCollector {
-            nodes: TreeMap::new(),
-            consts: TreeMap::new(),
+            nodes: BTreeMap::new(),
+            consts: BTreeMap::new(),
             graph: Graph::new(),
             session: session,
         }
@@ -180,7 +185,7 @@ impl<'a> Visitor for ConstGraphBuilder<'a> {
 
 impl<'a> ConstGraphBuilder<'a> {
     fn new(graph: &'a mut ConstGraph,
-           nodes: &'a TreeMap<NodeId, VertexIndex>,
+           nodes: &'a BTreeMap<NodeId, VertexIndex>,
            session: &'a Session)
            -> ConstGraphBuilder<'a> {
         ConstGraphBuilder {
@@ -191,7 +196,7 @@ impl<'a> ConstGraphBuilder<'a> {
     }
 
     fn build_graph(graph: &'a mut ConstGraph,
-                   nodes: &'a TreeMap<NodeId, VertexIndex>,
+                   nodes: &'a BTreeMap<NodeId, VertexIndex>,
                    session: &'a Session,
                    module: &'a Module) {
         let mut builder = ConstGraphBuilder::new(graph, nodes, session);
@@ -263,7 +268,7 @@ impl Ty {
             UintTy(..) |
             PtrTy(..) |
             BoolTy => false,
-            _ => fail!("Non-integer type {}", self),
+            _ => panic!("Non-integer type {}", self),
         }
     }
 
@@ -358,7 +363,7 @@ impl CLike for Kind {
             11 => BitXorKind,
             12 => ShrKind,
             13 => ShlKind,
-            _ => fail!(),
+            _ => panic!(),
         }
     }
 }
@@ -412,14 +417,14 @@ impl fmt::Show for TyBounds {
 }
 
 pub struct Typemap {
-    pub types: SmallIntMap<Ty>,
-    pub bounds: SmallIntMap<TyBounds>,
+    pub types: VecMap<Ty>,
+    pub bounds: VecMap<TyBounds>,
     pub consts: ConstantMap,
 }
 
 pub struct Typechecker<'a> {
-    defs: TreeMap<NodeId, BoundsId>,
-    generics: Vec<TreeMap<NodeId, WithId<Ty>>>,
+    defs: BTreeMap<NodeId, BoundsId>,
+    generics: Vec<BTreeMap<NodeId, WithId<Ty>>>,
     session: &'a Session<'a>,
     next_bounds_id: uint,
     exits: Vec<WithId<Ty>>,
@@ -431,9 +436,9 @@ pub struct Typechecker<'a> {
 
 fn intkind_to_ty(ik: IntKind) -> Ty {
     match ik {
-        GenericInt     => GenericIntTy,
-        SignedInt(w)   => IntTy(w),
-        UnsignedInt(w) => UintTy(w),
+        IntKind::GenericInt     => GenericIntTy,
+        IntKind::SignedInt(w)   => IntTy(w),
+        IntKind::UnsignedInt(w) => UintTy(w),
     }
 }
 
@@ -474,15 +479,15 @@ fn op_to_kind_set(op: &BinOp) -> EnumSet<Kind> {
 impl<'a> Typechecker<'a> {
     pub fn new(session: &'a Session) -> Typechecker<'a> {
         Typechecker {
-            defs: TreeMap::new(),
+            defs: BTreeMap::new(),
             generics: vec!(),
             session: session,
             next_bounds_id: 0,
             exits: vec!(),
             typemap: Typemap {
-                types: SmallIntMap::new(),
-                bounds: SmallIntMap::new(),
-                consts: TreeMap::new(),
+                types: VecMap::new(),
+                bounds: VecMap::new(),
+                consts: BTreeMap::new(),
             },
             current_cause: None,
             current_unify: None,
@@ -566,7 +571,7 @@ impl<'a> Typechecker<'a> {
     pub fn type_error_with_notes(&self, msg: String, notes: Vec<(NodeId, String)>) -> ! {
         let mut errors = vec!();
         match self.current_cause {
-            None => fail!("ICE: type_error without cause"),
+            None => panic!("ICE: type_error without cause"),
             Some((nid, cause)) => errors.push((nid, format!("{}: {}", cause, msg))),
         }
 
@@ -612,7 +617,7 @@ impl<'a> Typechecker<'a> {
         }
     }
 
-    fn with_generics<T>(&mut self, gs: TreeMap<NodeId, WithId<Ty>>, f: |&mut Typechecker<'a>| -> T) -> T {
+    fn with_generics<T>(&mut self, gs: BTreeMap<NodeId, WithId<Ty>>, f: |&mut Typechecker<'a>| -> T) -> T {
         self.generics.push(gs);
         let ret = f(self);
         self.generics.pop();
@@ -703,10 +708,10 @@ impl<'a> Typechecker<'a> {
             ArrayType(ref t, ref d) => {
                 let ty = self.type_to_ty(&**t);
                 let d_ty = self.expr_to_ty(&**d);
-                self.check_ty_bounds_w(d.id, InvalidDimension, d_ty, Concrete(UintTy(AnyWidth)));
+                self.check_ty_bounds_w(d.id, InvalidDimension, d_ty, Concrete(UintTy(Width::AnyWidth)));
                 let c = self.expr_to_const(&**d);
                 let len = match c {
-                    NumLit(u, UnsignedInt(_)) | NumLit(u, GenericInt) => u,
+                    NumLit(u, IntKind::UnsignedInt(_)) | NumLit(u, IntKind::GenericInt) => u,
                     _ => self.error_fatal(t.id, "Array length must be a uint constant"),
                 };
                 ArrayTy(box ty, Some(len))
@@ -751,7 +756,7 @@ impl<'a> Typechecker<'a> {
                         let tp_tys = self.tps_to_tys(
                             pat.id, tps, &path.val.elems.last().unwrap().val.tps, true);
 
-                        let mut gs = TreeMap::new();
+                        let mut gs = BTreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                             gs.insert(*tp, tp_ty.clone());
                         }
@@ -776,7 +781,7 @@ impl<'a> Typechecker<'a> {
                         let tp_tys = self.tps_to_tys(
                             pat.id, tps, &path.val.elems.last().unwrap().val.tps, true);
 
-                        let mut gs = TreeMap::new();
+                        let mut gs = BTreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                             gs.insert(*tp, tp_ty.clone());
                         }
@@ -803,7 +808,7 @@ impl<'a> Typechecker<'a> {
     fn lit_to_ty(&mut self, lit: &Lit) -> WithId<Ty> {
         save_ty!(self, lit, match lit.val {
             NumLit(_, ik) => intkind_to_ty(ik),
-            StringLit(..) => PtrTy(box UintTy(Width8).with_id_of(lit)),
+            StringLit(..) => PtrTy(box UintTy(Width::Width8).with_id_of(lit)),
             BoolLit(..) => BoolTy,
             NullLit => PtrTy(box BottomTy.with_id_of(lit)),
         })
@@ -826,7 +831,7 @@ impl<'a> Typechecker<'a> {
             LitExpr(ref l) => self.lit_to_ty(l).val,
             SizeofExpr(ref t) => {
                 self.type_to_ty(t);
-                UintTy(Width32)
+                UintTy(Width::Width32)
             }
             TupleExpr(ref es) => TupleTy(es.iter().map(|e| self.expr_to_ty(e)).collect()),
             GroupExpr(ref e) => self.expr_to_ty(&**e).val,
@@ -836,7 +841,7 @@ impl<'a> Typechecker<'a> {
                     FuncDef(ref args, ref t, _, ref tps) => {
                         let tp_tys = self.tps_to_tys(
                             expr.id, tps, &path.val.elems.last().unwrap().val.tps, true);
-                        let mut gs = TreeMap::new();
+                        let mut gs = BTreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                             gs.insert(*tp, tp_ty.clone());
                         }
@@ -859,7 +864,7 @@ impl<'a> Typechecker<'a> {
                         if args.len() == 0 {
                             ctor(tp_tys)
                         } else {
-                            let mut gs = TreeMap::new();
+                            let mut gs = BTreeMap::new();
                             for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                                 gs.insert(*tp, tp_ty.clone());
                             }
@@ -896,7 +901,7 @@ impl<'a> Typechecker<'a> {
                 let tp_tys = self.tps_to_tys(
                     expr.id, tps, &path.val.elems.last().unwrap().val.tps, true);
 
-                let mut gs = TreeMap::new();
+                let mut gs = BTreeMap::new();
                 for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                     gs.insert(*tp, tp_ty.clone());
                 }
@@ -933,7 +938,7 @@ impl<'a> Typechecker<'a> {
                         _ => unreachable!(),
                     },
                     Identity => ty.val,
-                    _ => fail!("Operator {} should not appear here.",
+                    _ => panic!("Operator {} should not appear here.",
                                op.val),
                 };
 
@@ -943,7 +948,7 @@ impl<'a> Typechecker<'a> {
                 let a_ty = self.expr_to_ty(&**a);
                 let i_ty = self.expr_to_ty(&**i);
                 self.check_ty_bounds_w(i.id, InvalidIndex,
-                                       i_ty, Concrete(UintTy(AnyWidth)));
+                                       i_ty, Concrete(UintTy(Width::AnyWidth)));
 
                 match a_ty.val {
                     ArrayTy(ty, _) | PtrTy(ty) => ty.val,
@@ -968,7 +973,7 @@ impl<'a> Typechecker<'a> {
                             }
                             e_ret_ty.val
                         } else {
-                            self.with_cause(expr.id, InvalidCall, proc(me)
+                            self.with_cause(expr.id, InvalidCall, move |me|
                                              me.type_error(format!("expected {} parameters but found {}",
                                                                    e_arg_tys.len(), arg_tys.len())))
                         }
@@ -1030,7 +1035,7 @@ impl<'a> Typechecker<'a> {
 
                 match *self.session.defmap.find(&nid).take().unwrap() {
                     StructDef(ref name, ref fields, ref tps) => {
-                        let mut gs = TreeMap::new();
+                        let mut gs = BTreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                             gs.insert(*tp, tp_ty.clone());
                         }
@@ -1059,7 +1064,7 @@ impl<'a> Typechecker<'a> {
                 // FIXME: code duplication with above
                 match *self.session.defmap.find(&nid).take().unwrap() {
                     StructDef(ref name, ref fields, ref tps) => {
-                        let mut gs = TreeMap::new();
+                        let mut gs = BTreeMap::new();
                         for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                             gs.insert(*tp, tp_ty.clone());
                         }
@@ -1113,7 +1118,7 @@ impl<'a> Typechecker<'a> {
                     _ => self.session.error_fatal(e.id, "Match expressions are only valid on enum types"),
                 };
 
-                let mut variants = TreeSet::new();
+                let mut variants = BTreeSet::new();
                 match *self.session.defmap.find(&eid).unwrap() {
                     EnumDef(_, ref vs, _) => {
                         for v in vs.iter() {
@@ -1159,7 +1164,7 @@ impl<'a> Typechecker<'a> {
 
                 ArrayTy(box cur_ty, Some(elems.len() as u64))
             },
-            MacroExpr(..) => fail!(),
+            MacroExpr(..) => panic!(),
         })
     }
 
@@ -1234,7 +1239,7 @@ impl<'a> Typechecker<'a> {
             (MinusOp, ref mut p@PtrTy(..), ref t) if is_integral_ty(t) =>
                 ::std::mem::replace(p, UnitTy),
             (MinusOp, PtrTy(..), PtrTy(..)) =>
-                UintTy(Width32), //TODO PtrWidth
+                UintTy(Width::Width32), //TODO PtrWidth
             (_, l_ty_val, r_ty_val) => {
                 let kinds = op_to_kind_set(op);
                 let bounds = Constrained(kinds);
@@ -1266,7 +1271,7 @@ impl<'a> Typechecker<'a> {
         }
     }
 
-    fn with_cause<T>(&mut self, nid: NodeId, cause: ErrorCause, f: proc(&mut Typechecker) -> T) -> T {
+    fn with_cause<T, F: FnOnce(&mut Typechecker) -> T>(&mut self, nid: NodeId, cause: ErrorCause, f: F) -> T {
         let mut current_cause = Some((nid, cause));
         ::std::mem::swap(&mut current_cause, &mut self.current_cause);
         let ret = f(self);
@@ -1274,7 +1279,7 @@ impl<'a> Typechecker<'a> {
         ret
     }
 
-    fn with_unify<T>(&mut self, ty1: WithId<Ty>, ty2: WithId<Ty>, f: proc(&mut Typechecker) -> T) -> T {
+    fn with_unify<T, F: FnOnce(&mut Typechecker) -> T>(&mut self, ty1: WithId<Ty>, ty2: WithId<Ty>, f: F) -> T {
         let mut current_unify = Some((ty1, ty2));
         ::std::mem::swap(&mut current_unify, &mut self.current_unify);
         let ret = f(self);
@@ -1283,8 +1288,8 @@ impl<'a> Typechecker<'a> {
     }
 
     fn unify_with_cause(&mut self, nid: NodeId, cause: ErrorCause, ty1: WithId<Ty>, ty2: WithId<Ty>) -> Ty {
-        self.with_cause(nid, cause, proc(me) {
-            me.with_unify(ty1.clone(), ty2.clone(), proc(me) {
+        self.with_cause(nid, cause, move |me| {
+            me.with_unify(ty1.clone(), ty2.clone(), move |me| {
                 me.unify(ty1, ty2)
             })
         })
@@ -1293,7 +1298,7 @@ impl<'a> Typechecker<'a> {
     fn check_ty_bounds_w(&mut self, nid: NodeId, cause: ErrorCause,
                          t1: WithId<Ty>, bounds: TyBounds) -> Ty {
         let id = t1.id;
-        self.with_cause(nid, cause, proc(me) me.check_ty_bounds(t1, bounds.with_id(id)))
+        self.with_cause(nid, cause, move |me| me.check_ty_bounds(t1, bounds.with_id(id)))
     }
 
     fn unify(&mut self, ty1: WithId<Ty>, ty2: WithId<Ty>) -> Ty {
@@ -1337,7 +1342,7 @@ impl<'a> Typechecker<'a> {
             (GenericIntTy, UintTy(w)) | (UintTy(w), GenericIntTy) => UintTy(w),
             (IntTy(w1), IntTy(w2)) => {
                 let w = match (w1, w2) {
-                    (AnyWidth, w) | (w, AnyWidth) => w,
+                    (Width::AnyWidth, w) | (w, Width::AnyWidth) => w,
                     (w1, w2) => {
                         if w1 == w2 {
                             w1
@@ -1351,7 +1356,7 @@ impl<'a> Typechecker<'a> {
             },
             (UintTy(w1), UintTy(w2)) => {
                 let w = match (w1, w2) {
-                    (AnyWidth, w) | (w, AnyWidth) => w,
+                    (Width::AnyWidth, w) | (w, Width::AnyWidth) => w,
                     (w1, w2) => {
                         if w1 == w2 {
                             w1
@@ -1509,7 +1514,7 @@ impl<'a> Visitor for Typechecker<'a> {
             FuncItem(_, _, ref t, LocalFn(ref b), ref tps) => {
                 let tp_ids = tps.iter().map(|tp| tp.id).collect();
                 let tp_tys = self.tps_to_tys(item.id, &tp_ids, &None, true);
-                let mut gs = TreeMap::new();
+                let mut gs = BTreeMap::new();
                 for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
                     gs.insert(tp.id, tp_ty.clone());
                 }
@@ -1552,7 +1557,7 @@ impl<'a> Visitor for Typechecker<'a> {
                 self.unify_with_cause(item.id, InvalidPatBinding, ty, e_ty);
             }
             TypeItem(_, ref t, ref tps) => {
-                let mut gs = TreeMap::new();
+                let mut gs = BTreeMap::new();
                 for tp in tps.iter() {
                     gs.insert(tp.id, UnitTy.with_id_of(tp));
                 }
@@ -1563,7 +1568,7 @@ impl<'a> Visitor for Typechecker<'a> {
             }
             EnumItem(_, ref vs, ref tps) => {
                 for v in vs.iter() {
-                    let mut gs = TreeMap::new();
+                    let mut gs = BTreeMap::new();
                     for tp in tps.iter() {
                         gs.insert(tp.id, UnitTy.with_id_of(tp));
                     }
@@ -1576,7 +1581,7 @@ impl<'a> Visitor for Typechecker<'a> {
                 }
             }
             StructItem(_, ref flds, ref tps) => {
-                let mut gs = TreeMap::new();
+                let mut gs = BTreeMap::new();
                 for tp in tps.iter() {
                     gs.insert(tp.id, UnitTy.with_id_of(tp));
                 }
@@ -1602,7 +1607,7 @@ mod tests {
 
     use super::Typechecker;
 
-    use std::collections::TreeMap;
+    use std::collections::BTreeMap;
 
     #[test]
     fn basic_tyck_test() {

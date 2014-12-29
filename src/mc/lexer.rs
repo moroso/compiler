@@ -1,13 +1,16 @@
 use super::ast;
 
-use util::{IntKind, GenericInt, SignedInt, UnsignedInt};
-use util::{Width, AnyWidth, Width8, Width16, Width32};
+use util::{IntKind, Width};
 use std::{io, option, iter};
 
 pub use util::lexer::{Language, Lexer, LexerRule, LexerRuleT};
 pub use util::lexer::{RuleMatcher, SourceToken, TokenMaker};
+pub use util::lexer::BufReader;
 
 use std::fmt;
+use std::str::StrExt;
+
+pub use self::Token::*;
 
 #[deriving(Eq, PartialEq, Clone)]
 pub enum Token {
@@ -206,8 +209,7 @@ impl fmt::Show for Token {
 
 // Convenience for tests
 pub fn lexer_from_str(s: &str) -> Lexer<io::BufferedReader<io::MemReader>, Token> {
-    use std::str::StrSlice;
-    let bytes = Vec::from_slice(s.as_bytes());
+    let bytes = s.as_bytes().to_vec();
     let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
     new_mb_lexer("test", buffer)
 }
@@ -229,16 +231,16 @@ impl RuleMatcher<IntKind> for IntTypeRule {
         match matcher.captures(s) {
             Some(groups) => {
                 let ctor = match s.char_at(0) {
-                    'u' | 'U' => UnsignedInt,
-                    'i' | 'I' => SignedInt,
-                    _ => fail!(),
+                    'u' | 'U' => IntKind::UnsignedInt,
+                    'i' | 'I' => IntKind::SignedInt,
+                    _ => panic!(),
                 };
 
                 let w = match from_str_radix::<u8>(groups.at(1), 10) {
-                    Some(32) => Width32,
-                    Some(16) => Width16,
-                    Some(8)  => Width8,
-                    _ => fail!(),
+                    Some(32) => Width::Width32,
+                    Some(16) => Width::Width16,
+                    Some(8)  => Width::Width8,
+                    _ => panic!(),
                 };
 
                 Some((groups.at(0).len(), ctor(w)))
@@ -265,22 +267,22 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
                 let s = groups.at(3);
                 let kind = if s.len() > 0 {
                     let ctor = match s.char_at(0) {
-                        'u' | 'U' => UnsignedInt,
-                        'i' | 'I' => SignedInt,
-                        _ => fail!(),
+                        'u' | 'U' => IntKind::UnsignedInt,
+                        'i' | 'I' => IntKind::SignedInt,
+                        _ => panic!(),
                     };
 
                     let w = match from_str_radix::<u8>(groups.at(4), 10) {
-                        None     => AnyWidth,
-                        Some(32) => Width32,
-                        Some(16) => Width16,
-                        Some(8)  => Width8,
-                        _ => fail!(),
+                        None     => Width::AnyWidth,
+                        Some(32) => Width::Width32,
+                        Some(16) => Width::Width16,
+                        Some(8)  => Width::Width8,
+                        _ => panic!(),
                     };
 
                     ctor(w)
                 } else {
-                    GenericInt
+                    IntKind::GenericInt
                 };
 
                 Some((groups.at(0).len(), (from_str_radix(num_str, radix).take().unwrap(), kind)))
@@ -330,15 +332,14 @@ impl RuleMatcher<(u64, IntKind)> for CharRule {
                use rust_syntax::parse::char_lit;
                let t = groups.at(0);
                let (c, _) = char_lit(groups.at(1));
-               Some((t.len(), (c as u64, UnsignedInt(Width8))))
+               Some((t.len(), (c as u64, IntKind::UnsignedInt(Width::Width8))))
            },
             _ => None
         }
     }
 }
 
-pub fn new_mb_lexer<'a, S: StrAllocating, B: Buffer>(name: S,
-                                                     buffer: B) -> Lexer<'a, B, Token> {
+pub fn new_mb_lexer<'a, Sized? S: StrExt, B: BufReader>(name: &S, buffer: B) -> Lexer<'a, B, Token> {
     let lang = Language {
         eof: Eof,
         ws: WS,

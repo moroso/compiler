@@ -2,6 +2,7 @@ use mc::ast::Module;
 use mc::ast::visitor::Visitor;
 use mc::session::{Session, Options};
 use typechecker::{Typechecker, Typemap};
+use util::lexer::BufReader;
 
 pub struct Package<'a> {
     pub module:  Module,
@@ -24,14 +25,14 @@ impl Parsable for ::std::io::File {
     }
 }
 
-impl<'a, T: Buffer> Parsable for NamedBuffer<'a, T> {
+impl<'a, T: BufReader> Parsable for NamedBuffer<'a, T> {
     fn parse(self, session: &mut Session) -> Module {
         session.parse_package_buffer(self.name, self.buffer)
     }
 }
 
 impl<'a> Package<'a> {
-    pub fn from_buffer<T: Buffer>(opts: Options, name: &str, buffer: T) -> Package<'a> {
+    pub fn from_buffer<T: BufReader>(opts: Options, name: &str, buffer: T) -> Package<'a> {
         let nb = NamedBuffer {
             name: name,
             buffer: buffer,

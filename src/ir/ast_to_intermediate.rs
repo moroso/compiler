@@ -1,11 +1,13 @@
-use util::{Width32, Width16, Width8, AnyWidth, Width, UnsignedInt, Name,
-           SignedInt, GenericInt};
-use mc::session::Session;
+use util::{IntKind, Name, Width};
+use util::Width::{AnyWidth, Width32, Width16, Width8};
+use util::IntKind::{GenericInt, SignedInt, UnsignedInt};
 use mc::ast::defmap::{StructDef, EnumDef, VariantDef, ConstDef};
+use mc::session::Session;
 
-use std::collections::{TreeSet, TreeMap};
+use std::collections::{BTreeSet, BTreeMap};
 use std::vec::unzip;
 
+use mc::ast;
 use mc::ast::*;
 
 use intrinsics::size_of::*;
@@ -20,7 +22,7 @@ pub struct ASTToIntermediate<'a> {
     label_count: uint,
     session: &'a mut Session<'a>,
     typemap: &'a mut Typemap,
-    manglemap: &'a TreeMap<NodeId, String>,
+    manglemap: &'a BTreeMap<NodeId, String>,
     continue_labels: Vec<uint>,
     break_labels: Vec<uint>,
 }
@@ -70,7 +72,7 @@ fn adjust_constant(c: &LitNode) -> LitNode {
 impl<'a> ASTToIntermediate<'a> {
     pub fn new(session: &'a mut Session,
                typemap: &'a mut Typemap,
-               manglemap: &'a TreeMap<NodeId, String>
+               manglemap: &'a BTreeMap<NodeId, String>
                ) -> ASTToIntermediate<'a> {
         ASTToIntermediate { var_count: 0,
                             label_count: 0,
@@ -151,7 +153,7 @@ impl<'a> ASTToIntermediate<'a> {
                                generation: None },
                          ty_opt.clone())
                     },
-                    _ => fail!("Only ident patterns are supported right now.")
+                    _ => panic!("Only ident patterns are supported right now.")
                 };
 
                 match *e_opt {
@@ -164,7 +166,7 @@ impl<'a> ASTToIntermediate<'a> {
                     },
                     None => {
                         match ty {
-                            None => fail!("No type available."),
+                            None => panic!("No type available."),
                             Some(ref t) => {
                                 match *self.lookup_ty(t.id) {
                                     StructTy(ref id, _) => {
@@ -280,7 +282,7 @@ impl<'a> ASTToIntermediate<'a> {
             StaticItem(ref id, ref t, ref exp, is_extern) => {
                 self.static_item_helper(id, t, exp, is_extern)
             }
-            _ => fail!("{}", item)
+            _ => panic!("{}", item)
         }
     }
 
@@ -322,9 +324,9 @@ impl<'a> ASTToIntermediate<'a> {
     }
 
     pub fn allocate_globals(globals: Vec<StaticIRItem>
-                            ) -> TreeMap<Name, StaticIRItem> {
+                            ) -> BTreeMap<Name, StaticIRItem> {
         let mut offs: uint = 0;
-        let mut result = TreeMap::new();
+        let mut result = BTreeMap::new();
 
         for mut global in globals.move_iter() {
             let size = global.size;
@@ -341,7 +343,7 @@ impl<'a> ASTToIntermediate<'a> {
     /// the object file, but for now we just generate code on startup to
     /// initalize all of the items.
     pub fn convert_globals(&mut self,
-                           global_map: &TreeMap<Name,
+                           global_map: &BTreeMap<Name,
                            StaticIRItem>) -> Vec<Op> {
         let mut res = vec!(
             Func(self.session.interner.intern("_INIT_GLOBALS".to_string()),
@@ -413,34 +415,34 @@ impl<'a> ASTToIntermediate<'a> {
         // We always break to the very end of everything.
         let end_label = break_label;
         let mut res = vec!(
-            Goto(begin_label, TreeSet::new()),
-            Label(begin_label, TreeSet::new()));
+            Goto(begin_label, BTreeSet::new()),
+            Label(begin_label, BTreeSet::new()));
         let (cond_insts, cond_var) = self.convert_expr(e);
         let cond_var = cond_var.expect(
             "Condition must have a non-unit value");
         res.push_all_move(cond_insts);
         res.push(CondGoto(true,
                           Variable(cond_var),
-                          end_label, TreeSet::new()));
+                          end_label, BTreeSet::new()));
         match middle_label {
             Some(l) => res.push_all_move(
-                vec!(Goto(l, TreeSet::new()),
-                     Label(l, TreeSet::new()))),
+                vec!(Goto(l, BTreeSet::new()),
+                     Label(l, BTreeSet::new()))),
             None => {},
         }
         res.push_all_move(block_insts);
         match iter_insts {
             Some(insts) => {
                 // These are run in a for loop, where we need iter_insts.
-                res.push(Goto(continue_label, TreeSet::new()));
-                res.push(Label(continue_label, TreeSet::new()));
+                res.push(Goto(continue_label, BTreeSet::new()));
+                res.push(Label(continue_label, BTreeSet::new()));
                 res.push_all_move(insts);
             },
             // In a while loop, there's nothing more to do here.
             _ => {},
         }
-        res.push(Goto(begin_label, TreeSet::new()));
-        res.push(Label(end_label, TreeSet::new()));
+        res.push(Goto(begin_label, BTreeSet::new()));
+        res.push(Label(end_label, BTreeSet::new()));
         (res, None)
     }
 
@@ -470,7 +472,7 @@ impl<'a> ASTToIntermediate<'a> {
             BoundTy(ref bid) => {
                 match self.typemap.bounds[bid.to_uint()] {
                     Concrete(ref ty) => ty,
-                    _ => fail!("Should have a concrete type."),
+                    _ => panic!("Should have a concrete type."),
                 }
             },
             _ => this_ty
@@ -507,7 +509,7 @@ impl<'a> ASTToIntermediate<'a> {
         ops
     }
 
-    pub fn binop_helper<'a>(&mut self, op: &'a BinOp,
+    pub fn binop_helper<'a>(&mut self, op: &'a ast::BinOp,
                             var1: Var, mut var2: Var,
                             e1ty: &'a Ty, e2ty: &'a Ty,
                             insts1: Vec<Op>, insts2: Vec<Op>,
@@ -524,13 +526,13 @@ impl<'a> ASTToIntermediate<'a> {
                                      // ands, not for ors.
                                      Variable(var1),
                                      end_label,
-                                     TreeSet::new()));
+                                     BTreeSet::new()));
                 insts.push_all_move(insts2);
                 insts.push(UnOp(var1,
                                  Identity,
                                  Variable(var2)));
-                insts.push(Goto(end_label, TreeSet::new()));
-                insts.push(Label(end_label, TreeSet::new()));
+                insts.push(Goto(end_label, BTreeSet::new()));
+                insts.push(Label(end_label, BTreeSet::new()));
                 (insts, var1)
             },
             _ => {
@@ -602,7 +604,7 @@ impl<'a> ASTToIntermediate<'a> {
                                       false));
                             (insts, new_result)
                         },
-                        _ => fail!(
+                        _ => panic!(
                             "I was so sure this was a pointer..."),
                     }
                 } else {
@@ -744,7 +746,7 @@ impl<'a> ASTToIntermediate<'a> {
                     UnOpExpr(ref lhs_op, ref e) => {
                         let ty = match *self.lookup_ty(e.id) {
                             PtrTy(ref inner_ty) => &inner_ty.val,
-                            _ => fail!(concat!("Expecting a deref, and can ",
+                            _ => panic!(concat!("Expecting a deref, and can ",
                                                "only deref a pointer type")),
                         }.clone();
                         let width = ty_width(&ty);
@@ -765,7 +767,7 @@ impl<'a> ASTToIntermediate<'a> {
                                  width,
                                  |lv, v, w| Store(lv, v, w))
                             },
-                            _ => fail!(),
+                            _ => panic!(),
                         }
                     },
                     ArrowExpr(ref e, ref name) |
@@ -817,7 +819,7 @@ impl<'a> ASTToIntermediate<'a> {
                          width,
                          |lv, v, w| Store(lv, v, w))
                     }
-                    _ => fail!("Got {}", e1.val),
+                    _ => panic!("Got {}", e1.val),
                 };
                 let final_var =
                     match *op {
@@ -885,23 +887,23 @@ impl<'a> ASTToIntermediate<'a> {
                 insts.push(CondGoto(false,
                                     Variable(if_var),
                                     b1_label,
-                                    TreeSet::new()));
+                                    BTreeSet::new()));
                 insts.push_all_move(b2_insts);
                 match b2_var {
                     Some(b2_var) =>
                         insts.push(UnOp(end_var, Identity, Variable(b2_var))),
                     None => {},
                 }
-                insts.push(Goto(end_label, TreeSet::new()));
-                insts.push(Label(b1_label, TreeSet::new()));
+                insts.push(Goto(end_label, BTreeSet::new()));
+                insts.push(Label(b1_label, BTreeSet::new()));
                 insts.push_all_move(b1_insts);
                 match b1_var {
                     Some(b1_var) =>
                         insts.push(UnOp(end_var, Identity, Variable(b1_var))),
                     None => {},
                 }
-                insts.push(Goto(end_label, TreeSet::new()));
-                insts.push(Label(end_label, TreeSet::new()));
+                insts.push(Goto(end_label, BTreeSet::new()));
+                insts.push(Label(end_label, BTreeSet::new()));
                 match b1_var {
                     Some(..) => (insts, Some(end_var)),
                     None => (insts, None),
@@ -938,7 +940,7 @@ impl<'a> ASTToIntermediate<'a> {
                                       break_label,
                                       continue_label,
                                       Some(middle_label));
-                let mut insts = vec!(Goto(middle_label, TreeSet::new()));
+                let mut insts = vec!(Goto(middle_label, BTreeSet::new()));
                 insts.push_all_move(loop_insts);
                 (insts, var)
             },
@@ -1213,7 +1215,7 @@ impl<'a> ASTToIntermediate<'a> {
                          nelems.expect("Array needs a size"),
                          inner_ty.val.clone())
                     },
-                    _ => fail!("Array constructor has non-array type"),
+                    _ => panic!("Array constructor has non-array type"),
                 };
                 let is_reference = ty_is_reference(&inner_ty);
                 let total_size = size_of_ty(self.session,
@@ -1280,7 +1282,7 @@ impl<'a> ASTToIntermediate<'a> {
                                     .expect("No struct field with given name");
                                 self.lookup_ty(t.id).clone()
                             },
-                            _ => fail!(),
+                            _ => panic!(),
                         }
                     };
                     let width = ty_width(ty);
@@ -1321,13 +1323,13 @@ impl<'a> ASTToIntermediate<'a> {
             BreakExpr(..) => {
                 (vec!(Goto(*self.break_labels.last().expect(
                     "Break with no label to break to"),
-                           TreeSet::new())),
+                           BTreeSet::new())),
                  None)
             }
             ContinueExpr(..) => {
                 (vec!(Goto(*self.continue_labels.last().expect(
                     "Continue with no label to continue to"),
-                           TreeSet::new())),
+                           BTreeSet::new())),
                  None)
             }
             MatchExpr(ref e, ref arms) => {
@@ -1352,7 +1354,7 @@ impl<'a> ASTToIntermediate<'a> {
                     // arm.pat, arm.body
                     let (path, pats) = match arm.pat.val {
                         VariantPat(ref path, ref pats) => (path, pats),
-                        _ => fail!(),
+                        _ => panic!(),
                     };
 
                     let patid = self.session.resolver.def_from_path(path);
@@ -1363,7 +1365,7 @@ impl<'a> ASTToIntermediate<'a> {
                     let (parent_id, types) = match def {
                         VariantDef(_, ref parent_id, ref types) =>
                             (parent_id, types),
-                        _ => fail!(),
+                        _ => panic!(),
                     };
 
                     let (variant_ops, vars, widths) =
@@ -1385,7 +1387,7 @@ impl<'a> ASTToIntermediate<'a> {
                         ops.push(CondGoto(true,
                                           Variable(compare_var),
                                           begin_labels[pos],
-                                          TreeSet::new()));
+                                          BTreeSet::new()));
                     }
                     // It is! Generate the code for this particular variant.
                     ops.push_all_move(variant_ops);
@@ -1410,7 +1412,7 @@ impl<'a> ASTToIntermediate<'a> {
                                         Load(this_var, *var, *width));
                                 }
                             },
-                            _ => fail!("Only ident patterns are supported right now.")
+                            _ => panic!("Only ident patterns are supported right now.")
                         }
                     }
                     // Emit the body of the arm.
@@ -1427,15 +1429,15 @@ impl<'a> ASTToIntermediate<'a> {
                     }
 
                     // And skip to the end!
-                    ops.push(Goto(end_label, TreeSet::new()));
+                    ops.push(Goto(end_label, BTreeSet::new()));
                     // And finally, the label that goes before the next arm.
                     ops.push(Label(begin_labels[pos].clone(),
-                                   TreeSet::new()));
+                                   BTreeSet::new()));
                 }
 
                 (ops, result_var)
             }
-            MacroExpr(..) => fail!("ICE: macros should have been expanded by now"),
+            MacroExpr(..) => panic!("ICE: macros should have been expanded by now"),
         }
     }
 
@@ -1452,9 +1454,9 @@ impl<'a> ASTToIntermediate<'a> {
             StructTy(id, _) => id,
             PtrTy(ref p) => match p.val {
                 StructTy(id, _) => id,
-                _ => fail!("ICE: struct pointer doesn't have struct pointer type. Typechecker should have caught this.")
+                _ => panic!("ICE: struct pointer doesn't have struct pointer type. Typechecker should have caught this.")
             },
-            _ => fail!("ICE: struct doesn't have struct type. Typechecker should have caught this.")
+            _ => panic!("ICE: struct doesn't have struct type. Typechecker should have caught this.")
         };
         let offs = offset_of_struct_field(
             self.session,
@@ -1475,7 +1477,7 @@ impl<'a> ASTToIntermediate<'a> {
                                 );
                     self.lookup_ty(t.id)
                 },
-                _ => fail!("Looking up struct field offset in a non-struct.")
+                _ => panic!("Looking up struct field offset in a non-struct.")
             }
         }.clone();
 
@@ -1498,7 +1500,7 @@ impl<'a> ASTToIntermediate<'a> {
             EnumDef(_, ref variants, _) =>
                 variants.iter().position(|&n| n == *defid).expect(
                     format!("Cannot find defid {}", defid).as_slice()),
-            _ => fail!(),
+            _ => panic!(),
         }) as u64
     }
 

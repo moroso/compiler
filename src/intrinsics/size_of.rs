@@ -46,9 +46,9 @@ pub fn offset_of_struct_field(session: &Session,
                     return offset_of(&sizes, i);
                 }
             }
-            fail!("Cannot find field {}\n", field);
+            panic!("Cannot find field {}\n", field);
         }
-        _ => fail!("Looking up struct field offset in a non-struct.")
+        _ => panic!("Looking up struct field offset in a non-struct.")
     }
 }
 
@@ -78,7 +78,7 @@ pub fn size_of_def(session: &Session, typemap: &Typemap, node: &NodeId) -> u64 {
                 .collect();
             packed_size(&sizes)
         }
-        _ => fail!("Size of {} not supported.\n", def),
+        _ => panic!("Size of {} not supported.\n", def),
     }
 }
 
@@ -87,10 +87,10 @@ pub fn size_of_ty(session: &Session, typemap: &Typemap, ty: &Ty) -> u64 {
         BoolTy => 1,
         IntTy(ref w) |
         UintTy(ref w) => match *w {
-            AnyWidth |
-            Width32 => 4,
-            Width16 => 2,
-            Width8 => 1,
+            Width::AnyWidth |
+            Width::Width32 => 4,
+            Width::Width16 => 2,
+            Width::Width8 => 1,
         },
         GenericIntTy |
         PtrTy(..) |
@@ -106,13 +106,13 @@ pub fn size_of_ty(session: &Session, typemap: &Typemap, ty: &Ty) -> u64 {
                                                typemap,
                                                &t.val)).collect()),
         BoundTy(..) |
-        BottomTy => fail!("Type {} should not be appearing here.", ty),
+        BottomTy => panic!("Type {} should not be appearing here.", ty),
         StructTy(ref id, _) => {
             size_of_def(session,
                         typemap,
                         id)
         }
-        _ => fail!("Unimplemented: {}", ty),
+        _ => panic!("Unimplemented: {}", ty),
     }
 }
 
@@ -171,7 +171,7 @@ mod tests {
     // size, and it asserts that the size is what we expect.
     fn test_ty_size(t: &str, expected_size: u64) {
         let buffer = io::BufferedReader::new(io::MemReader::new(
-            Vec::from_slice(t.as_bytes())
+            t.as_bytes().to_vec()
                 ));
         let lexer = new_mb_lexer("<stdin>", buffer);
 

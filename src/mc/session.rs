@@ -7,6 +7,7 @@
 use span::Span;
 use util::Name;
 use mc::ast::NodeId;
+use util::lexer::BufReader;
 
 use super::ast::Module;
 use super::ast::defmap::DefMap;
@@ -17,17 +18,23 @@ use super::lexer::new_mb_lexer;
 use super::ast::visitor::Visitor;
 use super::ast::macros::MacroExpander;
 
-use std::collections::{HashMap, TreeMap};
+use std::collections::{HashMap, BTreeMap};
 use std::cell::RefCell;
+use std::str::StrExt;
 
 use std::io;
-use std::local_data;
+use std::thread_local;
 
-local_data_key!(pub interner: Interner)
-local_data_key!(pub cur_rel_path: Path)
+thread_local! {
+    pub static interner: Interner = Interner::new()
+}
+
+thread_local! {
+    pub static cur_rel_path: RefCell<Path> = RefCell::new(Path::new("."))
+}
 
 pub fn get_cur_rel_path() -> Path {
-    cur_rel_path.get().unwrap().clone()
+    cur_rel_path.with(|p| p.borrow().clone())
 }
 
 pub struct Options {
@@ -41,7 +48,7 @@ pub struct Session<'a> {
     pub resolver: Resolver,
     pub parser: Parser,
     pub expander: MacroExpander<'a>,
-    pub interner: local_data::Ref<Interner>,
+    pub interner: &'a Interner,
 }
 
 pub struct Interner {
@@ -72,7 +79,7 @@ impl Interner {
             }
         }
 
-        fail!()
+        panic!()
     }
 
     pub fn intern(&self, s: String) -> Name {
@@ -92,25 +99,17 @@ impl Interner {
 
 impl<'a> Session<'a> {
     pub fn new(opts: Options) -> Session<'a> {
-        // XXX this is such a massive hack omg
-        if interner.get().is_none() {
-            interner.replace(Some(Interner::new()));
-        }
-        if cur_rel_path.get().is_none() {
-            cur_rel_path.replace(Some(Path::new(".")));
-        }
-
-        let interner_ref = interner.get().unwrap();
-
-        Session {
-            options: opts,
-            defmap: DefMap::new(),
-            pathmap: PathMap::new(),
-            resolver: Resolver::new(),
-            parser: Parser::new(),
-            expander: MacroExpander::new(),
-            interner: interner_ref,
-        }
+        interner.with(|i| {
+            Session {
+                options: opts,
+                defmap: DefMap::new(),
+                pathmap: PathMap::new(),
+                resolver: Resolver::new(),
+                parser: Parser::new(),
+                expander: MacroExpander::new(),
+                interner: i,
+            }
+        })
     }
 
     pub fn messages<T: Str>(&self, errors: &[(NodeId, T)]) {
@@ -133,7 +132,7 @@ impl<'a> Session<'a> {
     pub fn errors_fatal<T: Str>(&self, errors: &[(NodeId, T)]) -> ! {
         self.messages(errors);
         let _ = io::stderr().write_str("\n");
-        fail!("Aborting")
+        panic!("Aborting")
     }
     pub fn error_fatal<T: Str>(&self, nid: NodeId, msg: T) -> ! {
         self.errors_fatal([(nid, msg)]);
@@ -146,16 +145,15 @@ impl<'a> Session<'a> {
 
     pub fn bug_span<T: Str>(&self, nid: NodeId, msg: T) -> ! {
         let sp = self.parser.span_of(&nid);
-        fail!("\nBum bum bum budda bum bum tsch:\n\
+        panic!("\nBum bum bum budda bum bum tsch:\n\
               Internal Compiler Error{}\n\
               at: {}\n", msg.as_slice(), sp);
     }
 
     fn inject(&mut self, src: &str, name: &str, module: &mut Module) {
-        use std::str::StrSlice;
         use std::mem::swap;
 
-        let bytes = Vec::from_slice(src.as_bytes());
+        let bytes = src.as_bytes().to_vec();
         let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
         let lexer = new_mb_lexer(name, buffer);
         let mut temp = Parser::parse(self, lexer);
@@ -174,12 +172,12 @@ impl<'a> Session<'a> {
         self.inject(s, "<prelude>", module);
     }
 
-    fn parse_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
+    fn parse_buffer<Sized? S: StrExt, T: BufReader>(&mut self, name: &S, buffer: T) -> Module {
         let lexer = new_mb_lexer(name, buffer);
         Parser::parse(self, lexer)
     }
 
-    pub fn parse_package_buffer<S: StrAllocating, T: Buffer>(&mut self, name: S, buffer: T) -> Module {
+    pub fn parse_package_buffer<Sized? S: StrExt, T: BufReader>(&mut self, name: &S, buffer: T) -> Module {
         use super::ast::mut_visitor::MutVisitor;
 
         struct PreludeInjector<'a> { session: &'a mut Session<'a> }
@@ -208,10 +206,12 @@ impl<'a> Session<'a> {
     }
 
     pub fn parse_file_common(&mut self, file: io::File, f: |&mut Session, String, io::BufferedReader<io::File>| -> Module) -> Module {
+        use std::mem::replace;
+
         let filename = format!("{}", file.path().display());
-        let old_wd = cur_rel_path.replace(Some(file.path().dir_path()));
+        let old_wd = cur_rel_path.with(|p| replace(p.borrow_mut(), file.path().dir_path()));
         let module = f(self, filename, io::BufferedReader::new(file));
-        cur_rel_path.replace(old_wd);
+        cur_rel_path.with(|p| replace(p.borrow_mut(), old_wd));
         module
     }
 
@@ -224,8 +224,7 @@ impl<'a> Session<'a> {
     }
 
     pub fn parse_package_str(&mut self, s: &str) -> Module {
-        use std::str::StrSlice;
-        let bytes = Vec::from_slice(s.as_bytes());
+        let bytes = s.as_bytes().to_vec();
         let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
         self.parse_package_buffer("<input>", buffer)
     }

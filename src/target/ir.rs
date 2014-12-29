@@ -6,8 +6,9 @@ use mc::lexer::Lexer;
 use mc::parser::Parser;
 use mc::session::Interner;
 
-use util::{Name, Width32, Width16, Width8, AnyWidth};
-use util::{IntKind, GenericInt, SignedInt, UnsignedInt};
+use util::{IntKind, Name};
+use util::IntKind::{GenericInt, SignedInt, UnsignedInt};
+use util::Width::{Width32, Width16, Width8, AnyWidth};
 
 use ir::liveness::LivenessAnalyzer;
 use ir::ast_to_intermediate::ASTToIntermediate;
@@ -18,9 +19,8 @@ use super::Target;
 
 use target::util::NameMangler;
 
-use std::collections::{TreeMap, SmallIntMap, TreeSet};
+use std::collections::{BTreeMap, VecMap, BTreeSet};
 use std::io::stdio;
-use std::local_data::Ref;
 
 use std::io;
 
@@ -31,7 +31,7 @@ pub struct IRTarget {
     verbose: bool,
 }
 
-fn is_function(global_map: &TreeMap<Name, StaticIRItem>,
+fn is_function(global_map: &BTreeMap<Name, StaticIRItem>,
                v: &Var) -> bool {
     match global_map.find(&v.name) {
         Some(ref i) => i.is_func,
@@ -39,8 +39,8 @@ fn is_function(global_map: &TreeMap<Name, StaticIRItem>,
     }
 }
 
-fn print_var(interner: &Ref<Interner>,
-             global_map: &TreeMap<Name, StaticIRItem>,
+fn print_var(interner: &Interner,
+             global_map: &BTreeMap<Name, StaticIRItem>,
              v: &Var) -> String {
     format!("{}{}",
             interner.name_to_str(&v.name),
@@ -56,8 +56,8 @@ fn print_var(interner: &Ref<Interner>,
             )
 }
 
-fn print_lvalue(interner: &Ref<Interner>,
-                global_map: &TreeMap<Name, StaticIRItem>,
+fn print_lvalue(interner: &Interner,
+                global_map: &BTreeMap<Name, StaticIRItem>,
                 lv: &LValue) -> String {
     match *lv {
         VarLValue(ref v) => print_var(interner, global_map, v),
@@ -66,8 +66,8 @@ fn print_lvalue(interner: &Ref<Interner>,
     }
 }
 
-fn print_rvalelem(interner: &Ref<Interner>,
-                  global_map: &TreeMap<Name, StaticIRItem>,
+fn print_rvalelem(interner: &Interner,
+                  global_map: &BTreeMap<Name, StaticIRItem>,
                   rve: &RValueElem) -> String {
     match *rve {
         Variable(ref v) => print_var(interner, global_map, v),
@@ -88,10 +88,10 @@ fn print_rvalelem(interner: &Ref<Interner>,
     }
 }
 
-fn assign_vars(interner: &Ref<Interner>,
-               global_map: &TreeMap<Name, StaticIRItem>,
-               label: &TreeMap<Name, uint>,
-               vars: &TreeSet<Var>) -> String {
+fn assign_vars(interner: &Interner,
+               global_map: &BTreeMap<Name, StaticIRItem>,
+               label: &BTreeMap<Name, uint>,
+               vars: &BTreeSet<Var>) -> String {
     let mut s = "".to_string();
     for var in vars.iter() {
         let new_var = Var {
@@ -113,15 +113,15 @@ fn assign_vars(interner: &Ref<Interner>,
 }
 
 impl IRTarget {
-    fn convert_function(&self, interner: &Ref<Interner>,
+    fn convert_function(&self, interner: &Interner,
                         ops: &Vec<Op>,
-                        global_map: &TreeMap<Name, StaticIRItem>) -> String {
+                        global_map: &BTreeMap<Name, StaticIRItem>) -> String {
         // If this is the case, it's an extern. We don't want to emit it.
         if ops.len() <= 1 { return String::from_str("") }
 
         let mut s = "".to_string();
-        let mut vars = TreeSet::new();
-        let mut labels: SmallIntMap<TreeMap<Name, uint>> = SmallIntMap::new();
+        let mut vars = BTreeSet::new();
+        let mut labels: VecMap<BTreeMap<Name, uint>> = VecMap::new();
         let opinfo = LivenessAnalyzer::unanalyzed_opinfo(ops);
         // Find all variables we need to declare. This is all variables
         // that are defined anywhere, except in the very first instruction
@@ -143,7 +143,7 @@ impl IRTarget {
         for op in ops.iter() {
             match *op {
                 Label(ref idx, ref vars) => {
-                    let mut varmap: TreeMap<Name, uint> = TreeMap::new();
+                    let mut varmap: BTreeMap<Name, uint> = BTreeMap::new();
                     for var in vars.iter() {
                         varmap.insert(var.name.clone(),
                                       var.generation.unwrap());
@@ -416,7 +416,7 @@ impl Target for IRTarget {
 
         // Another hack! We don't want to emit "extern" declarations for some
         // of these functions.
-        let declared_builtins: TreeSet<String> = FromIterator::from_iter(
+        let declared_builtins: BTreeSet<String> = FromIterator::from_iter(
             vec!("abort", "malloc", "calloc")
                 .move_iter()
                 .map(|x| x.to_string())
@@ -473,8 +473,7 @@ impl Target for IRTarget {
                 }
             }
             let start = precise_time_ns();
-            write!(f, "{}\n", self.convert_function(&session.interner, insts,
-                                                    &global_map));
+            write!(f, "{}\n", self.convert_function(session.interner, insts, &global_map));
             let end = precise_time_ns();
             convert_time += end-start;
         }

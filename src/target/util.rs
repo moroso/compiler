@@ -1,10 +1,10 @@
 use mc::ast::visitor::{Visitor, walk_ident, walk_item, walk_path, walk_expr};
 use mc::ast::*;
 use mc::session::Session;
-use std::collections::treemap::TreeMap;
+use std::collections::BTreeMap;
 
 pub struct NameMangler<'a> {
-    pub names: TreeMap<NodeId, String>,
+    pub names: BTreeMap<NodeId, String>,
     pub session: Session<'a>,
     path: Vec<String>,
     mangle_main: bool,
@@ -14,7 +14,7 @@ pub struct NameMangler<'a> {
 impl<'a> NameMangler<'a> {
     pub fn new(session: Session, module: &Module,
                mangle_main: bool, mangle_externs: bool) -> NameMangler<'a> {
-        let mut mangler = NameMangler { names: TreeMap::new(),
+        let mut mangler = NameMangler { names: BTreeMap::new(),
                                         path: vec!(),
                                         session: session,
                                         mangle_main: mangle_main,

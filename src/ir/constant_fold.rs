@@ -1,7 +1,7 @@
 // Constant folding.
-use util::{Name, GenericInt};
+use util::Name;
 use ir::util::subst;
-use std::collections::{TreeSet, TreeMap};
+use std::collections::{BTreeSet, BTreeMap};
 use mc::ast::*;
 use ir::*;
 use values::{eval_binop, eval_unop};
@@ -45,7 +45,7 @@ fn fold_unary(op: &UnOpNode, e: &RValueElem) -> Option<LitNode> {
                 NumLit(..) |
                 BoolLit(..) => l.clone(),
                 StringLit(..) => return None,
-                _ => fail!(),
+                _ => panic!(),
             }
         }
         _ => return None,
@@ -54,8 +54,8 @@ fn fold_unary(op: &UnOpNode, e: &RValueElem) -> Option<LitNode> {
     eval_unop(*op, lit)
 }
 
-fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>,
-                         globals: &TreeMap<Name, T>,
+fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
+                         globals: &BTreeMap<Name, T>,
                          verbose: bool) -> bool {
     // Variables to replace with constants.
     let mut changes = vec!();
@@ -167,12 +167,12 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &TreeSet<Var>,
 
 impl ConstantFolder {
 
-    pub fn fold<T>(ops: &mut Vec<Op>, globals: &TreeMap<Name, T>,
+    pub fn fold<T>(ops: &mut Vec<Op>, globals: &BTreeMap<Name, T>,
                    verbose: bool) {
         // There are certain variables we are prohibited from substituting.
         // Those include any that appear in labels/gotos, as well as any
         // that is dereferenced as part of the left hand side of an assignment.
-        let mut vars_to_avoid = TreeSet::<Var>::new();
+        let mut vars_to_avoid = BTreeSet::<Var>::new();
         for op in ops.iter() {
             match *op {
                 Label(_, ref vars) |

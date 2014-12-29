@@ -1,9 +1,13 @@
 use mc::ast::{LitNode, BinOpNode, UnOpNode, Expr};
 
 use std::fmt::{Formatter, Result, Show};
-use std::collections::TreeSet;
+use std::collections::BTreeSet;
 
 use util::{Name, Width};
+
+pub use self::LValue::*;
+pub use self::RValueElem::*;
+pub use self::Op::*;
 
 pub mod ast_to_intermediate;
 pub mod liveness;
@@ -98,11 +102,11 @@ pub enum Op {
     Load(Var, Var, Width),
     // A label. The set of variables is ones that are active at that point.
     // TODO: make this a map from name -> gen.
-    Label(uint, TreeSet<Var>),
+    Label(uint, BTreeSet<Var>),
     // A goto. The set must specify generations for all variables in the label.
-    Goto(uint, TreeSet<Var>),
+    Goto(uint, BTreeSet<Var>),
     // Conditional goto. Optionally negated.
-    CondGoto(bool, RValueElem, uint, TreeSet<Var>),
+    CondGoto(bool, RValueElem, uint, BTreeSet<Var>),
     // Return statement.
     Return(RValueElem),
     // Function definition. A special op, that can only appear once, at
@@ -150,19 +154,19 @@ impl Show for Op {
 
 #[deriving(Show, Clone)]
 pub struct OpInfo {
-    pub live: TreeSet<Var>, // Which variables are live at this instruction?
-    pub used: TreeSet<Var>, // Which variables are used?
-    pub def: TreeSet<Var>, // Which variables are defined here?
-    pub succ: TreeSet<uint>, // Instructions which can follow this one.
+    pub live: BTreeSet<Var>, // Which variables are live at this instruction?
+    pub used: BTreeSet<Var>, // Which variables are used?
+    pub def: BTreeSet<Var>, // Which variables are defined here?
+    pub succ: BTreeSet<uint>, // Instructions which can follow this one.
 }
 
 impl OpInfo {
     fn new() -> OpInfo {
         OpInfo {
-            live: TreeSet::new(),
-            used: TreeSet::new(),
-            def: TreeSet::new(),
-            succ: TreeSet::new(),
+            live: BTreeSet::new(),
+            used: BTreeSet::new(),
+            def: BTreeSet::new(),
+            succ: BTreeSet::new(),
         }
     }
 }

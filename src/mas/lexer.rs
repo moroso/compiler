@@ -1,7 +1,11 @@
 use std::io;
+use std::str::StrExt;
+use std::ascii::AsciiExt;
 use util::lexer::*;
+use super::ast;
 use super::ast::*;
-use std::ascii::StrAsciiExt;
+
+pub use self::Token::*;
 
 #[deriving(Eq, PartialEq, Clone, Show)]
 pub enum Token {
@@ -10,9 +14,9 @@ pub enum Token {
     Long,
     DotGlobl,
 
-    Reg(Reg),
-    CoReg(CoReg),
-    PredReg(Pred),
+    Reg(ast::Reg),
+    CoReg(ast::CoReg),
+    PredReg(ast::Pred),
     NumLit(u32),
     IdentTok(String),
     Shift(ShiftType),
@@ -79,8 +83,8 @@ pub enum Token {
     EndComment,
 }
 
-pub fn new_asm_lexer<'a, T: Buffer, S: StrAllocating>(
-    name: S,
+pub fn new_asm_lexer<'a, T: BufReader, Sized? S: StrExt>(
+    name: &S,
     buffer: T) -> Lexer<'a, T, Token> {
 
     macro_rules! lexer_rules {
@@ -92,26 +96,26 @@ pub fn new_asm_lexer<'a, T: Buffer, S: StrAllocating>(
 
     // Matcher for a register, such as "r8".
     struct RegisterRule;
-    impl RuleMatcher<Reg> for RegisterRule {
-        fn find(&self, s: &str) -> Option<(uint, Reg)> {
+    impl RuleMatcher<ast::Reg> for RegisterRule {
+        fn find(&self, s: &str) -> Option<(uint, ast::Reg)> {
             use std::num::from_str_radix;
 
             let matcher = matcher!(r"r(\d+|l)");
             match matcher.captures(s) {
                 Some(groups) => {
-                    Some((groups.at(0).len(),
-                          if groups.at(1) == "l" {
-                              Reg { index: 31 }
+                    Some((groups.at(0).unwrap().len(),
+                          if groups.at(1).unwrap() == "l" {
+                              ast::Reg { index: 31 }
                           } else {
-                              let n = from_str_radix(groups.at(1), 10).unwrap();
-                              Reg { index: n }
+                              let n = from_str_radix(groups.at(1).unwrap(), 10).unwrap();
+                              ast::Reg { index: n }
                           }))
                 },
                 _ => {
                     let matcher = matcher!(r"lr");
                     match matcher.captures(s) {
-                        Some(groups) => Some((groups.at(0).len(),
-                                              Reg { index: 31 })),
+                        Some(groups) => Some((groups.at(0).unwrap().len(),
+                                              ast::Reg { index: 31 })),
                         _ => None
                     }
                 }
@@ -126,9 +130,9 @@ pub fn new_asm_lexer<'a, T: Buffer, S: StrAllocating>(
 
             match matcher.captures(s) {
                 Some(groups) => {
-                    let c = groups.at(1).as_bytes()[0] as u32;
+                    let c = groups.at(1).unwrap().as_bytes()[0] as u32;
 
-                    Some((groups.at(0).len(), c))
+                    Some((groups.at(0).unwrap().len(), c))
                 },
                 _ => None
             }
@@ -144,23 +148,23 @@ pub fn new_asm_lexer<'a, T: Buffer, S: StrAllocating>(
 
             match matcher.captures(s) {
                 Some(groups) => {
-                    // TODO: match on (groups.at(3), groups.at(4)) when rust
+                    // TODO: match on (groups.at(3).unwrap(), groups.at(4).unwrap()) when rust
                     // fixes issue #14927.
-                    let (num_str, radix) = match groups.at(3) {
-                        "" => match groups.at(4) {
-                            "" => (groups.at(2), 10),
+                    let (num_str, radix) = match groups.at(3).unwrap() {
+                        "" => match groups.at(4).unwrap() {
+                            "" => (groups.at(2).unwrap(), 10),
                             bin => (bin, 2),
                         },
                         hex => (hex, 16),
                     };
 
-                    let negated = groups.at(1) == "-";
+                    let negated = groups.at(1).unwrap() == "-";
 
                     let mut num: u32 = from_str_radix(num_str, radix).unwrap();
 
                     if negated { num = -(num as i32) as u32; }
 
-                    Some((groups.at(0).len(), num))
+                    Some((groups.at(0).unwrap().len(), num))
                 },
                 _ => None
             }
@@ -173,10 +177,10 @@ pub fn new_asm_lexer<'a, T: Buffer, S: StrAllocating>(
             let matcher = matcher!(r"(!?)p([0123])");
             match matcher.captures(s) {
                 Some(groups) => {
-                    Some((groups.at(0).len(),
+                    Some((groups.at(0).unwrap().len(),
                           Pred {
-                              inverted: groups.at(1) == "!",
-                              reg: groups.at(2).as_bytes()[0] - '0' as u8
+                              inverted: groups.at(1).unwrap() == "!",
+                              reg: groups.at(2).unwrap().as_bytes()[0] - '0' as u8
                           }))
                 },
                 _ => None
@@ -190,15 +194,15 @@ pub fn new_asm_lexer<'a, T: Buffer, S: StrAllocating>(
             let matcher = matcher!(r"(<<|>>u|>>s|>>r)");
             match matcher.captures(s) {
                 Some(groups) => {
-                    let shift_type = match groups.at(1) {
+                    let shift_type = match groups.at(1).unwrap() {
                         "<<" => SllShift,
                         ">>u" => SrlShift,
                         ">>s" => SraShift,
                         ">>r" => RorShift,
-                        _ => fail!(),
+                        _ => panic!(),
                     };
 
-                    Some((groups.at(0).len(), shift_type))
+                    Some((groups.at(0).unwrap().len(), shift_type))
                 },
                 _ => None
             }
@@ -211,8 +215,8 @@ pub fn new_asm_lexer<'a, T: Buffer, S: StrAllocating>(
             let matcher = matcher!(r"\*(sc|llsc|ll|w|l|h|b)");
             match matcher.captures(s) {
                 Some(groups) =>
-                    Some((groups.at(0).len(),
-                          match groups.at(1) {
+                    Some((groups.at(0).unwrap().len(),
+                          match groups.at(1).unwrap() {
                               "w" |
                               "l" => LsuWidthL,
                               "h" => LsuWidthH,
@@ -220,7 +224,7 @@ pub fn new_asm_lexer<'a, T: Buffer, S: StrAllocating>(
                               "ll" |
                               "sc" |
                               "llsc" => LsuLLSC,
-                              _ => fail!(),
+                              _ => panic!(),
                           }
                           )),
                     _ => None,
@@ -229,13 +233,13 @@ pub fn new_asm_lexer<'a, T: Buffer, S: StrAllocating>(
     }
 
     struct CoRegRule;
-    impl RuleMatcher<CoReg> for CoRegRule {
-        fn find(&self, s: &str) -> Option<(uint, CoReg)> {
+    impl RuleMatcher<ast::CoReg> for CoRegRule {
+        fn find(&self, s: &str) -> Option<(uint, ast::CoReg)> {
             let matcher = matcher!(r"(?i:(PFLAGS|PTB|EHA|EPC|EC0|EC1|EC2|EC3|EA0|EA1|SP0|SP1|SP2|SP3))");
             match matcher.captures(s) {
                 Some(groups) =>
-                    Some((groups.at(0).len(),
-                          match groups.at(1).to_ascii_upper().as_slice() {
+                    Some((groups.at(0).unwrap().len(),
+                          match groups.at(1).unwrap().to_ascii_uppercase().as_slice() {
                               "PFLAGS" => PFLAGS,
                               "PTB" => PTB,
                               "EHA" => EHA,
@@ -250,7 +254,7 @@ pub fn new_asm_lexer<'a, T: Buffer, S: StrAllocating>(
                               "SP1" => SP1,
                               "SP2" => SP2,
                               "SP3" => SP3,
-                              _ => fail!(),
+                              _ => panic!(),
                           })),
                 _ => None,
             }
@@ -263,13 +267,13 @@ pub fn new_asm_lexer<'a, T: Buffer, S: StrAllocating>(
             let matcher = matcher!(r"(?i:flush\.(data|inst|dtlb|itlb))");
             match matcher.captures(s) {
                 Some(groups) =>
-                    Some((groups.at(0).len(),
-                          match groups.at(1).to_ascii_upper().as_slice() {
+                    Some((groups.at(0).unwrap().len(),
+                          match groups.at(1).unwrap().to_ascii_uppercase().as_slice() {
                               "DATA" => DataFlush,
                               "INST" => InstFlush,
                               "DTLB" => DtlbFlush,
                               "ITLB" => ItlbFlush,
-                              _ => fail!(),
+                              _ => panic!(),
                           })),
                 _ => None,
             }
@@ -399,8 +403,7 @@ impl<T> TokenMaker<T, Token> for fn(T) -> Token {
 
 // Convenience for tests
 pub fn asm_lexer_from_str(s: &str) -> Lexer<io::BufferedReader<io::MemReader>, Token> {
-    use std::str::StrSlice;
-    let bytes = Vec::from_slice(s.as_bytes());
+    let bytes = s.as_bytes().to_vec();
     let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
     new_asm_lexer("test", buffer)
 }

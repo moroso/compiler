@@ -3,11 +3,13 @@
 use mas::lexer::*;
 use mas::ast::*;
 use mas::util::{pack_int, fits_in_bits};
-use util::lexer::{Lexer, SourceToken};
+use util::lexer::{Lexer, SourceToken, BufReader};
 use std::iter::Peekable;
 use std::num::from_int;
 use span::{SourcePos, Span, mk_sp};
-use std::collections::TreeMap;
+use std::collections::BTreeMap;
+
+pub use self::InstType::*;
 
 pub struct AsmParser<'a, T> {
     tokens: Peekable<SourceToken<Token>, Lexer<'a, T, Token>>,
@@ -93,7 +95,7 @@ pub fn classify_inst(inst: &InstNode) -> InstType {
     }
 }
 
-impl<'a, T: Buffer> AsmParser<'a, T> {
+impl<'a, T: BufReader> AsmParser<'a, T> {
 
     pub fn new(tokens: Peekable<SourceToken<Token>, Lexer<'a, T, Token>>
            ) -> AsmParser<'a, T> {
@@ -113,7 +115,7 @@ impl<'a, T: Buffer> AsmParser<'a, T> {
     fn peek<'a>(&'a mut self) -> &'a Token {
         match self.tokens.peek() {
             Some(st) => &st.tok,
-            None => fail!("Tried to peek past EOF"),
+            None => panic!("Tried to peek past EOF"),
         }
     }
 
@@ -124,7 +126,7 @@ impl<'a, T: Buffer> AsmParser<'a, T> {
                 self.last_span = st.sp;
                 st.tok
             }
-            None => fail!("Tried to read past EOF"),
+            None => panic!("Tried to read past EOF"),
         }
     }
 
@@ -140,13 +142,13 @@ impl<'a, T: Buffer> AsmParser<'a, T> {
     }
 
     fn error<'a, T: Str>(&self, message: T) -> ! {
-        fail!("\n{}\nat {}", message.as_slice(), self.last_span.get_begin())
+        panic!("\n{}\nat {}", message.as_slice(), self.last_span.get_begin())
     }
 
     /// Assert that `num` fits into `size` bits.
     fn assert_num_size(&self, num: u32, size: u8) {
         if !fits_in_bits(num, size) {
-            self.error(format!("Number {} (0b{:t}) has more than {} bits.",
+            self.error(format!("Number {} (0b{:b}) has more than {} bits.",
                                num, num, size))
         }
     }
@@ -159,7 +161,7 @@ impl<'a, T: Buffer> AsmParser<'a, T> {
         // nonnegative, and set if it's negative.
         if (num >= 0) != (num & (1<<((size-1) as uint)) == 0) {
             self.error(format!(
-                "Signed number {} (0b{:t}) needs more than {} bits.",
+                "Signed number {} (0b{:b}) needs more than {} bits.",
                 num, num, size));
         }
     }
@@ -464,7 +466,7 @@ impl<'a, T: Buffer> AsmParser<'a, T> {
     fn parse_load(&mut self, pred: Pred, rd: Reg) -> InstNode {
         let width = match self.eat() {
             LoadStore(width) => width,
-            _ => fail!("ICE"),
+            _ => panic!("ICE"),
         };
 
         let (reg, offs) = self.parse_deref_common();
@@ -786,8 +788,8 @@ impl<'a, T: Buffer> AsmParser<'a, T> {
     }
 
     pub fn parse_toplevel(&mut self) -> (Vec<InstPacket>,
-                                         TreeMap<String, uint>) {
-        let mut labels = TreeMap::new();
+                                         BTreeMap<String, uint>) {
+        let mut labels = BTreeMap::new();
         let mut packets = vec!();
         let mut instnum = 0;
 
@@ -796,7 +798,7 @@ impl<'a, T: Buffer> AsmParser<'a, T> {
                 IdentTok(..) => {
                     let name = match self.eat() {
                         IdentTok(name) => name,
-                        _ => fail!()
+                        _ => panic!()
                     };
                     self.expect(Colon);
                     if !labels.insert(name.clone(), instnum) {

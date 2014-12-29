@@ -137,7 +137,7 @@ pub fn encode(inst: &InstNode) -> u32 {
             arg
         },
         LongInst(LabelOffs(ref label)) => {
-            fail!("Unresolved label {}", label)
+            panic!("Unresolved label {}", label)
         },
         NopInst => {
             encode_pred(&Pred { reg: 3,
@@ -224,7 +224,7 @@ pub fn encode(inst: &InstNode) -> u32 {
             // unresolved symbols...
             let offs = match *target {
                 JumpOffs(offs) => offs,
-                JumpLabel(ref s) => fail!("Unresolved label {}", s),
+                JumpLabel(ref s) => panic!("Unresolved label {}", s),
             };
             (0b110 << 26) |
             encode_pred(&pred) |

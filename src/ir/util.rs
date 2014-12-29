@@ -1,4 +1,4 @@
-use std::collections::TreeSet;
+use std::collections::BTreeSet;
 use std::iter::Map;
 
 use mc::ast::*;
@@ -6,10 +6,10 @@ use mc::ast::*;
 use ir::*;
 use values::*;
 
-fn sub_vars(vars: &TreeSet<Var>, orig_var: &Var,
-            new_rvelem: &RValueElem) -> TreeSet<Var> {
+fn sub_vars(vars: &BTreeSet<Var>, orig_var: &Var,
+            new_rvelem: &RValueElem) -> BTreeSet<Var> {
     // Substitute any variables appearing in the Goto or call.
-    let mut new_vars = TreeSet::new();
+    let mut new_vars = BTreeSet::new();
     for var in vars.iter() {
         if var == orig_var {
             match *new_rvelem {
@@ -19,7 +19,7 @@ fn sub_vars(vars: &TreeSet<Var>, orig_var: &Var,
                 // If we're trying to substitute in a constant, something is
                 // wrong: we should *never* be putting a constant in to
                 // a Goto.
-                _ => fail!("Invalid substitution"),
+                _ => panic!("Invalid substitution"),
             }
         } else {
             new_vars.insert(var.clone());
@@ -112,7 +112,7 @@ pub fn subst(ops: &mut Vec<Op>,
                     if v == orig_var {
                         match *new_rvelem {
                             Variable(ref v2) => v2.clone(),
-                            _ => fail!(),
+                            _ => panic!(),
                         }
                     } else {
                         v.clone()
@@ -125,7 +125,7 @@ pub fn subst(ops: &mut Vec<Op>,
                     match *new_rvelem {
                         Variable(ref v) =>
                             v.clone(),
-                        _ => fail!(),
+                        _ => panic!(),
                     }
                 } else {
                     rv.clone()
@@ -137,7 +137,7 @@ pub fn subst(ops: &mut Vec<Op>,
                     match *new_rvelem {
                         Variable(ref v) =>
                             v.clone(),
-                        _ => fail!(),
+                        _ => panic!(),
                     }
                 } else {
                     rv.clone()
@@ -146,7 +146,7 @@ pub fn subst(ops: &mut Vec<Op>,
                     match *new_rvelem {
                         Variable(ref v) =>
                             v.clone(),
-                        _ => fail!(),
+                        _ => panic!(),
                     }
                 } else {
                     lv.clone()

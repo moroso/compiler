@@ -11,7 +11,7 @@ use ir::ast_to_intermediate::ASTToIntermediate;
 use ir::constant_fold::ConstantFolder;
 use ir::ssa::ToSSA;
 use ir::conflicts::ConflictAnalyzer;
-use ir::{Func, StaticIRItem};
+use ir::StaticIRItem;
 
 use target::NameMangler;
 
@@ -30,7 +30,7 @@ use mas::parser::AsmParser;
 use util::Name;
 
 use std::io::{Writer, stdio, File, BufferedReader};
-use std::collections::TreeSet;
+use std::collections::BTreeSet;
 
 pub struct AsmTarget {
     verbose: bool,
@@ -115,7 +115,7 @@ impl Target for AsmTarget {
 
         let fname = "src/mc/prelude.ma";
         let path = Path::new(fname);
-        let file = File::open(&path).unwrap_or_else(|e| fail!("{}", e));
+        let file = File::open(&path).unwrap_or_else(|e| panic!("{}", e));
 
         let reader = BufferedReader::new(file);
         let asm_lexer = new_asm_lexer(fname, reader);
@@ -125,7 +125,7 @@ impl Target for AsmTarget {
 
         let mut items = vec!((insts, labels));
 
-        let mut strings: TreeSet<Name> = TreeSet::new();
+        let mut strings: BTreeSet<Name> = BTreeSet::new();
 
         for insts in result.mut_iter() {
             ToSSA::to_ssa(insts, self.verbose);
