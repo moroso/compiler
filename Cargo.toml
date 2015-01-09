@@ -1,0 +1,25 @@
+[package]
+
+name = "mcc"
+version = "0.0.1"
+authors = ["Kevin Murphy <kemurphy.cmu@gmail.com>"]
+
+[dependencies]
+
+regex = "0.1.9"
+regex_macros = "0.1.4"
+
+[lib]
+
+name = "mclib"
+path = "src/lib.rs"
+
+[[bin]]
+
+name = "mbc"
+path = "src/mbc/main.rs"
+
+[[bin]]
+
+name = "mas"
+path = "src/mas/main.rs"
