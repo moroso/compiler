@@ -4,27 +4,27 @@ use mas::ast::*;
 
 pub fn encode_pred(pred: &Pred) -> u32 {
     (if pred.inverted { 1<<29 } else { 0 }) | 
-    (pred.reg as u32 << 30)
+    ((pred.reg as u32) << 30)
 }
 
 pub fn encode_aluop(op: &AluOp) -> u32 {
-    *op as u32 << 10
+    (*op as u32) << 10
 }
 
 pub fn encode_rd(rd: &Reg) -> u32 {
-    rd.index as u32 << 5
+    (rd.index as u32) << 5
 }
 
 pub fn encode_rs(rs: &Reg) -> u32 {
-    rs.index as u32 << 0
+    (rs.index as u32) << 0
 }
 
 pub fn encode_rt(rt: &Reg) -> u32 {
-    rt.index as u32 << 14
+    (rt.index as u32) << 14
 }
 
 pub fn encode_shift_type(shifttype: &ShiftType) -> u32 {
-    *shifttype as u32 << 19
+    (*shifttype as u32) << 19
 }
 
 pub fn encode_lsuop(lsuop: &LsuOp) -> u32 {
@@ -33,7 +33,7 @@ pub fn encode_lsuop(lsuop: &LsuOp) -> u32 {
 }
 
 pub fn encode_comparetype(comparetype: &CompareType) -> u32 {
-    *comparetype as u32 << 7
+    (*comparetype as u32) << 7
 }
 
 pub fn encode(inst: &InstNode) -> u32 {
@@ -49,7 +49,7 @@ pub fn encode(inst: &InstNode) -> u32 {
             encode_rd(&rd) |
             ((val&0x3ff) << 18) |
             (((val&(0x1f << 10)) >> 10) << 0) |
-            (rot as u32 << 14)
+            ((rot as u32) << 14)
         },
         ALU2ShortInst(pred, // Instruction predicate
                       aluop, // Actual op
@@ -63,7 +63,7 @@ pub fn encode(inst: &InstNode) -> u32 {
             encode_rd(&rd) |
             encode_rs(&rs) |
             ((val&0x3ff) << 18) |
-            (rot as u32 << 14)
+            ((rot as u32) << 14)
         },
         ALU1RegInst(pred,
                     aluop,
@@ -78,7 +78,7 @@ pub fn encode(inst: &InstNode) -> u32 {
             encode_rd(&rd) |
             encode_rt(&rt) |
             encode_shift_type(&shifttype) |
-            (shiftamt as u32 << 21)
+            ((shiftamt as u32) << 21)
         },
         ALU2RegInst(pred,
                     aluop,
@@ -95,7 +95,7 @@ pub fn encode(inst: &InstNode) -> u32 {
             encode_rs(&rs) |
             encode_rt(&rt) |
             encode_shift_type(&shifttype) |
-            (shiftamt as u32 << 21)        
+            ((shiftamt as u32) << 21)
         },
         ALU2LongInst(pred,
                      aluop,
@@ -154,7 +154,7 @@ pub fn encode(inst: &InstNode) -> u32 {
             encode_lsuop(&lsuop) |
             encode_rd(&rd) |
             encode_rs(&rs) |
-            ((offs as u32 & 0xfff) << 13)
+            (((offs as u32) & 0xfff) << 13)
         },
         StoreInst(pred,
                   lsuop,
@@ -167,9 +167,9 @@ pub fn encode(inst: &InstNode) -> u32 {
             encode_lsuop(&lsuop) |
             encode_rs(&rs) |
             encode_rt(&rt) |
-            (((offs as u32 & (0x3f<<6)) >> 6) << 19) |
-            (((offs as u32 & (1<<5)) >> 5) << 13) |
-            ((offs as u32 & (0x1f)) << 5)
+            ((((offs as u32) & (0x3f<<6)) >> 6) << 19) |
+            ((((offs as u32) & (1<<5)) >> 5) << 13) |
+            (((offs as u32) & (0x1f)) << 5)
         },
         CompareShortInst(pred,
                          destpred, // Destination pred register
@@ -182,10 +182,10 @@ pub fn encode(inst: &InstNode) -> u32 {
             encode_aluop(&CompareAluOp) |
             encode_comparetype(&comparetype) |
             encode_rs(&rs) |
-            (destpred.reg as u32 << 5) |
+            ((destpred.reg as u32) << 5) |
             ((val&0x3ff) << 18) |
             (((val&(0x1f << 10)) >> 10) << 0) |
-            (rot as u32 << 14)
+            ((rot as u32) << 14)
         },
         CompareLongInst(pred,
                         destpred, // Destination pred register
@@ -197,7 +197,7 @@ pub fn encode(inst: &InstNode) -> u32 {
             encode_aluop(&CompareAluOp) |
             encode_comparetype(&comparetype) |
             encode_rs(&rs) |
-            (destpred.reg as u32 << 5)
+            ((destpred.reg as u32) << 5)
         },
         CompareRegInst(pred,
                        destpred, // Destination pred register
@@ -214,8 +214,8 @@ pub fn encode(inst: &InstNode) -> u32 {
             encode_rs(&rs) |
             encode_rt(&rt) |
             encode_shift_type(&shifttype) |
-            (destpred.reg as u32 << 5) |
-            (shiftamt as u32 << 21)  
+            ((destpred.reg as u32) << 5) |
+            ((shiftamt as u32) << 21)
         },
         BranchImmInst(pred,
                       link,
@@ -228,7 +228,7 @@ pub fn encode(inst: &InstNode) -> u32 {
             };
             (0b110 << 26) |
             encode_pred(&pred) |
-            (offs as u32 & ((1<<25)-1)) |
+            ((offs as u32) & ((1<<25)-1)) |
             (if link { 1 << 25 } else { 0 })
         },
         BranchRegInst(pred,
@@ -238,7 +238,7 @@ pub fn encode(inst: &InstNode) -> u32 {
             (0b111 << 26) |
             encode_pred(&pred) |
             encode_rs(&rs) |
-            ((offs as u32 & ((1<<20)-1)) << 5) |
+            (((offs as u32) & ((1<<20)-1)) << 5) |
             (if link { 1 << 25 } else { 0 })
         },
         BreakInst(pred,
@@ -260,7 +260,7 @@ pub fn encode(inst: &InstNode) -> u32 {
                 rs) => {
             (0b100010111 << 20) |
             encode_pred(&pred) |
-            (coreg as u32 << 5) |
+            ((coreg as u32) << 5) |
             encode_rs(&rs)
         }
         MfcInst(pred,
@@ -320,7 +320,7 @@ pub fn encode(inst: &InstNode) -> u32 {
                   rs) => {
             (0b100010101 << 20) |
             encode_pred(&pred) |
-            (flushtype as u32 << 10) |
+            ((flushtype as u32) << 10) |
             encode_rs(&rs)
         }
     }

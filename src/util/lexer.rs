@@ -7,15 +7,15 @@
 use span::{Span, SourcePos, mk_sp};
 
 use regex::Regex;
-use std::{io, option, iter};
+use std::{old_io, option, iter};
 
 use std::str::StrExt;
-use std::io::IoResult;
-use std::io::stdio::StdinReader;
+use std::old_io::IoResult;
+use std::old_io::stdio::StdinReader;
 
 /// A token together with a Span, to keep track of where in the source file
 /// it was.
-#[deriving(Show, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct SourceToken<T> {
     pub tok: T,
     pub sp: Span,
@@ -41,6 +41,7 @@ pub trait LexerRuleT<T> {
 // a raw string as a rule to do a simple string-prefix match, a Regex to check
 // for a regex match, or optionally more complicated rules to e.g. use capture
 // groups from a Regex and construct a token from those.
+#[old_impl_check]
 impl<A, T: RuleMatcher<A>, U: TokenMaker<A, V>, V> LexerRuleT<V> for LexerRule<T, U> {
     fn run(&self, s: &str) -> Option<(uint, V)> {
         match self.matcher.find(s) {
@@ -81,13 +82,7 @@ pub trait BufReader {
     fn read_line(&mut self) -> IoResult<String>;
 }
 
-impl<B> BufReader for B where B: Buffer {
-    fn read_line(&mut self) -> IoResult<String> {
-        self.read_line()
-    }
-}
-
-impl BufReader for StdinReader {
+impl<B> BufReader for B where B: Reader {
     fn read_line(&mut self) -> IoResult<String> {
         self.read_line()
     }
@@ -98,13 +93,13 @@ impl<'a, B: BufReader, T> Lexer<'a, B, T> {
         self.name.clone()
     }
 
-    pub fn new<Sized? S: StrExt>(lang: Language<T>,
+    pub fn new<S: ?Sized + ToString>(lang: Language<'a, T>,
                           name: &S, buffer: B) -> Lexer<'a, B, T> {
         Lexer {
             pos:  SourcePos::new(),
             line: Some(String::new()),
             lines: BufferLines::new(buffer),
-            name: name.into_string(),
+            name: name.to_string(),
             rules: lang.rules,
             comment_rules: lang.comment_rules,
             comment_nest: 0,
@@ -117,7 +112,8 @@ impl<'a, B: BufReader, T> Lexer<'a, B, T> {
 }
 
 // The meat of the lexer (read this as a stateful flat-map)
-impl<'a, B: BufReader, T: Eq> Iterator<SourceToken<T>> for Lexer<'a, B, T> {
+impl<'a, B: BufReader, T: Eq> Iterator for Lexer<'a, B, T> {
+    type Item = SourceToken<T>;
     fn next(&mut self) -> Option<SourceToken<T>> {
         loop {
             match self.line {
@@ -235,15 +231,15 @@ impl<T: MaybeArg> RuleMatcher<T> for Regex {
 // Utility trait to optionally grab the match as an argument
 // (useful to avoid unnecessary string copies when we will just throw the result away anyway)
 trait MaybeArg {
-    fn maybe_arg<Sized? T: StrExt>(arg: &T) -> Self;
+    fn maybe_arg<T: ?Sized + ToString>(arg: &T) -> Self;
 }
 
 impl MaybeArg for () {
-    fn maybe_arg<Sized? T: StrExt>(_: &T) { }
+    fn maybe_arg<T: ?Sized + ToString>(_: &T) { }
 }
 
 impl MaybeArg for String {
-    fn maybe_arg<Sized? T: StrExt>(s: &T) -> String { s.into_string() }
+    fn maybe_arg<T: ?Sized + ToString>(s: &T) -> String { s.to_string() }
 }
 
 struct BufferLines<B> {
@@ -260,7 +256,8 @@ impl<B: BufReader> BufferLines<B> {
     }
 }
 
-impl<B: BufReader> Iterator<(uint, String)> for BufferLines<B> {
+impl<B: BufReader> Iterator for BufferLines<B> {
+    type Item = (uint, String);
     fn next(&mut self) -> Option<(uint, String)> {
         self.buffer.read_line().ok().map(|l| {
             let n = self.lineno;

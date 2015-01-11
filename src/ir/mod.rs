@@ -1,13 +1,14 @@
 use mc::ast::{LitNode, BinOpNode, UnOpNode, Expr};
 
-use std::fmt::{Formatter, Result, Show};
+use std::fmt;
+use std::fmt::{Formatter, Result, Display, Debug};
 use std::collections::BTreeSet;
 
 use util::{Name, Width};
 
 pub use self::LValue::*;
 pub use self::RValueElem::*;
-pub use self::Op::*;
+use self::Op::*;
 
 pub mod ast_to_intermediate;
 pub mod liveness;
@@ -16,7 +17,7 @@ pub mod ssa;
 pub mod util;
 pub mod conflicts;
 
-#[deriving(Clone, Eq, PartialEq, Show)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct StaticIRItem {
     pub name: Name,
     pub size: uint,
@@ -29,7 +30,9 @@ pub struct StaticIRItem {
     pub expr: Option<Expr>,
 }
 
-#[deriving(Clone, Eq, PartialEq, Ord, PartialOrd)]
+allow_string!(StaticIRItem);
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
 pub struct Var {
     pub name: Name,
     // If set, stores the generation of the variable. This will be None
@@ -37,7 +40,7 @@ pub struct Var {
     pub generation: Option<uint>,
 }
 
-impl Show for Var {
+impl Display for Var {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self.generation {
             Some(g) => write!(f, "{}<{}>", self.name, g),
@@ -46,7 +49,7 @@ impl Show for Var {
     }
 }
 
-#[deriving(Clone)]
+#[derive(Clone)]
 pub enum LValue {
     // Store directly into a variable.
     VarLValue(Var),
@@ -54,7 +57,7 @@ pub enum LValue {
     PtrLValue(Var),
 }
 
-impl Show for LValue {
+impl Display for LValue {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
             VarLValue(ref v) => write!(f, "{}", v),
@@ -63,7 +66,7 @@ impl Show for LValue {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 // An "element" of an RValue: either a variable or a constant.
 pub enum RValueElem {
     Variable(Var),
@@ -79,7 +82,7 @@ impl RValueElem {
     }
 }
 
-impl Show for RValueElem {
+impl Display for RValueElem {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
             Variable(ref v) => write!(f, "{}", v),
@@ -88,7 +91,7 @@ impl Show for RValueElem {
     }
 }
 
-#[deriving(Clone)]
+#[derive(Clone, Debug)]
 pub enum Op {
     // Apply a unary operator
     UnOp(Var, UnOpNode, RValueElem),
@@ -116,7 +119,7 @@ pub enum Op {
     Nop,
 }
 
-impl Show for Op {
+impl Display for Op {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
             UnOp(ref lv, ref op, ref rve) =>
@@ -133,32 +136,34 @@ impl Show for Op {
                 write!(f, "{: >12} :={} *{}\n",
                        format!("{}", lv), size, rv),
             Call(ref lv, ref fname, ref args) =>
-                write!(f, "{: >12} := {}({})\n",
+                write!(f, "{: >12} := {}({:?})\n",
                        format!("{}", lv), fname, args),
             Alloca(ref v, ref size) =>
                 write!(f, "{: >12} := alloca({})\n",
                        format!("{}", v), size),
-            Label(ref l, ref vars) => write!(f, "{}({}):\n", l, vars),
-            Goto(ref l, ref vars) => write!(f, "goto {}({})\n", l, vars),
+            Label(ref l, ref vars) => write!(f, "{}({:?}):\n", l, vars),
+            Goto(ref l, ref vars) => write!(f, "goto {}({:?})\n", l, vars),
             CondGoto(ref neg, ref e, ref l, ref vars) =>
-                write!(f, "if {}{} goto {}({})\n",
+                write!(f, "if {}{} goto {}({:?})\n",
                        if *neg { "!" } else { "" }, e, l, vars),
             Return(ref v) => write!(f, "return {}\n", v),
             Func(ref name, ref vars, is_extern) =>
-                write!(f, "{}fn {}({})\n",
+                write!(f, "{}fn {}({:?})\n",
                        if is_extern { "extern " } else { "" }, name, vars),
             Nop => write!(f, "{: >16}\n", "nop"),
         }
     }
 }
 
-#[deriving(Show, Clone)]
+#[derive(Debug, Clone)]
 pub struct OpInfo {
     pub live: BTreeSet<Var>, // Which variables are live at this instruction?
     pub used: BTreeSet<Var>, // Which variables are used?
     pub def: BTreeSet<Var>, // Which variables are defined here?
     pub succ: BTreeSet<uint>, // Instructions which can follow this one.
 }
+
+allow_string!(OpInfo);
 
 impl OpInfo {
     fn new() -> OpInfo {

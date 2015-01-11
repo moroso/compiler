@@ -1,0 +1,9 @@
+[package]
+name = "moroso_compiler"
+version = "0.0.1"
+authors = [ "mrwright", "kemurphy", "sully" ]
+
+[dependencies]
+regex = "0.1.17"
+regex_macros = "0.1.10"
+time = "0.1.19"

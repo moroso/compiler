@@ -3,6 +3,7 @@
 use mas::ast::Reg;
 use ir::*;
 use std::collections::{BTreeMap, BTreeSet};
+use std::iter::FromIterator;
 use util::Name;
 use codegen::*;
 
@@ -18,12 +19,12 @@ impl RegisterColorer {
                  num_colors: uint
                  ) -> BTreeMap<Var, RegisterColor> {
         let mut coloring: BTreeMap<Var, RegisterColor> =
-            FromIterator::from_iter(must_colors.move_iter());
+            FromIterator::from_iter(must_colors.into_iter());
         // Make a list of all variables that have to go on the stack.
         // (mem_vars contains all variables that need to go in memory,
         // but some of these are global).
-        let new_mem_vars = mem_vars.move_iter().filter(
-            |name| global_map.find(name).is_none());
+        let new_mem_vars = mem_vars.into_iter().filter(
+            |name| global_map.get(name).is_none());
         let mem_locs: BTreeMap<Name, uint> = FromIterator::from_iter(
             new_mem_vars.enumerate().map(|(x,y)| (y,x)));
 
@@ -32,25 +33,25 @@ impl RegisterColorer {
 
         // First, decide what must go on the stack..
         for &(var, _) in freq_vec.iter() {
-            let maybe_pos = mem_locs.find(&var.name);
+            let maybe_pos = mem_locs.get(&var.name);
             match maybe_pos {
                 // We don't want to override any "must colors", but otherwise want to put every generation
                 // of a given variable in the same place on the stack.
-                Some(i) if coloring.find(var).is_none() => { coloring.insert(var.clone(),
+                Some(i) if coloring.get(var).is_none() => { coloring.insert(var.clone(),
                                                                              StackColor(*i as int)); },
                 _ => {},
             }
         }
 
-        for (var, _) in freq_vec.move_iter() {
-            let global_info = global_map.find(&var.name);
+        for (var, _) in freq_vec.into_iter() {
+            let global_info = global_map.get(&var.name);
             match global_info {
                 Some(ref info) => {
                     // It's a global variable. No work to do!
                     assert!(
-                        coloring.find(var).is_none(),
+                        coloring.get(var).is_none(),
                         format!("Already colored a global variable {} as {}",
-                                var, coloring.find(var)));
+                                var, coloring.get(var).unwrap()));
                     // Global functions get registers.
                     if !info.is_func {
                         // Anything else gets the global color.
@@ -63,22 +64,22 @@ impl RegisterColorer {
             let empty_treeset = BTreeSet::<Var>::new();
             let ref adjacent_vars =
                 conflicts
-                .find(var)
+                .get(var)
                 .unwrap_or(&empty_treeset);
             let adjacent_colors: BTreeSet<Option<RegisterColor>>
                 = FromIterator::from_iter(adjacent_vars.iter()
                                           .map(|var|
                                                coloring
-                                               .find(var)
+                                               .get(var)
                                                .map(|&x|x)
                                                ));
 
             // If we already have a coloring, make sure that it hasn't
             // created any inconsistencies.
-            let cur_color = coloring.find(var).map(|&x|x);
+            let cur_color = coloring.get(var).map(|&x|x);
             if cur_color.is_some() {
                 assert!(!adjacent_colors.contains(&cur_color),
-                        "var {} has an adjacent color {}", var, cur_color);
+                        "var {} has an adjacent color {}", var, cur_color.unwrap());
                 continue;
             }
 
@@ -175,12 +176,12 @@ mod tests {
                                                          StaticIRItem>::new(),
                                               10);
         for i in range(0u32, 8) {
-            let color = *coloring.find(&var(i)).unwrap();
+            let color = *coloring.get(&var(i)).unwrap();
             assert_eq!(color, RegColor(Reg { index: i as u8 } ));
         }
 
         for i in range(8u32, 20) {
-            let color = *coloring.find(&var(i)).unwrap();
+            let color = *coloring.get(&var(i)).unwrap();
             match color {
                 StackColor(_) => {},
                 _ => assert!(false),
@@ -213,7 +214,7 @@ mod tests {
                                                          StaticIRItem>::new(),
                                               10);
         for i in range(0u32, 20) {
-            let color = *coloring.find(&var(i)).unwrap();
+            let color = *coloring.get(&var(i)).unwrap();
             assert_eq!(color, RegColor(Reg { index: (i%2) as u8 } ));
         }
     }

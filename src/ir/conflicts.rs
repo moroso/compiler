@@ -29,13 +29,13 @@ impl ConflictAnalyzer {
 
         for op in ops.iter() {
             match *op {
-                UnOp(_, AddrOf, ref rve) => {
+                Op::UnOp(_, AddrOf, ref rve) => {
                     match *rve {
                         Variable(ref v) => { referenced_vars.insert(v.name); },
                         _ => panic!("Should have a variable here."),
                     }
                 },
-                Call(ref v, _, ref args) => {
+                Op::Call(ref v, _, ref args) => {
                     for (i, arg) in args.iter().enumerate()
                         .take(num_param_regs)
                     {
@@ -44,7 +44,7 @@ impl ConflictAnalyzer {
                     }
                     must_colors.insert(*v, RegColor(Reg { index: 0 as u8 }));
                 },
-                Func(_, ref args, is_extern) => {
+                Op::Func(_, ref args, is_extern) => {
                     if is_extern { break; }
                     for (i, arg) in args.iter().enumerate()
                         .take(num_param_regs)
@@ -73,8 +73,8 @@ impl ConflictAnalyzer {
                             conflict_map.insert(*var2, BTreeSet::<Var>::new());
                         }
 
-                        conflict_map.find_mut(var1).unwrap().insert(*var2);
-                        conflict_map.find_mut(var2).unwrap().insert(*var1);
+                        conflict_map.get_mut(var1).unwrap().insert(*var2);
+                        conflict_map.get_mut(var2).unwrap().insert(*var1);
                     }
                 }
             }
@@ -94,15 +94,15 @@ impl ConflictAnalyzer {
                                 conflict_map.insert(*var2, BTreeSet::<Var>::new());
                             }
 
-                            conflict_map.find_mut(var1).unwrap().insert(*var2);
-                            conflict_map.find_mut(var2).unwrap().insert(*var1);
+                            conflict_map.get_mut(var1).unwrap().insert(*var2);
+                            conflict_map.get_mut(var2).unwrap().insert(*var1);
                         }
                     }
                 }
             }
 
             for used_var in info.used.iter().chain(info.def.iter()) {
-                let new_count = counts.find(used_var).unwrap_or(&0) + 1;
+                let new_count = *counts.get(used_var).unwrap_or(&0) + 1;
                 counts.insert(*used_var, new_count);
             }
         }

@@ -1,7 +1,8 @@
 use std::fmt;
-use std::cmp::{Eq, Ord};
+use std::fmt::{Formatter, Display};
+use std::cmp::{Eq, Ord, Ordering};
 
-#[deriving(Clone, PartialEq, Eq, Ord)]
+#[derive(Clone, PartialEq, Eq, Ord, Debug, Copy)]
 pub struct SourcePos {
     pub row: uint,
     pub col: uint,
@@ -14,7 +15,7 @@ impl PartialOrd for SourcePos {
     }
 }
 
-impl fmt::Show for SourcePos {
+impl fmt::Display for SourcePos {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "line {}, column {}", self.row+1, self.col+1)
     }
@@ -26,7 +27,7 @@ impl SourcePos {
     }
 }
 
-#[deriving(Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Copy)]
 pub struct Span {
     // Private, so that we must use mk_span (which enforces invariants)
     // to make a Span.
@@ -34,7 +35,7 @@ pub struct Span {
     end:   SourcePos,
 }
 
-impl fmt::Show for Span {
+impl fmt::Display for Span {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} - {}", self.begin, self.end)
     }

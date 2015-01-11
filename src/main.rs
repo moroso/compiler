@@ -1,7 +1,7 @@
-#![feature(globs,phase,macro_rules,overloaded_calls,import_shadowing,slicing_syntax)]
+#![feature(plugin,overloaded_calls,slicing_syntax,old_impl_check)]
 #![allow(dead_code,unused_imports)]
 
-#[phase(plugin)]
+#![plugin(regex_macros)]
 extern crate regex_macros;
 
 extern crate collections;
@@ -14,11 +14,14 @@ extern crate time;
 #[cfg(test)]
 extern crate debug;
 
-#[cfg(mc)]
+//#[cfg(mc)]
 use mc as front;
 
 #[cfg(mas)]
 use mc as front;
+
+#[macro_use]
+mod allow_string;
 
 mod util;
 mod typechecker;

@@ -2,7 +2,6 @@ use mc::ast::{Module, NodeId};
 use mc::ast::Type;
 
 use std::iter::AdditiveIterator;
-use std::vec::unzip;
 
 use mc::ast::defmap::*;
 use mc::session::*;
@@ -36,9 +35,9 @@ pub fn offset_of_struct_field(session: &Session,
                               field: &Name) -> u64 {
     let def = session.defmap.find(node).unwrap();
     match *def {
-        StructDef(_, ref fields, _) => {
+        Def::StructDef(_, ref fields, _) => {
             let names_and_sizes = struct_field_sizes(session, typemap, fields);
-            let (names, sizes) = unzip(names_and_sizes.move_iter());
+            let (names, sizes): (Vec<Name>, Vec<u64>) = IteratorExt::unzip(names_and_sizes.into_iter());
 
             for i in range(0, sizes.len())
             {
@@ -56,12 +55,12 @@ pub fn size_of_def(session: &Session, typemap: &Typemap, node: &NodeId) -> u64 {
     let def = session.defmap.find(node).unwrap();
 
     match *def {
-        StructDef(_, ref fields, _) => {
+        Def::StructDef(_, ref fields, _) => {
             let sizes = struct_field_sizes(session, typemap, fields).iter()
                 .map(|&(_, y)| y).collect();
             packed_size(&sizes)
         },
-        EnumDef(_, ref variants, _) => {
+        Def::EnumDef(_, ref variants, _) => {
             let max_variant_size = variants.iter()
                 .map(|v| size_of_def(session, typemap, v)).max().unwrap();
             if max_variant_size == 0 {
@@ -70,7 +69,7 @@ pub fn size_of_def(session: &Session, typemap: &Typemap, node: &NodeId) -> u64 {
                 packed_size(&vec!(enum_tag_size, max_variant_size))
             }
         },
-        VariantDef(_, _, ref types) => {
+        Def::VariantDef(_, _, ref types) => {
             let sizes = types.iter()
                 .map(|t| size_of_ty(session,
                                     typemap,
@@ -159,8 +158,8 @@ mod tests {
     use mc::parser::Parser;
     use typechecker::Typechecker;
 
-    use std::io;
-    use std::io::stdio;
+    use std::old_io;
+    use std::old_io::stdio;
 
     use mc::session::*;
     use mc::setup_builtin_search_paths;
@@ -170,7 +169,7 @@ mod tests {
     // Helper function: we pass it a string describing a type and an expected
     // size, and it asserts that the size is what we expect.
     fn test_ty_size(t: &str, expected_size: u64) {
-        let buffer = io::BufferedReader::new(io::MemReader::new(
+        let buffer = old_io::BufferedReader::new(old_io::MemReader::new(
             t.as_bytes().to_vec()
                 ));
         let lexer = new_mb_lexer("<stdin>", buffer);

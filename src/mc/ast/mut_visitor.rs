@@ -1,6 +1,6 @@
 use super::*;
 
-pub trait MutVisitor {
+pub trait MutVisitor: Sized {
     fn visit_item(&mut self, item: &mut Item) { walk_item(self, item) }
     fn visit_type(&mut self, t: &mut Type) { walk_type(self, t) }
     fn visit_pat(&mut self, pat: &mut Pat) { walk_pat(self, pat) }
@@ -22,28 +22,28 @@ pub fn walk_item<T: MutVisitor>(visitor: &mut T, item: &mut Item) {
     match item.val {
         FuncItem(ref mut id, ref mut args, ref mut t, ref mut def, ref mut tps) => {
             visitor.visit_ident(id);
-            for arg in args.mut_iter() { visitor.visit_func_arg(arg); }
+            for arg in args.iter_mut() { visitor.visit_func_arg(arg); }
             visitor.visit_type(t);
             match *def {
                 LocalFn(ref mut block) => visitor.visit_block(block),
                 ExternFn(..) => {}
             }
-            for id in tps.mut_iter() { visitor.visit_ident(id); }
+            for id in tps.iter_mut() { visitor.visit_ident(id); }
         },
         StructItem(ref mut id, ref mut fields, ref mut tps) => {
             visitor.visit_ident(id);
-            for field in fields.mut_iter() { visitor.visit_struct_field(field); }
-            for id in tps.mut_iter() { visitor.visit_ident(id); }
+            for field in fields.iter_mut() { visitor.visit_struct_field(field); }
+            for id in tps.iter_mut() { visitor.visit_ident(id); }
         },
         EnumItem(ref mut id, ref mut variants, ref mut tps) => {
             visitor.visit_ident(id);
-            for variant in variants.mut_iter() { visitor.visit_variant(variant); }
-            for id in tps.mut_iter() { visitor.visit_ident(id); }
+            for variant in variants.iter_mut() { visitor.visit_variant(variant); }
+            for id in tps.iter_mut() { visitor.visit_ident(id); }
         },
         TypeItem(ref mut id, ref mut ty, ref mut tps) => {
             visitor.visit_ident(id);
             visitor.visit_type(ty);
-            for id in tps.mut_iter() { visitor.visit_ident(id); }
+            for id in tps.iter_mut() { visitor.visit_ident(id); }
         },
         ModItem(ref mut ident, ref mut module) => {
             visitor.visit_ident(ident);
@@ -52,7 +52,7 @@ pub fn walk_item<T: MutVisitor>(visitor: &mut T, item: &mut Item) {
         StaticItem(ref mut ident, ref mut ty, ref mut expr, _) => {
             visitor.visit_ident(ident);
             visitor.visit_type(ty);
-            for e in expr.mut_iter() { visitor.visit_expr(e); }
+            for e in expr.iter_mut() { visitor.visit_expr(e); }
         }
         ConstItem(ref mut ident, ref mut ty, ref mut expr) => {
             visitor.visit_ident(ident);
@@ -75,7 +75,7 @@ pub fn walk_type<T: MutVisitor>(visitor: &mut T, t: &mut Type) {
             visitor.visit_path(p);
         }
         FuncType(ref mut d, ref mut r) => {
-            for a in d.mut_iter() { visitor.visit_type(a); }
+            for a in d.iter_mut() { visitor.visit_type(a); }
             visitor.visit_type(&mut **r);
         }
         ArrayType(ref mut a, ref mut d) => {
@@ -83,7 +83,7 @@ pub fn walk_type<T: MutVisitor>(visitor: &mut T, t: &mut Type) {
             visitor.visit_expr(&mut **d);
         }
         TupleType(ref mut ts) => {
-            for t in ts.mut_iter() { visitor.visit_type(t); }
+            for t in ts.iter_mut() { visitor.visit_type(t); }
         }
         BoolType | UnitType | DivergingType | IntType(..) => {}
     }
@@ -92,26 +92,26 @@ pub fn walk_type<T: MutVisitor>(visitor: &mut T, t: &mut Type) {
 pub fn walk_pat<T: MutVisitor>(visitor: &mut T, pat: &mut Pat) {
     match pat.val {
         DiscardPat(ref mut t) => {
-            for t in t.mut_iter() { visitor.visit_type(t); }
+            for t in t.iter_mut() { visitor.visit_type(t); }
         }
         IdentPat(ref mut id, ref mut t) => {
             visitor.visit_ident(id);
-            for t in t.mut_iter() { visitor.visit_type(t); }
+            for t in t.iter_mut() { visitor.visit_type(t); }
         }
         TuplePat(ref mut pats) => {
-            for pat in pats.mut_iter() {
+            for pat in pats.iter_mut() {
                 visitor.visit_pat(pat);
             }
         }
         VariantPat(ref mut path, ref mut pats) => {
             visitor.visit_path(path);
-            for pat in pats.mut_iter() {
+            for pat in pats.iter_mut() {
                 visitor.visit_pat(pat);
             }
         }
         StructPat(ref mut path, ref mut field_pats) => {
             visitor.visit_path(path);
-            for field_pat in field_pats.mut_iter() {
+            for field_pat in field_pats.iter_mut() {
                 visitor.visit_pat(&mut field_pat.pat);
             }
         }
@@ -120,7 +120,7 @@ pub fn walk_pat<T: MutVisitor>(visitor: &mut T, pat: &mut Pat) {
 
 pub fn walk_variant<T: MutVisitor>(visitor: &mut T, variant: &mut Variant) {
     visitor.visit_ident(&mut variant.ident);
-    for arg in variant.args.mut_iter() {
+    for arg in variant.args.iter_mut() {
         visitor.visit_type(arg);
     }
 }
@@ -135,16 +135,16 @@ pub fn walk_func_arg<T: MutVisitor>(visitor: &mut T, arg: &mut FuncArg) {
 }
 
 pub fn walk_block<T: MutVisitor>(visitor: &mut T, block: &mut Block) {
-    for item in block.val.items.mut_iter() { visitor.visit_item(item); }
-    for stmt in block.val.stmts.mut_iter() { visitor.visit_stmt(stmt); }
-    for expr in block.val.expr.mut_iter()  { visitor.visit_expr(expr); }
+    for item in block.val.items.iter_mut() { visitor.visit_item(item); }
+    for stmt in block.val.stmts.iter_mut() { visitor.visit_stmt(stmt); }
+    for expr in block.val.expr.iter_mut()  { visitor.visit_expr(expr); }
 }
 
 pub fn walk_stmt<T: MutVisitor>(visitor: &mut T, stmt: &mut Stmt) {
     match stmt.val {
         LetStmt(ref mut pat, ref mut e) => {
             visitor.visit_pat(pat);
-            for e in e.mut_iter() { visitor.visit_expr(e); }
+            for e in e.iter_mut() { visitor.visit_expr(e); }
         }
         ExprStmt(ref mut e) => {
             visitor.visit_expr(e);
@@ -165,7 +165,7 @@ pub fn walk_expr<T: MutVisitor>(visitor: &mut T, expr: &mut Expr) {
             visitor.visit_type(t);
         }
         TupleExpr(ref mut es) => {
-            for e in es.mut_iter() { visitor.visit_expr(e); }
+            for e in es.iter_mut() { visitor.visit_expr(e); }
         }
         GroupExpr(ref mut e) => {
             visitor.visit_expr(&mut **e);
@@ -175,8 +175,8 @@ pub fn walk_expr<T: MutVisitor>(visitor: &mut T, expr: &mut Expr) {
         }
         StructExpr(ref mut p, ref mut flds) => {
             visitor.visit_path(p);
-            for fld in flds.mut_iter() {
-                visitor.visit_expr(fld.mut1());
+            for fld in flds.iter_mut() {
+                visitor.visit_expr(&mut fld.1);
             }
         }
         BinOpExpr(_, ref mut l, ref mut r) => {
@@ -201,11 +201,11 @@ pub fn walk_expr<T: MutVisitor>(visitor: &mut T, expr: &mut Expr) {
             visitor.visit_expr(&mut **rv);
         }
         ArrayExpr(ref mut elems) => {
-            for elem in elems.mut_iter() { visitor.visit_expr(elem); }
+            for elem in elems.iter_mut() { visitor.visit_expr(elem); }
         }
         CallExpr(ref mut f, ref mut args) => {
             visitor.visit_expr(&mut **f);
-            for arg in args.mut_iter() { visitor.visit_expr(arg); }
+            for arg in args.iter_mut() { visitor.visit_expr(arg); }
         }
         CastExpr(ref mut e, ref mut t) => {
             visitor.visit_expr(&mut **e);
@@ -237,7 +237,7 @@ pub fn walk_expr<T: MutVisitor>(visitor: &mut T, expr: &mut Expr) {
         }
         MatchExpr(ref mut e, ref mut arms) => {
             visitor.visit_expr(&mut **e);
-            for arm in arms.mut_iter() {
+            for arm in arms.iter_mut() {
                 visitor.visit_match_arm(arm);
             }
         }
@@ -257,25 +257,25 @@ pub fn walk_lit<T: MutVisitor>(_: &mut T, lit: &mut Lit) {
 }
 
 pub fn walk_ident<T: MutVisitor>(visitor: &mut T, ident: &mut Ident) {
-    for tps in ident.val.tps.mut_iter() {
-        for tp in tps.mut_iter() { visitor.visit_type(tp); }
+    for tps in ident.val.tps.iter_mut() {
+        for tp in tps.iter_mut() { visitor.visit_type(tp); }
     }
 }
 
 pub fn walk_path<T: MutVisitor>(visitor: &mut T, path: &mut Path) {
-    for elem in path.val.elems.mut_iter() {
+    for elem in path.val.elems.iter_mut() {
         visitor.visit_ident(elem);
     }
 }
 
 pub fn walk_import<T: MutVisitor>(visitor: &mut T, path: &mut Import) {
-    for elem in path.val.elems.mut_iter() {
+    for elem in path.val.elems.iter_mut() {
         visitor.visit_ident(elem);
     }
     match path.val.import {
         ImportAll => {}
         ImportNames(ref mut v) => {
-            for elem in v.mut_iter() {
+            for elem in v.iter_mut() {
                 visitor.visit_ident(elem);
             }
         }
@@ -283,5 +283,5 @@ pub fn walk_import<T: MutVisitor>(visitor: &mut T, path: &mut Import) {
 }
 
 pub fn walk_module<T: MutVisitor>(visitor: &mut T, module: &mut Module) {
-    for item in module.val.items.mut_iter() { visitor.visit_item(item); }
+    for item in module.val.items.iter_mut() { visitor.visit_item(item); }
 }

@@ -19,16 +19,15 @@
 
 use span::{SourcePos, Span, mk_sp};
 use util::Name;
-use util::lexer::BufReader;
 
 use super::session::{Session, Options};
 use super::session::get_cur_rel_path;
 
-use std::{io, mem, num, vec};
+use std::{old_io, mem, num, vec};
 use std::collections::{HashMap, BTreeMap, BTreeSet};
-use std::iter::Peekable;
+use std::iter::{Peekable, FromIterator};
 
-use std::io::fs::PathExtensions;
+use std::old_io::fs::PathExtensions;
 
 use super::ast;
 use super::ast::*;
@@ -36,7 +35,7 @@ use super::lexer::*;
 
 use values::*;
 
-use std::path::Path as FilePath;
+use std::old_path::posix::Path as FilePath;
 
 type FuncProto = (Ident, Vec<FuncArg>, ast::Type, Vec<Ident>);
 type StaticDecl = (Ident, ast::Type);
@@ -53,7 +52,7 @@ pub struct Parser {
 }
 
 /// The state for parsing a stream of tokens into an AST node
-pub struct StreamParser<'a, T> {
+pub struct StreamParser<'a, T: Iterator<Item=SourceToken<Token>>> {
     /// The token stream.
     tokens: T,
     /// The next token in the stream
@@ -70,13 +69,14 @@ pub struct StreamParser<'a, T> {
     source: FilePath,
 }
 
-#[deriving(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Copy)]
 enum Restriction {
     ExprStmtRestriction,
     NoAmbiguousLBraceRestriction,
     NoRestriction,
 }
 
+#[derive(Copy)]
 enum Assoc {
     LeftAssoc,
     RightAssoc,
@@ -94,9 +94,9 @@ struct OpTableRow {
 
 fn can_start_item(t: &Token) -> bool {
     match *t {
-        Fn | Static | Extern |
-        Enum | Struct | Mod |
-        Macro | Const | Type
+        Token::Fn | Token::Static | Token::Extern |
+        Token::Enum | Token::Struct | Token::Mod |
+        Token::Macro | Token::Const | Token::Type
             => true,
         _   => false
     }
@@ -104,13 +104,13 @@ fn can_start_item(t: &Token) -> bool {
 
 fn can_start_expr(t: &Token) -> bool {
     match *t {
-        If | Return | Break | Continue |
-        Match | For | While | Do |
-        True | False | Null |
-        LBrace | LParen |
-        ColonColon | IdentTok(..) |
-        NumberTok(..) | StringTok(..) |
-        IdentBangTok(..)
+        Token::If | Token::Return | Token::Break | Token::Continue |
+        Token::Match | Token::For | Token::While | Token::Do |
+        Token::True | Token::False | Token::Null |
+        Token::LBrace | Token::LParen |
+        Token::ColonColon | Token::IdentTok(..) |
+        Token::NumberTok(..) | Token::StringTok(..) |
+        Token::IdentBangTok(..)
             => true,
         _   => false
     }
@@ -118,46 +118,46 @@ fn can_start_expr(t: &Token) -> bool {
 
 fn unop_from_token(t: &Token) -> Option<UnOpNode> {
     match *t {
-        Dash => Some(Negate),
-        Tilde => Some(BitNot),
-        Bang => Some(LogNot),
-        Ampersand => Some(AddrOf),
-        Star => Some(Deref),
+        Token::Dash => Some(Negate),
+        Token::Tilde => Some(BitNot),
+        Token::Bang => Some(LogNot),
+        Token::Ampersand => Some(AddrOf),
+        Token::Star => Some(Deref),
         _ => None,
     }
 }
 
 fn binop_from_token(t: &Token) -> Option<BinOpNode> {
     match *t {
-        Plus => Some(PlusOp),
-        Dash => Some(MinusOp),
-        Star => Some(TimesOp),
-        ForwardSlash => Some(DivideOp),
-        Percent => Some(ModOp),
-        EqEq => Some(EqualsOp),
-        BangEq => Some(NotEqualsOp),
-        Less => Some(LessOp),
-        LessEq => Some(LessEqOp),
-        Greater => Some(GreaterOp),
-        GreaterEq => Some(GreaterEqOp),
-        AmpAmp => Some(AndAlsoOp),
-        PipePipe => Some(OrElseOp),
-        Ampersand => Some(BitAndOp),
-        Pipe => Some(BitOrOp),
-        Caret => Some(BitXorOp),
-        Lsh => Some(LeftShiftOp),
-        Rsh => Some(RightShiftOp),
+        Token::Plus => Some(PlusOp),
+        Token::Dash => Some(MinusOp),
+        Token::Star => Some(TimesOp),
+        Token::ForwardSlash => Some(DivideOp),
+        Token::Percent => Some(ModOp),
+        Token::EqEq => Some(EqualsOp),
+        Token::BangEq => Some(NotEqualsOp),
+        Token::Less => Some(LessOp),
+        Token::LessEq => Some(LessEqOp),
+        Token::Greater => Some(GreaterOp),
+        Token::GreaterEq => Some(GreaterEqOp),
+        Token::AmpAmp => Some(AndAlsoOp),
+        Token::PipePipe => Some(OrElseOp),
+        Token::Ampersand => Some(BitAndOp),
+        Token::Pipe => Some(BitOrOp),
+        Token::Caret => Some(BitXorOp),
+        Token::Lsh => Some(LeftShiftOp),
+        Token::Rsh => Some(RightShiftOp),
         _ => None,
     }
 }
 
 fn unop_token(op: UnOpNode) -> Token {
     match op {
-        Deref => Star,
-        AddrOf => Ampersand,
-        Negate => Dash,
-        LogNot => Bang,
-        BitNot => Tilde,
+        Deref => Token::Star,
+        AddrOf => Token::Ampersand,
+        Negate => Token::Dash,
+        LogNot => Token::Bang,
+        BitNot => Token::Tilde,
         SxbOp |
         SxhOp |
         Identity => panic!("Op {} should never come up in the language.",
@@ -167,29 +167,30 @@ fn unop_token(op: UnOpNode) -> Token {
 
 fn binop_token(op: BinOpNode) -> Token {
     match op {
-        PlusOp => Plus,
-        MinusOp => Dash,
-        TimesOp => Star,
-        DivideOp => ForwardSlash,
-        ModOp => Percent,
-        EqualsOp => EqEq,
-        NotEqualsOp => BangEq,
-        LessOp => Less,
-        LessEqOp => LessEq,
-        GreaterOp => Greater,
-        GreaterEqOp => GreaterEq,
-        AndAlsoOp => AmpAmp,
-        OrElseOp => PipePipe,
-        BitAndOp => Ampersand,
-        BitOrOp => Pipe,
-        BitXorOp => Caret,
-        LeftShiftOp => Lsh,
-        RightShiftOp => Rsh,
+        PlusOp => Token::Plus,
+        MinusOp => Token::Dash,
+        TimesOp => Token::Star,
+        DivideOp => Token::ForwardSlash,
+        ModOp => Token::Percent,
+        EqualsOp => Token::EqEq,
+        NotEqualsOp => Token::BangEq,
+        LessOp => Token::Less,
+        LessEqOp => Token::LessEq,
+        GreaterOp => Token::Greater,
+        GreaterEqOp => Token::GreaterEq,
+        AndAlsoOp => Token::AmpAmp,
+        OrElseOp => Token::PipePipe,
+        BitAndOp => Token::Ampersand,
+        BitOrOp => Token::Pipe,
+        BitXorOp => Token::Caret,
+        LeftShiftOp => Token::Lsh,
+        RightShiftOp => Token::Rsh,
     }
 }
 
 // Convenience function for testing
-pub fn ast_from_str<'a, U>(s: &str, f: |&mut StreamParser<Lexer<::std::io::BufferedReader<::std::io::MemReader>, Token>>| -> U) -> (Session<'a>, U) {
+pub fn ast_from_str<'a, U, F>(s: &str, f: F) -> (Session<'a>, U)
+    where F: Fn(&mut StreamParser<Lexer<::std::old_io::BufferedReader<::std::old_io::MemReader>, Token>>) -> U {
     let mut session = Session::new(Options::new());
     let tree = Parser::parse_with(&mut session, lexer_from_str(s), f);
     (session, tree)
@@ -206,12 +207,12 @@ impl Parser {
 
     /// Get the Span of a certain node in the AST.
     pub fn span_of(&self, id: &NodeId) -> Span {
-        *self.spanmap.find(id).unwrap()
+        *self.spanmap.get(id).unwrap()
     }
 
     /// Get the name of a certain node in the AST.
     pub fn filename_of(&self, id: &NodeId) -> Name {
-        *self.filemap.find(id).unwrap()
+        *self.filemap.get(id).unwrap()
     }
 
     /// Get all of the files used by this parse.
@@ -229,26 +230,32 @@ impl Parser {
         Parser::parse_with(session, lexer, |p| p.parse_module())
     }
 
-    pub fn parse_with<T: BufReader, U>(session: &mut Session,
-                                    lexer: Lexer<T, Token>,
-                                    f: |&mut StreamParser<Lexer<T, Token>>| -> U) -> U {
-        let name = session.interner.intern(lexer.get_name());
-        let mut tokp = StreamParser::new(session, name, lexer);
-        f(&mut tokp)
+    pub fn parse_with<T: BufReader, U, F>(session: &mut Session,
+                                          lexer: Lexer<T, Token>,
+                                          f: F) -> U
+        where F: Fn(&mut StreamParser<Lexer<T, Token>>) -> U {
+            let name = session.interner.intern(lexer.get_name());
+            //TODO!!!!!
+            //let mut tokp = StreamParser::new(session, name, lexer);
+            //f(&mut tokp)
+            panic!()
     }
 
-    pub fn parse_stream<T: Iterator<SourceToken<Token>>, U>(session: &mut Session,
-                                                            name: Name,
-                                                            tokens: T,
-                                                            f: |&mut StreamParser<T>| -> U) -> U {
-        let mut tokp = StreamParser::new(session, name, tokens);
-        f(&mut tokp)
+    pub fn parse_stream<T: Iterator<Item=SourceToken<Token>>, U, F>(session: &mut Session,
+                                           name: Name,
+                                           tokens: T,
+                                           f: F) -> U
+        where F: Fn(&mut StreamParser<T>) -> U {
+            //TODO!!!!!
+        //let mut tokp = StreamParser::new(session, name, tokens);
+            //f(&mut tokp)
+            panic!()
     }
 }
 
 impl OpTable {
-    fn parse_expr<'a, T: Iterator<SourceToken<Token>>>(&self, parser: &mut StreamParser<'a, T>) -> Expr {
-        fn parse_row<'a, T: Iterator<SourceToken<Token>>>(r: uint, rows: &[OpTableRow], parser: &mut StreamParser<'a, T>) -> Expr {
+    fn parse_expr<'a, T: Iterator<Item=SourceToken<Token>>>(&self, parser: &mut StreamParser<'a, T>) -> Expr {
+        fn parse_row<'a, T: Iterator<Item=SourceToken<Token>>>(r: uint, rows: &[OpTableRow], parser: &mut StreamParser<'a, T>) -> Expr {
             if r == 0 {
                 parser.parse_unop_expr_maybe_cast()
             } else {
@@ -256,7 +263,8 @@ impl OpTable {
                 let start_span = parser.cur_span();
                 let parse_simpler_expr = |p: &mut StreamParser<'a, T>| parse_row(r - 1, rows, p);
                 let e = parse_simpler_expr(parser);
-                parser.maybe_parse_binop(row.ops, row.assoc, parse_simpler_expr, e, start_span)
+                parser.maybe_parse_binop(row.ops, row.assoc,
+                                         parse_simpler_expr, e, start_span)
             }
         }
 
@@ -264,8 +272,8 @@ impl OpTable {
     }
 }
 
-impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
-    fn new(session: &'a mut Session, name: Name, tokens: T) -> StreamParser<'a, T> {
+impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
+    fn new(session: &'a mut Session<'a>, name: Name, tokens: T) -> StreamParser<'a, T> {
         StreamParser {
             name: name,
             next: None,
@@ -333,24 +341,24 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         }
     }
 
-    fn error<'a, T: Str>(&self, message: T, pos: SourcePos) -> ! {
+    fn error<'a, U: Str>(&self, message: U, pos: SourcePos) -> ! {
         let path = self.session.interner.name_to_str(&self.name);
 
         let s = format!("Parse error: {}\n    at {} {}\n",
                         message.as_slice(), path, pos);
-        let _ = io::stderr().write_str(s.as_slice());
+        let _ = old_io::stderr().write_str(s.as_slice());
         panic!()
     }
 
     /// A convenience function to generate an error message when we've
     /// peeked at a token, but it doesn't match any token we were expecting.
-    fn peek_error<'a, T: Str>(&mut self, message: T) -> ! {
+    fn peek_error<'a, U: Str>(&mut self, message: U) -> ! {
         let tok = self.peek().clone();
         let pos = self.peek_span().get_begin();
         self.error(format!("{} (got token {})", message.as_slice(), tok), pos)
     }
 
-    fn add_id_and_span<T>(&mut self, val: T, sp: Span) -> WithId<T> {
+    fn add_id_and_span<U>(&mut self, val: U, sp: Span) -> WithId<U> {
         let id = self.session.parser.new_id();
         self.session.parser.spanmap.insert(id, sp);
         self.session.parser.filemap.insert(id, self.name);
@@ -358,7 +366,9 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     /// Utility to parse a comma-separated list of things
-    fn parse_list<U>(&mut self, p: |&mut StreamParser<'a, T>| -> U, end: Token, allow_trailing_comma: bool) -> Vec<U> {
+    fn parse_list<U, F>(&mut self, p: F, end: Token,
+                        allow_trailing_comma: bool) -> Vec<U>
+        where F: Fn(&mut StreamParser<'a, T>) -> U {
         if *self.peek() == end {
             return vec!();
         }
@@ -366,8 +376,8 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let mut res = vec!(p(self));
         while *self.peek() != end {
             match *self.peek() {
-                Comma => {
-                    self.expect(Comma);
+                Token::Comma => {
+                    self.expect(Token::Comma);
                     if !allow_trailing_comma || *self.peek() != end {
                         res.push(p(self))
                     }
@@ -381,13 +391,14 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         res
     }
 
-    fn with_restriction<U>(&mut self, r: Restriction, p: |&mut StreamParser<'a, T>| -> U) -> U {
-        let old = self.restriction;
-        self.restriction = r;
-        let ret = p(self);
-        self.restriction = old;
-        ret
-    }
+    fn with_restriction<U, F>(&mut self, r: Restriction, p: F) -> U
+        where F: Fn(&mut StreamParser<'a, T>) -> U {
+            let mut old = r;
+            ::std::mem::swap(&mut old, &mut self.restriction);
+            let ret = p(self);
+            ::std::mem::swap(&mut old, &mut self.restriction);
+            ret
+        }
 
     /////////////////////////////////////////////////////////////////////
     // The actual parser functions begin here!
@@ -396,7 +407,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_name(&mut self) -> Name {
         match self.eat() {
-            IdentTok(name) => self.session.interner.intern(name),
+            Token::IdentTok(name) => self.session.interner.intern(name),
             tok => self.error(format!("Expected ident, found {}", tok),
                               self.last_span.get_begin())
         }
@@ -413,9 +424,9 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn parse_type_params(&mut self) -> Vec<ast::Type> {
-        self.expect(Less);
-        let ps = self.parse_list(|p| p.parse_type(), Greater, false);
-        self.expect(Greater);
+        self.expect(Token::Less);
+        let ps = self.parse_list(|p| p.parse_type(), Token::Greater, false);
+        self.expect(Token::Greater);
         ps
     }
 
@@ -425,10 +436,10 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         }
 
         match *self.peek() {
-            Less => {
-                self.expect(Less);
-                let tps = self.parse_list(|p| p.parse_ident(), Greater, false);
-                self.expect(Greater);
+            Token::Less => {
+                self.expect(Token::Less);
+                let tps = self.parse_list(|p| p.parse_ident(), Token::Greater, false);
+                self.expect(Token::Greater);
                 tps
             },
             _ => self.peek_error("Expected type parameters or argument list")
@@ -440,23 +451,23 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
         let path = self.parse_path_common(false, true);
         let import = match *self.peek() {
-            Star => {
-                self.expect(Star);
+            Token::Star => {
+                self.expect(Token::Star);
                 ImportNode {
                     elems: path.val.elems,
                     global: path.val.global,
                     import: ImportAll
                 }
             }
-            LBrace => {
-                self.expect(LBrace);
+            Token::LBrace => {
+                self.expect(Token::LBrace);
                 let mut idents = vec!(self.parse_ident());
 
-                while *self.peek() == Comma {
-                    self.expect(Comma);
+                while *self.peek() == Token::Comma {
+                    self.expect(Token::Comma);
                     idents.push(self.parse_ident());
                 }
-                self.expect(RBrace);
+                self.expect(Token::RBrace);
 
                 ImportNode {
                     elems: path.val.elems,
@@ -487,8 +498,8 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let start_span = self.cur_span();
 
         let global = match *self.peek() {
-            ColonColon => {
-                self.expect(ColonColon);
+            Token::ColonColon => {
+                self.expect(Token::ColonColon);
                 true
             }
             _ => false,
@@ -499,17 +510,18 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             elems: vec!(self.parse_ident()),
         };
 
-        while *self.peek() == ColonColon {
+        while *self.peek() == Token::ColonColon {
             let start_span = self.cur_span();
 
-            self.expect(ColonColon);
+            self.expect(Token::ColonColon);
             match *self.peek() {
-                Less if with_tps => {
-                    let elem = path.elems.mut_last().unwrap();
+                Token::Less if with_tps => {
+                    let l = path.elems.len()-1;
+                    let elem = &mut path.elems[l];
                     let tps = self.parse_type_params();
                     elem.val.tps = Some(tps);
                 }
-                Star | LBrace if for_use => {
+                Token::Star | Token::LBrace if for_use => {
                     break;
                 }
                 _ => {
@@ -537,7 +549,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn expect_number(&mut self) -> u64 {
         match self.eat() {
-            NumberTok(num, _) => num,
+            Token::NumberTok(num, _) => num,
             tok => self.error(format!("Unexpected {} where number expected",
                                       tok), self.last_span.get_begin())
         }
@@ -545,11 +557,11 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     pub fn parse_lit(&mut self) -> Lit {
         let node = match self.eat() {
-            True                 => BoolLit(true),
-            False                => BoolLit(false),
-            Null                 => NullLit,
-            StringTok(s)         => StringLit(s),
-            NumberTok(num, kind) => NumLit(num, kind),
+            Token::True                 => BoolLit(true),
+            Token::False                => BoolLit(false),
+            Token::Null                 => NullLit,
+            Token::StringTok(s)         => StringLit(s),
+            Token::NumberTok(num, kind) => NumLit(num, kind),
             tok                  => self.error(format!("Unexpected {} where literal expected", tok), self.last_span.get_begin())
         };
 
@@ -562,8 +574,8 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
         let maybe_type = |p: &mut StreamParser<'a, T>, allow_types| {
             match *p.peek() {
-                Colon if allow_types => {
-                    p.expect(Colon);
+                Token::Colon if allow_types => {
+                    p.expect(Token::Colon);
                     let t = p.parse_type();
                     Some(t)
                 }
@@ -572,23 +584,23 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         };
 
         let pat = match *self.peek() {
-            ColonColon | IdentTok(..) => {
+            Token::ColonColon | Token::IdentTok(..) => {
                 let path = self.parse_path();
                 match *self.peek() {
-                    LParen => {
-                        self.expect(LParen);
-                        let args = self.parse_list(|p| p.parse_pat_common(allow_types), RParen, true);
-                        self.expect(RParen);
+                    Token::LParen => {
+                        self.expect(Token::LParen);
+                        let args = self.parse_list(|p| p.parse_pat_common(allow_types), Token::RParen, true);
+                        self.expect(Token::RParen);
                         VariantPat(path, args)
                     }
-                    DoubleArrow => {
+                    Token::DoubleArrow => {
                         // Empty variant.
                         VariantPat(path, vec!())
                     }
-                    LBrace => {
-                        self.expect(LBrace);
-                        let field_pats = self.parse_list(|p| p.parse_field_pat(), RBrace, true);
-                        self.expect(RBrace);
+                    Token::LBrace => {
+                        self.expect(Token::LBrace);
+                        let field_pats = self.parse_list(|p| p.parse_field_pat(), Token::RBrace, true);
+                        self.expect(Token::RBrace);
                         StructPat(path, field_pats)
                     }
                     _ => {
@@ -601,14 +613,14 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                     }
                 }
             }
-            LParen => {
-                self.expect(LParen);
-                let args = self.parse_list(|p| p.parse_pat_common(allow_types), RParen, true);
-                self.expect(RParen);
+            Token::LParen => {
+                self.expect(Token::LParen);
+                let args = self.parse_list(|p| p.parse_pat_common(allow_types), Token::RParen, true);
+                self.expect(Token::RParen);
                 TuplePat(args)
             }
-            Underscore => {
-                self.expect(Underscore);
+            Token::Underscore => {
+                self.expect(Token::Underscore);
                 DiscardPat(maybe_type(self, allow_types))
             }
             _ => self.peek_error("Unexpected token while parsing pattern")
@@ -628,7 +640,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     pub fn parse_field_pat(&mut self) -> FieldPat {
         let name = self.parse_name();
-        self.expect(Colon);
+        self.expect(Token::Colon);
         let pat = self.parse_typeless_pat();
         FieldPat {
             name: name,
@@ -642,22 +654,22 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         */
         let start_span = self.cur_span();
         let node = match *self.peek() {
-            IntTypeTok(ik) => {
+            Token::IntTypeTok(ik) => {
                 self.eat();
                 IntType(ik)
             }
-            Bool => {
-                self.expect(Bool);
+            Token::Bool => {
+                self.expect(Token::Bool);
                 BoolType
             }
-            Star => {
-                self.expect(Star);
-                PtrType(box self.parse_type())
+            Token::Star => {
+                self.expect(Token::Star);
+                PtrType(Box::new(self.parse_type()))
             }
-            LParen => {
-                self.expect(LParen);
-                let mut inner_types = self.parse_list(|p| p.parse_type(), RParen, true);
-                self.expect(RParen);
+            Token::LParen => {
+                self.expect(Token::LParen);
+                let mut inner_types = self.parse_list(|p| p.parse_type(), Token::RParen, true);
+                self.expect(Token::RParen);
                 if inner_types.len() == 0 {
                     UnitType
                 } else if inner_types.len() == 1 {
@@ -666,33 +678,34 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                     TupleType(inner_types)
                 }
             }
-            ColonColon | IdentTok(..) => {
+            Token::ColonColon | Token::IdentTok(..) => {
                 let mut path = self.parse_path_no_tps();
                 match *self.peek() {
-                    Less => {
-                        let elem = path.val.elems.mut_last().unwrap();
+                    Token::Less => {
+                        let l = path.val.elems.len() - 1;
+                        let elem = &mut path.val.elems[l];
                         elem.val.tps = Some(self.parse_type_params());
                     }
                     _ => {}
                 }
                 NamedType(path)
             }
-            Fn => {
-                self.expect(Fn);
-                self.expect(LParen);
-                let arglist = self.parse_list(|p| p.parse_type(), RParen, true);
-                self.expect(RParen);
-                self.expect(Arrow);
-                FuncType(arglist, box self.parse_type())
+            Token::Fn => {
+                self.expect(Token::Fn);
+                self.expect(Token::LParen);
+                let arglist = self.parse_list(|p| p.parse_type(), Token::RParen, true);
+                self.expect(Token::RParen);
+                self.expect(Token::Arrow);
+                FuncType(arglist, Box::new(self.parse_type()))
             }
             _ => self.peek_error("Expected *, opening paren, a type name, or fn"),
         };
 
         let mut dims = vec!();
-        while *self.peek() == LBracket {
-            self.expect(LBracket);
+        while *self.peek() == Token::LBracket {
+            self.expect(Token::LBracket);
             let dim = self.parse_expr();
-            self.expect(RBracket);
+            self.expect(Token::RBracket);
             dims.push(dim);
         }
 
@@ -703,7 +716,8 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let mut result = self.add_id_and_span(node, sp);
         while !dims.is_empty() {
             let dim = dims.pop().unwrap();
-            result = self.add_id_and_span(ArrayType(box result, box dim), sp);
+            result = self.add_id_and_span(ArrayType(Box::new(result),
+                                                    Box::new(dim)), sp);
         }
 
         result
@@ -717,19 +731,19 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
          * * `let (x, y, z) = t` to deconstruct the tuple t into components.
          */
         let start_span = self.cur_span();
-        self.expect(Let);
+        self.expect(Token::Let);
 
         let pat = self.parse_pat();
 
         let expr = match *self.peek() {
-            Semicolon => {
-                self.expect(Semicolon);
+            Token::Semicolon => {
+                self.expect(Token::Semicolon);
                 None
             },
-            Eq => {
-                self.expect(Eq);
+            Token::Eq => {
+                self.expect(Token::Eq);
                 let var_value = self.with_restriction(Restriction::NoRestriction, |p| p.parse_expr());
-                self.expect(Semicolon);
+                self.expect(Token::Semicolon);
                 Some(var_value)
             },
             _ => self.peek_error("Expected semicolon or \"=\""),
@@ -741,16 +755,16 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_if_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
-        self.expect(If);
+        self.expect(Token::If);
 
         let cond = self.parse_expr_no_structs();
         let true_block = self.parse_block();
 
         let false_block = match *self.peek() {
-            Else => {
-                self.expect(Else);
+            Token::Else => {
+                self.expect(Token::Else);
                 match *self.peek() {
-                    If => {
+                    Token::If => {
                         let start_span = self.cur_span();
                         let node = BlockNode {
                             items: vec!(),
@@ -775,68 +789,71 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         };
 
         let end_span = self.cur_span();
-        self.add_id_and_span(IfExpr(box cond, box true_block, box false_block),
+        self.add_id_and_span(IfExpr(Box::new(cond), Box::new(true_block),
+                                    Box::new(false_block)),
                              start_span.to(end_span))
     }
 
     fn parse_return_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
-        self.expect(Return);
-        let result = ReturnExpr(box self.parse_expr());
+        self.expect(Token::Return);
+        let result = ReturnExpr(Box::new(self.parse_expr()));
         let end_span = self.cur_span();
         self.add_id_and_span(result, start_span.to(end_span))
     }
 
     fn parse_while_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
-        self.expect(While);
+        self.expect(Token::While);
         let cond = self.parse_expr_no_structs();
         let body = self.parse_block();
         let end_span = self.cur_span();
-        self.add_id_and_span(WhileExpr(box cond, box body), start_span.to(end_span))
+        self.add_id_and_span(WhileExpr(Box::new(cond), Box::new(body)), start_span.to(end_span))
     }
 
     fn parse_do_while_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
-        self.expect(Do);
+        self.expect(Token::Do);
         let body = self.parse_block();
-        self.expect(While);
+        self.expect(Token::While);
         let cond = self.parse_expr_no_structs();
         let end_span = self.cur_span();
-        self.add_id_and_span(DoWhileExpr(box cond, box body),
+        self.add_id_and_span(DoWhileExpr(Box::new(cond), Box::new(body)),
                              start_span.to(end_span))
     }
 
     fn parse_for_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
-        self.expect(For);
-        self.expect(LParen);
+        self.expect(Token::For);
+        self.expect(Token::LParen);
         let this_span = self.cur_span();
         let init = match *self.peek() {
-            Semicolon => self.add_id_and_span(UnitExpr, this_span),
+            Token::Semicolon => self.add_id_and_span(UnitExpr, this_span),
             _ => self.parse_expr(),
         };
-        self.expect(Semicolon);
+        self.expect(Token::Semicolon);
         let this_span = self.cur_span();
         let cond = match *self.peek() {
-            Semicolon => self.add_id_and_span(UnitExpr, this_span),
+            Token::Semicolon => self.add_id_and_span(UnitExpr, this_span),
             _ => self.parse_expr(),
         };
-        self.expect(Semicolon);
+        self.expect(Token::Semicolon);
         let this_span = self.cur_span();
         let iter = match *self.peek() {
-            RParen => self.add_id_and_span(UnitExpr, this_span),
+            Token::RParen => self.add_id_and_span(UnitExpr, this_span),
             _ => self.parse_expr(),
         };
-        self.expect(RParen);
+        self.expect(Token::RParen);
         let body = self.parse_block();
         let end_span = self.cur_span();
-        self.add_id_and_span(ForExpr(box init, box cond, box iter, box body), start_span.to(end_span))
+        self.add_id_and_span(ForExpr(Box::new(init), Box::new(cond),
+                                     Box::new(iter), Box::new(body)),
+                             start_span.to(end_span))
     }
 
     fn parse_match_arm(&mut self) -> MatchArm {
         let pat = self.parse_pat();
-        self.expect(DoubleArrow);
+        self.expect(Token::DoubleArrow);
         let body = self.parse_expr();
 
         MatchArm {
@@ -847,13 +864,14 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_match_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
-        self.expect(Match);
+        self.expect(Token::Match);
         let matched_expr = self.parse_expr_no_structs();
-        self.expect(LBrace);
-        let match_items = self.parse_list(|p| p.parse_match_arm(), RBrace, true); // TODO don't require comma when there is a closing brace
-        self.expect(RBrace);
+        self.expect(Token::LBrace);
+        let match_items = self.parse_list(|p| p.parse_match_arm(), Token::RBrace, true); // TODO don't require comma when there is a closing brace
+        self.expect(Token::RBrace);
         let end_span = self.cur_span();
-        self.add_id_and_span(MatchExpr(box matched_expr, match_items), start_span.to(end_span))
+        self.add_id_and_span(MatchExpr(Box::new(matched_expr), match_items),
+                             start_span.to(end_span))
     }
 
     fn parse_unop_expr(&mut self) -> Expr {
@@ -870,7 +888,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                 let span = self.last_span;
                 let op = self.add_id_and_span(op, span);
                 let e = self.parse_simple_expr();
-                let node = UnOpExpr(op, box e);
+                let node = UnOpExpr(op, Box::new(e));
                 let end_span = self.cur_span();
                 self.add_id_and_span(node, start_span.to(end_span))
             }
@@ -879,12 +897,12 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn parse_unop_expr_maybe_cast(&mut self) -> Expr {
-        fn maybe_parse_cast<'a, T: Iterator<SourceToken<Token>>>(p: &mut StreamParser<'a, T>, expr: Expr, start_span: Span) -> Expr {
+        fn maybe_parse_cast<'a, T: Iterator<Item=SourceToken<Token>>>(p: &mut StreamParser<'a, T>, expr: Expr, start_span: Span) -> Expr {
             match *p.peek() {
-                As => {
-                    p.expect(As);
+                Token::As => {
+                    p.expect(Token::As);
                     let t = p.parse_type();
-                    let node = CastExpr(box expr, t);
+                    let node = CastExpr(Box::new(expr), t);
                     let end_span = p.cur_span();
                     let castexpr = p.add_id_and_span(node, start_span.to(end_span));
                     maybe_parse_cast(p, castexpr, start_span)
@@ -913,13 +931,14 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         }
     }
 
-    fn maybe_parse_binop(&mut self,
-                         ops: uint,
-                         assoc: Assoc,
-                         parse_simpler_expr: |&mut StreamParser<'a, T>| -> Expr,
-                         e: Expr,
-                         start_span: Span)
-                      -> Expr {
+    fn maybe_parse_binop<F>(&mut self,
+                            ops: uint,
+                            assoc: Assoc,
+                            parse_simpler_expr: F,
+                            e: Expr,
+                            start_span: Span)
+                            -> Expr
+        where F: Fn(&mut StreamParser<'a, T>) -> Expr {
         if self.expr_is_complete(&e) {
             return e;
         }
@@ -938,19 +957,19 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                 let r_span = self.cur_span();
                 let r = parse_simpler_expr(self);
                 let r = self.maybe_parse_binop(ops, assoc, parse_simpler_expr, r, r_span);
-                let node = BinOpExpr(op, box e, box r);
+                let node = BinOpExpr(op, Box::new(e), Box::new(r));
                 let end_span = self.cur_span();
                 self.add_id_and_span(node, start_span.to(end_span))
             }
             Assoc::LeftAssoc => {
                 let r = parse_simpler_expr(self);
-                let node = BinOpExpr(op, box e, box r);
+                let node = BinOpExpr(op, Box::new(e), Box::new(r));
                 let e = self.add_id_and_span(node, start_span);
                 self.maybe_parse_binop(ops, assoc, parse_simpler_expr, e, start_span)
             }
             Assoc::NonAssoc => {
                 let r = parse_simpler_expr(self);
-                let node = BinOpExpr(op, box e, box r);
+                let node = BinOpExpr(op, Box::new(e), Box::new(r));
                 let end_span = self.cur_span();
                 self.add_id_and_span(node, start_span.to(end_span))
             }
@@ -1013,23 +1032,23 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
         let peeked_span = self.peek_span();
         let op = match *self.peek() {
-            PlusEq    => Some(PlusOp),
-            MinusEq   => Some(MinusOp),
-            TimesEq   => Some(TimesOp),
-            SlashEq   => Some(DivideOp),
-            PipeEq    => Some(BitOrOp),
-            CaretEq   => Some(BitXorOp),
-            AmpEq     => Some(BitAndOp),
-            LshEq     => Some(LeftShiftOp),
-            RshEq     => Some(RightShiftOp),
-            PercentEq => Some(ModOp),
-            Eq        => None,
+            Token::PlusEq    => Some(PlusOp),
+            Token::MinusEq   => Some(MinusOp),
+            Token::TimesEq   => Some(TimesOp),
+            Token::SlashEq   => Some(DivideOp),
+            Token::PipeEq    => Some(BitOrOp),
+            Token::CaretEq   => Some(BitXorOp),
+            Token::AmpEq     => Some(BitAndOp),
+            Token::LshEq     => Some(LeftShiftOp),
+            Token::RshEq     => Some(RightShiftOp),
+            Token::PercentEq => Some(ModOp),
+            Token::Eq        => None,
             _         => return lv,
         }.map(|op| self.add_id_and_span(op, peeked_span));
 
         self.eat();
         let e = self.parse_expr();
-        let node = AssignExpr(op, box lv, box e);
+        let node = AssignExpr(op, Box::new(lv), Box::new(e));
         let end_span = self.cur_span();
         self.add_id_and_span(node, start_span.to(end_span))
     }
@@ -1038,15 +1057,15 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let start_span = self.cur_span();
         let path = self.parse_path();
         let node = match *self.peek() {
-            LBrace if self.restriction != Restriction::NoAmbiguousLBraceRestriction => {
-                self.expect(LBrace);
+            Token::LBrace if self.restriction != Restriction::NoAmbiguousLBraceRestriction => {
+                self.expect(Token::LBrace);
                 let fields = self.parse_list(|p| {
                     let name = p.parse_name();
-                    p.expect(Colon);
+                    p.expect(Token::Colon);
                     let expr = p.parse_expr();
                     (name, expr)
-                }, RBrace, true);
-                self.expect(RBrace);
+                }, Token::RBrace, true);
+                self.expect(Token::RBrace);
                 StructExpr(path, fields)
             }
             _ => PathExpr(path),
@@ -1057,13 +1076,13 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn parse_break_expr(&mut self) -> Expr {
-        self.expect(Break);
+        self.expect(Token::Break);
         let span = self.last_span;
         self.add_id_and_span(BreakExpr, span)
     }
 
     fn parse_continue_expr(&mut self) -> Expr {
-        self.expect(Continue);
+        self.expect(Token::Continue);
         let span = self.last_span;
         self.add_id_and_span(ContinueExpr, span)
     }
@@ -1075,7 +1094,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             ($l:expr, $r:expr) => ({
                 tokens.push($l);
                 while *self.peek() != $r {
-                    tokens.push_all_move(self.eat_token_tree());
+                    tokens.extend(self.eat_token_tree().into_iter());
                 }
                 self.expect($r);
                 tokens.push($r);
@@ -1083,9 +1102,9 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         }
 
         match self.eat() {
-            LParen   => get_token_tree!(LParen, RParen),
-            LBrace   => get_token_tree!(LBrace, RBrace),
-            LBracket => get_token_tree!(LBracket, RBracket),
+            Token::LParen   => get_token_tree!(Token::LParen, Token::RParen),
+            Token::LBrace   => get_token_tree!(Token::LBrace, Token::RBrace),
+            Token::LBracket => get_token_tree!(Token::LBracket, Token::RBracket),
             t => tokens.push(t),
         }
 
@@ -1099,7 +1118,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
             ($l:expr, $r:expr) => ({
                 tokens.push(MacroTok($l));
                 while *self.peek() != $r {
-                    tokens.push_all_move(self.eat_macro_token_tree(args));
+                    tokens.extend(self.eat_macro_token_tree(args).into_iter());
                 }
                 self.expect($r);
                 tokens.push(MacroTok($r));
@@ -1107,10 +1126,10 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         }
 
         match self.eat() {
-            LParen   => get_token_tree!(LParen, RParen),
-            LBrace   => get_token_tree!(LBrace, RBrace),
-            LBracket => get_token_tree!(LBracket, RBracket),
-            Dollar => {
+            Token::LParen   => get_token_tree!(Token::LParen, Token::RParen),
+            Token::LBrace   => get_token_tree!(Token::LBrace, Token::RBrace),
+            Token::LBracket => get_token_tree!(Token::LBracket, Token::RBracket),
+            Token::Dollar => {
                 let name = self.parse_name();
                 if args.contains(&name) {
                     tokens.push(MacroVar(name));
@@ -1118,7 +1137,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                     panic!("No such argument `${}`", name);
                 }
             }
-            DotDotDot => tokens.push(MacroVarArgs),
+            Token::DotDotDot => tokens.push(MacroVarArgs),
             t => tokens.push(MacroTok(t)),
         }
 
@@ -1127,8 +1146,8 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_macro_expr_arg(&mut self) -> Vec<Token> {
         let mut tokens = vec!();
-        while match *self.peek() { Comma | RParen => false, _ => true } {
-            tokens.push_all_move(self.eat_token_tree())
+        while match *self.peek() { Token::Comma | Token::RParen => false, _ => true } {
+            tokens.extend(self.eat_token_tree().into_iter())
         }
 
         tokens
@@ -1137,13 +1156,13 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     // Used by macro expansion also
     pub fn parse_macro_call(&mut self) -> (Name, Vec<Vec<Token>>) {
         let name = match self.eat() {
-            IdentBangTok(name) => self.session.interner.intern(name),
+            Token::IdentBangTok(name) => self.session.interner.intern(name),
             _ => unreachable!(),
         };
 
-        self.expect(LParen);
-        let args = self.parse_list(|p| p.parse_macro_expr_arg(), RParen, true);
-        self.expect(RParen);
+        self.expect(Token::LParen);
+        let args = self.parse_list(|p| p.parse_macro_expr_arg(), Token::RParen, true);
+        self.expect(Token::RParen);
 
         (name, args)
     }
@@ -1157,10 +1176,10 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_sizeof_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
-        self.expect(Sizeof);
-        self.expect(LParen);
+        self.expect(Token::Sizeof);
+        self.expect(Token::LParen);
         let ty = self.parse_type();
-        self.expect(RParen);
+        self.expect(Token::RParen);
 
         let end_span = self.cur_span();
         self.add_id_and_span(SizeofExpr(ty), start_span.to(end_span))
@@ -1168,9 +1187,9 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_array_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
-        self.expect(LBracket);
-        let elems = self.parse_list(|p| p.parse_expr(), RBracket, true);
-        self.expect(RBracket);
+        self.expect(Token::LBracket);
+        let elems = self.parse_list(|p| p.parse_expr(), Token::RBracket, true);
+        self.expect(Token::RBracket);
 
         let end_span = self.cur_span();
         self.add_id_and_span(ArrayExpr(elems), start_span.to(end_span))
@@ -1179,53 +1198,53 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     fn parse_simple_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
         let mut expr = match *self.peek() {
-            If                        => self.parse_if_expr(),
-            Return                    => self.parse_return_expr(),
-            Break                     => self.parse_break_expr(),
-            Continue                  => self.parse_continue_expr(),
-            Match                     => self.parse_match_expr(),
-            For                       => self.parse_for_expr(),
-            While                     => self.parse_while_expr(),
-            Do                        => self.parse_do_while_expr(),
-            LBrace                    => self.parse_block_expr(),
-            LParen                    => self.parse_paren_expr(),
-            ColonColon | IdentTok(..) => self.parse_path_or_struct_expr(),
-            IdentBangTok(..)          => self.parse_macro_expr(),
-            NumberTok(..) | StringTok(..) | True | False | Null => {
+            Token::If                        => self.parse_if_expr(),
+            Token::Return                    => self.parse_return_expr(),
+            Token::Break                     => self.parse_break_expr(),
+            Token::Continue                  => self.parse_continue_expr(),
+            Token::Match                     => self.parse_match_expr(),
+            Token::For                       => self.parse_for_expr(),
+            Token::While                     => self.parse_while_expr(),
+            Token::Do                        => self.parse_do_while_expr(),
+            Token::LBrace                    => self.parse_block_expr(),
+            Token::LParen                    => self.parse_paren_expr(),
+            Token::ColonColon | Token::IdentTok(..) => self.parse_path_or_struct_expr(),
+            Token::IdentBangTok(..)          => self.parse_macro_expr(),
+            Token::NumberTok(..) | Token::StringTok(..) | Token::True | Token::False | Token::Null => {
                 let start_span = self.cur_span();
                 let node = LitExpr(self.parse_lit());
                 let end_span = self.cur_span();
                 self.add_id_and_span(node, start_span.to(end_span))
             },
-            Sizeof                    => self.parse_sizeof_expr(),
-            LBracket                  => self.parse_array_expr(),
+            Token::Sizeof                    => self.parse_sizeof_expr(),
+            Token::LBracket                  => self.parse_array_expr(),
             _ => self.peek_error("Expected expression"),
         };
 
         // While the next token cannot start an expression and expr is not complete
         while !(can_start_expr(self.peek()) && self.expr_is_complete(&expr)) {
             let node = match *self.peek() {
-                Period => {
-                    self.expect(Period);
+                Token::Period => {
+                    self.expect(Token::Period);
                     let field = self.parse_name();
-                    DotExpr(box expr, field)
+                    DotExpr(Box::new(expr), field)
                 }
-                Arrow => {
-                    self.expect(Arrow);
+                Token::Arrow => {
+                    self.expect(Token::Arrow);
                     let field = self.parse_name();
-                    ArrowExpr(box expr, field)
+                    ArrowExpr(Box::new(expr), field)
                 }
-                LBracket => {
-                    self.expect(LBracket);
+                Token::LBracket => {
+                    self.expect(Token::LBracket);
                     let subscript = self.parse_expr();
-                    self.expect(RBracket);
-                    IndexExpr(box expr, box subscript)
+                    self.expect(Token::RBracket);
+                    IndexExpr(Box::new(expr), Box::new(subscript))
                 }
-                LParen => {
-                    self.expect(LParen);
-                    let args = self.parse_list(|p| p.parse_expr(), RParen, true);
-                    self.expect(RParen);
-                    CallExpr(box expr, args)
+                Token::LParen => {
+                    self.expect(Token::LParen);
+                    let args = self.parse_list(|p| p.parse_expr(), Token::RParen, true);
+                    self.expect(Token::RParen);
+                    CallExpr(Box::new(expr), args)
                 }
                 _ => break,
             };
@@ -1240,15 +1259,15 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     fn parse_paren_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
 
-        self.expect(LParen);
+        self.expect(Token::LParen);
         let mut inner_exprs = self.with_restriction(Restriction::NoRestriction,
-                                                    |p| p.parse_list(|p| p.parse_expr(), RParen, true));
-        self.expect(RParen);
+                                                    |p| p.parse_list(|p| p.parse_expr(), Token::RParen, true));
+        self.expect(Token::RParen);
 
         let node = if inner_exprs.len() == 0 {
             UnitExpr
         } else if inner_exprs.len() == 1 {
-            GroupExpr(box inner_exprs.pop().unwrap())
+            GroupExpr(Box::new(inner_exprs.pop().unwrap()))
         } else {
             TupleExpr(inner_exprs)
         };
@@ -1261,18 +1280,19 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let start_span = self.cur_span();
         let block = self.parse_block();
         let end_span = self.cur_span();
-        self.add_id_and_span(BlockExpr(box block), start_span.to(end_span))
+        self.add_id_and_span(BlockExpr(Box::new(block)),
+                             start_span.to(end_span))
     }
 
     fn parse_stmt(&mut self) -> Stmt {
         match *self.peek() {
-            Let => self.parse_let_stmt(),
+            Token::Let => self.parse_let_stmt(),
             _ => {
                 let start_span = self.cur_span();
                 let expr = self.with_restriction(Restriction::ExprStmtRestriction, |p| p.parse_expr());
                 match *self.peek() {
-                    Semicolon => {
-                        self.expect(Semicolon);
+                    Token::Semicolon => {
+                        self.expect(Token::Semicolon);
                         let end_span = self.cur_span();
                         self.add_id_and_span(SemiStmt(expr), start_span.to(end_span))
                     },
@@ -1290,10 +1310,10 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
            `{ 1+1; f(x); 2 }`.
         */
         let start_span = self.cur_span();
-        self.expect(LBrace);
+        self.expect(Token::LBrace);
         let mut statements = vec!();
-        let items = self.parse_items_until(RBrace, |me| statements.push(me.parse_stmt()));
-        self.expect(RBrace);
+        let items = self.parse_items_until(Token::RBrace, |me| statements.push(me.parse_stmt()));
+        self.expect(Token::RBrace);
         let end_span = self.cur_span();
 
         let expr = statements.pop().and_then(|stmt| {
@@ -1323,7 +1343,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
            this would parse "`x: int`" or "`y: int`".
         */
         let arg_id = self.parse_ident();
-        self.expect(Colon);
+        self.expect(Token::Colon);
         let arg_type = self.parse_type();
 
         FuncArg {
@@ -1334,30 +1354,30 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_extern_item(&mut self) -> Item {
         let start_span = self.cur_span();
-        self.expect(Extern);
+        self.expect(Token::Extern);
 
         let abi = match *self.peek() {
-            StringTok(..) => match self.eat() { StringTok(s) => Some(s), _ => unreachable!() },
+            Token::StringTok(..) => match self.eat() { Token::StringTok(s) => Some(s), _ => unreachable!() },
             _ => None,
         };
 
         match *self.peek() {
-            Fn => {
+            Token::Fn => {
                 let (funcname, args, return_type, type_params) = self.parse_func_prototype();
-                self.expect(Semicolon);
+                self.expect(Token::Semicolon);
                 let end_span = self.cur_span();
                 let abi = self.session.interner.intern(abi.unwrap_or(String::from_str("C")));
                 self.add_id_and_span(FuncItem(funcname, args, return_type,
                                               ExternFn(abi), type_params),
                                      start_span.to(end_span))
             }
-            Static => {
+            Token::Static => {
                 if abi != None {
                     self.peek_error("ABI specifiers are invalid on extern static items");
                 }
 
                 let (name, ty) = self.parse_static_decl();
-                self.expect(Semicolon);
+                self.expect(Token::Semicolon);
                 let end_span = self.cur_span();
                 self.add_id_and_span(StaticItem(name, ty, None, true),
                                      start_span.to(end_span))
@@ -1367,18 +1387,18 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn parse_func_prototype(&mut self) -> FuncProto {
-        self.expect(Fn);
+        self.expect(Token::Fn);
         let funcname = self.parse_ident();
-        let type_params = self.parse_item_type_params(LParen);
-        self.expect(LParen);
-        let args = self.parse_list(|p| p.parse_func_arg(), RParen, true);
-        self.expect(RParen);
+        let type_params = self.parse_item_type_params(Token::LParen);
+        self.expect(Token::LParen);
+        let args = self.parse_list(|p| p.parse_func_arg(), Token::RParen, true);
+        self.expect(Token::RParen);
         let return_type = match *self.peek() {
-            Arrow => {
-                self.expect(Arrow);
+            Token::Arrow => {
+                self.expect(Token::Arrow);
                 match *self.peek() {
-                    Bang => {
-                        self.expect(Bang);
+                    Token::Bang => {
+                        self.expect(Token::Bang);
                         let span = self.last_span;
                         self.add_id_and_span(DivergingType, span)
                     }
@@ -1405,7 +1425,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_struct_field(&mut self) -> Field {
         let name = self.parse_name();
-        self.expect(Colon);
+        self.expect(Token::Colon);
         let field_type = self.parse_type();
 
         Field {
@@ -1416,12 +1436,12 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_struct_item(&mut self) -> Item {
         let start_span = self.cur_span();
-        self.expect(Struct);
+        self.expect(Token::Struct);
         let structname = self.parse_ident();
-        let type_params = self.parse_item_type_params(LBrace);
-        self.expect(LBrace);
-        let body = self.parse_list(|p| p.parse_struct_field(), RBrace, true);
-        self.expect(RBrace);
+        let type_params = self.parse_item_type_params(Token::LBrace);
+        self.expect(Token::LBrace);
+        let body = self.parse_list(|p| p.parse_struct_field(), Token::RBrace, true);
+        self.expect(Token::RBrace);
         let end_span = self.cur_span();
         self.add_id_and_span(StructItem(structname, body, type_params), start_span.to(end_span))
     }
@@ -1429,10 +1449,10 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     fn parse_variant(&mut self) -> Variant {
         let ident = self.parse_ident();
         let types = match *self.peek() {
-            LParen => {
-                self.expect(LParen);
-                let typelist = self.parse_list(|p| p.parse_type(), RParen, true);
-                self.expect(RParen);
+            Token::LParen => {
+                self.expect(Token::LParen);
+                let typelist = self.parse_list(|p| p.parse_type(), Token::RParen, true);
+                self.expect(Token::RParen);
                 typelist
             },
             _ => {
@@ -1448,33 +1468,33 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_enum_item(&mut self) -> Item {
         let start_span = self.cur_span();
-        self.expect(Enum);
+        self.expect(Token::Enum);
         let enumname = self.parse_ident();
-        let type_params = self.parse_item_type_params(LBrace);
-        self.expect(LBrace);
-        let body = self.parse_list(|p| p.parse_variant(), RBrace, true);
-        self.expect(RBrace);
+        let type_params = self.parse_item_type_params(Token::LBrace);
+        self.expect(Token::LBrace);
+        let body = self.parse_list(|p| p.parse_variant(), Token::RBrace, true);
+        self.expect(Token::RBrace);
         let end_span = self.cur_span();
         self.add_id_and_span(EnumItem(enumname, body, type_params), start_span.to(end_span))
     }
 
     fn parse_type_item(&mut self) -> Item {
         let start_span = self.cur_span();
-        self.expect(Type);
+        self.expect(Token::Type);
         let typename = self.parse_ident();
-        let type_params = self.parse_item_type_params(Eq);
-        self.expect(Eq);
+        let type_params = self.parse_item_type_params(Token::Eq);
+        self.expect(Token::Eq);
         let typedef = self.parse_type();
-        self.expect(Semicolon);
+        self.expect(Token::Semicolon);
         let end_span = self.cur_span();
         self.add_id_and_span(TypeItem(typename, typedef, type_params), start_span.to(end_span))
     }
 
     fn parse_use_item(&mut self) -> Item {
         let start_span = self.cur_span();
-        self.expect(Use);
+        self.expect(Token::Use);
         let mut path = self.parse_use();
-        self.expect(Semicolon);
+        self.expect(Token::Semicolon);
 
         // 'use' items are always globally-scoped
         path.val.global = true;
@@ -1483,13 +1503,15 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         self.add_id_and_span(UseItem(path), start_span.to(end_span))
     }
 
-    fn parse_items_until<U>(&mut self, end: Token, unmatched: |&mut StreamParser<'a, T>| -> U) -> Vec<Item> {
+    fn parse_items_until<U, F>(&mut self, end: Token,
+                               unmatched: F) -> Vec<Item>
+        where F: Fn(&mut StreamParser<'a, T>) -> U {
         let mut items = vec!();
         let mut use_items = vec!();
         let mut count = 0;
         while *self.peek() != end {
             match *self.peek() {
-                Use => {
+                Token::Use => {
                     if count > use_items.len() {
                         let spot = self.cur_span().get_begin();
                         self.error("'use' declarations must come before everything else", spot)
@@ -1510,7 +1532,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         }
 
         // we don't have unshift_all_move :(
-        { use_items.push_all_move(items); use_items }
+        { use_items.extend(items.into_iter()); use_items }
     }
 
     fn parse_module_until(&mut self, end: Token) -> Module {
@@ -1523,17 +1545,17 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_mod_item(&mut self) -> Item {
         let start_span = self.cur_span();
-        self.expect(Mod);
+        self.expect(Token::Mod);
         let ident = self.parse_ident();
         let module = match *self.peek() {
-            LBrace => {
-                self.expect(LBrace);
-                let module = self.parse_module_until(RBrace);
-                self.expect(RBrace);
+            Token::LBrace => {
+                self.expect(Token::LBrace);
+                let module = self.parse_module_until(Token::RBrace);
+                self.expect(Token::RBrace);
                 module
             }
-            Semicolon => {
-                self.expect(Semicolon);
+            Token::Semicolon => {
+                self.expect(Token::Semicolon);
                 let file = {
                     let name = self.session.interner.name_to_str(&ident.val.name);
 
@@ -1549,7 +1571,7 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                             // Search path does *not* use the current relative path.
                             // It is based on the invocation location.
                             // (And may well be absolute, even!)
-                            match self.session.options.search_paths.find(&String::from_str(name)) {
+                            match self.session.options.search_paths.get(&String::from_str(name)) {
                                 Some(path) => path.clone(),
                                 None =>
                                     self.error(format!("no such module: neither {} nor {} exist.",
@@ -1563,13 +1585,15 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
                                        start_span.get_begin()),
                     };
 
-                    ::std::io::File::open(&filename).unwrap_or_else(|e| {
+                    ::std::old_io::File::open(&filename).unwrap_or_else(|e| {
                         self.error(format!("failed to open {}: {}",
                                            filename.display(), e), start_span.get_begin())
                     })
                 };
 
-                self.session.parse_file(file)
+                //TODO!!!!!!!
+                //self.session.parse_file(file)
+                panic!()
             }
             _ => self.peek_error("Expected opening brace or semicolon"),
         };
@@ -1578,9 +1602,9 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn parse_static_decl(&mut self) -> StaticDecl {
-        self.expect(Static);
+        self.expect(Token::Static);
         let name = self.parse_ident();
-        self.expect(Colon);
+        self.expect(Token::Colon);
         let ty = self.parse_type();
         (name, ty)
     }
@@ -1589,13 +1613,13 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         let start_span = self.cur_span();
         let (name, ty) = self.parse_static_decl();
         let expr = match *self.peek() {
-            Eq => {
-                self.expect(Eq);
+            Token::Eq => {
+                self.expect(Token::Eq);
                 Some(self.parse_expr())
             },
             _ => None,
         };
-        self.expect(Semicolon);
+        self.expect(Token::Semicolon);
 
         let end_span = self.cur_span();
         self.add_id_and_span(StaticItem(name, ty, expr, false),
@@ -1604,31 +1628,31 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_macro_item(&mut self) -> Item {
         let start_span = self.cur_span();
-        self.expect(Macro);
+        self.expect(Token::Macro);
         let name = match self.eat() {
-            IdentBangTok(name) => self.session.interner.intern(name),
+            Token::IdentBangTok(name) => self.session.interner.intern(name),
             tok => self.error(format!("Expected macro identifier, found {}", tok),
                               self.last_span.get_begin())
         };
 
-        self.expect(LParen);
+        self.expect(Token::LParen);
 
-        let args = self.parse_list(|me| me.parse_name(), RParen, true);
+        let args = self.parse_list(|me| me.parse_name(), Token::RParen, true);
 
         let mut args_map = BTreeSet::new();
         for arg in args.iter() {
             args_map.insert(*arg);
         }
 
-        self.expect(RParen);
-        self.expect(LBrace);
+        self.expect(Token::RParen);
+        self.expect(Token::LBrace);
 
         let mut body = vec!();
-        while *self.peek() != RBrace {
-            body.push_all_move(self.eat_macro_token_tree(&args_map));
+        while *self.peek() != Token::RBrace {
+            body.extend(self.eat_macro_token_tree(&args_map).into_iter());
         }
 
-        self.expect(RBrace);
+        self.expect(Token::RBrace);
         let end_span = self.cur_span();
 
         let def = MacroDef {
@@ -1642,28 +1666,28 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_const_item(&mut self) -> Item {
         let start_span = self.cur_span();
-        self.expect(Const);
+        self.expect(Token::Const);
         let name = self.parse_ident();
-        self.expect(Colon);
+        self.expect(Token::Colon);
         let ty = self.parse_type();
-        self.expect(Eq);
+        self.expect(Token::Eq);
         let expr = self.parse_expr();
-        self.expect(Semicolon);
+        self.expect(Token::Semicolon);
         let end_span = self.cur_span();
         self.add_id_and_span(ConstItem(name, ty, expr), start_span.to(end_span))
     }
 
     fn parse_item(&mut self) -> Item {
         match *self.peek() {
-            Fn => self.parse_func_item(),
-            Struct => self.parse_struct_item(),
-            Enum => self.parse_enum_item(),
-            Type => self.parse_type_item(),
-            Mod => self.parse_mod_item(),
-            Static => self.parse_static_item(),
-            Extern => self.parse_extern_item(),
-            Macro => self.parse_macro_item(),
-            Const => self.parse_const_item(),
+            Token::Fn => self.parse_func_item(),
+            Token::Struct => self.parse_struct_item(),
+            Token::Enum => self.parse_enum_item(),
+            Token::Type => self.parse_type_item(),
+            Token::Mod => self.parse_mod_item(),
+            Token::Static => self.parse_static_item(),
+            Token::Extern => self.parse_extern_item(),
+            Token::Macro => self.parse_macro_item(),
+            Token::Const => self.parse_const_item(),
             _ => self.peek_error("Expected an item definition (fn, struct, enum, mod)"),
         }
     }
@@ -1671,8 +1695,8 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     pub fn parse_module(&mut self) -> Module {
         /* This is the highest level node of the AST. This function
          * is the one that will parse an entire file. */
-        let module = self.parse_module_until(Eof);
-        self.expect(Eof);
+        let module = self.parse_module_until(Token::Eof);
+        self.expect(Token::Eof);
         module
     }
 }

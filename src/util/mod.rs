@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::fmt::{Show, Formatter};
+use std::fmt::{Display, Formatter, Debug};
 
 use std::fmt;
 
@@ -8,26 +8,33 @@ pub mod graph;
 
 // This represents an interned string/name/identifier. The mapping from strings
 // to Names and Names to strings is in the Interner (session.rs).
-#[deriving(Eq, Ord, PartialOrd, PartialEq, Clone)]
+#[derive(Eq, Ord, PartialOrd, PartialEq, Clone, Copy)]
 pub struct Name(pub uint);
 
-impl Show for Name {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        use mc::session::interner;
-
-        match interner.get() {
-            None => {
-                let Name(n) = *self;
-                write!(f, "<name #{}>", n)
-            }
-            Some(real_interner) => {
-                write!(f, "{}", real_interner.name_to_str(self))
-            }
-        }
+impl Name {
+    pub fn as_uint(&self) -> uint {
+        let Name(result) = *self;
+        result
     }
 }
 
-#[deriving(Eq, Ord, PartialOrd, PartialEq, Clone)]
+impl Display for Name {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        use mc::session::interner;
+
+        interner.with(|x| write!(f, "{}", x.name_to_str(self)))
+    }
+}
+
+impl Debug for Name {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        use mc::session::interner;
+
+        interner.with(|x| write!(f, "{}", x.name_to_str(self)))
+    }
+}
+
+#[derive(Eq, Ord, PartialOrd, PartialEq, Clone, Debug, Copy)]
 pub enum Width {
     AnyWidth,
     Width32,
@@ -35,7 +42,7 @@ pub enum Width {
     Width8,
 }
 
-impl Show for Width {
+impl Display for Width {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", match *self {
             Width::AnyWidth => "",
@@ -46,7 +53,7 @@ impl Show for Width {
     }
 }
 
-#[deriving(Eq, Clone, PartialEq)]
+#[derive(Eq, Clone, PartialEq, Debug, Copy)]
 pub enum IntKind {
     GenericInt,
     SignedInt(Width),
@@ -84,7 +91,7 @@ impl IntKind {
     }
 }
 
-impl Show for IntKind {
+impl Display for IntKind {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             IntKind::GenericInt     => write!(f, ""),

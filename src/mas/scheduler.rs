@@ -1,7 +1,7 @@
 use mas::ast::*;
 use mas::parser::{classify_inst, InstType};
 use collections::{BTreeSet, BTreeMap, BinaryHeap};
-use std::iter::range_inclusive;
+use std::iter::{range_inclusive, FromIterator};
 
 // Return Rd.
 fn destreg(inst: &InstNode) -> Option<Reg> {
@@ -215,7 +215,7 @@ fn compatible_insts(inst1: &InstNode, inst2: &InstNode) -> bool {
     commutes_(inst1, inst2)
 }
 
-fn compatible(packet: &[InstNode, ..4], inst: &InstNode) -> bool {
+fn compatible(packet: &[InstNode; 4], inst: &InstNode) -> bool {
     packet.iter().all(|x| compatible_insts(x, inst))
 }
 
@@ -223,7 +223,7 @@ fn update_labels(label_map: &BTreeMap<uint, Vec<&String>>,
                  new_label_list: &mut BTreeMap<String, uint>,
                  orig_pos: uint,
                  new_pos: uint) {
-    let labels = label_map.find(&orig_pos);
+    let labels = label_map.get(&orig_pos);
     match labels {
         // Update the labels that pointed here.
         Some(labels) => {
@@ -239,7 +239,7 @@ fn update_labels(label_map: &BTreeMap<uint, Vec<&String>>,
 /// Dummy scheduler: one instruction per packet.
 pub fn schedule_dummy(insts: &Vec<InstNode>,
                       labels: &BTreeMap<String, uint>,
-                      _: bool) -> (Vec<[InstNode, ..4]>,
+                      _: bool) -> (Vec<[InstNode; 4]>,
                                    BTreeMap<String, uint>) {
     let mut packets = vec!();
 
@@ -247,7 +247,7 @@ pub fn schedule_dummy(insts: &Vec<InstNode>,
     let mut jump_target_dict: BTreeMap<uint, Vec<&String>> = BTreeMap::new();
     for (label, pos) in labels.iter() {
         if jump_target_dict.contains_key(pos) {
-            jump_target_dict.find_mut(pos).unwrap().push(label);
+            jump_target_dict.get_mut(pos).unwrap().push(label);
         } else {
             jump_target_dict.insert(*pos, vec!(label));
         }
@@ -282,15 +282,15 @@ pub fn schedule_dummy(insts: &Vec<InstNode>,
 
 pub fn schedule(insts: &Vec<InstNode>,
                 labels: &BTreeMap<String, uint>,
-                debug: bool) -> (Vec<[InstNode, ..4]>,
+                debug: bool) -> (Vec<[InstNode; 4]>,
                                  BTreeMap<String, uint>) {
-    let mut packets: Vec<[InstNode, ..4]> = vec!();
+    let mut packets: Vec<[InstNode; 4]> = vec!();
 
     let mut modified_labels: BTreeMap<String, uint> = BTreeMap::new();
     let mut jump_target_dict: BTreeMap<uint, Vec<&String>> = BTreeMap::new();
     for (label, pos) in labels.iter() {
         if jump_target_dict.contains_key(pos) {
-            jump_target_dict.find_mut(pos).unwrap().push(label);
+            jump_target_dict.get_mut(pos).unwrap().push(label);
         } else {
             jump_target_dict.insert(*pos, vec!(label));
         }
@@ -319,7 +319,7 @@ pub fn schedule(insts: &Vec<InstNode>,
     }
 
     let mut start = 0;
-    for end in jump_targets.move_iter() {
+    for end in jump_targets.into_iter() {
         if debug {
             print!("Scheduling ({}, {})\n", start, end);
         }
@@ -328,7 +328,7 @@ pub fn schedule(insts: &Vec<InstNode>,
         let mut edges: BTreeSet<(uint, uint)> = BTreeSet::new();
         let mut all: BTreeSet<uint> =
             FromIterator::from_iter(range(start, end));
-        let mut this_packet: [InstNode, ..4] =
+        let mut this_packet: [InstNode; 4] =
             [NopInst, NopInst, NopInst, NopInst];
         let mut packet_added = false;
         for idx in range(start, end) {
@@ -343,7 +343,7 @@ pub fn schedule(insts: &Vec<InstNode>,
         }
 
         if debug {
-            print!("edges: {}\n", edges);
+            print!("edges: {:?}\n", edges);
         }
 
         // We now have a DAG, corresponding to dependencies among instructions.
@@ -425,7 +425,7 @@ pub fn schedule(insts: &Vec<InstNode>,
                   packets.len());
 
     if debug {
-        print!("packets: {}\n", packets);
+        print!("packets: {:?}\n", packets);
         print!("Efficiency: {} instructions in {} packets = {}\n",
                insts.len(), packets.len(),
                insts.len() as f32 / packets.len() as f32);

@@ -15,7 +15,7 @@ use intrinsics::size_of;
 use std::collections::{BTreeSet, BTreeMap};
 
 use util;
-use std::io::Writer;
+use std::old_io::Writer;
 
 use mc::ast::*;
 use mc::ast::defmap::*;
@@ -64,7 +64,7 @@ fn find_structs(module: &Module) -> BTreeSet<NodeId> {
             StructItem(ref id, _, _) => { struct_set.insert(id.id); },
             ModItem(_, ref submod) => {
                 let inner_structs = find_structs(submod);
-                struct_set.extend(inner_structs.move_iter());
+                struct_set.extend(inner_structs.into_iter());
             }
             _ => {},
         }
@@ -89,7 +89,7 @@ fn find_enum_item_names(module: &Module)
             },
             ModItem(_, ref submod) => {
                 let inner_enums = find_enum_item_names(submod);
-                enum_map.extend(inner_enums.move_iter());
+                enum_map.extend(inner_enums.into_iter());
             }
             _ => {},
         }
@@ -108,7 +108,7 @@ fn find_enum_names(module: &Module) -> BTreeMap<NodeId, Name> {
             },
             ModItem(_, ref submod) => {
                 let inner_enums = find_enum_names(submod);
-                enum_map.extend(inner_enums.move_iter());
+                enum_map.extend(inner_enums.into_iter());
             }
             _ => {}
         }
@@ -131,19 +131,25 @@ static INDENT_AMT: uint = 4;
 impl<'a> CCrossCompiler<'a> {
     fn indent(&mut self) { self.indent += INDENT_AMT; }
     fn unindent(&mut self) { self.indent -= INDENT_AMT; }
-    fn ind(&self) -> String { String::from_char(self.indent, ' ') }
+    fn ind(&self) -> String {
+        let v = (0..self.indent).map(|_|' ' as u8);
+        let v: Vec<u8> = v.collect();
+        String::from_utf8_lossy(v.as_slice()).into_owned()
+    }
 
-    fn visit_list<T>(&self, list: &Vec<T>,
-                            visit: |&CCrossCompiler, &T| -> String,
-                            delimiter: &str) -> String {
+    fn visit_list<T, F>(&self, list: &Vec<T>,
+                        visit: F,
+                        delimiter: &str) -> String
+        where F: Fn(&CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
             .filter(|x| *x != String::from_str("")).collect();
         list.connect(format!("{}", delimiter).as_slice())
     }
 
-    fn mut_visit_list<T>(&mut self, list: &Vec<T>,
-                                    visit: |&mut CCrossCompiler, &T| -> String,
-                                    delimiter: &str) -> String {
+    fn mut_visit_list<T, F>(&mut self, list: &Vec<T>,
+                            visit: F,
+                            delimiter: &str) -> String
+        where F: Fn(&mut CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
             .filter(|x| *x != String::from_str("")).collect();
         list.connect(delimiter)
@@ -260,7 +266,8 @@ impl<'a> CCrossCompiler<'a> {
         }
     }
 
-    fn visit_block(&mut self, block: &Block, tail: |Option<String>| -> String) -> String {
+    fn visit_block<F>(&mut self, block: &Block, tail: F) -> String
+        where F: Fn(Option<String>) -> String {
         self.indent();
         let delim_s = format!("\n{}", self.ind());
         let delim = delim_s.as_slice();
@@ -277,7 +284,10 @@ impl<'a> CCrossCompiler<'a> {
             None => tail(None),
         };
 
-        let out = self.visit_list(&vec!(items, stmts, expr), |_, t: &String| t.clone(), delim);
+        //TODO!!!!!!!
+        //let out = self.visit_list(&vec!(items, stmts, expr),
+            //                          |&:_, t: &String| t.clone(), delim);
+            let out = "";
         self.unindent();
 
         format!("{{{}{}\n{}}}", delim, out, self.ind())
@@ -289,7 +299,7 @@ impl<'a> CCrossCompiler<'a> {
             ConstItem(ref id, ref t, _) => {
                 let ty = self.visit_type(t);
                 let name = self.visit_ident(id);
-                let lit = self.typemap.consts.find(&id.id)
+                let lit = self.typemap.consts.get(&id.id)
                     .expect("finding const in map")
                     .clone().ok().expect("getting const value"); // wee
                 let lit = WithId { id: id.id, val: lit };
@@ -367,7 +377,7 @@ impl<'a> CCrossCompiler<'a> {
 
     fn visit_mangled_path(&self, path: &Path) -> String {
         let resolved_node = self.session.resolver.def_from_path(path);
-        match self.mangle_map.find(&resolved_node) {
+        match self.mangle_map.get(&resolved_node) {
             Some(n) => n.clone(),
             None => self.visit_path(path)
         }
@@ -384,7 +394,7 @@ impl<'a> CCrossCompiler<'a> {
                     // Is this type a type parameter?
                     let d = self.session.defmap.find(&did).take().unwrap();
                     match *d {
-                        GenericDef => true,
+                        Def::GenericDef => true,
                         _ => false,
                     }
                 };
@@ -436,7 +446,7 @@ impl<'a> CCrossCompiler<'a> {
             }
             EnumTy(did, _) |
             StructTy(did, _) => {
-                format!("struct {}", self.mangle_map.find(&did).unwrap())
+                format!("struct {}", self.mangle_map.get(&did).unwrap())
             }
             BottomTy => String::from_str("void"),
             FuncTy(ref d, ref r) => {
@@ -449,7 +459,7 @@ impl<'a> CCrossCompiler<'a> {
     }
 
     fn visit_path_in_enum_access(&self, path: &Path) -> String {
-        let (_, ref variants, ref pos) = *self.enumitemnames.find(&path.val.elems.last().unwrap().val.name).unwrap();
+        let (_, ref variants, ref pos) = *self.enumitemnames.get(&path.val.elems.last().unwrap().val.name).unwrap();
         let variant = &variants[*pos];
         let name = self.session.interner.name_to_str(&variant.ident.val.name);
         name.to_string()
@@ -457,7 +467,7 @@ impl<'a> CCrossCompiler<'a> {
 
     fn visit_path(&self, path: &Path) -> String {
         // TODO: better mangling.
-        match self.enumitemnames.find(&path.val.elems.last().unwrap().val.name) {
+        match self.enumitemnames.get(&path.val.elems.last().unwrap().val.name) {
             Some(&(_, _, ref pos)) => format!("{{ .tag = {} }}", pos),
             None => {
                 let last_component: Vec<String> = path.val.elems.iter()
@@ -471,11 +481,11 @@ impl<'a> CCrossCompiler<'a> {
     }
 
     fn visit_id(&mut self, id: &NodeId) -> String {
-        self.mangle_map.find(id).unwrap().clone()
+        self.mangle_map.get(id).unwrap().clone()
     }
 
     fn visit_ident(&mut self, ident: &Ident) -> String {
-        match self.mangle_map.find(&ident.id) {
+        match self.mangle_map.get(&ident.id) {
             Some(n) => n.clone(),
             _ => String::from_str(self.session.interner.name_to_str(
                 &ident.val.name))
@@ -596,7 +606,7 @@ impl<'a> CCrossCompiler<'a> {
                     PathExpr(ref path) => {
                         let name = self.visit_mangled_path(path);
 
-                        match self.enumitemnames.find(&path.val.elems.last().unwrap().val.name) {
+                        match self.enumitemnames.get(&path.val.elems.last().unwrap().val.name) {
                             Some(&(_, _, pos)) => {
                                 let mut n: u32 = 0;
                                 let args = self.mut_visit_list(args, |me, arg| {
@@ -667,20 +677,23 @@ impl<'a> CCrossCompiler<'a> {
 
                 let expr = self.visit_expr(&**e);
                 let arms = self.mut_visit_list(arms, |me, arm| {
-                    let (path, vars) = match arm.pat.val {
+                    let (path, vars): (&Path, &Vec<Pat>) = match arm.pat.val {
                         VariantPat(ref path, ref args) => (path, args),
                         _ => panic!("Only VariantPats are supported in match arms for now")
                     };
 
                     let body = me.visit_expr(&arm.body);
 
-                    let &(_, ref variants, idx) = me.enumitemnames.find(&path.val.elems.last().unwrap().val.name).unwrap();
+                    let &(_, ref variants, idx) = me.enumitemnames.get(&path.val.elems.last().unwrap().val.name).unwrap();
                     let this_variant = &variants[idx as uint];
 
                     let name = me.visit_path_in_enum_access(path);
 
                     let mut n = 0;
-                    let vars = me.visit_list(vars, |me, var| {
+                    //TODO!!!!!!!
+                    let vars = "";
+                    /*
+                    let vars = me.visit_list(vars, |me, var: &Pat| {
                         n += 1;
                         let ty = me.visit_type(&this_variant.args[n - 1]);
                         let varname = match var.val {
@@ -689,7 +702,7 @@ impl<'a> CCrossCompiler<'a> {
                         };
                         format!("{} {} = {}.val.{}.field{};",
                                 ty, varname, expr.as_slice(), name, n - 1)
-                    }, "; ");
+                    }, "; ");*/
 
                     if is_void {
                         format!("case {}: {{\n {}; ({}); break;}}\n",
@@ -715,10 +728,11 @@ impl<'a> CCrossCompiler<'a> {
     // Visit a module and all of its submodules, applying a worker function.
     // We need this so we can print out all the modules, then all the structs,
     // etc.
-    fn visit_module_worker(&mut self,
-                           results: &mut Vec<String>,
-                           module: &Module,
-                           f: |&mut CCrossCompiler, &mut Vec<String>,&Module|) {
+    fn visit_module_worker<F>(&mut self,
+                              results: &mut Vec<String>,
+                              module: &Module,
+                              f: F)
+        where F: Fn(&mut CCrossCompiler, &mut Vec<String>,&Module) {
 
         for item in module.val.items.iter() {
             match item.val {
@@ -843,8 +857,8 @@ pub struct CTarget {
 }
 
 impl Target for CTarget {
-    fn new(_args: Vec<String>) -> CTarget {
-        CTarget { opts: () }
+    fn new(_args: Vec<String>) -> Box<CTarget> {
+        Box::new(CTarget { opts: () })
     }
 
     #[allow(unused_must_use)]

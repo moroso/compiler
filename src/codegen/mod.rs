@@ -1,5 +1,7 @@
 use mas::ast::Reg;
 
+use std::fmt;
+use std::fmt::{Formatter, Display};
 pub use codegen::ir_to_asm::IrToAsm;
 pub use self::RegisterColor::*;
 
@@ -27,7 +29,7 @@ pub static spill_reg_base: u8 = 8;
 
 pub static global_mem_start: u32 = 0x8000;
 
-#[deriving(Ord, PartialOrd, PartialEq, Eq, Show)]
+#[derive(Ord, PartialOrd, PartialEq, Eq, Debug, Copy)]
 pub enum RegisterColor {
     RegColor(Reg),
     // Offset on the stack, in words.
@@ -37,3 +39,5 @@ pub enum RegisterColor {
     // This is a structure in global storage; we access it by reference.
     GlobalReferenceColor,
 }
+
+allow_string!(RegisterColor);

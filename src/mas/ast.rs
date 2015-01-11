@@ -5,8 +5,10 @@
 // processor!
 
 use std::fmt;
-use std::fmt::{Formatter, Show};
+use std::fmt::{Formatter, Display, Debug};
 use mas::util::fits_in_bits;
+use std::ops::Index;
+use std::option::IterMut;
 
 pub use self::CoReg::*;
 pub use self::AluOp::*;
@@ -19,25 +21,25 @@ pub use self::LongValue::*;
 pub use self::InstNode::*;
 
 // A predicate that is always true.
-pub static true_pred: Pred = Pred {
+pub static TRUE_PRED: Pred = Pred {
     inverted: false,
     reg: 3,
 };
 
 // The link register.
-pub static link_reg: Reg = Reg {
+pub static LINK_REG: Reg = Reg {
     index: 31,
 };
 
 
 
-#[deriving(Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
 pub struct Pred {
     pub inverted: bool,
     pub reg: u8, // Can only take the values 0-3.
 }
 
-impl Show for Pred {
+impl Display for Pred {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}p{}",
                if self.inverted { "!" } else { "" },
@@ -45,18 +47,18 @@ impl Show for Pred {
     }
 }
 
-#[deriving(Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
 pub struct Reg {
     pub index: u8,
 }
 
-impl Show for Reg {
+impl Display for Reg {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "r{}", self.index)
     }
 }
 
-#[deriving(Show, Clone, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Copy)]
 pub enum CoReg {
     PFLAGS,
     PTB,
@@ -75,7 +77,7 @@ pub enum CoReg {
 }
 
 // Opcodes for the ALU.
-#[deriving(Show, Eq, PartialEq, Clone, Ord, PartialOrd)]
+#[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd, Copy)]
 pub enum AluOp {
     AddAluOp,
     AndAluOp,
@@ -122,7 +124,7 @@ impl AluOp {
 }
 
 // Compare types.
-#[deriving(Show, Eq, PartialEq, Clone, Ord, PartialOrd)]
+#[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd, Copy)]
 pub enum CompareType {
     CmpLTU,
     CmpLEU,
@@ -135,7 +137,7 @@ pub enum CompareType {
 }
 
 // Shift types.
-#[deriving(Clone, Eq, PartialEq, FromPrimitive, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, FromPrimitive, Ord, PartialOrd, Debug, Copy)]
 pub enum ShiftType {
     SllShift,
     SrlShift,
@@ -144,7 +146,7 @@ pub enum ShiftType {
 }
 
 // Load/Store types.
-#[deriving(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
 pub enum LsuWidth {
     LsuWidthB,
     LsuWidthH,
@@ -153,7 +155,7 @@ pub enum LsuWidth {
 }
 
 // Flush types
-#[deriving(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
 pub enum FlushType {
     DataFlush,
     InstFlush,
@@ -161,13 +163,13 @@ pub enum FlushType {
     ItlbFlush,
 }
 
-#[deriving(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd, Copy)]
 pub struct LsuOp {
     pub store: bool,
     pub width: LsuWidth,
 }
 
-impl Show for ShiftType {
+impl Display for ShiftType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}",
                match *self {
@@ -180,20 +182,20 @@ impl Show for ShiftType {
     }
 }
 
-#[deriving(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd)]
 pub enum JumpTarget {
     JumpOffs(i32),
     // TODO: allow arithmetic on labels.
     JumpLabel(String),
 }
 
-#[deriving(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd)]
 pub enum LongValue {
     Immediate(u32),
     LabelOffs(String),
 }
 
-#[deriving(Show, Eq, PartialEq, Clone, Ord, PartialOrd)]
+#[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd)]
 pub enum InstNode {
     ALU1ShortInst(Pred, // Instruction predicate
                   AluOp, // Actual op
@@ -694,19 +696,32 @@ impl InstNode {
     }
 }
 
-pub struct InstPacket([InstNode, ..4]);
+allow_string!(InstNode);
 
-impl Index<uint, InstNode> for InstPacket {
+//pub struct InstPacket([InstNode; 4]);
+pub type InstPacket = [InstNode; 4];
+allow_string!(InstPacket);
+/*
+impl Index<uint> for InstPacket {
+    type Output = InstNode;
     fn index<'a>(&'a self, i: &uint) -> &'a InstNode {
         let InstPacket(ref packet) = *self;
         &packet[*i]
     }
 }
 
-impl Show for InstPacket {
+impl InstPacket {
+    fn iter_mut(&mut self) -> IterMut<InstNode> {
+        let InstPacket(ref mut packet) = *self;
+        packet.iter_mut()
+    }
+}
+
+impl Display for InstPacket {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let InstPacket(ref packet) = *self;
         write!(f, "{{ {}; {}; {}; {} }}",
                packet[0], packet[1], packet[2], packet[3])
     }
 }
+*/

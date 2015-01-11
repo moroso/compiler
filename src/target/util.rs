@@ -12,7 +12,7 @@ pub struct NameMangler<'a> {
 }
 
 impl<'a> NameMangler<'a> {
-    pub fn new(session: Session, module: &Module,
+    pub fn new(session: Session<'a>, module: &Module,
                mangle_main: bool, mangle_externs: bool) -> NameMangler<'a> {
         let mut mangler = NameMangler { names: BTreeMap::new(),
                                         path: vec!(),

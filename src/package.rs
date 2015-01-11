@@ -19,15 +19,19 @@ trait Parsable {
     fn parse(self, session: &mut Session) -> Module;
 }
 
-impl Parsable for ::std::io::File {
+impl Parsable for ::std::old_io::File {
     fn parse(self, session: &mut Session) -> Module {
-        session.parse_package_file(self)
+        //TODO!!!!!
+        panic!();
+        //session.parse_package_file(self)
     }
 }
 
 impl<'a, T: BufReader> Parsable for NamedBuffer<'a, T> {
     fn parse(self, session: &mut Session) -> Module {
-        session.parse_package_buffer(self.name, self.buffer)
+        //session.parse_package_buffer(self.name, self.buffer)
+        //TODO!!!!!!!
+        panic!()
     }
 }
 
@@ -41,7 +45,7 @@ impl<'a> Package<'a> {
         Package::new(opts, nb)
     }
 
-    pub fn from_file(opts: Options, file: ::std::io::File) -> Package<'a> {
+    pub fn from_file(opts: Options, file: ::std::old_io::File) -> Package<'a> {
         Package::new(opts, file)
     }
 

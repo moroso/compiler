@@ -13,6 +13,7 @@ pub use self::NS::*;
 use self::ModuleScope::*;
 
 //#[allow(non_camel_case_types)] leaving the warning so we remember to patch rust later
+#[derive(Copy)]
 pub enum NS {
     TypeAndModNS = 0i,
     ValNS,
@@ -31,27 +32,28 @@ struct Subscope {
 impl Subscope {
     fn new() -> Subscope {
         Subscope {
-            names: BTreeMap::new()
+            names: VecMap::new()
         }
     }
 
     fn insert(&mut self, ns: NS, name: Name, node_id: NodeId) -> bool {
         let ns = ns as uint;
 
-        if !self.names.contains_key(&name) {
-            self.names.insert(name as uint, VecMap::new());
+        if !self.names.contains_key(&name.as_uint()) {
+            self.names.insert(name.as_uint(), BTreeMap::new());
         }
 
-        let names = self.names.find_mut(&name).unwrap();
+        let names = self.names.get_mut(&name.as_uint()).unwrap();
 
-        names.insert(ns, node_id)
+        names.insert(ns, node_id).is_some()
     }
 
     fn insert_ident(&mut self, ns: NS, ident: &Ident) -> bool {
         self.insert(ns, ident.val.name, ident.id)
     }
 
-    fn insert_items(&mut self, items: &Vec<Item>, get_pairs: |&[Ident]| -> Vec<(NS, Ident)>) {
+    fn insert_items<F>(&mut self, items: &Vec<Item>, mut get_pairs: F)
+        where F: FnMut(&[Ident]) -> Vec<(NS, Ident)> {
         for item in items.iter() {
             match item.val {
                 UseItem(ref import) => {
@@ -65,14 +67,14 @@ impl Subscope {
                             BTreeSet::new(),
                     };
 
-                    let allow = match import.val.import {
-                        ImportNames(..) => |id: &Ident| filter.contains(&id.val.name),
-                        ImportAll => |_| true,
-                    };
-
                     let pairs = get_pairs(import.val.elems.as_slice());
                     for &(ns, ref ident) in pairs.iter() {
-                        if allow(ident) {
+                        let allow = match import.val.import {
+                            ImportNames(..) => filter.contains(&ident.val.name),
+                            ImportAll => true,
+                        };
+
+                        if allow {
                             self.insert_ident(ns, ident);
                         }
                     }
@@ -109,8 +111,8 @@ impl Subscope {
 
     fn find(&self, ns: NS, ident: &Ident) -> Option<NodeId> {
         let ns = ns as uint;
-        self.names.find(&ident.val.name)
-            .and_then(|names| names.find(&ns))
+        self.names.get(&ident.val.name.as_uint())
+            .and_then(|names| names.get(&ns))
             .map(|id| *id)
     }
 }
@@ -139,20 +141,20 @@ impl Resolver {
 
     /// Get the NodeId of the item that defines the given path
     pub fn def_from_path(&self, path: &Path) -> NodeId {
-        *self.table.find(&path.id).unwrap()
+        *self.table.get(&path.id).unwrap()
     }
 
     /// Get the NodeId of the item that defines the given path
     pub fn maybe_def_from_path(&self, path: &Path) -> Option<NodeId> {
-        match self.table.find(&path.id) {
+        match self.table.get(&path.id) {
             Some(ref v) => Some(*v.clone()),
             None => None,
         }
     }
 
     // The entry point for the resolver
-    pub fn resolve(session: &mut Session,
-                   module: &Module) {
+    pub fn resolve<'a>(session: &'a mut Session<'a>,
+                       module: &Module) {
         let (root, tree) = ModuleCollector::collect(module);
 
         let mut modres = ModuleResolver {
@@ -187,13 +189,13 @@ impl<'a> ModuleResolver<'a> {
         let mut search_scope = if global {
             slice::ref_slice(&self.scope[0])
         } else {
-            self.scope.slice_from(self.root)
+            &self.scope[self.root..]
         };
 
         for elem in path.iter() {
             let maybe_node_id = try_resolve_ident(search_scope, TypeAndModNS, elem);
             let maybe_modscope = match maybe_node_id {
-                Some(node_id) => self.tree.find(&node_id),
+                Some(node_id) => self.tree.get(&node_id),
                 None => None,
             };
             match maybe_modscope {
@@ -258,12 +260,14 @@ impl<'a> ModuleResolver<'a> {
 
     /// Adds the given name to the given namespace as the given node_id in the current scope
     fn add_to_scope(&mut self, ns: NS, name: Name, node_id: NodeId) {
-        let subscope = self.scope.mut_last().take().unwrap();
+        let len = self.scope.len();
+        let subscope = &mut self.scope[len - 1];
         subscope.insert(ns, name, node_id);
     }
 
     /// Descends into a new scope, optionally seeding it with a set of items
-    fn descend(&mut self, items: Option<&Vec<Item>>, visit: |&mut ModuleResolver|) -> Subscope {
+    fn descend<F>(&mut self, items: Option<&Vec<Item>>, mut visit: F) -> Subscope
+        where F: FnMut(&mut ModuleResolver) {
         let mut subscope = Subscope::new();
 
         items.map(|items| subscope.insert_items(items, |elems| {
@@ -273,10 +277,10 @@ impl<'a> ModuleResolver<'a> {
             let mut pairs = vec!();
             for (name, map) in names.iter() {
                 for ns in [TypeAndModNS, ValNS, StructNS].iter() {
-                    for nid in map.find(&(*ns as uint)).iter() {
+                    for nid in map.get(&(*ns as uint)).iter() {
                         let ident = IdentNode {
                             tps: None,
-                            name: *name,
+                            name: Name(name),
                         };
 
                         pairs.push((*ns, WithId { id: **nid, val: ident }));
@@ -334,8 +338,8 @@ impl<'a> ModuleResolver<'a> {
         // Ok, now that we have found the stuff, add it all in.
         for (name, map) in scope.iter() {
             for ns in [TypeAndModNS, ValNS, StructNS].iter() {
-                for id in map.find(&(*ns as uint)).iter() {
-                    self.add_to_scope(*ns, *name, **id);
+                for id in map.get(&(*ns as uint)).iter() {
+                    self.add_to_scope(*ns, Name(name), **id);
                 }
             }
         }
@@ -412,7 +416,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
             StructExpr(ref path, ref flds) => {
                 self.resolve_path(StructNS, path);
                 for fld in flds.iter() {
-                    self.visit_expr(fld.ref1());
+                    self.visit_expr(&fld.1);
                 }
             }
             MatchExpr(ref e, ref arms) => {
@@ -516,7 +520,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
                 let mut idx = self.scope.len();
 
                 // Find the subscope we're about to descend into and swap it out of the tree
-                let subscope = match self.tree.swap(ident.id, OnBranch(idx)) {
+                let subscope = match self.tree.insert(ident.id, OnBranch(idx)) {
                     Some(OffBranch(subscope)) => subscope,
                     _ => panic!(),
                 };
@@ -544,7 +548,7 @@ impl<'a> Visitor for ModuleResolver<'a> {
                 let subscope = self.scope.pop().unwrap();
 
                 // Put the child module's scope back in the tree
-                self.tree.swap(ident.id, OffBranch(subscope));
+                self.tree.insert(ident.id, OffBranch(subscope));
             }
             _ => {}
         }

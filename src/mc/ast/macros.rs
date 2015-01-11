@@ -5,7 +5,7 @@ use mc::session::Session;
 
 use std::fmt;
 use std::collections::BTreeMap;
-use std::fmt::{Formatter, Show};
+use std::fmt::{Formatter, Display};
 use std::mem::swap;
 use std::ops::Fn;
 use util::lexer::SourceToken;
@@ -39,8 +39,8 @@ fn expand_line(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec
 // Also this is probably not very useful.
 fn expand_paste(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
     let mut concat = vec!();
-    for arg in input.move_iter() {
-        for elem in arg.move_iter() {
+    for arg in input.into_iter() {
+        for elem in arg.into_iter() {
             match elem {
                 Token::IdentTok(s) => concat.push(s),
                 Token::NumberTok(n, _) => concat.push(format!("{}", n)),
@@ -54,10 +54,10 @@ fn expand_paste(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Ve
 
 fn expand_concat(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
     let mut concat = vec!();
-    for mut arg in input.move_iter() {
+    for mut arg in input.into_iter() {
         match arg.pop() {
             Some(Token::StringTok(s)) => concat.push(s),
-            t => session.error(id, format!("expected string in concat!, found {}", t)),
+            t => session.error(id, format!("expected string in concat!, found {:?}", t)),
         }
 
         if arg.len() > 0 {
@@ -76,11 +76,11 @@ fn expand_stringify(mut input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> V
     let mut concat = vec!();
 
     let ts = input.pop().unwrap();
-    concat.push_all_move(ts.move_iter().map(|t| format!("{}", t)).collect());
+    concat.extend(ts.into_iter().map(|t| format!("{}", t)));
 
-    for ts in input.move_iter() {
+    for ts in input.into_iter() {
         concat.push(String::from_str(","));
-        concat.push_all_move(ts.move_iter().map(|t| format!("{}", t)).collect());
+        concat.extend(ts.into_iter().map(|t| format!("{}", t)));
     }
 
     vec!(Token::StringTok(concat.connect(" ")))
@@ -90,14 +90,14 @@ fn expand_map_macro(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -
     if input.len() < 1 {
         session.error_fatal(id, "Not enough arguments to map_toks!");
     }
-    let mut iter = input.move_iter();
+    let mut iter = input.into_iter();
     let prefix = iter.next().unwrap();
 
     let mut out = vec!();
     for toks in iter {
         out.push_all(prefix.as_slice());
         out.push(Token::LParen);
-        out.push_all_move(toks);
+        out.push_all(toks.as_slice());
         out.push(Token::RParen);
         out.push(Token::Comma);
     }
@@ -136,7 +136,7 @@ impl Expander for WithId<MacroDef> {
         let mut output = vec!();
 
         let mut args = BTreeMap::new();
-        let mut arg_iter = input.move_iter();
+        let mut arg_iter = input.into_iter();
         for (&name, arg) in self.val.args.iter().zip(arg_iter.by_ref()) {
             args.insert(name, arg);
         }
@@ -156,7 +156,7 @@ impl Expander for WithId<MacroDef> {
             let mut is_empty_varargs = false;
             match *tok {
                 MacroVar(name) => {
-                    output.push_all(args.find(&name).unwrap().as_slice());
+                    output.push_all(args.get(&name).unwrap().as_slice());
                 }
                 // We skip a comma that occurs after an empty ...
                 MacroTok(Token::Comma) if skip_comma => {}
@@ -189,7 +189,7 @@ impl MacroCollector {
     fn filter_items(&mut self, node_items: &mut Vec<Item>) {
         let mut items = vec!();
         swap(&mut items, node_items);
-        for item in items.move_iter() {
+        for item in items.into_iter() {
             match item.val {
                 MacroDefItem(def) => self.macros.push(def.with_id(item.id)),
                 _ => node_items.push(item),
@@ -212,14 +212,15 @@ impl MutVisitor for MacroCollector {
 
 impl<'a> MacroExpander<'a> {
     pub fn new() -> MacroExpander<'a> {
-        use mc::session::interner as tls_interner;
+        use mc::session::interner;
 
-        let interner = tls_interner.get().unwrap();
         let mut macros = BTreeMap::new();
 
         for &(s, e) in builtin_macros.iter() {
-            let name = interner.intern(String::from_str(s));
-            macros.insert(name, box ExpanderFn(e) as Box<Expander>);
+            interner.with(|x| {
+                let name = x.intern(String::from_str(s));
+                macros.insert(name, Box::new(ExpanderFn(e)) as Box<Expander>);
+            })
         }
 
         MacroExpander {
@@ -227,11 +228,11 @@ impl<'a> MacroExpander<'a> {
         }
     }
 
-    pub fn expand_macros(session: &mut Session, module: &mut Module) {
+    pub fn expand_macros(session: &'a mut Session<'a>, module: &mut Module) {
         let user_macros = MacroCollector::collect(module);
-        for def in user_macros.move_iter() {
+        for def in user_macros.into_iter() {
             let name = def.val.name;
-            session.expander.macros.insert(name, box def);
+            session.expander.macros.insert(name, Box::new(def));
         }
 
         let mut visitor = MacroExpanderVisitor {
@@ -245,7 +246,7 @@ impl<'a> MacroExpander<'a> {
 // Some debug code
 fn format_st_vec(v: &Vec<SourceToken<Token>>) -> String {
     let nv: Vec<Token> = v.iter().map(|t| t.tok.clone()).collect();
-    format!("{}", nv)
+    format!("{:?}", nv)
 }
 
 impl<'a> MacroExpanderVisitor<'a> {
@@ -259,18 +260,18 @@ impl<'a> MacroExpanderVisitor<'a> {
         let filename = self.session.parser.filename_of(id);
 
         let mut toks = unsafe {
-            let macro: & &Expander = ::std::mem::transmute(
-                match self.session.expander.macros.find(&name) {
+            let this_macro: & &Expander = ::std::mem::transmute(
+                match self.session.expander.macros.get(&name) {
                     Some(m) => m,
                     None => self.session.error_fatal(*id, format!("Macro {}! is undefined", name).as_slice()),
                 }
                 );
-            macro.expand(my_args, *id, self.session)
+            this_macro.expand(my_args, *id, self.session)
         };
 
         toks.push(Token::Eof);
 
-        let mut stream = toks.move_iter().map(
+        let mut stream = toks.into_iter().map(
             |t| SourceToken { sp: span, tok: t })
             .peekable();
 
@@ -297,7 +298,7 @@ impl<'a> MacroExpanderVisitor<'a> {
                 let mut expanded = self.expand_macro(id, name, args);
                 expanded.pop(); // Remove the EOF
                 //println!("parsed {}", print_thing(&expanded));
-                new_toks.push_all_move(expanded);
+                new_toks.extend(expanded.into_iter());
             } else {
                 new_toks.push(stream.next().unwrap());
             }
@@ -318,7 +319,7 @@ impl<'a> MutVisitor for MacroExpanderVisitor<'a> {
                 let mut my_args = vec!();
                 swap(&mut my_args, args);
                 let filename = self.session.parser.filename_of(&expr.id);
-                let stream = self.expand_macro(&expr.id, name, my_args).move_iter();
+                let stream = self.expand_macro(&expr.id, name, my_args).into_iter();
                 Parser::parse_stream(self.session, filename, stream, |p| p.parse_expr())
             }
             _ => return walk_expr(self, expr),

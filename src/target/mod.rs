@@ -1,4 +1,4 @@
-use std::io::Writer;
+use std::old_io::Writer;
 use package::Package;
 
 pub use self::ir::IRTarget;
@@ -12,6 +12,6 @@ mod asm;
 mod util;
 
 pub trait Target {
-    fn new(args: Vec<String>) -> Self;
+    fn new(args: Vec<String>) -> Box<Self>;
     fn compile(&self, p: Package, f: &mut Writer);
 }
