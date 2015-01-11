@@ -10,9 +10,9 @@ pub use util::lexer::BufReader;
 use std::fmt;
 use std::str::StrExt;
 
-pub use self::Token::*;
+use self::Token::*;
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub enum Token {
     // Whitespace
     WS,

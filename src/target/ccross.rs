@@ -131,7 +131,8 @@ static INDENT_AMT: uint = 4;
 impl<'a> CCrossCompiler<'a> {
     fn indent(&mut self) { self.indent += INDENT_AMT; }
     fn unindent(&mut self) { self.indent -= INDENT_AMT; }
-    fn ind(&self) -> String { String::from_char(self.indent, ' ') }
+    fn ind(&self) -> String { String::from_utf8_lossy(
+        (0..self.indent).map(||' ').collect()) }
 
     fn visit_list<T, F>(&self, list: &Vec<T>,
                         visit: F,

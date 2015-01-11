@@ -8,13 +8,11 @@ use std::collections::BTreeMap;
 use super::visitor::*;
 use super::*;
 
-pub use self::Def::*;
-
 /// DefMap maps a NodeId to a Def, where a Def is anything that can be defined
 /// by an Ident.  This can be used by the Resolver to map the usages of Idents
 /// in types and expressions to the things they define.
 
-#[deriving(Show, Clone)]
+#[derive(Show, Clone)]
 pub enum Def {
     /// Module definition, with its qualified name and the NodeIds of the child items
     ModDef(Vec<Name>, Vec<NodeId>),
@@ -109,7 +107,7 @@ impl<'a> Visitor for DefMapVisitor<'a> {
     fn visit_pat(&mut self, pat: &Pat) {
         match pat.val {
             IdentPat(ref ident, ref t) => {
-                self.session.defmap.table.insert(ident.id, PatDef(t.as_ref().map(|t| t.clone())));
+                self.session.defmap.table.insert(ident.id, Def::PatDef(t.as_ref().map(|t| t.clone())));
             }
             _ => { walk_pat(self, pat); }
         }
@@ -132,12 +130,12 @@ impl<'a> Visitor for DefMapVisitor<'a> {
         match item.val {
             FuncItem(ref ident, ref args, ref t, ref def, ref tps) => {
                 let arg_def_ids = args.iter().map(|arg| {
-                    self.session.defmap.table.insert(arg.ident.id, FuncArgDef(arg.argtype.clone()));
+                    self.session.defmap.table.insert(arg.ident.id, Def::FuncArgDef(arg.argtype.clone()));
                     arg.ident.id
                 }).collect();
 
                 let tp_def_ids = tps.iter().map(|tp| {
-                    self.session.defmap.table.insert(tp.id, GenericDef);
+                    self.session.defmap.table.insert(tp.id, Def::GenericDef);
                     tp.id
                 }).collect();
 
@@ -146,7 +144,7 @@ impl<'a> Visitor for DefMapVisitor<'a> {
                     ExternFn(abi) => Some(abi),
                 };
 
-                self.session.defmap.table.insert(ident.id, FuncDef(arg_def_ids, t.clone(), abi, tp_def_ids));
+                self.session.defmap.table.insert(ident.id, Def::FuncDef(arg_def_ids, t.clone(), abi, tp_def_ids));
 
                 self.qualifier.push(ident.val.name);
 
@@ -163,43 +161,43 @@ impl<'a> Visitor for DefMapVisitor<'a> {
                 }
 
                 let tp_def_ids = tps.iter().map(|tp| {
-                    self.session.defmap.table.insert(tp.id, GenericDef);
+                    self.session.defmap.table.insert(tp.id, Def::GenericDef);
                     tp.id
                 }).collect();
 
                 let qn = self.make_qualified_name(ident.val.name);
-                self.session.defmap.table.insert(ident.id, StructDef(qn, field_map, tp_def_ids));
+                self.session.defmap.table.insert(ident.id, Def::StructDef(qn, field_map, tp_def_ids));
             },
             EnumItem(ref ident, ref variants, ref tps) => {
                 let variant_def_ids = variants.iter().map(|variant| {
                     let args = variant.args.iter().map(|arg| arg.clone()).collect();
                     let qn = self.make_qualified_name(variant.ident.val.name);
-                    self.session.defmap.table.insert(variant.ident.id, VariantDef(qn, ident.id, args));
+                    self.session.defmap.table.insert(variant.ident.id, Def::VariantDef(qn, ident.id, args));
                     variant.ident.id
                 }).collect();
 
                 let tp_def_ids = tps.iter().map(|tp| {
-                    self.session.defmap.table.insert(tp.id, GenericDef);
+                    self.session.defmap.table.insert(tp.id, Def::GenericDef);
                     tp.id
                 }).collect();
 
                 let qn = self.make_qualified_name(ident.val.name);
-                self.session.defmap.table.insert(ident.id, EnumDef(qn, variant_def_ids, tp_def_ids));
+                self.session.defmap.table.insert(ident.id, Def::EnumDef(qn, variant_def_ids, tp_def_ids));
             }
             TypeItem(ref ident, ref t, _) => {
-                self.session.defmap.table.insert(ident.id, TypeDef(t.clone()));
+                self.session.defmap.table.insert(ident.id, Def::TypeDef(t.clone()));
             }
             ModItem(ref ident, ref module) => {
                 let item_ids = module.val.items.iter().map(|item| item.id).collect();
                 let qn = self.make_qualified_name(ident.val.name);
-                self.session.defmap.table.insert(ident.id, ModDef(qn, item_ids));
+                self.session.defmap.table.insert(ident.id, Def::ModDef(qn, item_ids));
 
                 self.qualifier.push(ident.val.name);
                 self.visit_module(module);
                 self.qualifier.pop();
             }
             StaticItem(ref ident, ref ty, ref expr, _) => {
-                self.session.defmap.table.insert(ident.id, PatDef(Some(ty.clone())));
+                self.session.defmap.table.insert(ident.id, Def::PatDef(Some(ty.clone())));
 
                 self.visit_type(ty);
 
@@ -208,7 +206,7 @@ impl<'a> Visitor for DefMapVisitor<'a> {
                 }
             }
             ConstItem(ref ident, ref ty, ref expr) => {
-                self.session.defmap.table.insert(ident.id, ConstDef(ty.clone()));
+                self.session.defmap.table.insert(ident.id, Def::ConstDef(ty.clone()));
                 self.visit_type(ty);
                 self.visit_expr(expr);
             }
@@ -222,7 +220,7 @@ impl<'a> Visitor for DefMapVisitor<'a> {
                             let mut path_qn: Vec<Name> =
                                 import.val.elems.iter().map(|e| e.val.name).collect();
                             path_qn.push(ident.val.name);
-                            self.session.defmap.table.insert(ident.id, UseDef(qn, path_qn));
+                            self.session.defmap.table.insert(ident.id, Def::UseDef(qn, path_qn));
                         }
                     }
                 }

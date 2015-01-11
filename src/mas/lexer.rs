@@ -5,9 +5,7 @@ use util::lexer::*;
 use super::ast;
 use super::ast::*;
 
-pub use self::Token::*;
-
-#[deriving(Eq, PartialEq, Clone, Show)]
+#[derive(Eq, PartialEq, Clone, Show)]
 pub enum Token {
     WS,
 
@@ -282,84 +280,84 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + StrExt>(
 
     let rules = lexer_rules! {
         // Whitespace, including C-style comments
-        WS         => matcher!(r"//.*|\s"),
+        Token::WS         => matcher!(r"//.*|\s"),
 
-        Colon      => ":",
-        LBrace     => "{",
-        RBrace     => "}",
-        Semi       => ";",
-        Gets       => "<-",
-        Predicates => "->",
-        Plus       => "+",
-        Dash       => "-",
-        Sub        => matcher!(r"(?i:sub)"),
-        DashColon  => "-:",
-        Rsb        => matcher!(r"(?i:rsb)"),
-        Star       => "*",
-        StarU      => matcher!(r"(?i:\*u)"),
-        StarS      => matcher!(r"(?i:\*s)"),
-        Slash      => "/",
-        SlashU     => matcher!(r"(?i:/u)"),
-        SlashS     => matcher!(r"(?i:/s)"),
-        Lt         => "<",
-        Lt         => "<u",
-        Lt         => matcher!(r"(?i:ltu)"),
-        Lts        => "<s",
-        Lts        => matcher!(r"(?i:lts)"),
-        Le         => "<=",
-        Le         => "<=u",
-        Le         => matcher!(r"(?i:leu)"),
-        Les        => "<=s",
-        Les        => matcher!(r"(?i:les)"),
-        Bs         => matcher!(r"(?i:bs)"),
-        Bc         => matcher!(r"(?i:bc)"),
-        LParen     => "(",
-        RParen     => ")",
-        Eq         => "=",
-        EqEq       => "==",
-        Tilde      => "~",
-        Amp        => "&",
-        And        => matcher!(r"(?i:and)"),
-        Caret      => "^",
-        Xor        => matcher!(r"(?i:xor)"),
-        TildePipe  => "~|",
-        Nor        => matcher!(r"(?i:nor)"),
-        Pipe       => "|",
-        Or         => matcher!(r"(?i:or)"),
-        Sxb        => matcher!(r"(?i:sxb)"),
-        Sxh        => matcher!(r"(?i:sxh)"),
-        Mov        => matcher!(r"(?i:mov)"),
-        Mvn        => matcher!(r"(?i:mvn)"),
-        Nop        => matcher!(r"(?i:nop)"),
-        B          => matcher!(r"(?i:b)"),
-        Bl         => matcher!(r"(?i:bl)"),
-        Break      => matcher!(r"(?i:break)"),
-        Syscall    => matcher!(r"(?i:syscall)"),
-        Eret       => matcher!(r"(?i:eret)"),
-        Fence      => matcher!(r"(?i:fence)"),
-        Ovf        => matcher!(r"(?i:ovf)"),
+        Token::Colon      => ":",
+        Token::LBrace     => "{",
+        Token::RBrace     => "}",
+        Token::Semi       => ";",
+        Token::Gets       => "<-",
+        Token::Predicates => "->",
+        Token::Plus       => "+",
+        Token::Dash       => "-",
+        Token::Sub        => matcher!(r"(?i:sub)"),
+        Token::DashColon  => "-:",
+        Token::Rsb        => matcher!(r"(?i:rsb)"),
+        Token::Star       => "*",
+        Token::StarU      => matcher!(r"(?i:\*u)"),
+        Token::StarS      => matcher!(r"(?i:\*s)"),
+        Token::Slash      => "/",
+        Token::SlashU     => matcher!(r"(?i:/u)"),
+        Token::SlashS     => matcher!(r"(?i:/s)"),
+        Token::Lt         => "<",
+        Token::Lt         => "<u",
+        Token::Lt         => matcher!(r"(?i:ltu)"),
+        Token::Lts        => "<s",
+        Token::Lts        => matcher!(r"(?i:lts)"),
+        Token::Le         => "<=",
+        Token::Le         => "<=u",
+        Token::Le         => matcher!(r"(?i:leu)"),
+        Token::Les        => "<=s",
+        Token::Les        => matcher!(r"(?i:les)"),
+        Token::Bs         => matcher!(r"(?i:bs)"),
+        Token::Bc         => matcher!(r"(?i:bc)"),
+        Token::LParen     => "(",
+        Token::RParen     => ")",
+        Token::Eq         => "=",
+        Token::EqEq       => "==",
+        Token::Tilde      => "~",
+        Token::Amp        => "&",
+        Token::And        => matcher!(r"(?i:and)"),
+        Token::Caret      => "^",
+        Token::Xor        => matcher!(r"(?i:xor)"),
+        Token::TildePipe  => "~|",
+        Token::Nor        => matcher!(r"(?i:nor)"),
+        Token::Pipe       => "|",
+        Token::Or         => matcher!(r"(?i:or)"),
+        Token::Sxb        => matcher!(r"(?i:sxb)"),
+        Token::Sxh        => matcher!(r"(?i:sxh)"),
+        Token::Mov        => matcher!(r"(?i:mov)"),
+        Token::Mvn        => matcher!(r"(?i:mvn)"),
+        Token::Nop        => matcher!(r"(?i:nop)"),
+        Token::B          => matcher!(r"(?i:b)"),
+        Token::Bl         => matcher!(r"(?i:bl)"),
+        Token::Break      => matcher!(r"(?i:break)"),
+        Token::Syscall    => matcher!(r"(?i:syscall)"),
+        Token::Eret       => matcher!(r"(?i:eret)"),
+        Token::Fence      => matcher!(r"(?i:fence)"),
+        Token::Ovf        => matcher!(r"(?i:ovf)"),
 
         // TODO: the other ops we need.
 
         // TODO: shifts. Currently, these are lexed incorrectly!
 
-        DotGlobl   => ".globl",
-        Long       => matcher!(r"(?i:long)"),
+        Token::DotGlobl   => ".globl",
+        Token::Long       => matcher!(r"(?i:long)"),
 
-        NumLit     => CharLiteralRule,
-        NumLit     => NumberLiteralRule,
+        Token::NumLit     => CharLiteralRule,
+        Token::NumLit     => NumberLiteralRule,
 
-        Reg        => RegisterRule,
-        CoReg      => CoRegRule,
-        PredReg    => PredicateRule,
-        Shift      => ShiftRule,
-        LoadStore  => LoadStoreRule,
-        Flush      => FlushRule,
-        IdentTok   => matcher!(r"[a-zA-Z_]\w*"),
+        Token::Reg        => RegisterRule,
+        Token::CoReg      => CoRegRule,
+        Token::PredReg    => PredicateRule,
+        Token::Shift      => ShiftRule,
+        Token::LoadStore  => LoadStoreRule,
+        Token::Flush      => FlushRule,
+        Token::IdentTok   => matcher!(r"[a-zA-Z_]\w*"),
         // TODO: a specific matcher for this.
-        IdentTok   => matcher!(r"\.[0-9]+(a|b)?"),
+        Token::IdentTok   => matcher!(r"\.[0-9]+(a|b)?"),
 
-        BeginComment => matcher!(r"/\*")
+        Token::BeginComment => matcher!(r"/\*")
     };
 
     // A special set of rules, just for when we're within a multi-line
@@ -368,24 +366,24 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + StrExt>(
         // The start of a multi-line comment.
         // This is to properly handle nested multiline comments.
         // We increase the multiline-comment-nesting-counter with this.
-        BeginComment => matcher!(r"/\*"),
+        Token::BeginComment => matcher!(r"/\*"),
 
         // The end of a multi-line comment.
         // We decrease the multiline-comment-nesting-counter with this.
-        EndComment => matcher!(r"\*/"),
+        Token::EndComment => matcher!(r"\*/"),
 
         // If we're within a comment, any string not
         // containing "/*" or "*/" is considered whitespace.
-        WS => matcher!(r"(?:.|\n)")
+        Token::WS => matcher!(r"(?:.|\n)")
     };
 
     let morasm = Language {
         rules: rules,
         comment_rules: comment_rules,
-        eof: Eof,
-        ws: WS,
-        begin_comment: BeginComment,
-        end_comment: EndComment,
+        eof: Token::Eof,
+        ws: Token::WS,
+        begin_comment: Token::BeginComment,
+        end_comment: Token::EndComment,
     };
 
     Lexer::new(morasm, name, buffer)

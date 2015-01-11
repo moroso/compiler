@@ -33,7 +33,7 @@ fn new_target<T: Target>(args: Vec<String>) -> T {
 
 macro_rules! targets {
     ($($n:expr => $t:ty),*) => (
-        vec!($(($n, |args| { box new_target::<$t>(args) as Box<Target> })),*)
+        vec!($(($n, |args| { Box::new(new_target::<$t>(args)) as Box<Target> })),*)
     );
     ($($n:expr => $t:ty),+,) => (targets!($($n => $t),+))
 }
@@ -153,11 +153,11 @@ pub fn main() {
     // don't truncate the file if it fails, either. (We *shouldn't*
     // fail during compile, but...)
     let mut writer = match matches.opt_str("output") {
-        None => box stdio::stdout() as Box<Writer>,
+        None => Box::new(stdio::stdout()) as Box<Writer>,
         Some(name) => {
             let path = Path::new(name);
             let file = File::create(&path).unwrap_or_else(|e| panic!("{}", e));
-            box file as Box<Writer>
+            Box::new(file) as Box<Writer>
         }
     };
 

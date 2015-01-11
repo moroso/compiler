@@ -219,7 +219,7 @@ impl<'a> MacroExpander<'a> {
 
         for &(s, e) in builtin_macros.iter() {
             let name = interner.intern(String::from_str(s));
-            macros.insert(name, box ExpanderFn(e) as Box<Expander>);
+            macros.insert(name, Box::new(ExpanderFn(e)) as Box<Expander>);
         }
 
         MacroExpander {
@@ -231,7 +231,7 @@ impl<'a> MacroExpander<'a> {
         let user_macros = MacroCollector::collect(module);
         for def in user_macros.move_iter() {
             let name = def.val.name;
-            session.expander.macros.insert(name, box def);
+            session.expander.macros.insert(name, Box::new(def));
         }
 
         let mut visitor = MacroExpanderVisitor {

@@ -13,8 +13,8 @@ pub use self::ExprNode::*;
 pub use self::StmtNode::*;
 pub use self::MacroToken::*;
 pub use self::ImportSpec::*;
-pub use self::FuncDef::*;
 pub use self::ItemNode::*;
+pub use self::FuncDef::*;
 
 pub mod visitor;
 pub mod mut_visitor;
@@ -22,7 +22,7 @@ pub mod defmap;
 pub mod macros;
 pub mod pathmap;
 
-#[deriving(Clone, Eq)]
+#[derive(Clone, Eq)]
 pub struct WithId<T> {
     pub id: NodeId,
     pub val: T,
@@ -61,7 +61,7 @@ with_id! {
     Import   => ImportNode,
 }
 
-#[deriving(Eq, PartialEq, Clone, Ord, PartialOrd, Show)]
+#[derive(Eq, PartialEq, Clone, Ord, PartialOrd, Show)]
 pub struct NodeId(pub uint);
 
 impl NodeId {
@@ -73,7 +73,7 @@ impl NodeId {
 
 // This is a fully-type-applied reference to an identifier.
 // e.g. "foo::<int,int*>"
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub struct IdentNode {
     pub tps: Option<Vec<Type>>, // type arguments. Option<Vec> to avoid alloc.
     pub name: Name,
@@ -91,7 +91,7 @@ impl Show for IdentNode {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub struct PathNode {
     pub elems: Vec<Ident>,
     pub global: bool,
@@ -105,7 +105,7 @@ impl Show for PathNode {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub struct FieldPat {
     pub name: Name,
     pub pat:  Pat,
@@ -117,7 +117,7 @@ impl Show for FieldPat {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub enum PatNode {
     DiscardPat(Option<Type>),
     IdentPat(Ident, Option<Type>),
@@ -141,7 +141,7 @@ impl Show for PatNode {
 }
 
 /// Types
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub enum TypeNode {
     BoolType,
     UnitType,
@@ -170,7 +170,7 @@ impl Show for TypeNode {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub enum BinOpNode {
     PlusOp,
     MinusOp,
@@ -217,7 +217,7 @@ impl Show for BinOpNode {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub enum UnOpNode {
     Deref,
     AddrOf,
@@ -244,7 +244,7 @@ impl Show for UnOpNode {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub enum LitNode {
     NumLit(u64, IntKind),
     StringLit(String),
@@ -263,7 +263,7 @@ impl Show for LitNode {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub struct MatchArm {
     pub pat: Pat,
     pub body: Expr,
@@ -275,7 +275,7 @@ impl Show for MatchArm {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub enum ExprNode {
     UnitExpr,
     LitExpr(Lit),
@@ -344,7 +344,7 @@ impl Show for ExprNode {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub enum StmtNode {
     LetStmt(Pat, Option<Expr>),
     ExprStmt(Expr), // no trailing semicolon, must have unit type
@@ -368,7 +368,7 @@ impl Show for StmtNode {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub struct BlockNode {
     pub items: Vec<Item>,
     pub stmts: Vec<Stmt>,
@@ -400,7 +400,7 @@ impl Show for BlockNode {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub struct FuncArg {
     pub ident:   Ident,
     pub argtype: Type,
@@ -412,7 +412,7 @@ impl Show for FuncArg {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub struct Variant {
     pub ident: Ident,
     pub args: Vec<Type>,
@@ -428,7 +428,7 @@ impl Show for Variant {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub struct Field {
     pub name:    Name,
     pub fldtype: Type,
@@ -440,14 +440,14 @@ impl Show for Field {
     }
 }
 
-#[deriving(Clone, Show, Eq, PartialEq)]
+#[derive(Clone, Show, Eq, PartialEq)]
 pub enum MacroToken {
     MacroTok(Token),
     MacroVar(Name),
     MacroVarArgs,
 }
 
-#[deriving(Clone, Show, Eq, PartialEq)]
+#[derive(Clone, Show, Eq, PartialEq)]
 pub struct MacroDef {
     pub name: Name,
     pub args: Vec<Name>,
@@ -460,20 +460,20 @@ impl MacroDef {
     }
 }
 
-#[deriving(Clone, Show, Eq, PartialEq)]
+#[derive(Clone, Show, Eq, PartialEq)]
 pub enum ImportSpec {
     ImportNames(Vec<Ident>),
     ImportAll
 }
 
-#[deriving(Eq, PartialEq, Clone, Show)]
+#[derive(Eq, PartialEq, Clone, Show)]
 pub struct ImportNode {
     pub elems: Vec<Ident>,
     pub import: ImportSpec,
     pub global: bool
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub enum FuncDef {
     LocalFn(Block),
     ExternFn(Name),
@@ -495,7 +495,7 @@ impl FuncDef {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub enum ItemNode {
     FuncItem(Ident, Vec<FuncArg>, Type, FuncDef, Vec<Ident>),
     StructItem(Ident, Vec<Field>, Vec<Ident>),
@@ -580,7 +580,7 @@ impl Show for ItemNode {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub struct ModuleNode {
     pub items: Vec<Item>
 }

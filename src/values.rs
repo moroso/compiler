@@ -1,5 +1,6 @@
 use mc::ast::*;
 use util::{IntKind, Width};
+use std::ops::{Add, Sub, Shl, Shr, BitXor, BitOr, BitAnd, Div, Rem, Mul};
 
 fn num_op_helper<U, S>(kind1: &IntKind, rhs: &LitNode,
                        u: U,
@@ -132,43 +133,50 @@ pub fn eval_unop(op: UnOpNode, lit: LitNode) -> Option<LitNode> {
 }
 
 
-impl Add<LitNode, LitNode> for LitNode {
+impl Add<LitNode> for LitNode {
+    type Output = LitNode;
     fn add(&self, rhs: &LitNode) -> LitNode {
         generic_op(self, rhs, |x, y| x+y, |x, y| x+y, |_,_| panic!())
     }
 }
 
-impl Mul<LitNode, LitNode> for LitNode {
+impl Mul<LitNode> for LitNode {
+    type Output = LitNode;
     fn mul(&self, rhs: &LitNode) -> LitNode {
         generic_op(self, rhs, |x, y| x*y, |x, y| x*y, |_,_| panic!())
     }
 }
 
-impl Sub<LitNode, LitNode> for LitNode {
+impl Sub<LitNode> for LitNode {
+    type Output = LitNode;
     fn sub(&self, rhs: &LitNode) -> LitNode {
         generic_op(self, rhs, |x, y| x-y, |x, y| x-y, |_,_| panic!())
     }
 }
 
-impl Div<LitNode, LitNode> for LitNode {
+impl Div<LitNode> for LitNode {
+    type Output = LitNode;
     fn div(&self, rhs: &LitNode) -> LitNode {
         generic_op(self, rhs, |x, y| x/y, |x, y| x/y, |_,_| panic!())
     }
 }
 
-impl BitAnd<LitNode, LitNode> for LitNode {
+impl BitAnd<LitNode> for LitNode {
+    type Output = LitNode;
     fn bitand(&self, rhs: &LitNode) -> LitNode {
         generic_op(self, rhs, |x, y| x&y, |x, y| x&y, |_,_| panic!())
     }
 }
 
-impl BitOr<LitNode, LitNode> for LitNode {
+impl BitOr<LitNode> for LitNode {
+    type Output = LitNode;
     fn bitor(&self, rhs: &LitNode) -> LitNode {
         generic_op(self, rhs, |x, y| x|y, |x, y| x|y, |_,_| panic!())
     }
 }
 
-impl BitXor<LitNode, LitNode> for LitNode {
+impl BitXor<LitNode> for LitNode {
+    type Output = LitNode;
     fn bitxor(&self, rhs: &LitNode) -> LitNode {
         generic_op(self, rhs,
                    |x, y| x^y,
@@ -177,7 +185,8 @@ impl BitXor<LitNode, LitNode> for LitNode {
     }
 }
 
-impl Rem<LitNode, LitNode> for LitNode {
+impl Rem<LitNode> for LitNode {
+    type Output = LitNode;
     fn rem(&self, rhs: &LitNode) -> LitNode {
         generic_op(self, rhs,
                    |x, y| x%y,
@@ -186,7 +195,8 @@ impl Rem<LitNode, LitNode> for LitNode {
     }
 }
 
-impl Shl<LitNode, LitNode> for LitNode {
+impl Shl<LitNode> for LitNode {
+    type Output = LitNode;
     fn shl(&self, rhs: &LitNode) -> LitNode {
         generic_op(self, rhs,
                    |x, y| x << y as uint,
@@ -194,7 +204,8 @@ impl Shl<LitNode, LitNode> for LitNode {
                    |_,_| panic!())
     }
 }
-impl Shr<LitNode, LitNode> for LitNode {
+impl Shr<LitNode> for LitNode {
+    type Output = LitNode;
     fn shr(&self, rhs: &LitNode) -> LitNode {
         generic_op(self, rhs,
                    |x, y| x >> y as uint,

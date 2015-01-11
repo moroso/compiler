@@ -63,13 +63,13 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
 
     for (pos, op) in ops.iter().enumerate() {
         match *op {
-            BinOp(ref v, ref op, ref v1, ref v2, signed) => {
+            Op::BinOp(ref v, ref op, ref v1, ref v2, signed) => {
                 match fold(op, v1, v2, signed) {
                     Some(c) => {
                         changes.push((v.clone(),
                                       Constant(c.clone())));
                         immediate_changes.push((pos,
-                                                UnOp(v.clone(),
+                                                Op::UnOp(v.clone(),
                                                      Identity,
                                                      Constant(c))));
                     },
@@ -99,7 +99,7 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
                             Constant(NumLit(x, _)) if Some(x) == ident => {
                                 immediate_changes.push(
                                     (pos,
-                                     UnOp(v.clone(),
+                                     Op::UnOp(v.clone(),
                                           Identity,
                                           v2.clone())));
                             },
@@ -111,7 +111,7 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
                                                        ) => {
                                 immediate_changes.push(
                                     (pos,
-                                     UnOp(v.clone(),
+                                     Op::UnOp(v.clone(),
                                           Identity,
                                           v1.clone())));
                             }
@@ -120,14 +120,14 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
                     }
                 }
             },
-            UnOp(ref v, ref op, ref rv) => {
+            Op::UnOp(ref v, ref op, ref rv) => {
                 match fold_unary(op, rv) {
                     Some(c) => {
                         changes.push((v.clone(),
                                       Constant(c.clone())));
                         if *op != Identity {
                             immediate_changes.push((pos,
-                                                    UnOp(v.clone(),
+                                                    Op::UnOp(v.clone(),
                                                          Identity,
                                                          Constant(c))));
                         }
@@ -175,31 +175,31 @@ impl ConstantFolder {
         let mut vars_to_avoid = BTreeSet::<Var>::new();
         for op in ops.iter() {
             match *op {
-                Label(_, ref vars) |
-                Goto(_, ref vars) |
-                CondGoto(_, _, _, ref vars) => {
+                Op::Label(_, ref vars) |
+                Op::Goto(_, ref vars) |
+                Op::CondGoto(_, _, _, ref vars) => {
                     for var in vars.iter() {
                         vars_to_avoid.insert(var.clone());
                     }
                 },
                 // We can't fold anything we take the address of.
-                UnOp(_, AddrOf, ref rv) => {
+                Op::UnOp(_, AddrOf, ref rv) => {
                     match *rv {
                         Variable(ref v) => { vars_to_avoid.insert(v.clone()); },
                         _ => {},
                     }
                 },
-                Store(ref v1, ref v2, _) |
-                Load(ref v1, ref v2, _) => {
+                Op::Store(ref v1, ref v2, _) |
+                Op::Load(ref v1, ref v2, _) => {
                     vars_to_avoid.insert(v1.clone());
                     vars_to_avoid.insert(v2.clone());
                 },
-                Call(_, _, ref vars) => {
+                Op::Call(_, _, ref vars) => {
                     for var in vars.iter() {
                         vars_to_avoid.insert(var.clone());
                     }
                 },
-                Func(_, ref vars, is_extern) => {
+                Op::Func(_, ref vars, is_extern) => {
                     if is_extern { return; }
                     for var in vars.iter() {
                         vars_to_avoid.insert(var.clone());

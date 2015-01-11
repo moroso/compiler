@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 
 pub use self::InstType::*;
 
-pub struct AsmParser<'a, T> {
+pub struct AsmParser<'a, T: Buffer> {
     tokens: Peekable<SourceToken<Token>, Lexer<'a, T, Token>>,
     last_span: Span,
     error_on_misplaced_inst: bool,
@@ -19,39 +19,39 @@ pub struct AsmParser<'a, T> {
 
 fn tok_to_op(tok: &Token) -> Option<AluOp> {
     match *tok {
-        Plus => Some(AddAluOp),
-        Amp | And => Some(AndAluOp),
-        TildePipe | Nor => Some(NorAluOp),
-        Pipe | Or => Some(OrAluOp),
-        Dash | Sub => Some(SubAluOp),
-        DashColon | Rsb => Some(RsbAluOp),
-        Caret | Xor => Some(XorAluOp),
+        Token::Plus => Some(AddAluOp),
+        Token::Amp | Token::And => Some(AndAluOp),
+        Token::TildePipe | Token::Nor => Some(NorAluOp),
+        Token::Pipe | Token::Or => Some(OrAluOp),
+        Token::Dash | Token::Sub => Some(SubAluOp),
+        Token::DashColon | Token::Rsb => Some(RsbAluOp),
+        Token::Caret | Token::Xor => Some(XorAluOp),
         _ => None,
     }
 }
 
 fn tok_to_unop(tok: &Token) -> Option<AluOp> {
     match *tok {
-        Mov => Some(MovAluOp),
-        Tilde |
-        Mvn => Some(MvnAluOp),
-        Sxb => Some(SxbAluOp),
-        Sxh => Some(SxhAluOp),
+        Token::Mov => Some(MovAluOp),
+        Token::Tilde |
+        Token::Mvn => Some(MvnAluOp),
+        Token::Sxb => Some(SxbAluOp),
+        Token::Sxh => Some(SxhAluOp),
         _ => None,
     }
 }
 
 fn tok_to_cmp(tok: &Token) -> Option<CompareType> {
     match *tok {
-        Lt => Some(CmpLTU),
-        Le => Some(CmpLEU),
-        Lts => Some(CmpLTS),
-        Les => Some(CmpLES),
-        EqEq => Some(CmpEQ),
-        Eq => Some(CmpEQ),
-        Bs => Some(CmpBS),
-        Amp => Some(CmpBS),
-        Bc => Some(CmpBC),
+        Token::Lt => Some(CmpLTU),
+        Token::Le => Some(CmpLEU),
+        Token::Lts => Some(CmpLTS),
+        Token::Les => Some(CmpLES),
+        Token::EqEq => Some(CmpEQ),
+        Token::Eq => Some(CmpEQ),
+        Token::Bs => Some(CmpBS),
+        Token::Amp => Some(CmpBS),
+        Token::Bc => Some(CmpBC),
         _ => None,
     }
 }
@@ -95,7 +95,7 @@ pub fn classify_inst(inst: &InstNode) -> InstType {
     }
 }
 
-impl<'a, T: BufReader> AsmParser<'a, T> {
+impl<'a, T: BufReader + Buffer> AsmParser<'a, T> {
 
     pub fn new(tokens: Peekable<SourceToken<Token>, Lexer<'a, T, Token>>
            ) -> AsmParser<'a, T> {
@@ -141,7 +141,7 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
         }
     }
 
-    fn error<'a, T: Str>(&self, message: T) -> ! {
+    fn error<'a, U: Str>(&self, message: U) -> ! {
         panic!("\n{}\nat {}", message.as_slice(), self.last_span.get_begin())
     }
 
@@ -176,33 +176,33 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
         let tok = self.eat();
         match tok {
             // Bare register.
-            Reg(reg) => (reg, from_int(0).unwrap(), Ok(0)),
+            Token::Reg(reg) => (reg, from_int(0).unwrap(), Ok(0)),
 
             // Something parenthesized.
             LParen => {
                 // No matter what, there should be a register.
                 let reg = match *self.peek() {
-                    Reg(reg) => { self.eat(); reg },
+                    Token::Reg(reg) => { self.eat(); reg },
                     _ => self.error(format!("Expected register; got {}", tok)),
                 };
                 let inner_tok = self.eat();
                 match inner_tok {
                     // There's just the one register, that for some reason
                     // is in parentheses.
-                    RParen => (reg, from_int(0).unwrap(), Ok(0)),
+                    Token::RParen => (reg, from_int(0).unwrap(), Ok(0)),
 
                     // There's a shift.
-                    Shift(shifttype) => {
+                    Token::Shift(shifttype) => {
                         match self.eat() {
-                            NumLit(num) => {
+                            Token::NumLit(num) => {
                                 self.assert_num_size(
                                     num, 5);
-                                self.expect(RParen);
+                                self.expect(Token::RParen);
 
                                 (reg, shifttype, Ok(num as u8))
                             },
-                            Reg(reg2) => {
-                                self.expect(RParen);
+                            Token::Reg(reg2) => {
+                                self.expect(Token::RParen);
                                 (reg, shifttype, Err(reg2))}
                             ,
                             _ => self.error("Need a shift amount"),
@@ -220,17 +220,17 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
         let is_signed;
 
         match self.eat() {
-            Star |
-            StarU => { cons = InstNode::mult; is_signed = false; }
-            StarS => { cons = InstNode::mult; is_signed = true; }
-            Slash |
-            SlashU => { cons = InstNode::div; is_signed = false; }
-            SlashS => { cons = InstNode::div; is_signed = true; }
+            Token::Star |
+            Token::StarU => { cons = InstNode::mult; is_signed = false; }
+            Token::StarS => { cons = InstNode::mult; is_signed = true; }
+            Token::Slash |
+            Token::SlashU => { cons = InstNode::div; is_signed = false; }
+            Token::SlashS => { cons = InstNode::div; is_signed = true; }
             _ => self.error("ICE: should have a mult/div here.")
         }
 
         match self.eat() {
-            Reg(rt) => cons(pred, is_signed, rd, rs, rt),
+            Token::Reg(rt) => cons(pred, is_signed, rd, rs, rt),
             _ => self.error("Expected register.")
         }
     }
@@ -245,7 +245,7 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
     fn parse_reg_and_maybe_binop(&mut self, pred: Pred, rd: Reg,
                                  op: Option<AluOp>) -> InstNode {
         let reg = match self.eat() {
-            Reg(reg) => reg,
+            Token::Reg(reg) => reg,
             _ => self.error("Expected reg."),
         };
 
@@ -271,7 +271,7 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
                         // or 'long' keyword.
                         self.eat();
                         match *self.peek() {
-                            LParen | Reg(..) => {
+                            Token::LParen | Token::Reg(..) => {
                                 let (rs,
                                      shifttype,
                                      shiftamt) = self.parse_reg_maybe_shift();
@@ -286,7 +286,7 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
                                     shifttype,
                                     shiftamt)
                             },
-                            NumLit(num) => {
+                            Token::NumLit(num) => {
                                 self.eat();
                                 let (val, rot) = self.pack_int_unwrap(num, 10);
                                 InstNode::alu2short(
@@ -297,7 +297,7 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
                                     val,
                                     rot)
                             },
-                            Long => {
+                            Token::Long => {
                                 self.eat();
                                 InstNode::alu2long(
                                     pred,
@@ -312,12 +312,12 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
                         // There was no binary ALU operator. Either there's a
                         // shift operator instead, or a mult/div, or we're done.
                         match *self.peek() {
-                            Shift(shift) => {
+                            Token::Shift(shift) => {
                                 // It's a shift. There's should be a reg
                                 // after it, and that's it.
                                 self.eat();
                                 match self.eat() {
-                                    Reg(reg2) =>
+                                    Token::Reg(reg2) =>
                                         InstNode::alu1regsh(
                                             pred,
                                             rd,
@@ -328,12 +328,12 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
                                     _ => self.error("Unexpected token."),
                                 }
                             },
-                            Star |
-                            StarS |
-                            StarU |
-                            Slash |
-                            SlashS |
-                            SlashU => {
+                            Token::Star |
+                            Token::StarS |
+                            Token::StarU |
+                            Token::Slash |
+                            Token::SlashS |
+                            Token::SlashU => {
                                 self.parse_mul_or_div(pred, rd, reg)
                             }
                             _ => {
@@ -372,7 +372,7 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
     fn parse_expr(&mut self, pred: Pred, rd: Reg,
                  op: Option<AluOp>) -> InstNode {
         match *self.peek() {
-            NumLit(n) => {
+            Token::NumLit(n) => {
                 // We're just storing a number.
                 self.eat();
                 let (val, rot) = self.pack_int_unwrap(n, 15);
@@ -383,14 +383,14 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
                     val,
                     rot)
             },
-            Reg(..) => {
+            Token::Reg(..) => {
                 // There's a register. Either that's *all* there is
                 // (we're applying a unary op to a register), or there's
                 // a binary op. `parse_reg_and_maybe_binop` will take
                 // care of figuring all that out.
                 self.parse_reg_and_maybe_binop(pred, rd, op)
             },
-            Long => {
+            Token::Long => {
                 self.eat();
                 InstNode::alu1long(
                     pred,
@@ -429,23 +429,23 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
     /// store.
     /// So, in *l(r8 + 12), this parses the (r8 + 12) part.
     fn parse_deref_common(&mut self) -> (Reg, i32) {
-        self.expect(LParen);
+        self.expect(Token::LParen);
         let reg = match self.eat() {
-            Reg(reg) => reg,
+            Token::Reg(reg) => reg,
             _ => self.error("Expected register."),
         };
 
         let next_tok = self.eat();
         let offs: i32 = match next_tok {
-            Plus |
-            Dash => {
+            Token::Plus |
+            Token::Dash => {
                 match self.eat() {
-                    NumLit(n) => {
+                    Token::NumLit(n) => {
                         let mut n = n as i32;
-                        if next_tok == Dash { n = -n; }
+                        if next_tok == Token::Dash { n = -n; }
                         // We must fit into 12 bits...
                         self.assert_signed_num_size(n, 12);
-                        self.expect(RParen);
+                        self.expect(Token::RParen);
 
                         n
                     },
@@ -465,7 +465,7 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
     // and return the appropriate instruction.
     fn parse_load(&mut self, pred: Pred, rd: Reg) -> InstNode {
         let width = match self.eat() {
-            LoadStore(width) => width,
+            Token::LoadStore(width) => width,
             _ => panic!("ICE"),
         };
 
@@ -495,13 +495,13 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
             None => match *self.peek() {
                 // No unary operator. That means there must be a literal,
                 // a register, or an opening paren (for a shift).
-                NumLit(..) |
-                Reg(..) |
-                Long |
-                LParen => self.parse_expr(pred, rd, None),
-                LoadStore(..) => self.parse_load(pred, rd),
-                CoReg(..) => self.parse_mfc(pred, rd),
-                Ovf => self.parse_mfhi(pred, rd),
+                Token::NumLit(..) |
+                Token::Reg(..) |
+                Token::Long |
+                Token::LParen => self.parse_expr(pred, rd, None),
+                Token::LoadStore(..) => self.parse_load(pred, rd),
+                Token::CoReg(..) => self.parse_mfc(pred, rd),
+                Token::Ovf => self.parse_mfhi(pred, rd),
                 _ => self.error("Unexpected token."),
             }
         }
@@ -510,7 +510,7 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
     // Assumes the "long" keyword has already been consumed.
     pub fn parse_long(&mut self) -> InstNode {
         match self.eat() {
-            NumLit(n) => InstNode::long(n),
+            Token::NumLit(n) => InstNode::long(n),
             _ => self.error("Must have a numeric literal for long."),
         }
     }
@@ -518,10 +518,10 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
     pub fn parse_store(&mut self, pred: Pred, width: LsuWidth) -> InstNode {
         let (reg, offs) = self.parse_deref_common();
 
-        self.expect(Gets);
+        self.expect(Token::Gets);
 
         let rhsreg = match self.eat() {
-            Reg(rhsreg) => rhsreg,
+            Token::Reg(rhsreg) => rhsreg,
             _ => self.error("Expected a register."),
         };
 
@@ -544,7 +544,7 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
         }
 
         let reg = match self.eat() {
-            Reg(reg) => reg,
+            Token::Reg(reg) => reg,
             _ => self.error("Expected register."),
         };
 
@@ -554,7 +554,7 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
         };
 
         match *self.peek() {
-            NumLit(n) => {
+            Token::NumLit(n) => {
                 self.eat();
                 let (val, rot) = self.pack_int_unwrap(n, 10);
                 InstNode::compareshort(
@@ -565,7 +565,7 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
                     val,
                     rot)
             },
-            Long => {
+            Token::Long => {
                 self.eat();
                 InstNode::comparelong(
                     pred,
@@ -593,12 +593,12 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
     pub fn parse_branch(&mut self, pred: Pred, linked: bool) -> InstNode {
         let cur_tok = self.eat();
         match cur_tok {
-            IdentTok(name) =>
+            Token::IdentTok(name) =>
                 InstNode::branchimm(
                     pred,
                     linked,
                     JumpLabel(name)),
-            NumLit(n) => {
+            Token::NumLit(n) => {
                 let n = n as i32;
                 self.assert_signed_num_size(n, 25);
                 InstNode::branchimm(
@@ -606,13 +606,13 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
                     linked,
                     JumpOffs(n as i32))
             },
-            Reg(reg) => {
+            Token::Reg(reg) => {
                 match *self.peek() {
-                    Plus |
-                    Dash => {
-                        let subtracted = self.eat() == Dash;
+                    Token::Plus |
+                    Token::Dash => {
+                        let subtracted = self.eat() == Token::Dash;
                         match self.eat() {
-                            NumLit(n) => {
+                            Token::NumLit(n) => {
                                 let mut n = n as i32;
                                 if subtracted {
                                     n = -n;
@@ -642,7 +642,7 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
                                  cons: F) -> InstNode
         where F: Fn(Pred, u32) -> InstNode {
         match *self.peek() {
-            NumLit(num) => {
+            Token::NumLit(num) => {
                 self.eat();
                 self.assert_num_size(num, 5);
                 cons(pred, num)
@@ -652,36 +652,36 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
     }
 
     fn parse_mtc(&mut self, pred: Pred, coreg: CoReg) -> InstNode {
-        self.expect(Gets);
+        self.expect(Token::Gets);
         match self.eat() {
-            Reg(reg) => InstNode::mtc(pred, coreg, reg),
+            Token::Reg(reg) => InstNode::mtc(pred, coreg, reg),
             _ => self.error("Expected register.")
         }
     }
 
     fn parse_mfc(&mut self, pred: Pred, rd: Reg) -> InstNode {
         match self.eat() {
-            CoReg(coreg) => InstNode::mfc(pred, rd, coreg),
+            Token::CoReg(coreg) => InstNode::mfc(pred, rd, coreg),
             _ => self.error("Expected coprocessor register.")
         }
     }
 
     fn parse_mthi(&mut self, pred: Pred) -> InstNode {
-        self.expect(Gets);
+        self.expect(Token::Gets);
         match self.eat() {
-            Reg(reg) => InstNode::mthi(pred, reg),
+            Token::Reg(reg) => InstNode::mthi(pred, reg),
             _ => self.error("Expected register.")
         }
     }
 
     fn parse_mfhi(&mut self, pred: Pred, rd: Reg) -> InstNode {
-        self.expect(Ovf);
+        self.expect(Token::Ovf);
         InstNode::mfhi(pred, rd)
     }
 
     fn parse_flush(&mut self, pred: Pred, flushtype: FlushType) -> InstNode {
         match self.eat() {
-            Reg(reg) => InstNode::flush(pred, flushtype, reg),
+            Token::Reg(reg) => InstNode::flush(pred, flushtype, reg),
             _ => self.error("Expected register.")
         }
     }
@@ -691,19 +691,19 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
         // Begin by parsing the predicate register for this instruction.
         let mut cur_tok = self.eat();
         let pred = match cur_tok {
-            PredReg(pred) => {
+            Token::PredReg(pred) => {
                 // There's a predicate register, but we don't know what
                 // context it appears in: we may be assigning to it, or
                 // predicating based on it.
                 match *self.peek() {
-                    Predicates => {
+                    Token::Predicates => {
                         // It's actually predicating.
                         self.eat();
                         cur_tok = self.eat();
 
                         Some(pred)
                     },
-                    Gets => // It's being assigned to. Punt on this.
+                    Token::Gets => // It's being assigned to. Punt on this.
                         None,
                     _ => self.error("Unexpected token."),
                 }
@@ -712,36 +712,39 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
         };
 
         match cur_tok {
-            Reg(reg) => {
-                self.expect(Gets);
+            Token::Reg(reg) => {
+                self.expect(Token::Gets);
                 self.parse_op_or_expr(pred.unwrap_or(true_pred), reg.clone())
             },
-            PredReg(destpred) => {
-                self.expect(Gets);
+            Token::PredReg(destpred) => {
+                self.expect(Token::Gets);
                 self.parse_conditional(pred.unwrap_or(true_pred), destpred)
             },
-            LoadStore(width) =>
+            Token::LoadStore(width) =>
                 self.parse_store(pred.unwrap_or(true_pred), width),
-            B => self.parse_branch(pred.unwrap_or(true_pred), false),
-            Bl => self.parse_branch(pred.unwrap_or(true_pred), true),
-            Break => self.parse_break_or_syscall(pred.unwrap_or(true_pred),
-                                                 InstNode::breaknum),
-            Syscall => self.parse_break_or_syscall(pred.unwrap_or(true_pred),
-                                                   InstNode::syscall),
-            CoReg(cr) => self.parse_mtc(pred.unwrap_or(true_pred), cr),
-            Eret => InstNode::eret(pred.unwrap_or(true_pred)),
-            Fence => InstNode::fence(pred.unwrap_or(true_pred)),
-            Flush(flushtype) => self.parse_flush(pred.unwrap_or(true_pred),
-                                                 flushtype),
-            Ovf => self.parse_mthi(pred.unwrap_or(true_pred)),
-            Nop => {
+            Token::B => self.parse_branch(pred.unwrap_or(true_pred), false),
+            Token::Bl => self.parse_branch(pred.unwrap_or(true_pred), true),
+            Token::Break => self.parse_break_or_syscall(
+                pred.unwrap_or(true_pred),
+                InstNode::breaknum),
+            Token::Syscall => self.parse_break_or_syscall(
+                pred.unwrap_or(true_pred),
+                InstNode::syscall),
+            Token::CoReg(cr) => self.parse_mtc(pred.unwrap_or(true_pred), cr),
+            Token::Eret => InstNode::eret(pred.unwrap_or(true_pred)),
+            Token::Fence => InstNode::fence(pred.unwrap_or(true_pred)),
+            Token::Flush(flushtype) => self.parse_flush(
+                pred.unwrap_or(true_pred),
+                flushtype),
+            Token::Ovf => self.parse_mthi(pred.unwrap_or(true_pred)),
+            Token::Nop => {
                 if pred != None {
                     self.error("Cannot have a predicate for a nop.");
                 }
 
                 InstNode::nop()
             },
-            Long => {
+            Token::Long => {
                 if pred != None {
                     self.error("Cannot have a predicate for a long");
                 }
@@ -755,10 +758,10 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
     pub fn parse_inst_packet(&mut self) -> InstPacket {
         let mut insts: InstPacket = [NopInst, NopInst, NopInst, NopInst];
 
-        self.expect(LBrace);
+        self.expect(Token::LBrace);
         for i in range(0u, 4u) {
             match *self.peek() {
-                RBrace => {
+                Token::RBrace => {
                     self.eat();
                     return insts;
                 }
@@ -779,11 +782,11 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
                             _ => {}
                         }
                     }
-                    if *self.peek() == Semi { self.eat(); }
+                    if *self.peek() == Token::Semi { self.eat(); }
                 }
             }
         }
-        self.expect(RBrace);
+        self.expect(Token::RBrace);
 
         insts
     }
@@ -796,17 +799,17 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
 
         loop {
             match *self.peek() {
-                IdentTok(..) => {
+                Token::IdentTok(..) => {
                     let name = match self.eat() {
-                        IdentTok(name) => name,
+                        Token::IdentTok(name) => name,
                         _ => panic!()
                     };
-                    self.expect(Colon);
+                    self.expect(Token::Colon);
                     if !labels.insert(name.clone(), instnum) {
                         self.error(format!("Label '{}' redefined.", name));
                     }
                 },
-                Eof => {
+                Token::Eof => {
                     return (packets, labels)
                 },
                 _ => {
@@ -822,7 +825,7 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
 pub fn inst_from_str(s: &str) -> InstNode {
     let mut parser = AsmParser::new(asm_lexer_from_str(s).peekable());
     let result = parser.parse_inst();
-    assert_eq!(parser.tokens.peek().unwrap().tok, Eof);
+    assert_eq!(parser.tokens.peek().unwrap().tok, Token::Eof);
     result
 }
 

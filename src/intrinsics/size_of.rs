@@ -2,7 +2,6 @@ use mc::ast::{Module, NodeId};
 use mc::ast::Type;
 
 use std::iter::AdditiveIterator;
-use std::vec::unzip;
 
 use mc::ast::defmap::*;
 use mc::session::*;
@@ -36,9 +35,9 @@ pub fn offset_of_struct_field(session: &Session,
                               field: &Name) -> u64 {
     let def = session.defmap.find(node).unwrap();
     match *def {
-        StructDef(_, ref fields, _) => {
+        Def::StructDef(_, ref fields, _) => {
             let names_and_sizes = struct_field_sizes(session, typemap, fields);
-            let (names, sizes) = unzip(names_and_sizes.move_iter());
+            let (names, sizes) = IteratorExt::unzip(names_and_sizes.move_iter());
 
             for i in range(0, sizes.len())
             {
@@ -56,12 +55,12 @@ pub fn size_of_def(session: &Session, typemap: &Typemap, node: &NodeId) -> u64 {
     let def = session.defmap.find(node).unwrap();
 
     match *def {
-        StructDef(_, ref fields, _) => {
+        Def::StructDef(_, ref fields, _) => {
             let sizes = struct_field_sizes(session, typemap, fields).iter()
                 .map(|&(_, y)| y).collect();
             packed_size(&sizes)
         },
-        EnumDef(_, ref variants, _) => {
+        Def::EnumDef(_, ref variants, _) => {
             let max_variant_size = variants.iter()
                 .map(|v| size_of_def(session, typemap, v)).max().unwrap();
             if max_variant_size == 0 {
@@ -70,7 +69,7 @@ pub fn size_of_def(session: &Session, typemap: &Typemap, node: &NodeId) -> u64 {
                 packed_size(&vec!(enum_tag_size, max_variant_size))
             }
         },
-        VariantDef(_, _, ref types) => {
+        Def::VariantDef(_, _, ref types) => {
             let sizes = types.iter()
                 .map(|t| size_of_ty(session,
                                     typemap,

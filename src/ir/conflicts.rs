@@ -29,13 +29,13 @@ impl ConflictAnalyzer {
 
         for op in ops.iter() {
             match *op {
-                UnOp(_, AddrOf, ref rve) => {
+                Op::UnOp(_, AddrOf, ref rve) => {
                     match *rve {
                         Variable(ref v) => { referenced_vars.insert(v.name); },
                         _ => panic!("Should have a variable here."),
                     }
                 },
-                Call(ref v, _, ref args) => {
+                Op::Call(ref v, _, ref args) => {
                     for (i, arg) in args.iter().enumerate()
                         .take(num_param_regs)
                     {
@@ -44,7 +44,7 @@ impl ConflictAnalyzer {
                     }
                     must_colors.insert(*v, RegColor(Reg { index: 0 as u8 }));
                 },
-                Func(_, ref args, is_extern) => {
+                Op::Func(_, ref args, is_extern) => {
                     if is_extern { break; }
                     for (i, arg) in args.iter().enumerate()
                         .take(num_param_regs)

@@ -1,7 +1,7 @@
 use std::fmt;
-use std::cmp::{Eq, Ord};
+use std::cmp::{Eq, Ord, Ordering};
 
-#[deriving(Clone, PartialEq, Eq, Ord)]
+#[derive(Clone, PartialEq, Eq, Ord)]
 pub struct SourcePos {
     pub row: uint,
     pub col: uint,
@@ -26,7 +26,7 @@ impl SourcePos {
     }
 }
 
-#[deriving(Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Span {
     // Private, so that we must use mk_span (which enforces invariants)
     // to make a Span.

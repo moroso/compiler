@@ -21,6 +21,7 @@ use target::util::NameMangler;
 
 use std::collections::{BTreeMap, VecMap, BTreeSet};
 use std::io::stdio;
+use std::iter::FromIterator;
 
 use std::io;
 
@@ -134,7 +135,7 @@ impl IRTarget {
         // TODO: This is a hack, until "return" takes an option.
         for op in ops.iter() {
             match *op {
-                Return(Variable(ref v)) => { vars.insert(v); },
+                Op::Return(Variable(ref v)) => { vars.insert(v); },
                 _ => {}
             }
         }
@@ -142,7 +143,7 @@ impl IRTarget {
         // Find out which variables are used at each label.
         for op in ops.iter() {
             match *op {
-                Label(ref idx, ref vars) => {
+                Op::Label(ref idx, ref vars) => {
                     let mut varmap: BTreeMap<Name, uint> = BTreeMap::new();
                     for var in vars.iter() {
                         varmap.insert(var.name.clone(),
@@ -163,7 +164,7 @@ impl IRTarget {
                 _ => s = s.append(format!("  // {}", op).as_slice())
             }
             s = s.append(match *op {
-                BinOp(ref v, ref op, ref rv1, ref rv2, signed) => {
+                Op::BinOp(ref v, ref op, ref rv1, ref rv2, signed) => {
                     let cast = if signed {
                         "(long)"
                     } else {
@@ -177,7 +178,7 @@ impl IRTarget {
                             cast,
                             print_rvalelem(interner, global_map, rv2))
                 },
-                UnOp(ref v, ref op, ref rv) => {
+                Op::UnOp(ref v, ref op, ref rv) => {
                     match *op {
                         Deref =>
                             format!("  {} = (long)({} (long*)({}));\n",
@@ -201,11 +202,11 @@ impl IRTarget {
                                     print_rvalelem(interner, global_map, rv))
                     }
                 },
-                Alloca(ref v, ref size) => {
+                Op::Alloca(ref v, ref size) => {
                     format!("  {} = (long)(alloca({}));\n",
                             print_var(interner, global_map, v), size)
                 },
-                Call(ref v, ref fname, ref args) => {
+                Op::Call(ref v, ref fname, ref args) => {
                     let mut s = match *fname {
                         Variable(ref fnv) =>
                             if is_function(global_map, fnv) {
@@ -228,7 +229,7 @@ impl IRTarget {
                     s = s.append(");\n");
                     s
                 },
-                Load(ref l, ref r, ref size) => {
+                Op::Load(ref l, ref r, ref size) => {
                     format!("  {} = (long)*({}*)({});\n",
                             print_var(interner, global_map, l),
                             match *size {
@@ -239,7 +240,7 @@ impl IRTarget {
                             },
                             print_var(interner, global_map, r))
                 },
-                Store(ref l, ref r, ref size) => {
+                Op::Store(ref l, ref r, ref size) => {
                     format!("  *({}*)({}) = {};\n",
                             match *size {
                                 AnyWidth |
@@ -250,13 +251,13 @@ impl IRTarget {
                             print_var(interner, global_map, l),
                             print_var(interner, global_map, r))
                 },
-                Nop => format!(""),
-                Label(ref l, _) => {
+                Op::Nop => format!(""),
+                Op::Label(ref l, _) => {
                     // TODO: correct assignments of variables in labels and
                     // gotos.
                     format!("LABEL{}:\n", l)
                 },
-                Goto(ref l, ref vars) => {
+                Op::Goto(ref l, ref vars) => {
                     format!("{}  goto LABEL{};\n",
                             assign_vars(interner,
                                         global_map,
@@ -264,7 +265,7 @@ impl IRTarget {
                                         vars),
                             l)
                 },
-                CondGoto(ref negated, ref rve, ref l, ref vars) => {
+                Op::CondGoto(ref negated, ref rve, ref l, ref vars) => {
                     format!("  if ({}({})) {{\n  {}\n  goto LABEL{}; }}\n",
                             if *negated { "!" } else { "" },
                             print_rvalelem(interner, global_map, rve),
@@ -274,12 +275,12 @@ impl IRTarget {
                                         vars),
                             l)
                 },
-                Return(ref rve) => {
+                Op::Return(ref rve) => {
                     format!("  return {};\n", print_rvalelem(interner,
                                                              global_map,
                                                              rve))
                 },
-                Func(ref name, ref args, _) => {
+                Op::Func(ref name, ref args, _) => {
                     let mapped_args: Vec<String> = args.iter()
                         .map(|arg| format!("long {}", print_var(interner,
                                                                 global_map,
@@ -426,7 +427,7 @@ impl Target for IRTarget {
         for insts in result.iter() {
             for inst in insts.iter() {
                 match *inst {
-                    Func(ref name, _, is_extern) => {
+                    Op::Func(ref name, _, is_extern) => {
                         if !declared_builtins.contains(&format!("{}", name)) {
                             write!(f, "{}long {}();\n",
                                    if is_extern { "extern " } else { "" },

@@ -1,7 +1,7 @@
 use mas::ast::*;
 use mas::parser::{classify_inst, InstType};
 use collections::{BTreeSet, BTreeMap, BinaryHeap};
-use std::iter::range_inclusive;
+use std::iter::{range_inclusive, FromIterator};
 
 // Return Rd.
 fn destreg(inst: &InstNode) -> Option<Reg> {

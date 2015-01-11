@@ -27,7 +27,7 @@ pub static spill_reg_base: u8 = 8;
 
 pub static global_mem_start: u32 = 0x8000;
 
-#[deriving(Ord, PartialOrd, PartialEq, Eq, Show)]
+#[derive(Ord, PartialOrd, PartialEq, Eq, Show)]
 pub enum RegisterColor {
     RegColor(Reg),
     // Offset on the stack, in words.

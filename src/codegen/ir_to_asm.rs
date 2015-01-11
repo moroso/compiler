@@ -10,7 +10,7 @@ use mc::session::Session;
 use util::{Width, Name};
 use std::mem::swap;
 use std::collections::{BTreeMap, BTreeSet, VecMap};
-use std::iter::range_inclusive;
+use std::iter::{range_inclusive, FromIterator};
 use std::cmp::max;
 
 pub struct IrToAsm;
@@ -877,7 +877,7 @@ impl IrToAsm {
         let mut stack_item_offs: u32 = 4;
         for (inst, op) in ops.iter().enumerate() {
             match *op {
-                Alloca(ref var, size) => {
+                Op::Alloca(ref var, size) => {
                     // We must be aligned on 4-byte boundaries.
                     let size_adjust = (4 - (size % 4)) % 4;
                     if !global_map.find(&var.name).is_some() {
@@ -885,7 +885,7 @@ impl IrToAsm {
                         stack_item_offs += (size + size_adjust) as u32;
                     }
                 },
-                Call(..) => { has_call = true; }
+                Op::Call(..) => { has_call = true; }
                 _ => {}
             }
         }
@@ -912,7 +912,7 @@ impl IrToAsm {
         // the instruction list as many times?
         for op in ops.iter() {
             match *op {
-                Label(ref idx, ref vars) => {
+                Op::Label(ref idx, ref vars) => {
                     let mut varmap: BTreeMap<Name, uint> = BTreeMap::new();
                     for var in vars.iter() {
                         varmap.insert(var.name.clone(),
@@ -933,7 +933,7 @@ impl IrToAsm {
         let mut num_saved = 0;
         for (pos, op) in ops.iter().enumerate() {
             match *op {
-                Func(ref name, _, is_extern) => {
+                Op::Func(ref name, _, is_extern) => {
                     if is_extern { continue; }
                     targets.insert(format!("{}", name), result.len());
 
@@ -964,7 +964,7 @@ impl IrToAsm {
                         num_saved = x + 1 + (if has_call { 1 } else { 0 });
                     }
                 },
-                Return(ref rve) => {
+                Op::Return(ref rve) => {
                     // Store the result in r0.
                     result.push_all_move(
                         convert_unop(&regmap, global_map, return_reg,
@@ -1001,7 +1001,7 @@ impl IrToAsm {
                                             link_register,
                                             1));
                 },
-                BinOp(ref var, ref op, ref rve1, ref rve2, signed) => {
+                Op::BinOp(ref var, ref op, ref rve1, ref rve2, signed) => {
                     let (lhs_reg, _, after) = var_to_reg(&regmap, global_map,
                                                          var, 0,
                                                          stack_item_offs);
@@ -1011,7 +1011,7 @@ impl IrToAsm {
                                       strings));
                     result.push_all_move(after);
                 },
-                UnOp(ref var, ref op, ref rve1) => {
+                Op::UnOp(ref var, ref op, ref rve1) => {
                     let (lhs_reg, _, after) = var_to_reg(&regmap, global_map,
                                                          var, 0,
                                                          stack_item_offs);
@@ -1020,10 +1020,10 @@ impl IrToAsm {
                                      stack_item_offs, session, strings));
                     result.push_all_move(after);
                 }
-                Load(ref var1, ref var2, ref width) |
-                Store(ref var1, ref var2, ref width) => {
+                Op::Load(ref var1, ref var2, ref width) |
+                Op::Store(ref var1, ref var2, ref width) => {
                     let store = match *op {
-                        Load(..) => false,
+                        Op::Load(..) => false,
                         _ => true,
                     };
                     let (reg1, before1, _) = var_to_reg(&regmap, global_map,
@@ -1052,7 +1052,7 @@ impl IrToAsm {
                                            0)
                         });
                 },
-                CondGoto(ref negated, Variable(ref var), ref label,
+                Op::CondGoto(ref negated, Variable(ref var), ref label,
                          ref vars) => {
                     let (reg, before, _) = var_to_reg(&regmap, global_map,
                                                       var, 0,
@@ -1079,7 +1079,7 @@ impl IrToAsm {
                             false,
                             JumpLabel(format!("LABEL{}", label))));
                 },
-                Goto(ref label, ref vars) => {
+                Op::Goto(ref label, ref vars) => {
                     result.push_all_move(assign_vars(&regmap, global_map,
                                                      &true_pred,
                                                      &labels[*label],
@@ -1087,7 +1087,7 @@ impl IrToAsm {
                     // Don't emit redundant jumps.
                     let next = &ops[pos+1];
                     match *next {
-                        Label(label2, _) if *label == label2 => {},
+                        Op::Label(label2, _) if *label == label2 => {},
                         _ =>
                             result.push(
                                 InstNode::branchimm(
@@ -1096,10 +1096,10 @@ impl IrToAsm {
                                     JumpLabel(format!("LABEL{}", label))))
                     }
                 },
-                Label(ref label, _) => {
+                Op::Label(ref label, _) => {
                     targets.insert(format!("LABEL{}", label), result.len());
                 },
-                Alloca(ref var, _) => {
+                Op::Alloca(ref var, _) => {
                     let offs_opt = stack_item_map.find(&pos);
                     match offs_opt {
                         // This is a "true" alloca, and we put things on the
@@ -1126,7 +1126,7 @@ impl IrToAsm {
                         None => {}
                     }
                 },
-                Call(_, ref f, ref vars) => {
+                Op::Call(_, ref f, ref vars) => {
                     // TODO: this is a lot messier than it should be.
                     // Clean it up!
 

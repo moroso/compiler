@@ -8,7 +8,7 @@ pub mod graph;
 
 // This represents an interned string/name/identifier. The mapping from strings
 // to Names and Names to strings is in the Interner (session.rs).
-#[deriving(Eq, Ord, PartialOrd, PartialEq, Clone)]
+#[derive(Eq, Ord, PartialOrd, PartialEq, Clone)]
 pub struct Name(pub uint);
 
 impl Show for Name {
@@ -27,7 +27,7 @@ impl Show for Name {
     }
 }
 
-#[deriving(Eq, Ord, PartialOrd, PartialEq, Clone)]
+#[derive(Eq, Ord, PartialOrd, PartialEq, Clone)]
 pub enum Width {
     AnyWidth,
     Width32,
@@ -46,7 +46,7 @@ impl Show for Width {
     }
 }
 
-#[deriving(Eq, Clone, PartialEq)]
+#[derive(Eq, Clone, PartialEq)]
 pub enum IntKind {
     GenericInt,
     SignedInt(Width),

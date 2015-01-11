@@ -7,6 +7,7 @@
 use std::fmt;
 use std::fmt::{Formatter, Show};
 use mas::util::fits_in_bits;
+use std::ops::Index;
 
 pub use self::CoReg::*;
 pub use self::AluOp::*;
@@ -31,7 +32,7 @@ pub static link_reg: Reg = Reg {
 
 
 
-#[deriving(Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Pred {
     pub inverted: bool,
     pub reg: u8, // Can only take the values 0-3.
@@ -45,7 +46,7 @@ impl Show for Pred {
     }
 }
 
-#[deriving(Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Reg {
     pub index: u8,
 }
@@ -56,7 +57,7 @@ impl Show for Reg {
     }
 }
 
-#[deriving(Show, Clone, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Show, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub enum CoReg {
     PFLAGS,
     PTB,
@@ -75,7 +76,7 @@ pub enum CoReg {
 }
 
 // Opcodes for the ALU.
-#[deriving(Show, Eq, PartialEq, Clone, Ord, PartialOrd)]
+#[derive(Show, Eq, PartialEq, Clone, Ord, PartialOrd)]
 pub enum AluOp {
     AddAluOp,
     AndAluOp,
@@ -122,7 +123,7 @@ impl AluOp {
 }
 
 // Compare types.
-#[deriving(Show, Eq, PartialEq, Clone, Ord, PartialOrd)]
+#[derive(Show, Eq, PartialEq, Clone, Ord, PartialOrd)]
 pub enum CompareType {
     CmpLTU,
     CmpLEU,
@@ -135,7 +136,7 @@ pub enum CompareType {
 }
 
 // Shift types.
-#[deriving(Clone, Eq, PartialEq, FromPrimitive, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, FromPrimitive, Ord, PartialOrd)]
 pub enum ShiftType {
     SllShift,
     SrlShift,
@@ -144,7 +145,7 @@ pub enum ShiftType {
 }
 
 // Load/Store types.
-#[deriving(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
 pub enum LsuWidth {
     LsuWidthB,
     LsuWidthH,
@@ -153,7 +154,7 @@ pub enum LsuWidth {
 }
 
 // Flush types
-#[deriving(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
 pub enum FlushType {
     DataFlush,
     InstFlush,
@@ -161,7 +162,7 @@ pub enum FlushType {
     ItlbFlush,
 }
 
-#[deriving(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
 pub struct LsuOp {
     pub store: bool,
     pub width: LsuWidth,
@@ -180,20 +181,20 @@ impl Show for ShiftType {
     }
 }
 
-#[deriving(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
 pub enum JumpTarget {
     JumpOffs(i32),
     // TODO: allow arithmetic on labels.
     JumpLabel(String),
 }
 
-#[deriving(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
 pub enum LongValue {
     Immediate(u32),
     LabelOffs(String),
 }
 
-#[deriving(Show, Eq, PartialEq, Clone, Ord, PartialOrd)]
+#[derive(Show, Eq, PartialEq, Clone, Ord, PartialOrd)]
 pub enum InstNode {
     ALU1ShortInst(Pred, // Instruction predicate
                   AluOp, // Actual op
@@ -696,7 +697,8 @@ impl InstNode {
 
 pub struct InstPacket([InstNode; 4]);
 
-impl Index<uint, InstNode> for InstPacket {
+impl Index<uint> for InstPacket {
+    type Output = InstNode;
     fn index<'a>(&'a self, i: &uint) -> &'a InstNode {
         let InstPacket(ref packet) = *self;
         &packet[*i]

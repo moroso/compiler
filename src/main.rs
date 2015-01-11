@@ -1,4 +1,4 @@
-#![feature(overloaded_calls,import_shadowing,slicing_syntax)]
+#![feature(plugin,overloaded_calls,import_shadowing,slicing_syntax,old_impl_check)]
 #![allow(dead_code,unused_imports)]
 
 #[plugin]
@@ -14,7 +14,7 @@ extern crate time;
 #[cfg(test)]
 extern crate debug;
 
-#[cfg(mc)]
+//#[cfg(mc)]
 use mc as front;
 
 #[cfg(mas)]

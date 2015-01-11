@@ -7,7 +7,7 @@ use util::{Name, Width};
 
 pub use self::LValue::*;
 pub use self::RValueElem::*;
-pub use self::Op::*;
+use self::Op::*;
 
 pub mod ast_to_intermediate;
 pub mod liveness;
@@ -16,7 +16,7 @@ pub mod ssa;
 pub mod util;
 pub mod conflicts;
 
-#[deriving(Clone, Eq, PartialEq, Show)]
+#[derive(Clone, Eq, PartialEq, Show)]
 pub struct StaticIRItem {
     pub name: Name,
     pub size: uint,
@@ -29,7 +29,7 @@ pub struct StaticIRItem {
     pub expr: Option<Expr>,
 }
 
-#[deriving(Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Var {
     pub name: Name,
     // If set, stores the generation of the variable. This will be None
@@ -46,7 +46,7 @@ impl Show for Var {
     }
 }
 
-#[deriving(Clone)]
+#[derive(Clone)]
 pub enum LValue {
     // Store directly into a variable.
     VarLValue(Var),
@@ -63,7 +63,7 @@ impl Show for LValue {
     }
 }
 
-#[deriving(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 // An "element" of an RValue: either a variable or a constant.
 pub enum RValueElem {
     Variable(Var),
@@ -88,7 +88,7 @@ impl Show for RValueElem {
     }
 }
 
-#[deriving(Clone)]
+#[derive(Clone)]
 pub enum Op {
     // Apply a unary operator
     UnOp(Var, UnOpNode, RValueElem),
@@ -152,7 +152,7 @@ impl Show for Op {
     }
 }
 
-#[deriving(Show, Clone)]
+#[derive(Show, Clone)]
 pub struct OpInfo {
     pub live: BTreeSet<Var>, // Which variables are live at this instruction?
     pub used: BTreeSet<Var>, // Which variables are used?
