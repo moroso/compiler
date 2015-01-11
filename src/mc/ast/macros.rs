@@ -259,13 +259,13 @@ impl<'a> MacroExpanderVisitor<'a> {
         let filename = self.session.parser.filename_of(id);
 
         let mut toks = unsafe {
-            let macro: & &Expander = ::std::mem::transmute(
+            let this_macro: & &Expander = ::std::mem::transmute(
                 match self.session.expander.macros.find(&name) {
                     Some(m) => m,
                     None => self.session.error_fatal(*id, format!("Macro {}! is undefined", name).as_slice()),
                 }
                 );
-            macro.expand(my_args, *id, self.session)
+            this_macro.expand(my_args, *id, self.session)
         };
 
         toks.push(Token::Eof);

@@ -172,12 +172,12 @@ impl<'a> Session<'a> {
         self.inject(s, "<prelude>", module);
     }
 
-    fn parse_buffer<Sized? S: StrExt, T: BufReader>(&mut self, name: &S, buffer: T) -> Module {
+    fn parse_buffer<S: ?Sized + StrExt, T: BufReader>(&mut self, name: &S, buffer: T) -> Module {
         let lexer = new_mb_lexer(name, buffer);
         Parser::parse(self, lexer)
     }
 
-    pub fn parse_package_buffer<Sized? S: StrExt, T: BufReader>(&mut self, name: &S, buffer: T) -> Module {
+    pub fn parse_package_buffer<S: ?Sized + StrExt, T: BufReader>(&mut self, name: &S, buffer: T) -> Module {
         use super::ast::mut_visitor::MutVisitor;
 
         struct PreludeInjector<'a> { session: &'a mut Session<'a> }
@@ -205,7 +205,9 @@ impl<'a> Session<'a> {
         module
     }
 
-    pub fn parse_file_common(&mut self, file: io::File, f: |&mut Session, String, io::BufferedReader<io::File>| -> Module) -> Module {
+    pub fn parse_file_common<F>(&mut self, file: io::File, f: F) -> Module
+        where F: Fn(&mut Session, String,
+                    io::BufferedReader<io::File>) -> Module {
         use std::mem::replace;
 
         let filename = format!("{}", file.path().display());

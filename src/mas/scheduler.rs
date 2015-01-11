@@ -215,7 +215,7 @@ fn compatible_insts(inst1: &InstNode, inst2: &InstNode) -> bool {
     commutes_(inst1, inst2)
 }
 
-fn compatible(packet: &[InstNode, ..4], inst: &InstNode) -> bool {
+fn compatible(packet: &[InstNode; 4], inst: &InstNode) -> bool {
     packet.iter().all(|x| compatible_insts(x, inst))
 }
 
@@ -239,7 +239,7 @@ fn update_labels(label_map: &BTreeMap<uint, Vec<&String>>,
 /// Dummy scheduler: one instruction per packet.
 pub fn schedule_dummy(insts: &Vec<InstNode>,
                       labels: &BTreeMap<String, uint>,
-                      _: bool) -> (Vec<[InstNode, ..4]>,
+                      _: bool) -> (Vec<[InstNode; 4]>,
                                    BTreeMap<String, uint>) {
     let mut packets = vec!();
 
@@ -282,9 +282,9 @@ pub fn schedule_dummy(insts: &Vec<InstNode>,
 
 pub fn schedule(insts: &Vec<InstNode>,
                 labels: &BTreeMap<String, uint>,
-                debug: bool) -> (Vec<[InstNode, ..4]>,
+                debug: bool) -> (Vec<[InstNode; 4]>,
                                  BTreeMap<String, uint>) {
-    let mut packets: Vec<[InstNode, ..4]> = vec!();
+    let mut packets: Vec<[InstNode; 4]> = vec!();
 
     let mut modified_labels: BTreeMap<String, uint> = BTreeMap::new();
     let mut jump_target_dict: BTreeMap<uint, Vec<&String>> = BTreeMap::new();
@@ -328,7 +328,7 @@ pub fn schedule(insts: &Vec<InstNode>,
         let mut edges: BTreeSet<(uint, uint)> = BTreeSet::new();
         let mut all: BTreeSet<uint> =
             FromIterator::from_iter(range(start, end));
-        let mut this_packet: [InstNode, ..4] =
+        let mut this_packet: [InstNode; 4] =
             [NopInst, NopInst, NopInst, NopInst];
         let mut packet_added = false;
         for idx in range(start, end) {

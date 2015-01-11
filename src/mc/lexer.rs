@@ -339,7 +339,7 @@ impl RuleMatcher<(u64, IntKind)> for CharRule {
     }
 }
 
-pub fn new_mb_lexer<'a, Sized? S: StrExt, B: BufReader>(name: &S, buffer: B) -> Lexer<'a, B, Token> {
+pub fn new_mb_lexer<'a, S: ?Sized + StrExt, B: BufReader>(name: &S, buffer: B) -> Lexer<'a, B, Token> {
     let lang = Language {
         eof: Eof,
         ws: WS,

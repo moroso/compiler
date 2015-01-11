@@ -133,17 +133,19 @@ impl<'a> CCrossCompiler<'a> {
     fn unindent(&mut self) { self.indent -= INDENT_AMT; }
     fn ind(&self) -> String { String::from_char(self.indent, ' ') }
 
-    fn visit_list<T>(&self, list: &Vec<T>,
-                            visit: |&CCrossCompiler, &T| -> String,
-                            delimiter: &str) -> String {
+    fn visit_list<T, F>(&self, list: &Vec<T>,
+                        visit: F,
+                        delimiter: &str) -> String
+        where F: Fn(&CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
             .filter(|x| *x != String::from_str("")).collect();
         list.connect(format!("{}", delimiter).as_slice())
     }
 
-    fn mut_visit_list<T>(&mut self, list: &Vec<T>,
-                                    visit: |&mut CCrossCompiler, &T| -> String,
-                                    delimiter: &str) -> String {
+    fn mut_visit_list<T, F>(&mut self, list: &Vec<T>,
+                            visit: F,
+                            delimiter: &str) -> String
+        where F: Fn(&mut CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
             .filter(|x| *x != String::from_str("")).collect();
         list.connect(delimiter)
@@ -260,7 +262,8 @@ impl<'a> CCrossCompiler<'a> {
         }
     }
 
-    fn visit_block(&mut self, block: &Block, tail: |Option<String>| -> String) -> String {
+    fn visit_block<F>(&mut self, block: &Block, tail: F) -> String
+        where F: Fn(Option<String>) -> String {
         self.indent();
         let delim_s = format!("\n{}", self.ind());
         let delim = delim_s.as_slice();
@@ -715,10 +718,11 @@ impl<'a> CCrossCompiler<'a> {
     // Visit a module and all of its submodules, applying a worker function.
     // We need this so we can print out all the modules, then all the structs,
     // etc.
-    fn visit_module_worker(&mut self,
-                           results: &mut Vec<String>,
-                           module: &Module,
-                           f: |&mut CCrossCompiler, &mut Vec<String>,&Module|) {
+    fn visit_module_worker<F>(&mut self,
+                              results: &mut Vec<String>,
+                              module: &Module,
+                              f: F)
+        where F: Fn(&mut CCrossCompiler, &mut Vec<String>,&Module) {
 
         for item in module.val.items.iter() {
             match item.val {

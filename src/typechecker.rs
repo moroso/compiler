@@ -617,7 +617,9 @@ impl<'a> Typechecker<'a> {
         }
     }
 
-    fn with_generics<T>(&mut self, gs: BTreeMap<NodeId, WithId<Ty>>, f: |&mut Typechecker<'a>| -> T) -> T {
+    fn with_generics<T, F>(&mut self, gs: BTreeMap<NodeId, WithId<Ty>>,
+                           f: F) -> T
+        where F: Fn(&mut Typechecker<'a>) -> T{
         self.generics.push(gs);
         let ret = f(self);
         self.generics.pop();

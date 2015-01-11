@@ -189,7 +189,8 @@ fn binop_token(op: BinOpNode) -> Token {
 }
 
 // Convenience function for testing
-pub fn ast_from_str<'a, U>(s: &str, f: |&mut StreamParser<Lexer<::std::io::BufferedReader<::std::io::MemReader>, Token>>| -> U) -> (Session<'a>, U) {
+pub fn ast_from_str<'a, U, F>(s: &str, f: F) -> (Session<'a>, U)
+    where F: Fn(&mut StreamParser<Lexer<::std::io::BufferedReader<::std::io::MemReader>, Token>>) -> U {
     let mut session = Session::new(Options::new());
     let tree = Parser::parse_with(&mut session, lexer_from_str(s), f);
     (session, tree)
@@ -229,18 +230,20 @@ impl Parser {
         Parser::parse_with(session, lexer, |p| p.parse_module())
     }
 
-    pub fn parse_with<T: BufReader, U>(session: &mut Session,
-                                    lexer: Lexer<T, Token>,
-                                    f: |&mut StreamParser<Lexer<T, Token>>| -> U) -> U {
+    pub fn parse_with<T: BufReader, U, F>(session: &mut Session,
+                                          lexer: Lexer<T, Token>,
+                                          f: F) -> U
+        where F: Fn(&mut StreamParser<Lexer<T, Token>>) -> U {
         let name = session.interner.intern(lexer.get_name());
         let mut tokp = StreamParser::new(session, name, lexer);
         f(&mut tokp)
     }
 
-    pub fn parse_stream<T: Iterator<SourceToken<Token>>, U>(session: &mut Session,
-                                                            name: Name,
-                                                            tokens: T,
-                                                            f: |&mut StreamParser<T>| -> U) -> U {
+    pub fn parse_stream<T: Iterator<SourceToken<Token>>, U, F>(session: &mut Session,
+                                                               name: Name,
+                                                               tokens: T,
+                                                               f: F) -> U
+        where F: Fn(&mut StreamParser<T>) -> U {
         let mut tokp = StreamParser::new(session, name, tokens);
         f(&mut tokp)
     }
@@ -358,7 +361,9 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     /// Utility to parse a comma-separated list of things
-    fn parse_list<U>(&mut self, p: |&mut StreamParser<'a, T>| -> U, end: Token, allow_trailing_comma: bool) -> Vec<U> {
+    fn parse_list<U, F>(&mut self, p: F, end: Token,
+                        allow_trailing_comma: bool) -> Vec<U>
+        where F: Fn(&mut StreamParser<'a, T>) -> U {
         if *self.peek() == end {
             return vec!();
         }
@@ -381,7 +386,8 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         res
     }
 
-    fn with_restriction<U>(&mut self, r: Restriction, p: |&mut StreamParser<'a, T>| -> U) -> U {
+    fn with_restriction<U, F>(&mut self, r: Restriction, p: F) -> U
+        where F: Fn(&mut StreamParser<'a, T>) -> U {
         let old = self.restriction;
         self.restriction = r;
         let ret = p(self);
@@ -913,13 +919,14 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         }
     }
 
-    fn maybe_parse_binop(&mut self,
-                         ops: uint,
-                         assoc: Assoc,
-                         parse_simpler_expr: |&mut StreamParser<'a, T>| -> Expr,
-                         e: Expr,
-                         start_span: Span)
-                      -> Expr {
+    fn maybe_parse_binop<F>(&mut self,
+                            ops: uint,
+                            assoc: Assoc,
+                            parse_simpler_expr: F,
+                            e: Expr,
+                            start_span: Span)
+                            -> Expr
+        where F: Fn(&mut StreamParser<'a, T>) -> Expr {
         if self.expr_is_complete(&e) {
             return e;
         }
@@ -1483,7 +1490,9 @@ impl<'a, T: Iterator<SourceToken<Token>>> StreamParser<'a, T> {
         self.add_id_and_span(UseItem(path), start_span.to(end_span))
     }
 
-    fn parse_items_until<U>(&mut self, end: Token, unmatched: |&mut StreamParser<'a, T>| -> U) -> Vec<Item> {
+    fn parse_items_until<U, F>(&mut self, end: Token,
+                               unmatched: F) -> Vec<Item>
+        where F: Fn(&mut StreamParser<'a, T>) -> U {
         let mut items = vec!();
         let mut use_items = vec!();
         let mut count = 0;

@@ -83,7 +83,7 @@ pub enum Token {
     EndComment,
 }
 
-pub fn new_asm_lexer<'a, T: BufReader, Sized? S: StrExt>(
+pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + StrExt>(
     name: &S,
     buffer: T) -> Lexer<'a, T, Token> {
 

@@ -694,7 +694,7 @@ impl InstNode {
     }
 }
 
-pub struct InstPacket([InstNode, ..4]);
+pub struct InstPacket([InstNode; 4]);
 
 impl Index<uint, InstNode> for InstPacket {
     fn index<'a>(&'a self, i: &uint) -> &'a InstNode {

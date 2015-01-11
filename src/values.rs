@@ -1,9 +1,10 @@
 use mc::ast::*;
 use util::{IntKind, Width};
 
-fn num_op_helper(kind1: &IntKind, rhs: &LitNode,
-                 u: |u64| -> u64,
-                 s: |u64| -> u64) -> LitNode {
+fn num_op_helper<U, S>(kind1: &IntKind, rhs: &LitNode,
+                       u: U,
+                       s: S) -> LitNode
+    where U: Fn(u64) -> u64, S: Fn(u64) -> u64 {
     match *rhs {
         NumLit(n2, kind2) => {
             let is_signed = if kind1.is_generic() {
@@ -27,7 +28,8 @@ fn num_op_helper(kind1: &IntKind, rhs: &LitNode,
     }
 }
 
-fn bool_op_helper(rhs: &LitNode, f: |bool| -> bool) -> LitNode {
+fn bool_op_helper<F>(rhs: &LitNode, f: F) -> LitNode
+    where F: Fn(bool) -> bool {
     match *rhs {
         BoolLit(b2) => {
             BoolLit(f(b2))
@@ -36,10 +38,12 @@ fn bool_op_helper(rhs: &LitNode, f: |bool| -> bool) -> LitNode {
     }
 }
 
-pub fn generic_op(lhs: &LitNode, rhs: &LitNode,
-                  uintfunc: |u64, u64| -> u64,
-                  intfunc: |i64, i64| -> i64,
-                  boolfunc: |bool, bool| -> bool) -> LitNode {
+pub fn generic_op<S, T, U>(lhs: &LitNode, rhs: &LitNode,
+                           uintfunc: S,
+                           intfunc: T,
+                           boolfunc: U) -> LitNode
+    where S: Fn(u64, u64) -> u64, T: Fn(u64, i64) -> i64,
+          U: Fn(bool, bool) -> bool {
     match *lhs {
         NumLit(n1, kind1) => num_op_helper(
             &kind1, rhs,
@@ -50,9 +54,10 @@ pub fn generic_op(lhs: &LitNode, rhs: &LitNode,
     }
 }
 
-pub fn generic_unop(l: &LitNode,
-                    intfunc: |u64| -> u64,
-                    boolfunc: |bool| -> bool) -> LitNode {
+pub fn generic_unop<S, T>(l: &LitNode,
+                          intfunc: S,
+                          boolfunc: T) -> LitNode
+    where S: Fn(u64) -> u64, T: Fn(bool) -> bool{
     match *l {
         NumLit(n1, kind1) => NumLit(intfunc(n1), kind1),
         BoolLit(b) => BoolLit(boolfunc(b)),
@@ -61,9 +66,10 @@ pub fn generic_unop(l: &LitNode,
 }
 
 /// An operator that takes ints and returns a bool.
-pub fn relation_op(lhs: &LitNode, rhs: &LitNode,
-                   u: |u64, u64| -> bool,
-                   s: |i64, i64| -> bool) -> LitNode {
+pub fn relation_op<U, S>(lhs: &LitNode, rhs: &LitNode,
+                         u: U,
+                         s: S) -> LitNode
+    where U: Fn(u64, u64) -> bool, S: Fn(i64, i64) -> bool {
     match *lhs {
         NumLit(n1, kind1) => match *rhs {
             NumLit(n2, kind2) if kind1 == kind2

@@ -638,8 +638,9 @@ impl<'a, T: BufReader> AsmParser<'a, T> {
         }
     }
 
-    fn parse_break_or_syscall(&mut self, pred: Pred,
-                              cons: |Pred, u32| -> InstNode) -> InstNode {
+    fn parse_break_or_syscall<F>(&mut self, pred: Pred,
+                                 cons: F) -> InstNode
+        where F: Fn(Pred, u32) -> InstNode {
         match *self.peek() {
             NumLit(num) => {
                 self.eat();

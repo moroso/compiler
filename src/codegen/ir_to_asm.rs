@@ -807,7 +807,7 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
 }
 
 impl IrToAsm {
-    fn empty_packet() -> [InstNode, ..4] {
+    fn empty_packet() -> [InstNode; 4] {
         [InstNode::long(0),
          InstNode::long(0),
          InstNode::long(0),
@@ -815,19 +815,19 @@ impl IrToAsm {
     }
 
     pub fn strings_to_asm(session: &Session,
-                          strings: &BTreeSet<Name>) -> (Vec<[InstNode, ..4]>,
+                          strings: &BTreeSet<Name>) -> (Vec<[InstNode; 4]>,
                                                        BTreeMap<String, uint>) {
         let mut labels = BTreeMap::new();
-        let mut insts: Vec<[InstNode, ..4]> = vec!();
+        let mut insts: Vec<[InstNode; 4]> = vec!();
         for &Name(s) in strings.iter() {
             let mut packetpos = 0u;
             let mut bytepos = 0u;
             let mut cur = 0u32;
-            let mut cur_packet: [InstNode, ..4] = IrToAsm::empty_packet();
+            let mut cur_packet: [InstNode; 4] = IrToAsm::empty_packet();
             labels.insert(format!("__INTERNED_STRING{}", s), insts.len());
             for b in session.interner.name_to_str(&Name(s)).bytes()
                 .chain(vec!(0u8).move_iter()) {
-                cur |= b as u32 << (bytepos*8);
+                cur |= (b as u32) << (bytepos * 8);
                 bytepos += 1;
                 if bytepos == 4 {
                     bytepos = 0;

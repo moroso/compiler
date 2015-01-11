@@ -30,8 +30,9 @@ fn ssa_rvalelem(generations: &mut BTreeMap<Name, uint>,
 
 // Fill in the generations of variables in the given BTreeSet, using the given
 // gen_of function.
-fn ssa_vars(generations: &mut BTreeMap<Name, uint>, vars: &mut BTreeSet<Var>,
-                gen_of: |&mut BTreeMap<Name, uint>, Name| -> Option<uint>) 
+fn ssa_vars<F>(generations: &mut BTreeMap<Name, uint>, vars: &mut BTreeSet<Var>,
+               gen_of: F)
+    where F: Fn(&mut BTreeMap<Name, uint>, Name) -> Option<uint>
 {
     let mut new_vars = BTreeSet::new();
     for var in vars.iter() {

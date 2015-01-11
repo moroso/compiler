@@ -51,7 +51,8 @@ impl Subscope {
         self.insert(ns, ident.val.name, ident.id)
     }
 
-    fn insert_items(&mut self, items: &Vec<Item>, get_pairs: |&[Ident]| -> Vec<(NS, Ident)>) {
+    fn insert_items<F>(&mut self, items: &Vec<Item>, get_pairs: F)
+        where F: Fn(&[Ident]) -> Vec<(NS, Ident)> {
         for item in items.iter() {
             match item.val {
                 UseItem(ref import) => {
@@ -263,7 +264,8 @@ impl<'a> ModuleResolver<'a> {
     }
 
     /// Descends into a new scope, optionally seeding it with a set of items
-    fn descend(&mut self, items: Option<&Vec<Item>>, visit: |&mut ModuleResolver|) -> Subscope {
+    fn descend<F>(&mut self, items: Option<&Vec<Item>>, visit: F) -> Subscope
+        where F: Fn(&mut ModuleResolver) {
         let mut subscope = Subscope::new();
 
         items.map(|items| subscope.insert_items(items, |elems| {
