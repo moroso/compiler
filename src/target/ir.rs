@@ -315,7 +315,7 @@ impl IRTarget {
 }
 
 impl Target for IRTarget {
-    fn new(args: Vec<String>) -> IRTarget {
+    fn new(args: Vec<String>) -> Box<IRTarget> {
         let mut verbose = false;
         for arg in args.iter() {
             if *arg == String::from_str("verbose") {
@@ -323,7 +323,7 @@ impl Target for IRTarget {
                 verbose = true;
             }
         }
-        IRTarget { verbose: verbose }
+        Box::new(IRTarget { verbose: verbose })
     }
 
     #[allow(unused_must_use)]
@@ -419,7 +419,7 @@ impl Target for IRTarget {
         // of these functions.
         let declared_builtins: BTreeSet<String> = FromIterator::from_iter(
             vec!("abort", "malloc", "calloc")
-                .move_iter()
+                .into_iter()
                 .map(|x| x.to_string())
             );
 

@@ -223,7 +223,7 @@ fn update_labels(label_map: &BTreeMap<uint, Vec<&String>>,
                  new_label_list: &mut BTreeMap<String, uint>,
                  orig_pos: uint,
                  new_pos: uint) {
-    let labels = label_map.find(&orig_pos);
+    let labels = label_map.get(&orig_pos);
     match labels {
         // Update the labels that pointed here.
         Some(labels) => {
@@ -247,7 +247,7 @@ pub fn schedule_dummy(insts: &Vec<InstNode>,
     let mut jump_target_dict: BTreeMap<uint, Vec<&String>> = BTreeMap::new();
     for (label, pos) in labels.iter() {
         if jump_target_dict.contains_key(pos) {
-            jump_target_dict.find_mut(pos).unwrap().push(label);
+            jump_target_dict.get_mut(pos).unwrap().push(label);
         } else {
             jump_target_dict.insert(*pos, vec!(label));
         }
@@ -290,7 +290,7 @@ pub fn schedule(insts: &Vec<InstNode>,
     let mut jump_target_dict: BTreeMap<uint, Vec<&String>> = BTreeMap::new();
     for (label, pos) in labels.iter() {
         if jump_target_dict.contains_key(pos) {
-            jump_target_dict.find_mut(pos).unwrap().push(label);
+            jump_target_dict.get_mut(pos).unwrap().push(label);
         } else {
             jump_target_dict.insert(*pos, vec!(label));
         }
@@ -319,7 +319,7 @@ pub fn schedule(insts: &Vec<InstNode>,
     }
 
     let mut start = 0;
-    for end in jump_targets.move_iter() {
+    for end in jump_targets.into_iter() {
         if debug {
             print!("Scheduling ({}, {})\n", start, end);
         }
@@ -343,7 +343,7 @@ pub fn schedule(insts: &Vec<InstNode>,
         }
 
         if debug {
-            print!("edges: {}\n", edges);
+            print!("edges: {:?}\n", edges);
         }
 
         // We now have a DAG, corresponding to dependencies among instructions.
@@ -425,7 +425,7 @@ pub fn schedule(insts: &Vec<InstNode>,
                   packets.len());
 
     if debug {
-        print!("packets: {}\n", packets);
+        print!("packets: {:?}\n", packets);
         print!("Efficiency: {} instructions in {} packets = {}\n",
                insts.len(), packets.len(),
                insts.len() as f32 / packets.len() as f32);

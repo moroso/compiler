@@ -826,7 +826,7 @@ impl IrToAsm {
             let mut cur_packet: [InstNode; 4] = IrToAsm::empty_packet();
             labels.insert(format!("__INTERNED_STRING{}", s), insts.len());
             for b in session.interner.name_to_str(&Name(s)).bytes()
-                .chain(vec!(0u8).move_iter()) {
+                .chain(vec!(0u8).into_iter()) {
                 cur |= (b as u32) << (bytepos * 8);
                 bytepos += 1;
                 if bytepos == 4 {

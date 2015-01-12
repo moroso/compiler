@@ -19,11 +19,11 @@ impl RegisterColorer {
                  num_colors: uint
                  ) -> BTreeMap<Var, RegisterColor> {
         let mut coloring: BTreeMap<Var, RegisterColor> =
-            FromIterator::from_iter(must_colors.move_iter());
+            FromIterator::from_iter(must_colors.into_iter());
         // Make a list of all variables that have to go on the stack.
         // (mem_vars contains all variables that need to go in memory,
         // but some of these are global).
-        let new_mem_vars = mem_vars.move_iter().filter(
+        let new_mem_vars = mem_vars.into_iter().filter(
             |name| global_map.find(name).is_none());
         let mem_locs: BTreeMap<Name, uint> = FromIterator::from_iter(
             new_mem_vars.enumerate().map(|(x,y)| (y,x)));
@@ -43,7 +43,7 @@ impl RegisterColorer {
             }
         }
 
-        for (var, _) in freq_vec.move_iter() {
+        for (var, _) in freq_vec.into_iter() {
             let global_info = global_map.find(&var.name);
             match global_info {
                 Some(ref info) => {

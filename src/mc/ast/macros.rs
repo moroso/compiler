@@ -39,8 +39,8 @@ fn expand_line(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec
 // Also this is probably not very useful.
 fn expand_paste(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
     let mut concat = vec!();
-    for arg in input.move_iter() {
-        for elem in arg.move_iter() {
+    for arg in input.into_iter() {
+        for elem in arg.into_iter() {
             match elem {
                 Token::IdentTok(s) => concat.push(s),
                 Token::NumberTok(n, _) => concat.push(format!("{}", n)),
@@ -54,7 +54,7 @@ fn expand_paste(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Ve
 
 fn expand_concat(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
     let mut concat = vec!();
-    for mut arg in input.move_iter() {
+    for mut arg in input.into_iter() {
         match arg.pop() {
             Some(Token::StringTok(s)) => concat.push(s),
             t => session.error(id, format!("expected string in concat!, found {}", t)),
@@ -76,11 +76,11 @@ fn expand_stringify(mut input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> V
     let mut concat = vec!();
 
     let ts = input.pop().unwrap();
-    concat.push_all_move(ts.move_iter().map(|t| format!("{}", t)).collect());
+    concat.push_all_move(ts.into_iter().map(|t| format!("{}", t)).collect());
 
-    for ts in input.move_iter() {
+    for ts in input.into_iter() {
         concat.push(String::from_str(","));
-        concat.push_all_move(ts.move_iter().map(|t| format!("{}", t)).collect());
+        concat.push_all_move(ts.into_iter().map(|t| format!("{}", t)).collect());
     }
 
     vec!(Token::StringTok(concat.connect(" ")))
@@ -90,7 +90,7 @@ fn expand_map_macro(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -
     if input.len() < 1 {
         session.error_fatal(id, "Not enough arguments to map_toks!");
     }
-    let mut iter = input.move_iter();
+    let mut iter = input.into_iter();
     let prefix = iter.next().unwrap();
 
     let mut out = vec!();
@@ -136,7 +136,7 @@ impl Expander for WithId<MacroDef> {
         let mut output = vec!();
 
         let mut args = BTreeMap::new();
-        let mut arg_iter = input.move_iter();
+        let mut arg_iter = input.into_iter();
         for (&name, arg) in self.val.args.iter().zip(arg_iter.by_ref()) {
             args.insert(name, arg);
         }
@@ -189,7 +189,7 @@ impl MacroCollector {
     fn filter_items(&mut self, node_items: &mut Vec<Item>) {
         let mut items = vec!();
         swap(&mut items, node_items);
-        for item in items.move_iter() {
+        for item in items.into_iter() {
             match item.val {
                 MacroDefItem(def) => self.macros.push(def.with_id(item.id)),
                 _ => node_items.push(item),
@@ -229,7 +229,7 @@ impl<'a> MacroExpander<'a> {
 
     pub fn expand_macros(session: &mut Session, module: &mut Module) {
         let user_macros = MacroCollector::collect(module);
-        for def in user_macros.move_iter() {
+        for def in user_macros.into_iter() {
             let name = def.val.name;
             session.expander.macros.insert(name, Box::new(def));
         }
@@ -270,7 +270,7 @@ impl<'a> MacroExpanderVisitor<'a> {
 
         toks.push(Token::Eof);
 
-        let mut stream = toks.move_iter().map(
+        let mut stream = toks.into_iter().map(
             |t| SourceToken { sp: span, tok: t })
             .peekable();
 
@@ -318,7 +318,7 @@ impl<'a> MutVisitor for MacroExpanderVisitor<'a> {
                 let mut my_args = vec!();
                 swap(&mut my_args, args);
                 let filename = self.session.parser.filename_of(&expr.id);
-                let stream = self.expand_macro(&expr.id, name, my_args).move_iter();
+                let stream = self.expand_macro(&expr.id, name, my_args).into_iter();
                 Parser::parse_stream(self.session, filename, stream, |p| p.parse_expr())
             }
             _ => return walk_expr(self, expr),

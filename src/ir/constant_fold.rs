@@ -143,12 +143,12 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
     let mut changed = false;
 
     // These are changes we can do unconditionally.
-    for (a, b) in immediate_changes.move_iter() {
+    for (a, b) in immediate_changes.into_iter() {
         *ops.get_mut(a) = b;
         changed = true;
     }
 
-    for (a, b) in changes.move_iter() {
+    for (a, b) in changes.into_iter() {
         if !vars_to_avoid.contains(&a) && !globals.find(&a.name).is_some() {
             if verbose {
                 print!("Applying {}->{}\n", a, b);

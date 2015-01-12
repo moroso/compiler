@@ -38,7 +38,7 @@ pub fn main() {
         optflag("h", "help", "Show this help message."),
     ];
 
-    let bail = |error: Option<&str>| {
+    let bail = |&: error: Option<&str>| {
         match error {
             Some(e) => {
                 os::set_exit_status(1);
@@ -48,10 +48,10 @@ pub fn main() {
         }
 
         let brief = format!("Usage: {} [OPTIONS]", arg0);
-        println!("{}", getopts::usage(brief.as_slice(), opts[]));
+        println!("{}", getopts::usage(brief.as_slice(), &opts));
     };
 
-    let matches = match getopts(args.tail(), opts[]) {
+    let matches = match getopts(args.tail(), &opts) {
         Ok(m) => m,
         Err(e) => return bail(Some(format!("{}", e).as_slice())),
     };

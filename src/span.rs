@@ -1,4 +1,5 @@
 use std::fmt;
+use std::fmt::{Formatter, Show};
 use std::cmp::{Eq, Ord, Ordering};
 
 #[derive(Clone, PartialEq, Eq, Ord)]
@@ -19,6 +20,8 @@ impl fmt::Show for SourcePos {
         write!(f, "line {}, column {}", self.row+1, self.col+1)
     }
 }
+
+allow_string!(SourcePos);
 
 impl SourcePos {
     pub fn new() -> SourcePos {

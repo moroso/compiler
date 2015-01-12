@@ -20,6 +20,9 @@ use mc as front;
 #[cfg(mas)]
 use mc as front;
 
+#[macro_use]
+mod allow_string;
+
 mod util;
 mod typechecker;
 mod intrinsics;

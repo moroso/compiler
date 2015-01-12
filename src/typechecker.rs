@@ -971,7 +971,7 @@ impl<'a> Typechecker<'a> {
                 match self.expr_to_ty(&**e).val {
                     FuncTy(e_arg_tys, e_ret_ty) => {
                         if e_arg_tys.len() == arg_tys.len() {
-                            for (e_arg_ty, arg_ty) in e_arg_tys.move_iter().zip(arg_tys.move_iter()) {
+                            for (e_arg_ty, arg_ty) in e_arg_tys.into_iter().zip(arg_tys.into_iter()) {
                                 self.unify_with_cause(arg_ty.id, InvalidCall, e_arg_ty, arg_ty);
                             }
                             e_ret_ty.val
@@ -1393,8 +1393,8 @@ impl<'a> Typechecker<'a> {
             },
             (TupleTy(ts1), TupleTy(ts2)) => {
                 if ts1.len() == ts2.len() {
-                    TupleTy(ts1.move_iter().zip(
-                            ts2.move_iter()).map(
+                    TupleTy(ts1.into_iter().zip(
+                            ts2.into_iter()).map(
                                 // XXX might have the wrong id here
                                 |(t1, t2)| { let id = t1.id; self.unify(t1, t2).with_id(id) })
                             .collect())
@@ -1406,8 +1406,8 @@ impl<'a> Typechecker<'a> {
                 if args1.len() == args2.len() {
                     // XXX might have the wrong id for ret_ty here
                     let ret_id = t1.id;
-                    FuncTy(args1.move_iter().zip(
-                           args2.move_iter()).map(
+                    FuncTy(args1.into_iter().zip(
+                           args2.into_iter()).map(
                                 // XXX might have the wrong id here
                                |(arg1, arg2)| { let id = arg1.id; self.unify(arg1, arg2).with_id(id) })
                            .collect(), Box::new(self.unify(*t1, *t2).with_id(ret_id)))
@@ -1424,7 +1424,7 @@ impl<'a> Typechecker<'a> {
                     }
 
                     // XXX might have the wrong id here
-                    let ts = ts1.move_iter().zip(ts2.move_iter()).map(|(t1, t2)| { let id = t1.id; self.unify(t1, t2).with_id(id) }).collect();
+                    let ts = ts1.into_iter().zip(ts2.into_iter()).map(|(t1, t2)| { let id = t1.id; self.unify(t1, t2).with_id(id) }).collect();
                     StructTy(d1, ts)
                 }
             },
@@ -1437,7 +1437,7 @@ impl<'a> Typechecker<'a> {
                     }
 
                     // XXX might have the wrong id here
-                    let ts = ts1.move_iter().zip(ts2.move_iter()).map(|(t1, t2)| { let id = t1.id; self.unify(t1, t2).with_id(id) }).collect();
+                    let ts = ts1.into_iter().zip(ts2.into_iter()).map(|(t1, t2)| { let id = t1.id; self.unify(t1, t2).with_id(id) }).collect();
                     EnumTy(d1, ts)
                 }
             },

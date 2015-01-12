@@ -64,7 +64,7 @@ fn find_structs(module: &Module) -> BTreeSet<NodeId> {
             StructItem(ref id, _, _) => { struct_set.insert(id.id); },
             ModItem(_, ref submod) => {
                 let inner_structs = find_structs(submod);
-                struct_set.extend(inner_structs.move_iter());
+                struct_set.extend(inner_structs.into_iter());
             }
             _ => {},
         }
@@ -89,7 +89,7 @@ fn find_enum_item_names(module: &Module)
             },
             ModItem(_, ref submod) => {
                 let inner_enums = find_enum_item_names(submod);
-                enum_map.extend(inner_enums.move_iter());
+                enum_map.extend(inner_enums.into_iter());
             }
             _ => {},
         }
@@ -108,7 +108,7 @@ fn find_enum_names(module: &Module) -> BTreeMap<NodeId, Name> {
             },
             ModItem(_, ref submod) => {
                 let inner_enums = find_enum_names(submod);
-                enum_map.extend(inner_enums.move_iter());
+                enum_map.extend(inner_enums.into_iter());
             }
             _ => {}
         }
@@ -848,8 +848,8 @@ pub struct CTarget {
 }
 
 impl Target for CTarget {
-    fn new(_args: Vec<String>) -> CTarget {
-        CTarget { opts: () }
+    fn new(_args: Vec<String>) -> Box<CTarget> {
+        Box::new(CTarget { opts: () })
     }
 
     #[allow(unused_must_use)]

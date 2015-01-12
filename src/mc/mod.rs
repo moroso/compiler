@@ -7,6 +7,7 @@ use self::session::{Session, Options};
 use getopts;
 use getopts::{getopts, reqopt, optopt, optflag, optmulti};
 use std::io::{BufferedReader, File, Writer, stdio};
+use std::ascii::AsciiExt;
 
 use std::os;
 
@@ -19,7 +20,7 @@ pub mod deps;
 
 struct NullTarget;
 impl Target for NullTarget {
-    fn new(_: Vec<String>) -> NullTarget { NullTarget }
+    fn new(_: Vec<String>) -> Box<NullTarget> { Box::new(NullTarget) }
     fn compile(&self, _: Package, _: &mut Writer) { }
 }
 
@@ -27,13 +28,13 @@ fn package_from_stdin<'a>(opts: Options) -> Package<'a> {
     Package::from_buffer(opts, "<stdin>", stdio::stdin())
 }
 
-fn new_target<T: Target>(args: Vec<String>) -> T {
+fn new_target<T: Target>(args: Vec<String>) -> Box<T> {
     Target::new(args)
 }
 
 macro_rules! targets {
     ($($n:expr => $t:ty),*) => (
-        vec!($(($n, |args| { Box::new(new_target::<$t>(args)) as Box<Target> })),*)
+        vec!($(($n, Box::new(|&:args| { new_target::<$t>(args) as Box<Target> }) as Box<Fn(Vec<String>) -> Box<Target>> )),*)
     );
     ($($n:expr => $t:ty),+,) => (targets!($($n => $t),+))
 }
@@ -53,7 +54,7 @@ pub fn setup_builtin_search_paths(opts: &mut Options) {
 
 fn parse_search_paths(opts: &mut Options, matches: &getopts::Matches) -> bool {
     // Pull libraries out of the command line
-    for string in matches.opt_strs("lib").move_iter() {
+    for string in matches.opt_strs("lib").into_iter() {
         let parts: Vec<&str> = string.as_slice().split_str(":").collect();
         let (module, file) = match parts.as_slice() {
             [ module, file ] => (module, file),
@@ -91,7 +92,7 @@ pub fn main() {
         println!("{}", getopts::usage(brief.as_slice(), opts));
     };
 
-    let matches = match getopts(args.tail(), opts) {
+    let matches = match getopts(args.tail(), &opts) {
         Ok(m) => m,
         Err(e) => return bail(Some(format!("{}", e).as_slice())),
     };
@@ -110,7 +111,7 @@ pub fn main() {
     let verbose = matches.opt_present("verbose");
 
     let target_arg = matches.opt_str("target").unwrap_or(String::from_str("null"));
-    let target = match targets.move_iter()
+    let target = match targets.into_iter()
                         .filter(|&(ref t, _)| t.eq_ignore_ascii_case(target_arg.as_slice()))
                         .map(|(_, ctor)| ctor(
                             if verbose {

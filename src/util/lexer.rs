@@ -82,13 +82,7 @@ pub trait BufReader {
     fn read_line(&mut self) -> IoResult<String>;
 }
 
-impl<B> BufReader for B where B: Buffer {
-    fn read_line(&mut self) -> IoResult<String> {
-        self.read_line()
-    }
-}
-
-impl BufReader for StdinReader {
+impl<B> BufReader for B where B: Reader {
     fn read_line(&mut self) -> IoResult<String> {
         self.read_line()
     }

@@ -37,7 +37,7 @@ pub fn offset_of_struct_field(session: &Session,
     match *def {
         Def::StructDef(_, ref fields, _) => {
             let names_and_sizes = struct_field_sizes(session, typemap, fields);
-            let (names, sizes) = IteratorExt::unzip(names_and_sizes.move_iter());
+            let (names, sizes) = IteratorExt::unzip(names_and_sizes.into_iter());
 
             for i in range(0, sizes.len())
             {

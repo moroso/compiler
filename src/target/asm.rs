@@ -48,7 +48,7 @@ fn print_bin(n: u32, stream: &mut Writer) {
 }
 
 impl Target for AsmTarget {
-    fn new(args: Vec<String>) -> AsmTarget {
+    fn new(args: Vec<String>) -> Box<AsmTarget> {
         let mut verbose = false;
         for arg in args.iter() {
             if *arg == String::from_str("verbose") {
@@ -56,7 +56,7 @@ impl Target for AsmTarget {
                 verbose = true;
             }
         }
-        AsmTarget { verbose: verbose }
+        Box::new(AsmTarget { verbose: verbose })
     }
 
     #[allow(unused_must_use)]

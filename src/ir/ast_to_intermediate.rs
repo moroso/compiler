@@ -327,7 +327,7 @@ impl<'a> ASTToIntermediate<'a> {
         let mut offs: uint = 0;
         let mut result = BTreeMap::new();
 
-        for mut global in globals.move_iter() {
+        for mut global in globals.into_iter() {
             let size = global.size;
             global.offset = Some(offs);
             result.insert(global.name, global);
@@ -1065,7 +1065,7 @@ impl<'a> ASTToIntermediate<'a> {
                 ops.push_all_move(move_ops);
                 ops.push(Op::Call(result_var.clone(),
                               Variable(new_var),
-                              new_vars.move_iter().collect()));
+                              new_vars.into_iter().collect()));
                 let this_ty = self.lookup_ty(expr.id).clone();
                 // We add one more dummy assignment, for the result, or a
                 // copy in the case of something in memory.

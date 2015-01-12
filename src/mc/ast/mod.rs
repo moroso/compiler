@@ -40,6 +40,12 @@ impl<T: Show> Show for WithId<T> {
     }
 }
 
+impl<T: fmt::String> fmt::String for WithId<T> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        self.val.fmt(f)
+    }
+}
+
 macro_rules! with_id {
     ( $( $s:ident => $n:ident ),* ) => ( $( pub type $s = WithId<$n>; )* );
     ( $( $s:ident => $n:ident ),+, ) => ( with_id! { $( $s => $n ),+ } );

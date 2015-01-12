@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::{Formatter, Show};
 use std::io;
 use std::str::StrExt;
 use std::ascii::AsciiExt;
@@ -80,6 +82,7 @@ pub enum Token {
     BeginComment,
     EndComment,
 }
+allow_string!(Token);
 
 pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + StrExt>(
     name: &S,
@@ -395,7 +398,7 @@ impl TokenMaker<(), Token> for Token {
     fn mk_tok(&self, _: ()) -> Token { self.clone() }
 }
 
-impl<T> TokenMaker<T, Token> for fn(T) -> Token {
+impl<T, F: Fn(T) -> Token> TokenMaker<T, Token> for F {
     fn mk_tok(&self, arg: T) -> Token { (*self)(arg) }
 }
 

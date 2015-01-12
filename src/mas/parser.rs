@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 
 pub use self::InstType::*;
 
-pub struct AsmParser<'a, T: Buffer> {
+pub struct AsmParser<'a, T: Reader> {
     tokens: Peekable<SourceToken<Token>, Lexer<'a, T, Token>>,
     last_span: Span,
     error_on_misplaced_inst: bool,
@@ -95,7 +95,7 @@ pub fn classify_inst(inst: &InstNode) -> InstType {
     }
 }
 
-impl<'a, T: BufReader + Buffer> AsmParser<'a, T> {
+impl<'a, T: Reader> AsmParser<'a, T> {
 
     pub fn new(tokens: Peekable<SourceToken<Token>, Lexer<'a, T, Token>>
            ) -> AsmParser<'a, T> {
@@ -216,7 +216,7 @@ impl<'a, T: BufReader + Buffer> AsmParser<'a, T> {
     }
 
     fn parse_mul_or_div(&mut self, pred: Pred, rd: Reg, rs: Reg) -> InstNode {
-        let cons;
+        let cons: fn(Pred, bool, Reg, Reg, Reg) -> InstNode;
         let is_signed;
 
         match self.eat() {
@@ -805,7 +805,7 @@ impl<'a, T: BufReader + Buffer> AsmParser<'a, T> {
                         _ => panic!()
                     };
                     self.expect(Token::Colon);
-                    if !labels.insert(name.clone(), instnum) {
+                    if labels.insert(name.clone(), instnum).is_none() {
                         self.error(format!("Label '{}' redefined.", name));
                     }
                 },

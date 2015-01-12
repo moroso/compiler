@@ -8,6 +8,7 @@ use std::fmt;
 use std::fmt::{Formatter, Show};
 use mas::util::fits_in_bits;
 use std::ops::Index;
+use std::option::IterMut;
 
 pub use self::CoReg::*;
 pub use self::AluOp::*;
@@ -695,13 +696,24 @@ impl InstNode {
     }
 }
 
-pub struct InstPacket([InstNode; 4]);
+allow_string!(InstNode);
 
+//pub struct InstPacket([InstNode; 4]);
+pub type InstPacket = [InstNode; 4];
+allow_string!(InstPacket);
+/*
 impl Index<uint> for InstPacket {
     type Output = InstNode;
     fn index<'a>(&'a self, i: &uint) -> &'a InstNode {
         let InstPacket(ref packet) = *self;
         &packet[*i]
+    }
+}
+
+impl InstPacket {
+    fn iter_mut(&mut self) -> IterMut<InstNode> {
+        let InstPacket(ref mut packet) = *self;
+        packet.iter_mut()
     }
 }
 
@@ -712,3 +724,4 @@ impl Show for InstPacket {
                packet[0], packet[1], packet[2], packet[3])
     }
 }
+*/
