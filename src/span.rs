@@ -3,8 +3,8 @@ use std::cmp::{Eq, Ordering};
 
 #[derive(Copy, Clone, PartialEq, Eq, Ord)]
 pub struct SourcePos {
-    pub row: uint,
-    pub col: uint,
+    pub row: usize,
+    pub col: usize,
 }
 
 impl PartialOrd for SourcePos {
@@ -16,7 +16,7 @@ impl PartialOrd for SourcePos {
 
 impl fmt::Show for SourcePos {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "line {}, column {}", self.row+1, self.col+1)
+        write!(f, "line {:?}, column {:?}", self.row+1, self.col+1)
     }
 }
 
@@ -36,13 +36,13 @@ pub struct Span {
 
 impl fmt::Show for Span {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} - {}", self.begin, self.end)
+        write!(f, "{:?} - {:?}", self.begin, self.end)
     }
 }
 
 impl Span {
     pub fn to(self, other: Span) -> Span {
-        assert!(self <= other, format!("self={}, other={}", self, other));
+        assert!(self <= other, format!("self={:?}, other={:?}", self, other));
         Span {
             begin: self.begin,
             end: other.end,
@@ -58,7 +58,7 @@ impl Span {
     }
 }
 
-pub fn mk_sp(begin: SourcePos, len: uint) -> Span {
+pub fn mk_sp(begin: SourcePos, len: usize) -> Span {
     let mut end = begin.clone();
     end.col += len;
     Span { begin: begin, end: end }

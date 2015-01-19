@@ -12,11 +12,11 @@ macro_rules! lexer_rules {
             {
                 use mclib::lexer::RuleMatcher;
 
-                fn rule(s: &str) -> Option<(uint, Token)> {
+                fn rule(s: &str) -> Option<(usize, Token)> {
                     $m.check(s).map(|(len, args)| (len, fn_call($c, args)))
                 }
 
-                rule as fn(&str) -> Option<(uint, Token)>
+                rule as fn(&str) -> Option<(usize, Token)>
             }
         ),* ]
     )
@@ -161,7 +161,7 @@ impl<'a> fmt::Show for Token {
             Token::Const                  => "const",
             Token::Sizeof                 => "sizeof",
 
-            Token::IntTypeTok(ik)         => return write!(f, "{}", ik),
+            Token::IntTypeTok(ik)         => return write!(f, "{:?}", ik),
             Token::Bool                   => "bool",
 
             Token::LParen                 => "(",
@@ -213,10 +213,10 @@ impl<'a> fmt::Show for Token {
             Token::Dollar                 => "$",
             Token::DotDotDot              => "...",
 
-            Token::IdentTok(ref id)       => return write!(f, "{}", id),
-            Token::IdentBangTok(ref id)   => return write!(f, "{}!", id),
-            Token::NumberTok(n, ik)       => return write!(f, "{}{}", n, ik),
-            Token::StringTok(ref s)       => return write!(f, "\"{}\"", s.escape_default()),
+            Token::IdentTok(ref id)       => return write!(f, "{:?}", id),
+            Token::IdentBangTok(ref id)   => return write!(f, "{:?}!", id),
+            Token::NumberTok(n, ik)       => return write!(f, "{:?}{:?}", n, ik),
+            Token::StringTok(ref s)       => return write!(f, "\"{:?}\"", s.escape_default()),
 
             Token::WS                     => " ",
             Token::Eof                    => "<EOF>",
@@ -224,7 +224,7 @@ impl<'a> fmt::Show for Token {
             Token::EndComment             => "*/",
         };
 
-        write!(f, "{}", s)
+        write!(f, "{:?}", s)
     }
 }
 
@@ -443,4 +443,59 @@ pub fn new_mb_lexer<'s, S, B>(name: S, buffer: B) -> Lexer<B, Token>
     };
 
     Lexer::new(lang, name, buffer)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Token, new_mb_lexer};
+
+    use std::io;
+
+    use mclib::util::IntKind::GenericInt;
+    use mclib::lexer::{Lexer, SourceToken};
+
+    use syntax::ast;
+
+    fn lexer_from_str(s: &str) -> Lexer<io::BufferedReader<io::MemReader>, Token> {
+        let bytes = s.as_bytes().to_vec();
+        let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
+        new_mb_lexer("test", buffer)
+    }
+
+    fn compare(actual: &[SourceToken<Token>], expected: &[Token]) {
+        for (actual_st, expected_tok)
+            in actual.iter().zip(expected.iter()) {
+            assert!(actual_st.tok == *expected_tok,
+                    format!("Failure:\n  found {:?}, expected {:?}\n",
+                            actual_st.tok, *expected_tok));
+        }
+    }
+
+    #[test]
+    fn test() {
+        let lexer1 = lexer_from_str(r#"f(x - /* I am a comment */ 0x3f5B)+1 "Hello\" World")"#);
+        compare(lexer1.collect::<Vec<_>>().as_slice(),
+                &[
+                    Token::IdentTok(String::from_str("f")),
+                    Token::LParen,
+                    Token::IdentTok(String::from_str("x")),
+                    Token::Dash,
+                    Token::NumberTok(0x3f5B, GenericInt),
+                    Token::RParen,
+                    Token::Plus,
+                    Token::NumberTok(1, GenericInt),
+                    Token::StringTok(String::from_str(r#"Hello\" World"#)),
+                ]);
+
+        let lexer2 = lexer_from_str("let x: int = 5;");
+        compare(lexer2.collect::<Vec<_>>().as_slice(),
+                &[
+                    Token::Let,
+                    Token::IdentTok(String::from_str("x")),
+                    Token::Colon,
+                    Token::IdentTok(String::from_str("int")),
+                    Token::Eq,
+                    Token::NumberTok(5, GenericInt),
+                ]);
+    }
 }

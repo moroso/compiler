@@ -1,0 +1,1773 @@
+/* This is the parser for the Moroso compiler, taking the stream of tokens
+ * produced by the lexer and giving us an abstract syntax tree (AST).
+ *
+ * The parser is a predictive recursive descent parser
+ * (see http://en.wikipedia.org/wiki/Recursive_descent_parser ). The idea
+ * is that for each node in the grammar, we have a corresponding function
+ * to parse that node. We may peek at the next token in the stream (this
+ * is done with the peek() function), or consume tokens from the stream
+ * (with the expect(token) function, which verifies that the token we're
+ * consuming is the one we expected to have, or the eat() function, which
+ * will consume the next token regardless of what it is).
+ *
+ * Each item in the token stream, and each node in the AST, also has a "span"
+ * associated with it, which keeps track of what characters in the input file
+ * correspond to it. As we build AST nodes, we have to take the spans for
+ * the tokens and the other AST nodes and use those to build spans for the
+ * nodes we build.
+ */
+
+use std::borrow::IntoCow;
+use std::collections::{BTreeMap, BTreeSet};
+use std::io::{self, stdio};
+use std::iter::FromIterator;
+use std::path::Path as FilePath;
+
+use mclib::intern::Name;
+use mclib::lexer::{Lexer, SourceToken};
+use mclib::span::{SourcePos, Span, mk_sp};
+
+use syntax::ast::{self, WithId, NodeId};
+use syntax::lexer::{new_mb_lexer, Token};
+
+use session::{Options, Session};
+
+type FuncProto = (ast::Ident, Vec<ast::FuncArg>, ast::Type, Vec<ast::Ident>);
+type StaticDecl = (ast::Ident, ast::Type);
+
+// Convenience for tests
+pub fn lexer_from_str(s: &str) -> Lexer<io::BufferedReader<io::MemReader>, Token> {
+    let bytes = s.as_bytes().to_vec();
+    let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
+    new_mb_lexer("test", buffer)
+}
+
+pub struct ParseState {
+    /// Each AST node is given a unique identifier. This keeps track of the
+    /// next number to assign to an identifier.
+    next_id: u32,
+    /// Tracks the current relative path.
+    cur_rel_path: Path,
+    /// Tracks the corresponding source position of each AST node.
+    spanmap: BTreeMap<NodeId, Span>,
+    /// Tracks the corresponding file name of each AST node.
+    filemap: BTreeMap<NodeId, Name>,
+}
+
+impl ParseState {
+    pub fn new() -> ParseState {
+        ParseState {
+            next_id: 0,
+            cur_rel_path: Path::new("."),
+            spanmap: BTreeMap::new(),
+            filemap: BTreeMap::new(),
+        }
+    }
+
+    fn new_id(&mut self) -> NodeId {
+        let id = self.next_id;
+        self.next_id += 1;
+        NodeId(id)
+    }
+
+    fn set_span(&mut self, id: NodeId, sp: Span) {
+        self.spanmap.insert(id, sp);
+    }
+
+    fn set_file(&mut self, id: NodeId, name: Name) {
+        self.filemap.insert(id, name);
+    }
+    
+    fn get_cur_rel_path(&self) -> &Path {
+        &self.cur_rel_path
+    }
+
+    /// Get the Span of a certain node in the AST.
+    pub fn span_of(&self, id: &NodeId) -> Span {
+        *self.spanmap.get(id).unwrap()
+    }
+
+    /// Get the name of a certain node in the AST.
+    pub fn filename_of(&self, id: &NodeId) -> Name {
+        *self.filemap.get(id).unwrap()
+    }
+
+    /// Get all of the files used by this parse.
+    pub fn get_all_filenames(&self) -> BTreeSet<Name> {
+        FromIterator::from_iter(self.filemap.iter().map(|(_,v)| *v))
+    }
+}
+
+/// The state for parsing a stream of tokens into an AST node
+pub struct Parser<'a, T> {
+    /// The token stream.
+    tokens: T,
+    /// The next token in the stream
+    next: Option<SourceToken<Token>>,
+    /// The name of the current stream being parsed.
+    name: Name,
+    /// The span corresponding to the last token we consumed from the stream.
+    last_span: Span,
+    /// Any parsing restriction in the current context
+    restriction: Restriction,
+    /// The parse session this stream belongs to
+    session: &'a mut Session,
+}
+
+#[derive(Copy, PartialEq, Eq)]
+enum Restriction {
+    ExprStmtRestriction,
+    NoAmbiguousLBraceRestriction,
+    NoRestriction,
+}
+
+#[allow(dead_code)]
+#[derive(Copy)]
+enum Assoc {
+    LeftAssoc,
+    RightAssoc,
+    NonAssoc,
+}
+
+struct OpTable {
+    rows: &'static [OpTableRow],
+}
+
+#[derive(Copy)]
+struct OpTableRow {
+    assoc: Assoc,
+    ops: usize,
+}
+
+fn can_start_item(t: &Token) -> bool {
+    match *t {
+        Token::Fn | Token::Static | Token::Extern |
+        Token::Enum | Token::Struct | Token::Mod |
+        Token::Macro | Token::Const | Token::Type
+            => true,
+        _   => false
+    }
+}
+
+fn can_start_expr(t: &Token) -> bool {
+    match *t {
+        Token::If | Token::Return | Token::Break | Token::Continue |
+        Token::Match | Token::For | Token::While | Token::Do |
+        Token::True | Token::False | Token::Null |
+        Token::LBrace | Token::LParen |
+        Token::ColonColon | Token::IdentTok(..) |
+        Token::NumberTok(..) | Token::StringTok(..) |
+        Token::IdentBangTok(..)
+            => true,
+        _   => false
+    }
+}
+
+fn unop_from_token(t: &Token) -> Option<ast::UnOpNode> {
+    match *t {
+        Token::Dash => Some(ast::Negate),
+        Token::Tilde => Some(ast::BitNot),
+        Token::Bang => Some(ast::LogNot),
+        Token::Ampersand => Some(ast::AddrOf),
+        Token::Star => Some(ast::Deref),
+        _ => None,
+    }
+}
+
+fn binop_from_token(t: &Token) -> Option<ast::BinOpNode> {
+    match *t {
+        Token::Plus => Some(ast::PlusOp),
+        Token::Dash => Some(ast::MinusOp),
+        Token::Star => Some(ast::TimesOp),
+        Token::ForwardSlash => Some(ast::DivideOp),
+        Token::Percent => Some(ast::ModOp),
+        Token::EqEq => Some(ast::EqualsOp),
+        Token::BangEq => Some(ast::NotEqualsOp),
+        Token::Less => Some(ast::LessOp),
+        Token::LessEq => Some(ast::LessEqOp),
+        Token::Greater => Some(ast::GreaterOp),
+        Token::GreaterEq => Some(ast::GreaterEqOp),
+        Token::AmpAmp => Some(ast::AndAlsoOp),
+        Token::PipePipe => Some(ast::OrElseOp),
+        Token::Ampersand => Some(ast::BitAndOp),
+        Token::Pipe => Some(ast::BitOrOp),
+        Token::Caret => Some(ast::BitXorOp),
+        Token::Lsh => Some(ast::LeftShiftOp),
+        Token::Rsh => Some(ast::RightShiftOp),
+        _ => None,
+    }
+}
+
+fn unop_token(op: ast::UnOpNode) -> Token {
+    match op {
+        ast::Deref => Token::Star,
+        ast::AddrOf => Token::Ampersand,
+        ast::Negate => Token::Dash,
+        ast::LogNot => Token::Bang,
+        ast::BitNot => Token::Tilde,
+        ast::SxbOp |
+        ast::SxhOp |
+        ast::Identity => panic!("Op {:?} should never come up in the language.",
+                          op),
+    }
+}
+
+fn binop_token(op: ast::BinOpNode) -> Token {
+    match op {
+        ast::PlusOp => Token::Plus,
+        ast::MinusOp => Token::Dash,
+        ast::TimesOp => Token::Star,
+        ast::DivideOp => Token::ForwardSlash,
+        ast::ModOp => Token::Percent,
+        ast::EqualsOp => Token::EqEq,
+        ast::NotEqualsOp => Token::BangEq,
+        ast::LessOp => Token::Less,
+        ast::LessEqOp => Token::LessEq,
+        ast::GreaterOp => Token::Greater,
+        ast::GreaterEqOp => Token::GreaterEq,
+        ast::AndAlsoOp => Token::AmpAmp,
+        ast::OrElseOp => Token::PipePipe,
+        ast::BitAndOp => Token::Ampersand,
+        ast::BitOrOp => Token::Pipe,
+        ast::BitXorOp => Token::Caret,
+        ast::LeftShiftOp => Token::Lsh,
+        ast::RightShiftOp => Token::Rsh,
+    }
+}
+
+// Convenience function for testing
+pub fn ast_from_str<'a, U, F>(s: &str, f: F) -> (Session, U)
+    where F: FnMut(&mut Parser<Lexer<::std::io::BufferedReader<::std::io::MemReader>, Token>>) -> U {
+    let mut session = Session::new(Options::new());
+    let lexer = lexer_from_str(s);
+    let name = session.interner.intern(lexer.get_name());
+    let tree = parse_with(&mut session, name, lexer, f);
+    (session, tree)
+}
+
+impl OpTable {
+    fn parse_expr<'a, T: Iterator<Item=SourceToken<Token>>>(&self, parser: &mut Parser<'a, T>) -> ast::Expr {
+        fn parse_row<'a, T: Iterator<Item=SourceToken<Token>>>(r: usize, rows: &[OpTableRow], parser: &mut Parser<'a, T>) -> ast::Expr {
+            if r == 0 {
+                parser.parse_unop_expr_maybe_cast()
+            } else {
+                let row = &rows[r - 1];
+                let start_span = parser.cur_span();
+                let parse_simpler_expr = |&:p: &mut Parser<'a, T>| parse_row(r - 1, rows, p);
+                let e = parse_simpler_expr(parser);
+                parser.maybe_parse_binop(row.ops, row.assoc, parse_simpler_expr, e, start_span)
+            }
+        }
+
+        parse_row(self.rows.len(), self.rows, parser)
+    }
+}
+
+/// Entry point for parsing AST fragments
+pub fn parse_with<'p, F, U, T>(session: &'p mut Session, name: Name, tokens: T, mut f: F) -> U
+    where F: FnMut(&mut Parser<'p, T>) -> U,
+          T: Iterator<Item=SourceToken<Token>> {
+    let mut tokp = Parser::new(session, name, tokens);
+    f(&mut tokp)
+}
+
+/// Standard entry point for the parser
+pub fn parse_file(session: &mut Session, file: io::File) -> ast::Module {
+    use std::mem::replace;
+
+    let filename = format!("{:?}", file.path().display());
+    let old_wd = replace(&mut session.state.cur_rel_path, file.path().dir_path());
+    let module = parse_buffer(session, filename, io::BufferedReader::new(file));
+    replace(&mut session.state.cur_rel_path, old_wd);
+
+    module
+}
+
+fn parse_buffer<'s, S: IntoCow<'s, String, str>, R: Reader>(session: &mut Session, name: S, buffer: R) -> ast::Module {
+    let lexer = new_mb_lexer(name, buffer);
+    parse_lexer(session, lexer)
+}
+
+fn parse_lexer<R: Reader>(session: &mut Session, lexer: Lexer<R, Token>) -> ast::Module {
+    let name = session.interner.intern(lexer.get_name());
+    parse_with(session, name, lexer, |p| p.parse_module())
+}
+
+impl<'a, T: Iterator<Item=SourceToken<Token>>> Parser<'a, T> {
+    pub fn new(session: &'a mut Session, name: Name, tokens: T) -> Parser<'a, T> {
+        Parser {
+            name: name,
+            next: None,
+            tokens: tokens,
+            last_span: mk_sp(SourcePos::new(), 0),
+            restriction: Restriction::NoRestriction,
+            session: session,
+        }
+    }
+
+    /// Get the current cursor position as a zero-width span
+    fn cur_span(&mut self) -> Span {
+        let peek_begin = self.peek_span().get_begin();
+        mk_sp(peek_begin, 0)
+    }
+
+    fn advance(&mut self) {
+        self.next = self.tokens.next();
+
+        if self.next.is_none() {
+            panic!("Tried to advance past EOF")
+        }
+    }
+
+    /// "Peek" at the next token, returning the token, without consuming
+    /// it from the stream.
+    fn peek<'t>(&'t mut self) -> &'t Token {
+        if self.next.is_none() {
+            self.advance();
+        }
+
+        self.next.as_ref().map(|st| &st.tok).unwrap()
+    }
+
+    /// Peek at the Span of the next token.
+    fn peek_span(&mut self) -> Span {
+        if self.next.is_none() {
+            self.advance();
+        }
+
+        self.next.as_ref().map(|st| st.sp).unwrap()
+    }
+
+    /// Consume the next token from the stream, returning it.
+    fn eat(&mut self) -> Token {
+        if self.next.is_none() {
+            self.advance();
+        }
+
+        let st = self.next.take().unwrap();
+        self.last_span = st.sp;
+        st.tok
+    }
+
+    /// Consume one token from the stream, erroring if it's not
+    /// the `expected`. Returns the string corresponding to that
+    /// token.
+    fn expect(&mut self, expected: Token) {
+        let tok = self.eat();
+        if tok != expected{
+            self.error(format!("Expected {:?}, found {:?}",
+                               expected, tok),
+                       self.last_span.get_begin());
+        }
+    }
+
+    fn error<M: Str>(&self, message: M, pos: SourcePos) -> ! {
+        let path = self.session.interner.name_to_str(&self.name);
+
+        let s = format!("Parse error: {:?}\n    at {:?} {:?}\n", message.as_slice(), path, pos);
+        let _ = stdio::stderr().write_str(s.as_slice());
+        panic!()
+    }
+
+    /// A convenience function to generate an error message when we've
+    /// peeked at a token, but it doesn't match any token we were expecting.
+    fn peek_error<M: Str>(&mut self, message: M) -> ! {
+        let tok = self.peek().clone();
+        let pos = self.peek_span().get_begin();
+        self.error(format!("{:?} (got token {:?})", message.as_slice(), tok), pos)
+    }
+
+    fn add_id_and_span<V>(&mut self, val: V, sp: Span) -> WithId<V> {
+        let id = self.session.state.new_id();
+        self.session.state.set_span(id, sp);
+        self.session.state.set_file(id, self.name);
+        WithId { val: val, id: id }
+    }
+
+    /// Utility to parse a comma-separated list of things
+    fn parse_list<U, P>(&mut self, mut p: P, end: Token, allow_trailing_comma: bool) -> Vec<U>
+        where P: FnMut(&mut Parser<'a, T>) -> U {
+        if *self.peek() == end {
+            return vec!();
+        }
+
+        let mut res = vec!(p(self));
+        while *self.peek() != end {
+            match *self.peek() {
+                Token::Comma => {
+                    self.expect(Token::Comma);
+                    if !allow_trailing_comma || *self.peek() != end {
+                        res.push(p(self))
+                    }
+                }
+                _ => {
+                    self.peek_error(format!("Expected comma or {:?}", end))
+                }
+            }
+        }
+
+        res
+    }
+
+    fn with_restriction<U, P>(&mut self, r: Restriction, mut p: P) -> U
+        where P: FnMut(&mut Parser<'a, T>) -> U {
+        let old = self.restriction;
+        self.restriction = r;
+        let ret = p(self);
+        self.restriction = old;
+        ret
+    }
+
+    /////////////////////////////////////////////////////////////////////
+    // The actual parser functions begin here!
+    // Most functions from this point on are for parsing a specific node
+    // in the grammar.
+
+    fn parse_name(&mut self) -> Name {
+        match self.eat() {
+            Token::IdentTok(name) => self.session.interner.intern(name),
+            tok => self.error(format!("Expected ident, found {:?}", tok),
+                              self.last_span.get_begin())
+        }
+    }
+
+    fn parse_ident(&mut self) -> ast::Ident {
+        let ident = ast::IdentNode {
+            name: self.parse_name(),
+            tps: None,
+        };
+
+        let span = self.last_span;
+        self.add_id_and_span(ident, span)
+    }
+
+    fn parse_type_params(&mut self) -> Vec<ast::Type> {
+        self.expect(Token::Less);
+        let ps = self.parse_list(|p| p.parse_type(), Token::Greater, false);
+        self.expect(Token::Greater);
+        ps
+    }
+
+    fn parse_item_type_params(&mut self, other_token: Token) -> Vec<ast::Ident> {
+        if *self.peek() == other_token {
+            return vec!();
+        }
+
+        match *self.peek() {
+            Token::Less => {
+                self.expect(Token::Less);
+                let tps = self.parse_list(|p| p.parse_ident(), Token::Greater, false);
+                self.expect(Token::Greater);
+                tps
+            },
+            _ => self.peek_error("Expected type parameters or argument list")
+        }
+    }
+
+    fn parse_use(&mut self) -> ast::Import {
+        let start_span = self.cur_span();
+
+        let path = self.parse_path_common(false, true);
+        let import = match *self.peek() {
+            Token::Star => {
+                self.expect(Token::Star);
+                ast::ImportNode {
+                    elems: path.val.elems,
+                    global: path.val.global,
+                    import: ast::ImportAll
+                }
+            }
+            Token::LBrace => {
+                self.expect(Token::LBrace);
+                let mut idents = vec!(self.parse_ident());
+
+                while *self.peek() == Token::Comma {
+                    self.expect(Token::Comma);
+                    idents.push(self.parse_ident());
+                }
+                self.expect(Token::RBrace);
+
+                ast::ImportNode {
+                    elems: path.val.elems,
+                    global: path.val.global,
+                    import: ast::ImportNames(idents)
+                }
+            }
+            _ => {
+                let mut v = path.val.elems;
+                let last = v.pop().expect("path can't be empty");
+
+                ast::ImportNode {
+                    elems: v,
+                    global: path.val.global,
+                    import: ast::ImportNames(vec!(last))
+                }
+            }
+        };
+
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(import, start_span.to(end_span))
+    }
+
+    // If for_use is true, then we tolerate a { or a * appearing after
+    // a ::.
+    fn parse_path_common(&mut self, with_tps: bool, for_use: bool) -> ast::Path {
+        let start_span = self.cur_span();
+
+        let global = match *self.peek() {
+            Token::ColonColon => {
+                self.expect(Token::ColonColon);
+                true
+            }
+            _ => false,
+        };
+
+        let mut path = ast::PathNode {
+            global: global,
+            elems: vec!(self.parse_ident()),
+        };
+
+        while *self.peek() == Token::ColonColon {
+            let start_span = self.cur_span();
+
+            self.expect(Token::ColonColon);
+            match *self.peek() {
+                Token::Less if with_tps => {
+                    let elem = path.elems.last_mut().unwrap();
+                    let tps = self.parse_type_params();
+                    elem.val.tps = Some(tps);
+                }
+                Token::Star | Token::LBrace if for_use => {
+                    break;
+                }
+                _ => {
+                    path.elems.push(self.parse_ident());
+                }
+            }
+
+            let id = path.elems.last().unwrap().id;
+
+            let end_span = self.cur_span();
+            self.session.state.set_span(id, start_span.to(end_span));
+        }
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(path, start_span.to(end_span))
+    }
+
+    fn parse_path(&mut self) -> ast::Path {
+        self.parse_path_common(true, false)
+    }
+
+    fn parse_path_no_tps(&mut self) -> ast::Path {
+        self.parse_path_common(false, false)
+    }
+
+    pub fn parse_lit(&mut self) -> ast::Lit {
+        let node = match self.eat() {
+            Token::True                 => ast::BoolLit(true),
+            Token::False                => ast::BoolLit(false),
+            Token::Null                 => ast::NullLit,
+            Token::StringTok(s)         => ast::StringLit(s),
+            Token::NumberTok(num, kind) => ast::NumLit(num, kind),
+            tok                         => self.error(format!("Unexpected {:?} where literal expected", tok),
+                                                      self.last_span.get_begin())
+        };
+
+        let span = self.last_span;
+        self.add_id_and_span(node, span)
+    }
+
+    fn parse_pat_common(&mut self, allow_types: bool) -> ast::Pat {
+        let start_span = self.cur_span();
+
+        let maybe_type = |&:p: &mut Parser<'a, T>, allow_types| {
+            match *p.peek() {
+                Token::Colon if allow_types => {
+                    p.expect(Token::Colon);
+                    let t = p.parse_type();
+                    Some(t)
+                }
+                _ => None
+            }
+        };
+
+        let pat = match *self.peek() {
+            Token::ColonColon | Token::IdentTok(..) => {
+                let path = self.parse_path();
+                match *self.peek() {
+                    Token::LParen => {
+                        self.expect(Token::LParen);
+                        let args = self.parse_list(|p| p.parse_pat_common(allow_types), Token::RParen, true);
+                        self.expect(Token::RParen);
+                        ast::VariantPat(path, args)
+                    }
+                    Token::DoubleArrow => {
+                        // Empty variant.
+                        ast::VariantPat(path, vec!())
+                    }
+                    Token::LBrace => {
+                        self.expect(Token::LBrace);
+                        let field_pats = self.parse_list(|p| p.parse_field_pat(), Token::RBrace, true);
+                        self.expect(Token::RBrace);
+                        ast::StructPat(path, field_pats)
+                    }
+                    _ => {
+                        if path.val.global || path.val.elems.len() != 1 {
+                            self.error(String::from_str("Expected ident, found path"), self.last_span.get_begin());
+                        }
+                        let mut elems = path.val.elems;
+                        let ident = elems.pop().unwrap();
+                        ast::IdentPat(ident, maybe_type(self, allow_types))
+                    }
+                }
+            }
+            Token::LParen => {
+                self.expect(Token::LParen);
+                let args = self.parse_list(|p| p.parse_pat_common(allow_types), Token::RParen, true);
+                self.expect(Token::RParen);
+                ast::TuplePat(args)
+            }
+            Token::Underscore => {
+                self.expect(Token::Underscore);
+                ast::DiscardPat(maybe_type(self, allow_types))
+            }
+            _ => self.peek_error("Unexpected token while parsing pattern")
+        };
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(pat, start_span.to(end_span))
+    }
+
+    pub fn parse_pat(&mut self) -> ast::Pat {
+        self.parse_pat_common(true)
+    }
+
+    pub fn parse_typeless_pat(&mut self) -> ast::Pat {
+        self.parse_pat_common(false)
+    }
+
+    pub fn parse_field_pat(&mut self) -> ast::FieldPat {
+        let name = self.parse_name();
+        self.expect(Token::Colon);
+        let pat = self.parse_typeless_pat();
+        ast::FieldPat {
+            name: name,
+            pat: pat,
+        }
+    }
+
+    pub fn parse_type(&mut self) -> ast::Type {
+        /*
+        Parse a type.
+        */
+        let start_span = self.cur_span();
+        let node = match *self.peek() {
+            Token::IntTypeTok(ik) => {
+                self.eat();
+                ast::IntType(ik)
+            }
+            Token::Bool => {
+                self.expect(Token::Bool);
+                ast::BoolType
+            }
+            Token::Star => {
+                self.expect(Token::Star);
+                ast::PtrType(Box::new(self.parse_type()))
+            }
+            Token::LParen => {
+                self.expect(Token::LParen);
+                let mut inner_types = self.parse_list(|p| p.parse_type(), Token::RParen, true);
+                self.expect(Token::RParen);
+                if inner_types.len() == 0 {
+                    ast::UnitType
+                } else if inner_types.len() == 1 {
+                    inner_types.pop().unwrap().val
+                } else {
+                    ast::TupleType(inner_types)
+                }
+            }
+            Token::ColonColon | Token::IdentTok(..) => {
+                let mut path = self.parse_path_no_tps();
+                match *self.peek() {
+                    Token::Less => {
+                        let elem = path.val.elems.last_mut().unwrap();
+                        elem.val.tps = Some(self.parse_type_params());
+                    }
+                    _ => {}
+                }
+                ast::NamedType(path)
+            }
+            Token::Fn => {
+                self.expect(Token::Fn);
+                self.expect(Token::LParen);
+                let arglist = self.parse_list(|p| p.parse_type(), Token::RParen, true);
+                self.expect(Token::RParen);
+                self.expect(Token::Arrow);
+                ast::FuncType(arglist, Box::new(self.parse_type()))
+            }
+            _ => self.peek_error("Expected *, opening paren, a type name, or fn"),
+        };
+
+        let mut dims = vec!();
+        while *self.peek() == Token::LBracket {
+            self.expect(Token::LBracket);
+            let dim = self.parse_expr();
+            self.expect(Token::RBracket);
+            dims.push(dim);
+        }
+
+        // XXX this span is bogus but so is our array type syntax :P
+        let end_span = self.cur_span();
+        let sp = start_span.to(end_span);
+
+        let mut result = self.add_id_and_span(node, sp);
+        while !dims.is_empty() {
+            let dim = dims.pop().unwrap();
+            result = self.add_id_and_span(ast::ArrayType(Box::new(result), Box::new(dim)), sp);
+        }
+
+        result
+    }
+
+    pub fn parse_let_stmt(&mut self) -> ast::Stmt {
+        /* Parse a 'let' statement. There are a bunch of variations on this:
+         * * `let x: int` to declare a typed variable, but not initialize it;
+         * * `let x: int = 5` to declare a typed variable and initialize it;
+         * * `let x = 5` to declare and initialize x, and infer the type;
+         * * `let (x, y, z) = t` to deconstruct the tuple t into components.
+         */
+        let start_span = self.cur_span();
+        self.expect(Token::Let);
+
+        let pat = self.parse_pat();
+
+        let expr = match *self.peek() {
+            Token::Semicolon => {
+                self.expect(Token::Semicolon);
+                None
+            },
+            Token::Eq => {
+                self.expect(Token::Eq);
+                let var_value = self.with_restriction(Restriction::NoRestriction, |p| p.parse_expr());
+                self.expect(Token::Semicolon);
+                Some(var_value)
+            },
+            _ => self.peek_error("Expected semicolon or \"=\""),
+        };
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::LetStmt(pat, expr), start_span.to(end_span))
+    }
+
+    fn parse_if_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+        self.expect(Token::If);
+
+        let cond = self.parse_expr_no_structs();
+        let true_block = self.parse_block();
+
+        let false_block = match *self.peek() {
+            Token::Else => {
+                self.expect(Token::Else);
+                match *self.peek() {
+                    Token::If => {
+                        let start_span = self.cur_span();
+                        let node = ast::BlockNode {
+                            items: vec!(),
+                            stmts: vec!(),
+                            expr: Some(self.parse_if_expr()),
+                        };
+                        let end_span = self.cur_span();
+                        self.add_id_and_span(node, start_span.to(end_span))
+                    },
+                    _ => self.parse_block()
+                }
+            }
+            _ => {
+                let fake_span = self.cur_span();
+                let node = ast::BlockNode {
+                    items: vec!(),
+                    stmts: vec!(),
+                    expr: Some(self.add_id_and_span(ast::UnitExpr, fake_span)),
+                };
+                self.add_id_and_span(node, fake_span)
+            }
+        };
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::IfExpr(Box::new(cond), Box::new(true_block), Box::new(false_block)),
+                             start_span.to(end_span))
+    }
+
+    fn parse_return_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+        self.expect(Token::Return);
+        let result = ast::ReturnExpr(Box::new(self.parse_expr()));
+        let end_span = self.cur_span();
+        self.add_id_and_span(result, start_span.to(end_span))
+    }
+
+    fn parse_while_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+        self.expect(Token::While);
+        let cond = self.parse_expr_no_structs();
+        let body = self.parse_block();
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::WhileExpr(Box::new(cond), Box::new(body)), start_span.to(end_span))
+    }
+
+    fn parse_do_while_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+        self.expect(Token::Do);
+        let body = self.parse_block();
+        self.expect(Token::While);
+        let cond = self.parse_expr_no_structs();
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::DoWhileExpr(Box::new(cond), Box::new(body)),
+                             start_span.to(end_span))
+    }
+
+    fn parse_for_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+        self.expect(Token::For);
+        self.expect(Token::LParen);
+        let this_span = self.cur_span();
+        let init = match *self.peek() {
+            Token::Semicolon => self.add_id_and_span(ast::UnitExpr, this_span),
+            _ => self.parse_expr(),
+        };
+        self.expect(Token::Semicolon);
+        let this_span = self.cur_span();
+        let cond = match *self.peek() {
+            Token::Semicolon => self.add_id_and_span(ast::UnitExpr, this_span),
+            _ => self.parse_expr(),
+        };
+        self.expect(Token::Semicolon);
+        let this_span = self.cur_span();
+        let iter = match *self.peek() {
+            Token::RParen => self.add_id_and_span(ast::UnitExpr, this_span),
+            _ => self.parse_expr(),
+        };
+        self.expect(Token::RParen);
+        let body = self.parse_block();
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::ForExpr(Box::new(init), Box::new(cond), Box::new(iter), Box::new(body)), start_span.to(end_span))
+    }
+
+    fn parse_match_arm(&mut self) -> ast::MatchArm {
+        let pat = self.parse_pat();
+        self.expect(Token::DoubleArrow);
+        let body = self.parse_expr();
+
+        ast::MatchArm {
+            pat:   pat,
+            body:  body,
+        }
+    }
+
+    fn parse_match_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+        self.expect(Token::Match);
+        let matched_expr = self.parse_expr_no_structs();
+        self.expect(Token::LBrace);
+        let match_items = self.parse_list(|p| p.parse_match_arm(), Token::RBrace, true); // TODO don't require comma when there is a closing brace
+        self.expect(Token::RBrace);
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::MatchExpr(Box::new(matched_expr), match_items), start_span.to(end_span))
+    }
+
+    fn parse_unop_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+        let op = match *self.peek() {
+            ref tok if unop_from_token(tok).is_some() =>
+                Some(unop_from_token(tok).unwrap()),
+            _ => None,
+        };
+
+        match op {
+            Some(op) => {
+                self.expect(unop_token(op));
+                let span = self.last_span;
+                let op = self.add_id_and_span(op, span);
+                let e = self.parse_simple_expr();
+                let node = ast::UnOpExpr(op, Box::new(e));
+                let end_span = self.cur_span();
+                self.add_id_and_span(node, start_span.to(end_span))
+            }
+            _ => self.parse_simple_expr()
+        }
+    }
+
+    fn parse_unop_expr_maybe_cast(&mut self) -> ast::Expr {
+        fn maybe_parse_cast<'a, T: Iterator<Item=SourceToken<Token>>>(p: &mut Parser<'a, T>, expr: ast::Expr, start_span: Span) -> ast::Expr {
+            match *p.peek() {
+                Token::As => {
+                    p.expect(Token::As);
+                    let t = p.parse_type();
+                    let node = ast::CastExpr(Box::new(expr), t);
+                    let end_span = p.cur_span();
+                    let castexpr = p.add_id_and_span(node, start_span.to(end_span));
+                    maybe_parse_cast(p, castexpr, start_span)
+                }
+                _ => expr,
+            }
+        }
+
+        let start_span = self.cur_span();
+        let e = self.parse_unop_expr();
+        maybe_parse_cast(self, e, start_span)
+    }
+
+    fn expr_is_complete(&mut self, e: &ast::Expr) -> bool {
+        // An expression is 'complete' if the expression:
+        //   a) does not require a semicolon, and
+        //   b) is a statement.
+        match e.val {
+              ast::IfExpr(..)
+            | ast::ForExpr(..)
+            | ast::WhileExpr(..)
+            | ast::MatchExpr(..)
+            | ast::BlockExpr(..)
+              => self.restriction == Restriction::ExprStmtRestriction,
+            _ => false,
+        }
+    }
+
+    fn maybe_parse_binop<P>(&mut self,
+                            ops: usize,
+                            assoc: Assoc,
+                            mut parse_simpler_expr: P,
+                            e: ast::Expr,
+                            start_span: Span)
+                         -> ast::Expr
+        where P: FnMut(&mut Parser<'a, T>) -> ast::Expr {
+        if self.expr_is_complete(&e) {
+            return e;
+        }
+
+        let op = match *self.peek() {
+            ref tok if binop_from_token(tok).map_or(false, |op| ops & (1 << (op as usize)) != 0) => binop_from_token(tok).unwrap(),
+            _ => return e,
+        };
+
+        self.expect(binop_token(op));
+        let span = self.last_span;
+        let op = self.add_id_and_span(op, span);
+
+        match assoc {
+            Assoc::RightAssoc => {
+                let r_span = self.cur_span();
+                let r = parse_simpler_expr(self);
+                let r = self.maybe_parse_binop(ops, assoc, parse_simpler_expr, r, r_span);
+                let node = ast::BinOpExpr(op, Box::new(e), Box::new(r));
+                let end_span = self.cur_span();
+                self.add_id_and_span(node, start_span.to(end_span))
+            }
+            Assoc::LeftAssoc => {
+                let r = parse_simpler_expr(self);
+                let node = ast::BinOpExpr(op, Box::new(e), Box::new(r));
+                let e = self.add_id_and_span(node, start_span);
+                self.maybe_parse_binop(ops, assoc, parse_simpler_expr, e, start_span)
+            }
+            Assoc::NonAssoc => {
+                let r = parse_simpler_expr(self);
+                let node = ast::BinOpExpr(op, Box::new(e), Box::new(r));
+                let end_span = self.cur_span();
+                self.add_id_and_span(node, start_span.to(end_span))
+            }
+        }
+    }
+
+    fn parse_binop_expr(&mut self) -> ast::Expr {
+        macro_rules! ops {
+            () => (0);
+            (,) => (0);
+            ($($op:expr),+,) => (ops!($($ops),+));
+            ($($op:expr),+) => ($((1 << ($op as usize)))|+);
+        }
+
+        macro_rules! row {
+            ($a:expr, [$($ops:expr),+,]) => (row!($a, [$($ops),+]));
+            ($a:expr, [$($ops:expr),*]) => (
+                (OpTableRow { assoc: $a, ops: ops!($($ops),*) })
+            )
+        }
+
+        macro_rules! left {
+            ($($ops:expr),+,) => (left!($($ops),+));
+            ($($ops:expr),*) => (row!(Assoc::LeftAssoc, [$($ops),+]));
+        }
+
+        macro_rules! non {
+            ($($ops:expr),+,) => (non!($($ops),+));
+            ($($ops:expr),*) => (row!(Assoc::NonAssoc, [$($ops),+]));
+        }
+
+        macro_rules! optable {
+            ($($rows:expr),+,) => (optable!($($rows),+));
+            ($($rows:expr),*) => (OpTable { rows: &[$($rows),+] });
+        }
+
+        static OPTABLE: OpTable = optable! {
+            left!(ast::TimesOp, ast::DivideOp, ast::ModOp),
+            left!(ast::PlusOp, ast::MinusOp),
+            left!(ast::LeftShiftOp, ast::RightShiftOp),
+            left!(ast::BitAndOp),
+            left!(ast::BitXorOp),
+            left!(ast::BitOrOp),
+            non!(ast::GreaterOp, ast::LessOp, ast::GreaterEqOp, ast::LessEqOp),
+            left!(ast::EqualsOp, ast::NotEqualsOp),
+            left!(ast::AndAlsoOp),
+            left!(ast::OrElseOp),
+        };
+
+        OPTABLE.parse_expr(self)
+    }
+
+    fn parse_expr_no_structs(&mut self) -> ast::Expr {
+        self.with_restriction(Restriction::NoAmbiguousLBraceRestriction, |p| p.parse_expr())
+    }
+
+    pub fn parse_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+        let lv = self.parse_binop_expr();
+
+        let peeked_span = self.peek_span();
+        let op = match *self.peek() {
+            Token::PlusEq    => Some(ast::PlusOp),
+            Token::MinusEq   => Some(ast::MinusOp),
+            Token::TimesEq   => Some(ast::TimesOp),
+            Token::SlashEq   => Some(ast::DivideOp),
+            Token::PipeEq    => Some(ast::BitOrOp),
+            Token::CaretEq   => Some(ast::BitXorOp),
+            Token::AmpEq     => Some(ast::BitAndOp),
+            Token::LshEq     => Some(ast::LeftShiftOp),
+            Token::RshEq     => Some(ast::RightShiftOp),
+            Token::PercentEq => Some(ast::ModOp),
+            Token::Eq        => None,
+            _         => return lv,
+        }.map(|op| self.add_id_and_span(op, peeked_span));
+
+        self.eat();
+        let e = self.parse_expr();
+        let node = ast::AssignExpr(op, Box::new(lv), Box::new(e));
+        let end_span = self.cur_span();
+        self.add_id_and_span(node, start_span.to(end_span))
+    }
+
+    fn parse_path_or_struct_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+        let path = self.parse_path();
+        let node = match *self.peek() {
+            Token::LBrace if self.restriction != Restriction::NoAmbiguousLBraceRestriction => {
+                self.expect(Token::LBrace);
+                let fields = self.parse_list(|p| {
+                    let name = p.parse_name();
+                    p.expect(Token::Colon);
+                    let expr = p.parse_expr();
+                    (name, expr)
+                }, Token::RBrace, true);
+                self.expect(Token::RBrace);
+                ast::StructExpr(path, fields)
+            }
+            _ => ast::PathExpr(path),
+        };
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(node, start_span.to(end_span))
+    }
+
+    fn parse_break_expr(&mut self) -> ast::Expr {
+        self.expect(Token::Break);
+        let span = self.last_span;
+        self.add_id_and_span(ast::BreakExpr, span)
+    }
+
+    fn parse_continue_expr(&mut self) -> ast::Expr {
+        self.expect(Token::Continue);
+        let span = self.last_span;
+        self.add_id_and_span(ast::ContinueExpr, span)
+    }
+
+    fn eat_token_tree(&mut self) -> Vec<Token> {
+        let mut tokens = vec!();
+
+        macro_rules! get_token_tree {
+            ($l:expr, $r:expr) => ({
+                tokens.push($l);
+                while *self.peek() != $r {
+                    tokens.extend(self.eat_token_tree().into_iter());
+                }
+                self.expect($r);
+                tokens.push($r);
+            })
+        }
+
+        match self.eat() {
+            Token::LParen   => get_token_tree!(Token::LParen, Token::RParen),
+            Token::LBrace   => get_token_tree!(Token::LBrace, Token::RBrace),
+            Token::LBracket => get_token_tree!(Token::LBracket, Token::RBracket),
+            t => tokens.push(t),
+        }
+
+        tokens
+    }
+
+    fn eat_macro_token_tree(&mut self, args: &BTreeSet<Name>) -> Vec<ast::MacroToken> {
+        let mut tokens = vec!();
+
+        macro_rules! get_token_tree {
+            ($l:expr, $r:expr) => ({
+                tokens.push(ast::MacroTok($l));
+                while *self.peek() != $r {
+                    tokens.extend(self.eat_macro_token_tree(args).into_iter());
+                }
+                self.expect($r);
+                tokens.push(ast::MacroTok($r));
+            })
+        }
+
+        match self.eat() {
+            Token::LParen   => get_token_tree!(Token::LParen, Token::RParen),
+            Token::LBrace   => get_token_tree!(Token::LBrace, Token::RBrace),
+            Token::LBracket => get_token_tree!(Token::LBracket, Token::RBracket),
+            Token::Dollar => {
+                let name = self.parse_name();
+                if args.contains(&name) {
+                    tokens.push(ast::MacroVar(name));
+                } else {
+                    panic!("No such argument `${:?}`", name);
+                }
+            }
+            Token::DotDotDot => tokens.push(ast::MacroVarArgs),
+            t => tokens.push(ast::MacroTok(t)),
+        }
+
+        tokens
+    }
+
+    fn parse_macro_expr_arg(&mut self) -> Vec<Token> {
+        let mut tokens = vec!();
+        while match *self.peek() { Token::Comma | Token::RParen => false, _ => true } {
+            tokens.extend(self.eat_token_tree().into_iter())
+        }
+
+        tokens
+    }
+
+    // Used by macro expansion also
+    pub fn parse_macro_call(&mut self) -> (Name, Vec<Vec<Token>>) {
+        let name = match self.eat() {
+            Token::IdentBangTok(name) => self.session.interner.intern(name),
+            _ => unreachable!(),
+        };
+
+        self.expect(Token::LParen);
+        let args = self.parse_list(|p| p.parse_macro_expr_arg(), Token::RParen, true);
+        self.expect(Token::RParen);
+
+        (name, args)
+    }
+
+    fn parse_macro_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+        let (name, args) = self.parse_macro_call();
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::MacroExpr(name, args), start_span.to(end_span))
+    }
+
+    fn parse_sizeof_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+        self.expect(Token::Sizeof);
+        self.expect(Token::LParen);
+        let ty = self.parse_type();
+        self.expect(Token::RParen);
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::SizeofExpr(ty), start_span.to(end_span))
+    }
+
+    fn parse_array_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+        self.expect(Token::LBracket);
+        let elems = self.parse_list(|p| p.parse_expr(), Token::RBracket, true);
+        self.expect(Token::RBracket);
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::ArrayExpr(elems), start_span.to(end_span))
+    }
+
+    fn parse_simple_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+        let mut expr = match *self.peek() {
+            Token::If                        => self.parse_if_expr(),
+            Token::Return                    => self.parse_return_expr(),
+            Token::Break                     => self.parse_break_expr(),
+            Token::Continue                  => self.parse_continue_expr(),
+            Token::Match                     => self.parse_match_expr(),
+            Token::For                       => self.parse_for_expr(),
+            Token::While                     => self.parse_while_expr(),
+            Token::Do                        => self.parse_do_while_expr(),
+            Token::LBrace                    => self.parse_block_expr(),
+            Token::LParen                    => self.parse_paren_expr(),
+            Token::ColonColon | Token::IdentTok(..) => self.parse_path_or_struct_expr(),
+            Token::IdentBangTok(..)          => self.parse_macro_expr(),
+            Token::NumberTok(..) | Token::StringTok(..) | Token::Null |
+            Token::True | Token::False => {
+                let start_span = self.cur_span();
+                let node = ast::LitExpr(self.parse_lit());
+                let end_span = self.cur_span();
+                self.add_id_and_span(node, start_span.to(end_span))
+            },
+            Token::Sizeof                    => self.parse_sizeof_expr(),
+            Token::LBracket                  => self.parse_array_expr(),
+            _ => self.peek_error("Expected expression"),
+        };
+
+        // While the next token cannot start an expression and expr is not complete
+        while !(can_start_expr(self.peek()) && self.expr_is_complete(&expr)) {
+            let node = match *self.peek() {
+                Token::Period => {
+                    self.expect(Token::Period);
+                    let field = self.parse_name();
+                    ast::DotExpr(Box::new(expr), field)
+                }
+                Token::Arrow => {
+                    self.expect(Token::Arrow);
+                    let field = self.parse_name();
+                    ast::ArrowExpr(Box::new(expr), field)
+                }
+                Token::LBracket => {
+                    self.expect(Token::LBracket);
+                    let subscript = self.parse_expr();
+                    self.expect(Token::RBracket);
+                    ast::IndexExpr(Box::new(expr), Box::new(subscript))
+                }
+                Token::LParen => {
+                    self.expect(Token::LParen);
+                    let args = self.parse_list(|p| p.parse_expr(), Token::RParen, true);
+                    self.expect(Token::RParen);
+                    ast::CallExpr(Box::new(expr), args)
+                }
+                _ => break,
+            };
+
+            let end_span = self.cur_span();
+            expr = self.add_id_and_span(node, start_span.to(end_span));
+        }
+
+        expr
+    }
+
+    fn parse_paren_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+
+        self.expect(Token::LParen);
+        let mut inner_exprs = self.with_restriction(Restriction::NoRestriction,
+                                                    |p| p.parse_list(|p| p.parse_expr(), Token::RParen, true));
+        self.expect(Token::RParen);
+
+        let node = if inner_exprs.len() == 0 {
+            ast::UnitExpr
+        } else if inner_exprs.len() == 1 {
+            ast::GroupExpr(Box::new(inner_exprs.pop().unwrap()))
+        } else {
+            ast::TupleExpr(inner_exprs)
+        };
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(node, start_span.to(end_span))
+    }
+
+    fn parse_block_expr(&mut self) -> ast::Expr {
+        let start_span = self.cur_span();
+        let block = self.parse_block();
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::BlockExpr(Box::new(block)), start_span.to(end_span))
+    }
+
+    fn parse_stmt(&mut self) -> ast::Stmt {
+        match *self.peek() {
+            Token::Let => self.parse_let_stmt(),
+            _ => {
+                let start_span = self.cur_span();
+                let expr = self.with_restriction(Restriction::ExprStmtRestriction, |p| p.parse_expr());
+                match *self.peek() {
+                    Token::Semicolon => {
+                        self.expect(Token::Semicolon);
+                        let end_span = self.cur_span();
+                        self.add_id_and_span(ast::SemiStmt(expr), start_span.to(end_span))
+                    },
+                    _ => {
+                        let end_span = self.cur_span();
+                        self.add_id_and_span(ast::ExprStmt(expr), start_span.to(end_span))
+                    },
+                }
+            }
+        }
+    }
+
+    fn parse_block(&mut self) -> ast::Block {
+        /* Parse a "block" (compound expression), such as
+           `{ 1+1; f(x); 2 }`.
+        */
+        let start_span = self.cur_span();
+        self.expect(Token::LBrace);
+        let mut statements = vec!();
+        let items = self.parse_items_until(Token::RBrace, |me| statements.push(me.parse_stmt()));
+        self.expect(Token::RBrace);
+        let end_span = self.cur_span();
+
+        let expr = statements.pop().and_then(|stmt| {
+            match stmt.val {
+                ast::ExprStmt(expr) => {
+                    Some(expr)
+                }
+                _ => {
+                    statements.push(stmt);
+                    None
+                },
+            }
+        });
+
+        let node = ast::BlockNode {
+            items: items,
+            stmts: statements,
+            expr: expr,
+        };
+        self.add_id_and_span(node, start_span.to(end_span))
+    }
+
+    fn parse_func_arg(&mut self) -> ast::FuncArg {
+        /* Parse a single argument as part of a function declaration.
+           For example, in
+           `let f(x: int, y: int) -> int { ... }`,
+           this would parse "`x: int`" or "`y: int`".
+        */
+        let arg_id = self.parse_ident();
+        self.expect(Token::Colon);
+        let arg_type = self.parse_type();
+
+        ast::FuncArg {
+            ident: arg_id,
+            argtype: arg_type,
+        }
+    }
+
+    fn parse_extern_item(&mut self) -> ast::Item {
+        let start_span = self.cur_span();
+        self.expect(Token::Extern);
+
+        let abi = match *self.peek() {
+            Token::StringTok(..) => match self.eat() { Token::StringTok(s) => Some(s), _ => unreachable!() },
+            _ => None,
+        };
+
+        match *self.peek() {
+            Token::Fn => {
+                let (funcname, args, return_type, type_params) = self.parse_func_prototype();
+                self.expect(Token::Semicolon);
+                let end_span = self.cur_span();
+                let abi = self.session.interner.intern(abi.unwrap_or(String::from_str("C")));
+                self.add_id_and_span(ast::FuncItem(funcname, args, return_type,
+                                                   ast::ExternFn(abi), type_params),
+                                     start_span.to(end_span))
+            }
+            Token::Static => {
+                if abi != None {
+                    self.peek_error("ABI specifiers are invalid on extern static items");
+                }
+
+                let (name, ty) = self.parse_static_decl();
+                self.expect(Token::Semicolon);
+                let end_span = self.cur_span();
+                self.add_id_and_span(ast::StaticItem(name, ty, None, true),
+                                     start_span.to(end_span))
+            }
+            _ => self.peek_error("Expected 'fn' or 'static'"),
+        }
+    }
+
+    fn parse_func_prototype(&mut self) -> FuncProto {
+        self.expect(Token::Fn);
+        let funcname = self.parse_ident();
+        let type_params = self.parse_item_type_params(Token::LParen);
+        self.expect(Token::LParen);
+        let args = self.parse_list(|p| p.parse_func_arg(), Token::RParen, true);
+        self.expect(Token::RParen);
+        let return_type = match *self.peek() {
+            Token::Arrow => {
+                self.expect(Token::Arrow);
+                match *self.peek() {
+                    Token::Bang => {
+                        self.expect(Token::Bang);
+                        let span = self.last_span;
+                        self.add_id_and_span(ast::DivergingType, span)
+                    }
+                    _ => self.parse_type(),
+                }
+            }
+            _ => {
+                let dummy_span = self.cur_span();
+                self.add_id_and_span(ast::UnitType, dummy_span)
+            }
+        };
+
+        (funcname, args, return_type, type_params)
+    }
+
+    fn parse_func_item(&mut self) -> ast::Item {
+        let start_span = self.cur_span();
+        let (funcname, args, return_type, type_params) = self.parse_func_prototype();
+        let body = self.parse_block();
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::FuncItem(funcname, args, return_type, ast::LocalFn(body), type_params),
+                             start_span.to(end_span))
+    }
+
+    fn parse_struct_field(&mut self) -> ast::Field {
+        let name = self.parse_name();
+        self.expect(Token::Colon);
+        let field_type = self.parse_type();
+
+        ast::Field {
+            name:    name,
+            fldtype: field_type,
+        }
+    }
+
+    fn parse_struct_item(&mut self) -> ast::Item {
+        let start_span = self.cur_span();
+        self.expect(Token::Struct);
+        let structname = self.parse_ident();
+        let type_params = self.parse_item_type_params(Token::LBrace);
+        self.expect(Token::LBrace);
+        let body = self.parse_list(|p| p.parse_struct_field(), Token::RBrace, true);
+        self.expect(Token::RBrace);
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::StructItem(structname, body, type_params), start_span.to(end_span))
+    }
+
+    fn parse_variant(&mut self) -> ast::Variant {
+        let ident = self.parse_ident();
+        let types = match *self.peek() {
+            Token::LParen => {
+                self.expect(Token::LParen);
+                let typelist = self.parse_list(|p| p.parse_type(), Token::RParen, true);
+                self.expect(Token::RParen);
+                typelist
+            },
+            _ => {
+                vec!()
+            }
+        };
+
+        ast::Variant {
+            ident: ident,
+            args:  types,
+        }
+    }
+
+    fn parse_enum_item(&mut self) -> ast::Item {
+        let start_span = self.cur_span();
+        self.expect(Token::Enum);
+        let enumname = self.parse_ident();
+        let type_params = self.parse_item_type_params(Token::LBrace);
+        self.expect(Token::LBrace);
+        let body = self.parse_list(|p| p.parse_variant(), Token::RBrace, true);
+        self.expect(Token::RBrace);
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::EnumItem(enumname, body, type_params), start_span.to(end_span))
+    }
+
+    fn parse_type_item(&mut self) -> ast::Item {
+        let start_span = self.cur_span();
+        self.expect(Token::Type);
+        let typename = self.parse_ident();
+        let type_params = self.parse_item_type_params(Token::Eq);
+        self.expect(Token::Eq);
+        let typedef = self.parse_type();
+        self.expect(Token::Semicolon);
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::TypeItem(typename, typedef, type_params), start_span.to(end_span))
+    }
+
+    fn parse_use_item(&mut self) -> ast::Item {
+        let start_span = self.cur_span();
+        self.expect(Token::Use);
+        let mut path = self.parse_use();
+        self.expect(Token::Semicolon);
+
+        // 'use' items are always globally-scoped
+        path.val.global = true;
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::UseItem(path), start_span.to(end_span))
+    }
+
+    fn parse_items_until<U, P>(&mut self, end: Token, mut unmatched: P) -> Vec<ast::Item>
+        where P: FnMut(&mut Parser<'a, T>) -> U {
+        let mut items = vec!();
+        let mut use_items = vec!();
+        let mut count = 0;
+        while *self.peek() != end {
+            match *self.peek() {
+                Token::Use => {
+                    if count > use_items.len() {
+                        let spot = self.cur_span().get_begin();
+                        self.error("'use' declarations must come before everything else", spot)
+                    } else {
+                        use_items.push(self.parse_use_item())
+                    }
+                }
+                _ => {
+                    if can_start_item(self.peek()) {
+                        items.push(self.parse_item())
+                    } else {
+                        unmatched(self);
+                    }
+                }
+            }
+
+            count += 1;
+        }
+
+        use_items.into_iter().chain(items.into_iter()).collect()
+    }
+
+    fn parse_module_until(&mut self, end: Token) -> ast::Module {
+        let start_span = self.cur_span();
+        let items = self.parse_items_until(end, |me| me.parse_item());
+        let node = ast::ModuleNode { items: items };
+        let end_span = self.cur_span();
+        self.add_id_and_span(node, start_span.to(end_span))
+    }
+
+    fn parse_mod_item(&mut self) -> ast::Item {
+        let start_span = self.cur_span();
+        self.expect(Token::Mod);
+        let ident = self.parse_ident();
+        let module = match *self.peek() {
+            Token::LBrace => {
+                self.expect(Token::LBrace);
+                let module = self.parse_module_until(Token::RBrace);
+                self.expect(Token::RBrace);
+                module
+            }
+            Token::Semicolon => {
+                self.expect(Token::Semicolon);
+                let file = {
+                    use std::io::fs::PathExtensions;
+
+                    let name = self.session.interner.name_to_str(&ident.val.name);
+
+                    let base = self.session.state.get_cur_rel_path();
+                    let filename1 = base.join(FilePath::new(format!("{:?}.mb", name)));
+                    let filename2 = base.join(FilePath::new(format!("{:?}/mod.mb", name)));
+
+                    let filename = match (filename1.exists(), filename2.exists()) {
+                        (true,  false) => filename1,
+                        (false, true)  => filename2,
+                        (false, false) => {
+                            // Both missing, so check our search path.
+                            // Search path does *not* use the current relative path.
+                            // It is based on the invocation location.
+                            // (And may well be absolute, even!)
+                            match self.session.options.search_paths.get(&String::from_str(name)) {
+                                Some(path) => path.clone(),
+                                None =>
+                                    self.error(format!("no such module: neither {:?} nor {:?} exist.",
+                                                       filename1.display(), filename2.display()),
+                                               start_span.get_begin())
+                            }
+                        }
+                        (true,  true)  =>
+                            self.error(format!("ambiguous module name: both {:?} and {:?} exist.",
+                                               filename1.display(), filename2.display()),
+                                       start_span.get_begin()),
+                    };
+
+                    ::std::io::File::open(&filename).unwrap_or_else(|e| {
+                        self.error(format!("failed to open {:?}: {:?}",
+                                           filename.display(), e), start_span.get_begin())
+                    })
+                };
+
+                parse_file(self.session, file)
+            }
+            _ => self.peek_error("Expected opening brace or semicolon"),
+        };
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::ModItem(ident, module), start_span.to(end_span))
+    }
+
+    fn parse_static_decl(&mut self) -> StaticDecl {
+        self.expect(Token::Static);
+        let name = self.parse_ident();
+        self.expect(Token::Colon);
+        let ty = self.parse_type();
+        (name, ty)
+    }
+
+    fn parse_static_item(&mut self) -> ast::Item {
+        let start_span = self.cur_span();
+        let (name, ty) = self.parse_static_decl();
+        let expr = match *self.peek() {
+            Token::Eq => {
+                self.expect(Token::Eq);
+                Some(self.parse_expr())
+            },
+            _ => None,
+        };
+        self.expect(Token::Semicolon);
+
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::StaticItem(name, ty, expr, false),
+                             start_span.to(end_span))
+    }
+
+    fn parse_macro_item(&mut self) -> ast::Item {
+        let start_span = self.cur_span();
+        self.expect(Token::Macro);
+        let name = match self.eat() {
+            Token::IdentBangTok(name) => self.session.interner.intern(name),
+            tok => self.error(format!("Expected macro identifier, found {:?}", tok),
+                              self.last_span.get_begin())
+        };
+
+        self.expect(Token::LParen);
+
+        let args = self.parse_list(|me| me.parse_name(), Token::RParen, true);
+
+        let mut args_map = BTreeSet::new();
+        for arg in args.iter() {
+            args_map.insert(*arg);
+        }
+
+        self.expect(Token::RParen);
+        self.expect(Token::LBrace);
+
+        let mut body = vec!();
+        while *self.peek() != Token::RBrace {
+            body.extend(self.eat_macro_token_tree(&args_map).into_iter());
+        }
+
+        self.expect(Token::RBrace);
+        let end_span = self.cur_span();
+
+        let def = ast::MacroDef {
+            name: name,
+            args: args,
+            body: body,
+        };
+
+        self.add_id_and_span(ast::MacroDefItem(def), start_span.to(end_span))
+    }
+
+    fn parse_const_item(&mut self) -> ast::Item {
+        let start_span = self.cur_span();
+        self.expect(Token::Const);
+        let name = self.parse_ident();
+        self.expect(Token::Colon);
+        let ty = self.parse_type();
+        self.expect(Token::Eq);
+        let expr = self.parse_expr();
+        self.expect(Token::Semicolon);
+        let end_span = self.cur_span();
+        self.add_id_and_span(ast::ConstItem(name, ty, expr), start_span.to(end_span))
+    }
+
+    fn parse_item(&mut self) -> ast::Item {
+        match *self.peek() {
+            Token::Fn => self.parse_func_item(),
+            Token::Struct => self.parse_struct_item(),
+            Token::Enum => self.parse_enum_item(),
+            Token::Type => self.parse_type_item(),
+            Token::Mod => self.parse_mod_item(),
+            Token::Static => self.parse_static_item(),
+            Token::Extern => self.parse_extern_item(),
+            Token::Macro => self.parse_macro_item(),
+            Token::Const => self.parse_const_item(),
+            _ => self.peek_error("Expected an item definition (fn, struct, enum, mod)"),
+        }
+    }
+
+    pub fn parse_module(&mut self) -> ast::Module {
+        /* This is the highest level node of the AST. This function
+         * is the one that will parse an entire file. */
+        let module = self.parse_module_until(Token::Eof);
+        self.expect(Token::Eof);
+        module
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use syntax::ast::Expr;
+
+    use super::*;
+
+    #[test]
+    fn test_basic_arith_expr() {
+        let (_, tree) = ast_from_str(r#"1+3*5/2-2*3*(5+6)"#, |p| p.parse_expr());
+
+        /* TODO handroll the new AST
+
+        fn mknum(n: u64) -> ast::Expr {
+            Num(n, GenericInt)
+        }
+
+        assert_eq!(tree,
+                   Sum(
+                       ~mknum(1),
+                           ~Product(
+                               ~mknum(3),
+                               ~Quotient(
+                                   ~mknum(5),
+                                   ~mknum(2)
+                                        )
+                                   ),
+                           ~Product(
+                               ~mknum(2),
+                               ~Product(
+                                   ~mknum(3),
+                                   ~Sum(
+                                       ~mknum(5),
+                                       ~mknum(6)
+                                           )
+                                       )
+                                   )
+                               )
+                           )
+                   );
+        */
+        assert_eq!(format!("{:?}", tree).as_slice(),
+                   "((1+((3*5)/2))-((2*3)*((5+6))))");
+    }
+
+    // These tests disabled until we have a pretty printer
+    /*
+    fn compare_canonicalized(raw: &str, parsed: &str) {
+        let (_, tree) = ast_from_str(raw, |p| p.parse_let_stmt());
+        assert_eq!(format!("{:?}", tree).as_slice(), parsed);
+    }
+
+    #[test]
+    fn test_variable_declarations() {
+        compare_canonicalized(
+            r#"let x: fn(fn(int) -> int[4]) -> *(int[1]) = f(3*x+1, g(x)) * *p;"#,
+            "let x: ([([int] -> (int)[4])] -> *((int)[1])) = (f([((3*x)+1), g([x])])*(*p));"
+        );
+    }
+
+    #[test]
+    fn test_variable_declarations_again() {
+        compare_canonicalized(
+            r#"let x: fn(int) -> fn(int[4]) -> (*int)[1] = f(3*x+1, g(x)) * *p;"#,
+            "let x: ([int] -> ([(int)[4]] -> (*(int))[1])) = (f([((3*x)+1), g([x])])*(*p));"
+        );
+    }
+    */
+}

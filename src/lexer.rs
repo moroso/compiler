@@ -1,4 +1,5 @@
 use std::borrow::IntoCow;
+use std::fmt::{self, Formatter};
 use std::io::{Buffer, BufferedReader};
 
 use regex::Regex;
@@ -6,10 +7,16 @@ use regex::Regex;
 use span::{Span, SourcePos, mk_sp};
 
 /// A token together with a Span, to keep track of where in the source file it was.
-#[derive(Copy, Show, Eq, PartialEq)]
+#[derive(Copy, Eq, PartialEq)]
 pub struct SourceToken<T> {
     pub tok: T,
     pub sp: Span,
+}
+
+impl<T: fmt::Show> fmt::Show for SourceToken<T> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "SourceToken {{ tok: {:?}, sp: {:?} }}", self.tok, self.sp)
+    }
 }
 
 pub struct Language<T> {
@@ -17,8 +24,8 @@ pub struct Language<T> {
     pub ws: T,
     pub begin_comment: T,
     pub end_comment: T,
-    pub rules: Vec<fn(&str) -> Option<(uint, T)>>,
-    pub comment_rules: Vec<fn(&str) -> Option<(uint, T)>>,
+    pub rules: Vec<fn(&str) -> Option<(usize, T)>>,
+    pub comment_rules: Vec<fn(&str) -> Option<(usize, T)>>,
 }
 
 pub struct Lexer<B, T> {
@@ -27,11 +34,11 @@ pub struct Lexer<B, T> {
     pos: SourcePos,
     name: String,
     // Ordinary rules.
-    rules: Vec<fn(&str) -> Option<(uint, T)>>,
+    rules: Vec<fn(&str) -> Option<(usize, T)>>,
     // Rules specifically for when we're within a comment. We need this
     // for handling multi-line comments.
-    comment_rules: Vec<fn(&str) -> Option<(uint, T)>>,
-    comment_nest: uint,
+    comment_rules: Vec<fn(&str) -> Option<(usize, T)>>,
+    comment_nest: usize,
     // We set this to Some(Eof) and take it when we hit EOF
     eof: Option<T>,
     ws: T,
@@ -40,7 +47,7 @@ pub struct Lexer<B, T> {
 }
 
 struct BufferLines<B> {
-    lineno: uint,
+    lineno: usize,
     buffer: BufferedReader<B>,
 }
 
@@ -54,8 +61,8 @@ impl<B: Reader> BufferLines<B> {
 }
 
 impl<B: Reader> Iterator for BufferLines<B> {
-    type Item = (uint, String);
-    fn next(&mut self) -> Option<(uint, String)> {
+    type Item = (usize, String);
+    fn next(&mut self) -> Option<(usize, String)> {
         self.buffer.read_line().ok().map(|l| {
             let n = self.lineno;
             self.lineno += 1;
@@ -96,7 +103,7 @@ impl<B: Reader, T: Eq> Iterator for Lexer<B, T> {
                     while self.pos.col < line.len() {
                         // We apply each rule. Of the ones that match, we take
                         // the longest match.
-                        let mut longest = 0u;
+                        let mut longest = 0us;
                         let mut best = None;
                         let rules = if self.comment_nest > 0 {
                             &self.comment_rules
@@ -123,7 +130,7 @@ impl<B: Reader, T: Eq> Iterator for Lexer<B, T> {
                         self.pos.col += longest;
 
                         match best {
-                            None => panic!("Unexpected input at {} ({} line {} col {})",
+                            None => panic!("Unexpected input at {:?} ({:?} line {:?} col {:?})",
                                           line.slice_from(self.pos.col),
                                           self.name,
                                           self.pos.row + 1,
@@ -170,12 +177,12 @@ impl<B: Reader, T: Eq> Iterator for Lexer<B, T> {
 // is determined by whether or not the result of this RuleMatcher requires the match as an
 // argument; the type magic is handled by SimpleRuleArg).
 pub trait RuleMatcher<'a, A>: Sized {
-    fn check(&self, s: &'a str) -> Option<(uint, A)>;
+    fn check(&self, s: &'a str) -> Option<(usize, A)>;
 }
 
 // Simple string-prefix match
 impl<'a, T: SimpleRuleArg<'a>> RuleMatcher<'a, T> for &'a str {
-    fn check(&self, s: &'a str) -> Option<(uint, T)> {
+    fn check(&self, s: &'a str) -> Option<(usize, T)> {
         match s.starts_with(*self) {
             true => {
                 let len = self.len();
@@ -189,7 +196,7 @@ impl<'a, T: SimpleRuleArg<'a>> RuleMatcher<'a, T> for &'a str {
 
 // Regex match
 impl<'a, T: SimpleRuleArg<'a>> RuleMatcher<'a, T> for Regex {
-    fn check(&self, s: &'a str) -> Option<(uint, T)> {
+    fn check(&self, s: &'a str) -> Option<(usize, T)> {
         match self.find(s) {
             Some((_, end)) => {
                 let t = s.slice(0, end);
@@ -201,8 +208,8 @@ impl<'a, T: SimpleRuleArg<'a>> RuleMatcher<'a, T> for Regex {
 }
 
 // Arbitrary function
-impl<'a, T, F: Fn(&'a str) -> Option<(uint, T)>> RuleMatcher<'a, T> for F {
-    fn check(&self, s: &'a str) -> Option<(uint, T)> {
+impl<'a, T, F: Fn(&'a str) -> Option<(usize, T)>> RuleMatcher<'a, T> for F {
+    fn check(&self, s: &'a str) -> Option<(usize, T)> {
         self(s)
     }
 }
