@@ -37,6 +37,8 @@ pub struct Span {
     end:   SourcePos,
 }
 
+allow_string!(Span);
+
 impl fmt::Show for Span {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} - {}", self.begin, self.end)

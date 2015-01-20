@@ -8,9 +8,8 @@ pub use util::lexer::{RuleMatcher, SourceToken, TokenMaker};
 pub use util::lexer::BufReader;
 
 use std::fmt;
+use std::fmt::{Formatter, Show};
 use std::str::StrExt;
-
-use self::Token::*;
 
 #[derive(Eq, PartialEq, Clone)]
 pub enum Token {
@@ -111,96 +110,98 @@ pub enum Token {
     EndComment,
 }
 
+allow_string!(Token);
+
 impl fmt::Show for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match *self {
-            Let                    => String::from_str("let"),
-            As                     => String::from_str("as"),
-            If                     => String::from_str("if"),
-            Else                   => String::from_str("else"),
-            Fn                     => String::from_str("fn"),
-            Return                 => String::from_str("return"),
-            True                   => String::from_str("true"),
-            False                  => String::from_str("false"),
-            While                  => String::from_str("while"),
-            Do                     => String::from_str("do"),
-            For                    => String::from_str("for"),
-            Struct                 => String::from_str("struct"),
-            Enum                   => String::from_str("enum"),
-            Type                   => String::from_str("type"),
-            Match                  => String::from_str("match"),
-            Mod                    => String::from_str("mod"),
-            Null                   => String::from_str("null"),
-            Break                  => String::from_str("break"),
-            Continue               => String::from_str("continue"),
-            Static                 => String::from_str("static"),
-            Extern                 => String::from_str("extern"),
-            Use                    => String::from_str("use"),
-            Macro                  => String::from_str("macro"),
-            Const                  => String::from_str("const"),
-            Sizeof                 => String::from_str("sizeof"),
+            Token::Let                    => String::from_str("let"),
+            Token::As                     => String::from_str("as"),
+            Token::If                     => String::from_str("if"),
+            Token::Else                   => String::from_str("else"),
+            Token::Fn                     => String::from_str("fn"),
+            Token::Return                 => String::from_str("return"),
+            Token::True                   => String::from_str("true"),
+            Token::False                  => String::from_str("false"),
+            Token::While                  => String::from_str("while"),
+            Token::Do                     => String::from_str("do"),
+            Token::For                    => String::from_str("for"),
+            Token::Struct                 => String::from_str("struct"),
+            Token::Enum                   => String::from_str("enum"),
+            Token::Type                   => String::from_str("type"),
+            Token::Match                  => String::from_str("match"),
+            Token::Mod                    => String::from_str("mod"),
+            Token::Null                   => String::from_str("null"),
+            Token::Break                  => String::from_str("break"),
+            Token::Continue               => String::from_str("continue"),
+            Token::Static                 => String::from_str("static"),
+            Token::Extern                 => String::from_str("extern"),
+            Token::Use                    => String::from_str("use"),
+            Token::Macro                  => String::from_str("macro"),
+            Token::Const                  => String::from_str("const"),
+            Token::Sizeof                 => String::from_str("sizeof"),
 
-            IntTypeTok(ik)         => format!("{}", ik),
-            Bool                   => String::from_str("bool"),
+            Token::IntTypeTok(ik)         => format!("{}", ik),
+            Token::Bool                   => String::from_str("bool"),
 
-            LParen                 => String::from_str("("),
-            RParen                 => String::from_str(")"),
-            LBrace                 => String::from_str("{"),
-            RBrace                 => String::from_str("}"),
-            LBracket               => String::from_str("["),
-            RBracket               => String::from_str("]"),
-            Less                   => String::from_str("<"),
-            Greater                => String::from_str(">"),
-            LessEq                 => String::from_str("<="),
-            GreaterEq              => String::from_str(">="),
-            Tilde                  => String::from_str("~"),
-            Ampersand              => String::from_str("&"),
-            Pipe                   => String::from_str("|"),
-            Caret                  => String::from_str("^"),
-            AmpAmp                 => String::from_str("&&"),
-            PipePipe               => String::from_str("||"),
-            Plus                   => String::from_str("+"),
-            Dash                   => String::from_str("-"),
-            Star                   => String::from_str("*"),
-            Percent                => String::from_str("%"),
-            ForwardSlash           => String::from_str("/"),
-            Lsh                    => String::from_str("<<"),
-            Rsh                    => String::from_str(">>"),
-            Colon                  => String::from_str(":"),
-            ColonColon             => String::from_str("::"),
-            Semicolon              => String::from_str(";"),
-            Eq                     => String::from_str("="),
-            EqEq                   => String::from_str("=="),
-            BangEq                 => String::from_str("!="),
-            Bang                   => String::from_str("!"),
-            Arrow                  => String::from_str("->"),
-            DoubleArrow            => String::from_str("=>"),
-            Comma                  => String::from_str(","),
-            QuestionMark           => String::from_str("?"),
-            Period                 => String::from_str("."),
-            Underscore             => String::from_str("_"),
-            PlusEq                 => String::from_str("+="),
-            MinusEq                => String::from_str("-="),
-            TimesEq                => String::from_str("*="),
-            SlashEq                => String::from_str("/="),
-            PipeEq                 => String::from_str("|="),
-            CaretEq                => String::from_str("^="),
-            AmpEq                  => String::from_str("&="),
-            LshEq                  => String::from_str("<<="),
-            RshEq                  => String::from_str(">>="),
-            PercentEq              => String::from_str("%="),
-            Dollar                 => String::from_str("$"),
-            DotDotDot              => String::from_str("..."),
+            Token::LParen                 => String::from_str("("),
+            Token::RParen                 => String::from_str(")"),
+            Token::LBrace                 => String::from_str("{"),
+            Token::RBrace                 => String::from_str("}"),
+            Token::LBracket               => String::from_str("["),
+            Token::RBracket               => String::from_str("]"),
+            Token::Less                   => String::from_str("<"),
+            Token::Greater                => String::from_str(">"),
+            Token::LessEq                 => String::from_str("<="),
+            Token::GreaterEq              => String::from_str(">="),
+            Token::Tilde                  => String::from_str("~"),
+            Token::Ampersand              => String::from_str("&"),
+            Token::Pipe                   => String::from_str("|"),
+            Token::Caret                  => String::from_str("^"),
+            Token::AmpAmp                 => String::from_str("&&"),
+            Token::PipePipe               => String::from_str("||"),
+            Token::Plus                   => String::from_str("+"),
+            Token::Dash                   => String::from_str("-"),
+            Token::Star                   => String::from_str("*"),
+            Token::Percent                => String::from_str("%"),
+            Token::ForwardSlash           => String::from_str("/"),
+            Token::Lsh                    => String::from_str("<<"),
+            Token::Rsh                    => String::from_str(">>"),
+            Token::Colon                  => String::from_str(":"),
+            Token::ColonColon             => String::from_str("::"),
+            Token::Semicolon              => String::from_str(";"),
+            Token::Eq                     => String::from_str("="),
+            Token::EqEq                   => String::from_str("=="),
+            Token::BangEq                 => String::from_str("!="),
+            Token::Bang                   => String::from_str("!"),
+            Token::Arrow                  => String::from_str("->"),
+            Token::DoubleArrow            => String::from_str("=>"),
+            Token::Comma                  => String::from_str(","),
+            Token::QuestionMark           => String::from_str("?"),
+            Token::Period                 => String::from_str("."),
+            Token::Underscore             => String::from_str("_"),
+            Token::PlusEq                 => String::from_str("+="),
+            Token::MinusEq                => String::from_str("-="),
+            Token::TimesEq                => String::from_str("*="),
+            Token::SlashEq                => String::from_str("/="),
+            Token::PipeEq                 => String::from_str("|="),
+            Token::CaretEq                => String::from_str("^="),
+            Token::AmpEq                  => String::from_str("&="),
+            Token::LshEq                  => String::from_str("<<="),
+            Token::RshEq                  => String::from_str(">>="),
+            Token::PercentEq              => String::from_str("%="),
+            Token::Dollar                 => String::from_str("$"),
+            Token::DotDotDot              => String::from_str("..."),
 
-            IdentTok(ref id)       => format!("{}", id),
-            IdentBangTok(ref id)   => format!("{}!", id),
-            NumberTok(n, ik)       => format!("{}{}", n, ik),
-            StringTok(ref s)       => format!("\"{}\"", s.escape_default()),
+            Token::IdentTok(ref id)       => format!("{}", id),
+            Token::IdentBangTok(ref id)   => format!("{}!", id),
+            Token::NumberTok(n, ik)       => format!("{}{}", n, ik),
+            Token::StringTok(ref s)       => format!("\"{}\"", s.escape_default()),
 
-            WS                     => String::from_str(" "),
-            Eof                    => String::from_str("<EOF>"),
-            BeginComment           => String::from_str("/*"),
-            EndComment             => String::from_str("*/"),
+            Token::WS                     => String::from_str(" "),
+            Token::Eof                    => String::from_str("<EOF>"),
+            Token::BeginComment           => String::from_str("/*"),
+            Token::EndComment             => String::from_str("*/"),
         };
 
         write!(f, "{}", s)
@@ -230,7 +231,7 @@ impl RuleMatcher<IntKind> for IntTypeRule {
         let matcher = matcher!(r"[uUiI](32|16|8)");
         match matcher.captures(s) {
             Some(groups) => {
-                let ctor = match s.char_at(0) {
+                let ctor: fn(Width) -> IntKind = match s.char_at(0) {
                     'u' | 'U' => IntKind::UnsignedInt,
                     'i' | 'I' => IntKind::SignedInt,
                     _ => panic!(),
@@ -266,7 +267,7 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
 
                 let s = groups.at(3);
                 let kind = if s.len() > 0 {
-                    let ctor = match s.char_at(0) {
+                    let ctor: fn(Width) -> IntKind = match s.char_at(0) {
                         'u' | 'U' => IntKind::UnsignedInt,
                         'i' | 'I' => IntKind::SignedInt,
                         _ => panic!(),
@@ -341,109 +342,109 @@ impl RuleMatcher<(u64, IntKind)> for CharRule {
 
 pub fn new_mb_lexer<'a, S: ?Sized + StrExt, B: BufReader>(name: &S, buffer: B) -> Lexer<'a, B, Token> {
     let lang = Language {
-        eof: Eof,
-        ws: WS,
-        begin_comment: BeginComment,
-        end_comment: EndComment,
+        eof: Token::Eof,
+        ws: Token::WS,
+        begin_comment: Token::BeginComment,
+        end_comment: Token::EndComment,
 
         // Note: rules are in decreasing order of priority if there's a
         // conflict. In particular, reserved words must go before IdentTok.
         rules: lexer_rules! {
             // Whitespace, including C-style comments
-            WS         => matcher!(r"//.*|\s"),
+            Token::WS         => matcher!(r"//.*|\s"),
 
             // The start of a multi-line comment.
             // BeginComment does not appear in the token stream.
             // Instead, it sets a counter indicating we are in a multiline comment.
-            BeginComment => matcher!(r"/\*"),
+            Token::BeginComment => matcher!(r"/\*"),
 
             // Reserved words
-            Let          => "let",
-            As           => "as",
-            If           => "if",
-            Else         => "else",
-            Fn           => "fn",
-            Return       => "return",
-            True         => "true",
-            False        => "false",
-            While        => "while",
-            Do           => "do",
-            For          => "for",
-            Struct       => "struct",
-            Enum         => "enum",
-            Type         => "type",
-            Match        => "match",
-            Mod          => "mod",
-            Null         => "null",
-            Break        => "break",
-            Continue     => "continue",
-            Static       => "static",
-            Extern       => "extern",
-            Use          => "use",
-            Macro        => "macro",
-            Const        => "const",
-            Sizeof       => "sizeof",
+            Token::Let          => "let",
+            Token::As           => "as",
+            Token::If           => "if",
+            Token::Else         => "else",
+            Token::Fn           => "fn",
+            Token::Return       => "return",
+            Token::True         => "true",
+            Token::False        => "false",
+            Token::While        => "while",
+            Token::Do           => "do",
+            Token::For          => "for",
+            Token::Struct       => "struct",
+            Token::Enum         => "enum",
+            Token::Type         => "type",
+            Token::Match        => "match",
+            Token::Mod          => "mod",
+            Token::Null         => "null",
+            Token::Break        => "break",
+            Token::Continue     => "continue",
+            Token::Static       => "static",
+            Token::Extern       => "extern",
+            Token::Use          => "use",
+            Token::Macro        => "macro",
+            Token::Const        => "const",
+            Token::Sizeof       => "sizeof",
 
             // Basic types; TODO: add more.
-            IntTypeTok   => IntTypeRule,
-            Bool         => "bool",
+            Token::IntTypeTok   => IntTypeRule,
+            Token::Bool         => "bool",
 
             // Symbols
-            LParen       => "(",
-            RParen       => ")",
-            LBrace       => "{",
-            RBrace       => "}",
-            LBracket     => "[",
-            RBracket     => "]",
-            Less         => "<",
-            Greater      => ">",
-            LessEq       => "<=",
-            GreaterEq    => ">=",
-            Tilde        => "~",
-            Ampersand    => "&",
-            Pipe         => "|",
-            Caret        => "^",
-            AmpAmp       => "&&",
-            PipePipe     => "||",
-            Plus         => "+",
-            Dash         => "-",
-            Star         => "*",
-            Percent      => "%",
-            ForwardSlash => "/",
-            Lsh          => "<<",
-            Rsh          => ">>",
-            Colon        => ":",
-            ColonColon   => "::",
-            Semicolon    => ";",
-            Eq           => "=",
-            EqEq         => "==",
-            BangEq       => "!=",
-            Bang         => "!",
-            Arrow        => "->",
-            DoubleArrow  => "=>",
-            Comma        => ",",
-            QuestionMark => "?",
-            Period       => ".",
-            Underscore   => "_",
-            PlusEq       => "+=",
-            MinusEq      => "-=",
-            TimesEq      => "*=",
-            SlashEq      => "/=",
-            PipeEq       => "|=",
-            CaretEq      => "^=",
-            AmpEq        => "&=",
-            LshEq        => "<<=",
-            RshEq        => ">>=",
-            PercentEq    => "%=",
-            Dollar       => "$",
-            DotDotDot    => "...",
+            Token::LParen       => "(",
+            Token::RParen       => ")",
+            Token::LBrace       => "{",
+            Token::RBrace       => "}",
+            Token::LBracket     => "[",
+            Token::RBracket     => "]",
+            Token::Less         => "<",
+            Token::Greater      => ">",
+            Token::LessEq       => "<=",
+            Token::GreaterEq    => ">=",
+            Token::Tilde        => "~",
+            Token::Ampersand    => "&",
+            Token::Pipe         => "|",
+            Token::Caret        => "^",
+            Token::AmpAmp       => "&&",
+            Token::PipePipe     => "||",
+            Token::Plus         => "+",
+            Token::Dash         => "-",
+            Token::Star         => "*",
+            Token::Percent      => "%",
+            Token::ForwardSlash => "/",
+            Token::Lsh          => "<<",
+            Token::Rsh          => ">>",
+            Token::Colon        => ":",
+            Token::ColonColon   => "::",
+            Token::Semicolon    => ";",
+            Token::Eq           => "=",
+            Token::EqEq         => "==",
+            Token::BangEq       => "!=",
+            Token::Bang         => "!",
+            Token::Arrow        => "->",
+            Token::DoubleArrow  => "=>",
+            Token::Comma        => ",",
+            Token::QuestionMark => "?",
+            Token::Period       => ".",
+            Token::Underscore   => "_",
+            Token::PlusEq       => "+=",
+            Token::MinusEq      => "-=",
+            Token::TimesEq      => "*=",
+            Token::SlashEq      => "/=",
+            Token::PipeEq       => "|=",
+            Token::CaretEq      => "^=",
+            Token::AmpEq        => "&=",
+            Token::LshEq        => "<<=",
+            Token::RshEq        => ">>=",
+            Token::PercentEq    => "%=",
+            Token::Dollar       => "$",
+            Token::DotDotDot    => "...",
 
             // Literals
-            IdentTok     => matcher!(r"[a-zA-Z_]\w*"),
-            IdentBangTok => IdentBangRule,
-            NumberTok    => NumberRule,
-            NumberTok    => CharRule,
-            StringTok    => StringRule
+            Token::IdentTok     => matcher!(r"[a-zA-Z_]\w*"),
+            Token::IdentBangTok => IdentBangRule,
+            Token::NumberTok    => NumberRule,
+            Token::NumberTok    => CharRule,
+            Token::StringTok    => StringRule
         },
 
         // A special set of rules, just for when we're within a multi-line
@@ -452,15 +453,15 @@ pub fn new_mb_lexer<'a, S: ?Sized + StrExt, B: BufReader>(name: &S, buffer: B) -
             // The start of a multi-line comment.
             // This is to properly handle nested multiline comments.
             // We increase the multiline-comment-nesting-counter with this.
-            BeginComment => matcher!(r"/\*"),
+            Token::BeginComment => matcher!(r"/\*"),
 
             // The end of a multi-line comment.
             // We decrease the multiline-comment-nesting-counter with this.
-            EndComment => matcher!(r"\*/"),
+            Token::EndComment => matcher!(r"\*/"),
 
             // If we're within a comment, any string not
             // containing "/*" or "*/" is considered whitespace.
-            WS => matcher!(r"(?:.|\n)")
+            Token::WS => matcher!(r"(?:.|\n)")
         },
     };
 
@@ -475,12 +476,8 @@ impl TokenMaker<(), Token> for Token {
 // A Token constructor (NumberTok, StringTok, IdentTok, etc.) requires arguments for the
 // constructor to make the token, so accept a tuple of those arguments and hand back
 // the constructed token.
-impl<T> TokenMaker<T, Token> for fn(T) -> Token {
-    fn mk_tok(&self, arg: T) -> Token{ (*self)(arg) }
-}
-
-impl<A, B> TokenMaker<(A, B), Token> for fn(A, B) -> Token {
-    fn mk_tok(&self, (a, b): (A, B)) -> Token{ (*self)(a, b) }
+impl<T, F: Fn(T) -> Token> TokenMaker<T, Token> for F {
+    fn mk_tok(&self, arg: T) -> Token { (*self)(arg) }
 }
 
 #[cfg(test)]

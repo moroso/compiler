@@ -1,6 +1,6 @@
 use super::*;
 
-pub trait Visitor {
+pub trait Visitor: Sized {
     fn visit_item(&mut self, item: &Item) { walk_item(self, item) }
     fn visit_type(&mut self, t: &Type) { walk_type(self, t) }
     fn visit_pat(&mut self, pat: &Pat) { walk_pat(self, pat) }
@@ -176,7 +176,7 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
         StructExpr(ref p, ref flds) => {
             visitor.visit_path(p);
             for fld in flds.iter() {
-                visitor.visit_expr(fld.ref1());
+                visitor.visit_expr(&fld.1);
             }
         }
         BinOpExpr(_, ref l, ref r) => {

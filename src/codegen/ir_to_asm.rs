@@ -104,7 +104,7 @@ fn convert_binop<'a>(
     };
 
     let (reg_l, before_l, _) = var_to_reg(regmap, global_map, &var_l, 1, offs);
-    result.push_all_move(before_l);
+    result.extend(before_l.into_iter());
 
     // TODO: handle shifts, multiplication, division.
 
@@ -113,7 +113,7 @@ fn convert_binop<'a>(
             assert!(!swapped);
             let (reg_r, before_r, _) = var_to_reg(regmap, global_map, var, 2,
                                                   offs);
-            result.push_all_move(before_r);
+            result.extend(before_r.into_iter());
 
             // TODO: signedness needs to be part of the IR.
             match binop_to_cmpop(op, signed, swapped) {
@@ -277,7 +277,7 @@ fn convert_binop<'a>(
                         TimesOp =>
                             // We don't need to worry about swappedness here,
                             // because multiplication commutes.
-                            result.push_all_move(vec!(
+                            result.extend(vec!(
                                 // TODO: don't always use longs here, and
                                 // refactor the code around this to make
                                 // the different cases easier to handle.
@@ -293,9 +293,9 @@ fn convert_binop<'a>(
                                     signed,
                                     dest,
                                     reg_l,
-                                    global_reg))),
+                                    global_reg)).into_iter()),
                         DivideOp =>
-                            result.push_all_move(vec!(
+                            result.extend(vec!(
                                 // TODO: don't always use longs here, and
                                 // refactor the code around this to make
                                 // the different cases easier to handle.
@@ -321,9 +321,9 @@ fn convert_binop<'a>(
                                         dest,
                                         reg_l,
                                         global_reg)
-                                })),
+                                }).into_iter()),
                         ModOp =>
-                            result.push_all_move(vec!(
+                            result.extend(vec!(
                                 // TODO: don't always use longs here, and
                                 // refactor the code around this to make
                                 // the different cases easier to handle.
@@ -354,11 +354,11 @@ fn convert_binop<'a>(
                                     Pred { inverted: false,
                                            reg: 3 },
                                     dest)
-                                    )),
+                                    ).into_iter()),
                         LeftShiftOp |
                         RightShiftOp =>
                             if swapped {
-                                result.push_all_move(vec!(
+                                result.extend(vec!(
                                     InstNode::alu1long(
                                         Pred { inverted: false,
                                                reg: 3},
@@ -379,7 +379,7 @@ fn convert_binop<'a>(
                                             SrlShift
                                         },
                                         reg_l
-                                            )))
+                                            )).into_iter())
                             } else {
                                 let val = match longval {
                                     Immediate(v) => v as u8,
@@ -456,7 +456,7 @@ fn convert_unop<'a>(
     if *op == AddrOf {
         match *rhs {
             Variable(ref v) => {
-                match *regmap.find(v).unwrap() {
+                match *regmap.get(v).unwrap() {
                     StackColor(n) => {
                         return vec!(InstNode::alu2short(pred,
                                                         AddAluOp,
@@ -473,7 +473,7 @@ fn convert_unop<'a>(
                         // In that case, the address if the function is stored
                         // in that register, and we can just copy it to the
                         // destination.
-                        let global_info = global_map.find(&v.name);
+                        let global_info = global_map.get(&v.name);
                         match global_info {
                             Some(ref gi) => {
                                 assert!(gi.is_func);
@@ -520,7 +520,7 @@ fn convert_unop<'a>(
         Variable(ref var) => {
             let (reg_r, mut before_r, _) = var_to_reg(regmap, global_map, var,
                                                       2, offs);
-            before_r.push_all_move(reg_op(reg_r));
+            before_r.extend(reg_op(reg_r).into_iter());
             before_r
         },
         Constant(ref val) => {
@@ -580,9 +580,9 @@ fn var_to_reg(regmap: &BTreeMap<Var, RegisterColor>,
               spill_pos: u8,
               offs: u32) -> (Reg, Vec<InstNode>, Vec<InstNode>) {
     let pred = Pred { inverted: false, reg: 3 };
-    match *regmap.find(var).unwrap() {
+    match *regmap.get(var).unwrap() {
         RegColor(reg) => {
-            let global_info = global_map.find(&var.name);
+            let global_info = global_map.get(&var.name);
             match global_info {
                 None =>
                     // It's an ordinary variable!
@@ -626,7 +626,7 @@ fn var_to_reg(regmap: &BTreeMap<Var, RegisterColor>,
                  )
         },
         GlobalColor => {
-            let global_info = global_map.find(&var.name).unwrap();
+            let global_info = global_map.get(&var.name).unwrap();
             let offs = global_info.offset.expect("No offset for global item");
             let reg = Reg { index: spill_reg_base + spill_pos };
             if global_info.is_ref {
@@ -686,13 +686,13 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
 
     for var in vars.iter() {
         // Globals don't need assignments.
-        if global_map.find(&var.name).is_some() {
+        if global_map.get(&var.name).is_some() {
             continue;
         }
 
         let new_var = Var {
             name: var.name.clone(),
-            generation: Some(*gens.find(&var.name).unwrap())
+            generation: Some(*gens.get(&var.name).unwrap())
         };
         let (src_reg, src_insts, _) = var_to_reg(regmap, global_map, var, 1,
                                                  offs);
@@ -712,7 +712,7 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
     while !reg_transformations.is_empty() {
         // See if there's any assignment rA->rB where rB is not also the source
         // of an assignment. If so, it's safe to store rA in rB.
-        let res = reg_transformations.iter().find(|&(_, &(dest, _, _))|
+        let res = reg_transformations.iter().get(|&(_, &(dest, _, _))|
                                                   !reg_transformations.contains_key(
                                                       &dest)).map(|(x, y)|
                                                                   (x.clone(),
@@ -742,7 +742,7 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
                 // Start with any assignment at all. They're all part
                 // of cycles.
                 let (src_reg, (dest_reg, src_insts, dest_insts)) =
-                    reg_transformations.iter().find(|_|true)
+                    reg_transformations.iter().get(|_|true)
                     .map(|(x, y)| (x.clone(), y.clone())).unwrap();
                 reg_transformations.remove(&src_reg);
                 result.push_all(src_insts.as_slice());
@@ -764,7 +764,7 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
                     // previous source register. That source register
                     // has been moved to its destination (or the temp
                     // register), so it's safe to move over it now.
-                    this_src = rev_map.find(this_src).unwrap();
+                    this_src = rev_map.get(this_src).unwrap();
 
                     // If the register we're trying to move from is
                     // the original register we were moving from,
@@ -775,9 +775,9 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
                     }
 
                     let (this_dest, src_insts, dest_insts)
-                        = reg_transformations.find(this_src).unwrap().clone();
+                        = reg_transformations.get(this_src).unwrap().clone();
                     reg_transformations.remove(this_src);
-                    result.push_all_move(src_insts);
+                    result.extend(src_insts.into_iter());
                     result.push(
                         InstNode::alu1reg(
                             pred.clone(),
@@ -786,7 +786,7 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
                             this_src.clone(),
                             SllShift,
                             0));
-                    result.push_all_move(dest_insts);
+                    result.extend(dest_insts.into_iter());
                 }
 
                 // Now it's just a matter of assigning the temporary
@@ -799,7 +799,7 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
                         global_reg.clone(),
                         SllShift,
                         0));
-                result.push_all_move(dest_insts);
+                result.extend(dest_insts.into_iter());
             }
         }
     }
@@ -880,7 +880,7 @@ impl IrToAsm {
                 Op::Alloca(ref var, size) => {
                     // We must be aligned on 4-byte boundaries.
                     let size_adjust = (4 - (size % 4)) % 4;
-                    if !global_map.find(&var.name).is_some() {
+                    if !global_map.get(&var.name).is_some() {
                         stack_item_map.insert(inst, stack_item_offs);
                         stack_item_offs += (size + size_adjust) as u32;
                     }
@@ -966,11 +966,11 @@ impl IrToAsm {
                 },
                 Op::Return(ref rve) => {
                     // Store the result in r0.
-                    result.push_all_move(
+                    result.extend(
                         convert_unop(&regmap, global_map, return_reg,
                                      &Identity, rve,
                                      stack_item_offs,
-                                     session, strings));
+                                     session, strings).into_iter());
 
                     // Restore all callee-save registers
                     for (x, i) in range_inclusive(first_callee_saved_reg.index,
@@ -1005,20 +1005,20 @@ impl IrToAsm {
                     let (lhs_reg, _, after) = var_to_reg(&regmap, global_map,
                                                          var, 0,
                                                          stack_item_offs);
-                    result.push_all_move(
+                    result.extend(
                         convert_binop(&regmap, global_map, lhs_reg, op, signed,
                                       rve1, rve2, stack_item_offs, session,
-                                      strings));
-                    result.push_all_move(after);
+                                      strings).into_iter());
+                    result.extend(after.into_iter());
                 },
                 Op::UnOp(ref var, ref op, ref rve1) => {
                     let (lhs_reg, _, after) = var_to_reg(&regmap, global_map,
                                                          var, 0,
                                                          stack_item_offs);
-                    result.push_all_move(
+                    result.extend(
                         convert_unop(&regmap, global_map, lhs_reg, op, rve1,
-                                     stack_item_offs, session, strings));
-                    result.push_all_move(after);
+                                     stack_item_offs, session, strings).into_iter());
+                    result.extend(after.into_iter());
                 }
                 Op::Load(ref var1, ref var2, ref width) |
                 Op::Store(ref var1, ref var2, ref width) => {
@@ -1029,11 +1029,11 @@ impl IrToAsm {
                     let (reg1, before1, _) = var_to_reg(&regmap, global_map,
                                                         var1, 0,
                                                         stack_item_offs);
-                    result.push_all_move(before1);
+                    result.extend(before1.into_iter());
                     let (reg2, before2, _) = var_to_reg(&regmap, global_map,
                                                         var2, 0,
                                                         stack_item_offs);
-                    result.push_all_move(before2);
+                    result.extend(before2.into_iter());
 
                     let lsuop = LsuOp { store: store,
                                         width: width_to_lsuwidth(width) };
@@ -1057,7 +1057,7 @@ impl IrToAsm {
                     let (reg, before, _) = var_to_reg(&regmap, global_map,
                                                       var, 0,
                                                       stack_item_offs);
-                    result.push_all_move(before);
+                    result.extend(before.into_iter());
                     result.push(
                         InstNode::compareshort(
                             true_pred,
@@ -1067,11 +1067,11 @@ impl IrToAsm {
                             CmpBS,
                             1,
                             0));
-                    result.push_all_move(assign_vars(&regmap, global_map,
+                    result.extend(assign_vars(&regmap, global_map,
                                                      &Pred { inverted: *negated,
                                                              reg: 0 },
                                                      &labels[*label],
-                                                     vars, stack_item_offs));
+                                                     vars, stack_item_offs).into_iter());
                     result.push(
                         InstNode::branchimm(
                             Pred { inverted: *negated,
@@ -1080,10 +1080,10 @@ impl IrToAsm {
                             JumpLabel(format!("LABEL{}", label))));
                 },
                 Op::Goto(ref label, ref vars) => {
-                    result.push_all_move(assign_vars(&regmap, global_map,
+                    result.extend(assign_vars(&regmap, global_map,
                                                      &true_pred,
                                                      &labels[*label],
-                                                     vars, stack_item_offs));
+                                                     vars, stack_item_offs).into_iter());
                     // Don't emit redundant jumps.
                     let next = &ops[pos+1];
                     match *next {
@@ -1100,7 +1100,7 @@ impl IrToAsm {
                     targets.insert(format!("LABEL{}", label), result.len());
                 },
                 Op::Alloca(ref var, _) => {
-                    let offs_opt = stack_item_map.find(&pos);
+                    let offs_opt = stack_item_map.get(&pos);
                     match offs_opt {
                         // This is a "true" alloca, and we put things on the
                         // stack.
@@ -1119,7 +1119,7 @@ impl IrToAsm {
                                     offs,
                                     0)
                                     );
-                            result.push_all_move(after);
+                            result.extend(after.into_iter());
                         },
                         // This is actually allocated in global storage, and
                         // everything will be taken care of for us.
@@ -1154,7 +1154,7 @@ impl IrToAsm {
                     let mut reg_set: BTreeSet<Reg> = BTreeSet::new();
                     // Make a list of the registers we actually need to save.
                     for var in live_vars.iter() {
-                        match *regmap.find(var).expect(
+                        match *regmap.get(var).expect(
                             "Variable does not appear in regmap") {
                             RegColor(ref r) => {
                                 if r.index as uint >= total_vars &&
@@ -1220,7 +1220,7 @@ impl IrToAsm {
                                                           global_map,
                                                           &vars[arg_idx], 0,
                                                           stack_item_offs);
-                        result.push_all_move(before);
+                        result.extend(before.into_iter());
                         result.push(
                             InstNode::store(
                                 true_pred,
@@ -1240,7 +1240,7 @@ impl IrToAsm {
                         _ => panic!(),
                     };
 
-                    let reg_opt = match global_map.find(&func_var.name) {
+                    let reg_opt = match global_map.get(&func_var.name) {
                         // It's a global. No register to deal with!
                         // TODO: check that it's actually a function, and not
                         // a global function pointer.
@@ -1265,7 +1265,7 @@ impl IrToAsm {
                             offs_shift));
                     match reg_opt {
                         Some((reg, before)) => {
-                            result.push_all_move(before);
+                            result.extend(before.into_iter());
                             result.push(InstNode::branchreg(
                                 true_pred,
                                 true,

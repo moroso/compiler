@@ -11,6 +11,15 @@ pub mod graph;
 #[derive(Eq, Ord, PartialOrd, PartialEq, Clone)]
 pub struct Name(pub uint);
 
+impl Name {
+    fn as_uint(&self) -> uint {
+        let Name(result) = *self;
+        result
+    }
+}
+
+allow_string!(Name);
+
 impl Show for Name {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         use mc::session::interner;
@@ -52,6 +61,8 @@ pub enum IntKind {
     SignedInt(Width),
     UnsignedInt(Width),
 }
+
+allow_string!(IntKind);
 
 impl IntKind {
     pub fn is_signed(&self) -> bool {

@@ -85,12 +85,14 @@ pub struct IdentNode {
     pub name: Name,
 }
 
+allow_string!(IdentNode);
+
 impl Show for IdentNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         try!(write!(f, "{}", self.name));
         for tps in self.tps.iter() {
             if tps.len() > 0 {
-                try!(write!(f, "<{}>", tps));
+                try!(write!(f, "<{:?}>", tps));
             }
         }
         Ok(())
@@ -102,6 +104,8 @@ pub struct PathNode {
     pub elems: Vec<Ident>,
     pub global: bool,
 }
+
+allow_string!(PathNode);
 
 impl Show for PathNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -132,6 +136,8 @@ pub enum PatNode {
     StructPat(Path, Vec<FieldPat>),
 }
 
+allow_string!(PatNode);
+
 impl Show for PatNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
@@ -139,9 +145,9 @@ impl Show for PatNode {
                                                     t.as_ref().map(|t| format!(": {}", t)).unwrap_or_default()),
             IdentPat(ref id, ref t)       => write!(f, "{}{}", id,
                                                     t.as_ref().map(|t| format!(": {}", t)).unwrap_or_default()),
-            TuplePat(ref args)            => write!(f, "({})", args),
-            VariantPat(ref id, ref args)  => write!(f, "{}({})", id, args),
-            StructPat(ref id, ref fields) => write!(f, "{} {{ {} }}", id, fields),
+            TuplePat(ref args)            => write!(f, "({:?})", args),
+            VariantPat(ref id, ref args)  => write!(f, "{}({:?})", id, args),
+            StructPat(ref id, ref fields) => write!(f, "{} {{ {:?} }}", id, fields),
         }
     }
 }
@@ -160,6 +166,8 @@ pub enum TypeNode {
     TupleType(Vec<Type>),
 }
 
+allow_string!(TypeNode);
+
 impl Show for TypeNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
@@ -169,9 +177,9 @@ impl Show for TypeNode {
             IntType(k)                => write!(f, "{}", k),
             PtrType(ref t)            => write!(f, "*({})", t),
             NamedType(ref p)          => write!(f, "{}", p),
-            FuncType(ref d, ref r)    => write!(f, "({} -> {})", d, r),
+            FuncType(ref d, ref r)    => write!(f, "({:?} -> {})", d, r),
             ArrayType(ref t, ref d)   => write!(f, "({})[{}]", t, d),
-            TupleType(ref ts)         => write!(f, "({})", ts),
+            TupleType(ref ts)         => write!(f, "({:?})", ts),
         }
     }
 }
@@ -197,6 +205,8 @@ pub enum BinOpNode {
     LeftShiftOp,
     RightShiftOp,
 }
+
+allow_string!(BinOpNode);
 
 impl Show for BinOpNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -235,6 +245,8 @@ pub enum UnOpNode {
     SxhOp,
 }
 
+allow_string!(UnOpNode);
+
 impl Show for UnOpNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", match *self {
@@ -258,6 +270,8 @@ pub enum LitNode {
     NullLit,
 }
 
+allow_string!(LitNode);
+
 impl Show for LitNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
@@ -274,6 +288,8 @@ pub struct MatchArm {
     pub pat: Pat,
     pub body: Expr,
 }
+
+allow_string!(MatchArm);
 
 impl Show for MatchArm {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -311,6 +327,8 @@ pub enum ExprNode {
     MacroExpr(Name, Vec<Vec<Token>>),
 }
 
+allow_string!(ExprNode);
+
 impl Show for ExprNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
@@ -318,17 +336,17 @@ impl Show for ExprNode {
             LitExpr(ref l)                      => write!(f, "{}", l),
             SizeofExpr(ref t)                   => write!(f, "{}", t),
             GroupExpr(ref e)                    => write!(f, "({})", e),
-            TupleExpr(ref vs)                   => write!(f, "({})", vs),
-            PathExpr(ref p)                     => write!(f, "{}", p),
-            StructExpr(ref p, ref flds)         => write!(f, "{} {{ {} }}", p, flds),
-            ArrayExpr(ref elems)                => write!(f, "[{}]", elems),
+            TupleExpr(ref vs)                   => write!(f, "({:?})", vs),
+            PathExpr(ref p)                     => write!(f, "{:?}", p),
+            StructExpr(ref p, ref flds)         => write!(f, "{} {{ {:?} }}", p, flds),
+            ArrayExpr(ref elems)                => write!(f, "[{:?}]", elems),
             BinOpExpr(op, ref l, ref r)         => write!(f, "({}{}{})", l, op, r),
             UnOpExpr(op, ref e)                 => write!(f, "({}{})", op, e),
             IndexExpr(ref e, ref i)             => write!(f, "{}[{}]", e, i),
             DotExpr(ref e, ref fld)             => write!(f, "{}.{}", e, fld),
             ArrowExpr(ref e, ref fld)           => write!(f, "{}->{}", e, fld),
             AssignExpr(ref op, ref lv, ref rv)  => write!(f, "({}{}={})", lv, op.map_or(String::new(), |op| format!("{}", op)), rv),
-            CallExpr(ref e, ref args)           => write!(f, "{}({})", e, args),
+            CallExpr(ref e, ref args)           => write!(f, "{}({:?})", e, args),
             CastExpr(ref e, ref t)              => write!(f, "({} as {})", e, t),
             IfExpr(ref c, ref bt, ref bf)       => write!(f, "if {} {{\n    {}}} else {{\n    {}}}", c, bt, bf),
             BlockExpr(ref b)                    => write!(f, "{}", b),
@@ -345,7 +363,7 @@ impl Show for ExprNode {
                 }
                 write!(f, "{}", "}")
             }
-            MacroExpr(n, ref args) => write!(f, "{}!({})", n, args),
+            MacroExpr(n, ref args) => write!(f, "{}!({:?})", n, args),
         }
     }
 }
@@ -356,6 +374,8 @@ pub enum StmtNode {
     ExprStmt(Expr), // no trailing semicolon, must have unit type
     SemiStmt(Expr), // trailing semicolon, any type OK
 }
+
+allow_string!(StmtNode);
 
 impl Show for StmtNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -380,6 +400,8 @@ pub struct BlockNode {
     pub stmts: Vec<Stmt>,
     pub expr:  Option<Expr>,
 }
+
+allow_string!(BlockNode);
 
 impl Show for BlockNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -412,6 +434,8 @@ pub struct FuncArg {
     pub argtype: Type,
 }
 
+allow_string!(FuncArg);
+
 impl Show for FuncArg {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}: {}", self.ident, self.argtype)
@@ -423,6 +447,8 @@ pub struct Variant {
     pub ident: Ident,
     pub args: Vec<Type>,
 }
+
+allow_string!(Variant);
 
 impl Show for Variant {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -439,6 +465,8 @@ pub struct Field {
     pub name:    Name,
     pub fldtype: Type,
 }
+
+allow_string!(Field);
 
 impl Show for Field {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -466,6 +494,8 @@ impl MacroDef {
     }
 }
 
+allow_string!(MacroDef);
+
 #[derive(Clone, Show, Eq, PartialEq)]
 pub enum ImportSpec {
     ImportNames(Vec<Ident>),
@@ -478,6 +508,8 @@ pub struct ImportNode {
     pub import: ImportSpec,
     pub global: bool
 }
+
+allow_string!(ImportNode);
 
 #[derive(Eq, PartialEq, Clone)]
 pub enum FuncDef {
@@ -514,27 +546,29 @@ pub enum ItemNode {
     ConstItem(Ident, Type, Expr),
 }
 
+allow_string!(ItemNode);
+
 impl Show for ItemNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             FuncItem(ref id, ref args, ref t, LocalFn(ref block), ref tps) => {
                 try!(write!(f, "fn {}", id));
                 if tps.len() > 0 {
-                    try!(write!(f, "<{}>", tps));
+                    try!(write!(f, "<{:?}>", tps));
                 }
-                write!(f, "({}) -> {} {}", args, t, block)
+                write!(f, "({:?}) -> {} {}", args, t, block)
             },
             FuncItem(ref id, ref args, ref t, ExternFn(ref abi), ref tps) => {
                 try!(write!(f, "extern \"{}\" fn {}", abi, id));
                 if tps.len() > 0 {
-                    try!(write!(f, "<{}>", tps));
+                    try!(write!(f, "<{:?}>", tps));
                 }
-                write!(f, "({}) -> {};", args, t)
+                write!(f, "({:?}) -> {};", args, t)
             },
             StructItem(ref id, ref fields, ref tps) => {
                 try!(write!(f, "struct {}", id));
                 if tps.len() > 0 {
-                    try!(write!(f, "<{}>", tps));
+                    try!(write!(f, "<{:?}>", tps));
                 }
                 try!(write!(f, "{}\n", " {"));
                 for field in fields.iter() {
@@ -545,7 +579,7 @@ impl Show for ItemNode {
             EnumItem(ref id, ref items, ref tps) => {
                 try!(write!(f, "enum {}", id));
                 if tps.len() > 0 {
-                    try!(write!(f, "<{}>", tps));
+                    try!(write!(f, "<{:?}>", tps));
                 }
                 try!(write!(f, "{}\n", " {"));
                 for ref item in items.iter() {
@@ -556,7 +590,7 @@ impl Show for ItemNode {
             TypeItem(ref id, ref ty, ref tps) => {
                 try!(write!(f, "type {}", id));
                 if tps.len() > 0 {
-                    try!(write!(f, "<{}>", tps));
+                    try!(write!(f, "<{:?}>", tps));
                 }
                 write!(f, " = {};", ty)
             }

@@ -79,7 +79,7 @@ pub fn main() {
         optmulti("l", "lib", "Specify a library location", "<foo:/path/to/foo.mb>"),
     ];
 
-    let bail = |error: Option<&str>| {
+    let bail = |&:error: Option<&str>| {
         match error {
             Some(e) => {
                 os::set_exit_status(1);
@@ -89,7 +89,7 @@ pub fn main() {
         }
 
         let brief = format!("Usage: {} [OPTIONS]", arg0);
-        println!("{}", getopts::usage(brief.as_slice(), opts));
+        println!("{}", getopts::usage(brief.as_slice(), &opts));
     };
 
     let matches = match getopts(args.tail(), &opts) {
@@ -101,6 +101,8 @@ pub fn main() {
         return bail(None);
     }
 
+    // TODO: make this work again.
+    /*
     let targets = targets! {
         "c" => CTarget,
         "ir" => IRTarget,
@@ -125,7 +127,9 @@ pub fn main() {
             let msg = format!("Unrecognized target `{}'", target_arg);
             return bail(Some(msg.as_slice()));
         }
-    };
+                        };*/
+    // TODO!!!!
+    let target = new_target::<CTarget>(vec!());
 
     let mut options = Options::new();
     setup_builtin_search_paths(&mut options);

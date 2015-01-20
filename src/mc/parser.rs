@@ -207,12 +207,12 @@ impl Parser {
 
     /// Get the Span of a certain node in the AST.
     pub fn span_of(&self, id: &NodeId) -> Span {
-        *self.spanmap.find(id).unwrap()
+        *self.spanmap.get(id).unwrap()
     }
 
     /// Get the name of a certain node in the AST.
     pub fn filename_of(&self, id: &NodeId) -> Name {
-        *self.filemap.find(id).unwrap()
+        *self.filemap.get(id).unwrap()
     }
 
     /// Get all of the files used by this parse.
@@ -268,7 +268,7 @@ impl OpTable {
 }
 
 impl<'a, T: Iterator> StreamParser<'a, T> {
-    fn new(session: &'a mut Session, name: Name, tokens: T) -> StreamParser<'a, T> {
+    fn new(session: &'a mut Session<'a>, name: Name, tokens: T) -> StreamParser<'a, T> {
         StreamParser {
             name: name,
             next: None,
@@ -511,7 +511,7 @@ impl<'a, T: Iterator> StreamParser<'a, T> {
             self.expect(Token::ColonColon);
             match *self.peek() {
                 Token::Less if with_tps => {
-                    let elem = path.elems.mut_last().unwrap();
+                    let elem = path.elems[path.elems.len()-1];
                     let tps = self.parse_type_params();
                     elem.val.tps = Some(tps);
                 }
@@ -566,7 +566,7 @@ impl<'a, T: Iterator> StreamParser<'a, T> {
     fn parse_pat_common(&mut self, allow_types: bool) -> Pat {
         let start_span = self.cur_span();
 
-        let maybe_type = |p: &mut StreamParser<'a, T>, allow_types| {
+        let maybe_type = |&: p: &mut StreamParser<'a, T>, allow_types| {
             match *p.peek() {
                 Colon if allow_types => {
                     p.expect(Token::Colon);
@@ -676,7 +676,7 @@ impl<'a, T: Iterator> StreamParser<'a, T> {
                 let mut path = self.parse_path_no_tps();
                 match *self.peek() {
                     Less => {
-                        let elem = path.val.elems.mut_last().unwrap();
+                        let elem = path.val.elems[path.val.elems.len()-1];
                         elem.val.tps = Some(self.parse_type_params());
                     }
                     _ => {}
@@ -1087,7 +1087,7 @@ impl<'a, T: Iterator> StreamParser<'a, T> {
             ($l:expr, $r:expr) => ({
                 tokens.push($l);
                 while *self.peek() != $r {
-                    tokens.push_all_move(self.eat_token_tree());
+                    tokens.extend(self.eat_token_tree().into_iter());
                 }
                 self.expect($r);
                 tokens.push($r);
@@ -1111,7 +1111,7 @@ impl<'a, T: Iterator> StreamParser<'a, T> {
             ($l:expr, $r:expr) => ({
                 tokens.push(MacroTok($l));
                 while *self.peek() != $r {
-                    tokens.push_all_move(self.eat_macro_token_tree(args));
+                    tokens.extend(self.eat_macro_token_tree(args).into_iter());
                 }
                 self.expect($r);
                 tokens.push(MacroTok($r));
@@ -1140,7 +1140,7 @@ impl<'a, T: Iterator> StreamParser<'a, T> {
     fn parse_macro_expr_arg(&mut self) -> Vec<Token> {
         let mut tokens = vec!();
         while match *self.peek() { Token::Comma | Token::RParen => false, _ => true } {
-            tokens.push_all_move(self.eat_token_tree())
+            tokens.extend(self.eat_token_tree().into_iter())
         }
 
         tokens
@@ -1525,7 +1525,7 @@ impl<'a, T: Iterator> StreamParser<'a, T> {
         }
 
         // we don't have unshift_all_move :(
-        { use_items.push_all_move(items); use_items }
+        { use_items.extend(items.into_iter()); use_items }
     }
 
     fn parse_module_until(&mut self, end: Token) -> Module {
@@ -1564,7 +1564,7 @@ impl<'a, T: Iterator> StreamParser<'a, T> {
                             // Search path does *not* use the current relative path.
                             // It is based on the invocation location.
                             // (And may well be absolute, even!)
-                            match self.session.options.search_paths.find(&String::from_str(name)) {
+                            match self.session.options.search_paths.get(&String::from_str(name)) {
                                 Some(path) => path.clone(),
                                 None =>
                                     self.error(format!("no such module: neither {} nor {} exist.",
@@ -1640,7 +1640,7 @@ impl<'a, T: Iterator> StreamParser<'a, T> {
 
         let mut body = vec!();
         while *self.peek() != Token::RBrace {
-            body.push_all_move(self.eat_macro_token_tree(&args_map));
+            body.extend(self.eat_macro_token_tree(&args_map).into_iter());
         }
 
         self.expect(Token::RBrace);

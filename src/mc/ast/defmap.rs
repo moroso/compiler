@@ -69,10 +69,10 @@ impl DefMap {
     }
 
     pub fn find<'a>(&'a self, id: &NodeId) -> Option<&'a Def> {
-        self.table.find(id)
+        self.table.get(id)
     }
 
-    pub fn record<'a>(session: &mut Session<'a>, module: &Module) {
+    pub fn record<'a>(session: &'a mut Session<'a>, module: &Module) {
         let mut visitor = DefMapVisitor {
             session: session,
             qualifier: vec!(),

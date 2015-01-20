@@ -25,9 +25,8 @@ use std::str::StrExt;
 use std::io;
 use std::thread_local;
 
-thread_local! {
-    pub static interner: Interner = Interner::new()
-}
+// TODO: thread-local?
+pub static interner: Interner = Interner::new();
 
 thread_local! {
     pub static cur_rel_path: RefCell<Path> = RefCell::new(Path::new("."))
@@ -71,10 +70,10 @@ impl Interner {
         // A BiMap would be nice here
         let strings = self.strings.borrow();
         for x in strings.iter() {
-            if x.val1() == name {
+            if x.1 == name {
                 unsafe {
                     use std::mem::copy_lifetime;
-                    return copy_lifetime(self, x.val0()).as_slice();
+                    return copy_lifetime(self, x.0).as_slice();
                 }
             }
         }
@@ -83,40 +82,39 @@ impl Interner {
     }
 
     pub fn intern(&self, s: String) -> Name {
-        //match self.strings.find_equiv(&s) {
-        //    Some(name) => *name,
-        //    None => {
-        //        let name = Name(self.strings.len());
-        //        self.strings.insert(s, name);
-        //        name
-        //    }
-        //}
         let mut strings = self.strings.borrow_mut();
-        let name = Name(strings.len());
-        *strings.find_or_insert(s, name)
+        match strings.get(&s) {
+            Some(name) => *name,
+            None => {
+                let name = Name(strings.len());
+                strings.insert(s, name);
+                name
+            }
+        }
+        //let mut strings = self.strings.borrow_mut();
+        //let name = Name(strings.len());
+        //*strings.find_or_insert(s, name)
     }
 }
 
 impl<'a> Session<'a> {
     pub fn new(opts: Options) -> Session<'a> {
-        interner.with(|i| {
-            Session {
-                options: opts,
-                defmap: DefMap::new(),
-                pathmap: PathMap::new(),
-                resolver: Resolver::new(),
-                parser: Parser::new(),
-                expander: MacroExpander::new(),
-                interner: i,
-            }
-        })
+        Session {
+            options: opts,
+            defmap: DefMap::new(),
+            pathmap: PathMap::new(),
+            resolver: Resolver::new(),
+            parser: Parser::new(),
+            expander: MacroExpander::new(),
+            interner: &interner,
+        }
     }
 
     pub fn messages<T: Str>(&self, errors: &[(NodeId, T)]) {
         let mut full_msg = String::new();
         for &(nid, ref msg) in errors.iter() {
             full_msg.push_str(msg.as_slice());
-            full_msg.push_char('\n');
+            full_msg.push_str("\n");
             let fname = self.interner.name_to_str(&self.parser.filename_of(&nid));
             full_msg.push_str(
                 format!("   {}: {}\n", fname, self.parser.span_of(&nid)).as_slice());
@@ -126,7 +124,7 @@ impl<'a> Session<'a> {
     }
 
     pub fn message<T: Str>(&self, nid: NodeId, msg: T) {
-        self.messages([(nid, msg)]);
+        self.messages(&[(nid, msg)]);
     }
 
     pub fn errors_fatal<T: Str>(&self, errors: &[(NodeId, T)]) -> ! {
@@ -135,7 +133,7 @@ impl<'a> Session<'a> {
         panic!("Aborting")
     }
     pub fn error_fatal<T: Str>(&self, nid: NodeId, msg: T) -> ! {
-        self.errors_fatal([(nid, msg)]);
+        self.errors_fatal(&[(nid, msg)]);
     }
 
     // For now everything is fatal.
@@ -158,7 +156,7 @@ impl<'a> Session<'a> {
         let lexer = new_mb_lexer(name, buffer);
         let mut temp = Parser::parse(self, lexer);
         swap(&mut module.val.items, &mut temp.val.items);
-        module.val.items.push_all_move(temp.val.items);
+        module.val.items.push_all(temp.val.items.as_slice());
     }
 
 
@@ -177,7 +175,7 @@ impl<'a> Session<'a> {
         Parser::parse(self, lexer)
     }
 
-    pub fn parse_package_buffer<S: ?Sized + StrExt, T: BufReader>(&mut self, name: &S, buffer: T) -> Module {
+    pub fn parse_package_buffer<S: ?Sized + StrExt, T: BufReader>(&'a mut self, name: &S, buffer: T) -> Module {
         use super::ast::mut_visitor::MutVisitor;
 
         struct PreludeInjector<'a> { session: &'a mut Session<'a> }
@@ -205,27 +203,31 @@ impl<'a> Session<'a> {
         module
     }
 
-    pub fn parse_file_common<F>(&mut self, file: io::File, f: F) -> Module
+    pub fn parse_file_common<F>(&'a mut self, file: io::File, f: F) -> Module
         where F: Fn(&mut Session, String,
                     io::BufferedReader<io::File>) -> Module {
         use std::mem::replace;
 
         let filename = format!("{}", file.path().display());
-        let old_wd = cur_rel_path.with(|p| replace(p.borrow_mut(), file.path().dir_path()));
+        let old_wd = cur_rel_path.with(|p| replace(&*p.borrow_mut(), file.path().dir_path()));
         let module = f(self, filename, io::BufferedReader::new(file));
-        cur_rel_path.with(|p| replace(p.borrow_mut(), old_wd));
+        cur_rel_path.with(|p| replace(&*p.borrow_mut(), old_wd));
         module
     }
 
-    pub fn parse_file(&mut self, file: io::File) -> Module {
-        self.parse_file_common(file, |me, filename, buf| me.parse_buffer(filename, buf))
+    pub fn parse_file(&'a mut self, file: io::File) -> Module {
+        self.parse_file_common(file,
+                               |me, filename, buf| me.parse_buffer(
+                                   filename.as_slice(), buf))
     }
 
-    pub fn parse_package_file(&mut self, file: io::File) -> Module {
-        self.parse_file_common(file, |me, filename, buf| me.parse_package_buffer(filename, buf))
+    pub fn parse_package_file(&'a mut self, file: io::File) -> Module {
+        self.parse_file_common(file,
+                               |me, filename, buf| me.parse_package_buffer(
+                                   filename.as_slice(), buf))
     }
 
-    pub fn parse_package_str(&mut self, s: &str) -> Module {
+    pub fn parse_package_str(&'a mut self, s: &str) -> Module {
         let bytes = s.as_bytes().to_vec();
         let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
         self.parse_package_buffer("<input>", buffer)
