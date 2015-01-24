@@ -24,15 +24,7 @@ impl Show for Name {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         use mc::session::interner;
 
-        match interner.get() {
-            None => {
-                let Name(n) = *self;
-                write!(f, "<name #{}>", n)
-            }
-            Some(real_interner) => {
-                write!(f, "{}", real_interner.name_to_str(self))
-            }
-        }
+        write!(f, "{}", interner.name_to_str(self))
     }
 }
 
@@ -43,6 +35,8 @@ pub enum Width {
     Width16,
     Width8,
 }
+
+allow_string!(Width);
 
 impl Show for Width {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {

@@ -34,7 +34,7 @@ pub struct IRTarget {
 
 fn is_function(global_map: &BTreeMap<Name, StaticIRItem>,
                v: &Var) -> bool {
-    match global_map.find(&v.name) {
+    match global_map.get(&v.name) {
         Some(ref i) => i.is_func,
         None => false
     }
@@ -47,7 +47,7 @@ fn print_var(interner: &Interner,
             interner.name_to_str(&v.name),
             match v.generation {
                 Some(ref g) if *g > 0 =>
-                    if global_map.find(&v.name).is_none() {
+                    if global_map.get(&v.name).is_none() {
                         format!("_{}", g)
                     } else {
                         format!("")
@@ -97,17 +97,17 @@ fn assign_vars(interner: &Interner,
     for var in vars.iter() {
         let new_var = Var {
             name: var.name.clone(),
-            generation: Some(*label.find(&var.name).unwrap())
+            generation: Some(*label.get(&var.name).unwrap())
         };
-        match global_map.find(&var.name) {
+        match global_map.get(&var.name) {
             // We don't want to do assignments when global functions are
             // involved.
             Some(ref i) if i.is_func => {},
             _ =>
-                s = s.append(
+                s = s +
                     format!("  {} = {};\n",
                             print_var(interner, global_map, &new_var),
-                            print_var(interner, global_map, var)).as_slice()),
+                            print_var(interner, global_map, var)).as_slice(),
         }
     }
     s
@@ -161,9 +161,9 @@ impl IRTarget {
         for op in ops.iter() {
             match *op {
                 Nop => {},
-                _ => s = s.append(format!("  // {}", op).as_slice())
+                _ => s = s + format!("  // {}", op).as_slice()
             }
-            s = s.append(match *op {
+            s = s + (match *op {
                 Op::BinOp(ref v, ref op, ref rv1, ref rv2, signed) => {
                     let cast = if signed {
                         "(long)"
@@ -225,8 +225,8 @@ impl IRTarget {
                     let list: Vec<String> = args.iter()
                         .map(|arg| print_var(interner, global_map, arg)
                              ).collect();
-                    s = s.append(list.connect(", ").as_slice());
-                    s = s.append(");\n");
+                    s = s + list.connect(", ").as_slice();
+                    s = s + ");\n";
                     s
                 },
                 Op::Load(ref l, ref r, ref size) => {
@@ -261,7 +261,7 @@ impl IRTarget {
                     format!("{}  goto LABEL{};\n",
                             assign_vars(interner,
                                         global_map,
-                                        labels.get(l),
+                                        labels.get(l).unwrap(),
                                         vars),
                             l)
                 },
@@ -271,7 +271,7 @@ impl IRTarget {
                             print_rvalelem(interner, global_map, rve),
                             assign_vars(interner,
                                         global_map,
-                                        labels.get(l),
+                                        labels.get(l).unwrap(),
                                         vars),
                             l)
                 },
@@ -288,12 +288,12 @@ impl IRTarget {
                         .collect();
                     let mut s = format!("");
                     for var in vars.iter() {
-                        if global_map.find(&var.name).is_none() {
-                            s = s.append(format!("  long {};\n",
-                                                 print_var(interner,
-                                                           global_map,
-                                                           *var))
-                                         .as_slice());
+                        if global_map.get(&var.name).is_none() {
+                            s = s + format!("  long {};\n",
+                                         print_var(interner,
+                                                   global_map,
+                                                   *var))
+                                .as_slice();
                         }
                     }
 
@@ -310,7 +310,7 @@ impl IRTarget {
                 //_ => format!(""),
             }.as_slice());
         }
-        s.append("}\n")
+        s + "}\n"
     }
 }
 
@@ -343,7 +343,7 @@ impl Target for IRTarget {
                                                        &mangler.names);
 
             if self.verbose {
-                print!("{}\n", module);
+                print!("{:?}\n", module);
             }
 
             converter.convert_module(&module)
@@ -351,7 +351,7 @@ impl Target for IRTarget {
 
         if self.verbose {
             for res in result.iter() {
-                print!("{}\n\n", res);
+                print!("{:?}\n\n", res);
             }
         }
 
@@ -384,7 +384,8 @@ impl Target for IRTarget {
 
         // TODO: this is a hack. Eventually we should extract names from
         // any included files.
-        let builtin_staticitems = vec!("print_char",
+        let builtin_staticitems: Vec<StaticIRItem>
+            = vec!("print_char",
                                        "print_int",
                                        "printf0_",
                                        "printf1_",
@@ -403,7 +404,7 @@ impl Target for IRTarget {
                      is_extern: true,
                      expr: None,
                  }).collect();
-        staticitems.push_all_move(builtin_staticitems);
+        staticitems.extend(builtin_staticitems.into_iter());
 
         let global_map = ASTToIntermediate::allocate_globals(staticitems);
         let global_initializer = {
@@ -455,22 +456,22 @@ impl Target for IRTarget {
         let mut fold_time: u64 = 0;
         let mut convert_time: u64 = 0;
 
-        for insts in result.mut_iter() {
+        for insts in result.iter_mut() {
             let start = precise_time_ns();
             ToSSA::to_ssa(insts, self.verbose);
             let end = precise_time_ns();
             ssa_time += end-start;
             if self.verbose {
-                write!(f, "{}\n", insts);
+                write!(f, "{:?}\n", insts);
             }
             let start = precise_time_ns();
             ConstantFolder::fold(insts, &global_map, self.verbose);
             let end = precise_time_ns();
             fold_time += end-start;
             if self.verbose {
-                write!(f, "{}\n", insts);
+                write!(f, "{:?}\n", insts);
                 for a in LivenessAnalyzer::analyze(insts).iter() {
-                    write!(f, "{}\n", a);
+                    write!(f, "{:?}\n", a);
                 }
             }
             let start = precise_time_ns();

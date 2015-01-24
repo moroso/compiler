@@ -21,7 +21,9 @@ trait Parsable {
 
 impl Parsable for ::std::io::File {
     fn parse(self, session: &mut Session) -> Module {
-        session.parse_package_file(self)
+        //TODO!!!!!
+        panic!();
+        //session.parse_package_file(self)
     }
 }
 

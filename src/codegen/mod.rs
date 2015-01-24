@@ -1,5 +1,7 @@
 use mas::ast::Reg;
 
+use std::fmt;
+use std::fmt::{Formatter, Show};
 pub use codegen::ir_to_asm::IrToAsm;
 pub use self::RegisterColor::*;
 
@@ -37,3 +39,5 @@ pub enum RegisterColor {
     // This is a structure in global storage; we access it by reference.
     GlobalReferenceColor,
 }
+
+allow_string!(RegisterColor);

@@ -170,12 +170,12 @@ impl<'a> Session<'a> {
         self.inject(s, "<prelude>", module);
     }
 
-    fn parse_buffer<S: ?Sized + StrExt, T: BufReader>(&mut self, name: &S, buffer: T) -> Module {
+    fn parse_buffer<S: ?Sized + ToString, T: BufReader>(&mut self, name: &S, buffer: T) -> Module {
         let lexer = new_mb_lexer(name, buffer);
         Parser::parse(self, lexer)
     }
 
-    pub fn parse_package_buffer<S: ?Sized + StrExt, T: BufReader>(&'a mut self, name: &S, buffer: T) -> Module {
+    pub fn parse_package_buffer<S: ?Sized + ToString, T: BufReader>(&'a mut self, name: &S, buffer: T) -> Module {
         use super::ast::mut_visitor::MutVisitor;
 
         struct PreludeInjector<'a> { session: &'a mut Session<'a> }
@@ -196,10 +196,12 @@ impl<'a> Session<'a> {
 
         self.inject_std(&mut module);
 
+        //TODO!!!!!
+        /*
         MacroExpander::expand_macros(self, &mut module);
         DefMap::record(self, &module);
         PathMap::record(self, &module);
-        Resolver::resolve(self, &module);
+        Resolver::resolve(self, &module);*/
         module
     }
 
@@ -220,12 +222,13 @@ impl<'a> Session<'a> {
                                |me, filename, buf| me.parse_buffer(
                                    filename.as_slice(), buf))
     }
-
+    //TODO!!!!!
+    /*
     pub fn parse_package_file(&'a mut self, file: io::File) -> Module {
         self.parse_file_common(file,
                                |me, filename, buf| me.parse_package_buffer(
                                    filename.as_slice(), buf))
-    }
+    }*/
 
     pub fn parse_package_str(&'a mut self, s: &str) -> Module {
         let bytes = s.as_bytes().to_vec();

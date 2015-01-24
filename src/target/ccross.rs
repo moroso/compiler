@@ -131,8 +131,11 @@ static INDENT_AMT: uint = 4;
 impl<'a> CCrossCompiler<'a> {
     fn indent(&mut self) { self.indent += INDENT_AMT; }
     fn unindent(&mut self) { self.indent -= INDENT_AMT; }
-    fn ind(&self) -> String { String::from_utf8_lossy(
-        (0..self.indent).map(||' ').collect()) }
+    fn ind(&self) -> String {
+        let v = (0..self.indent).map(|_|' ' as u8);
+        let v: Vec<u8> = v.collect();
+        String::from_utf8_lossy(v.as_slice()).into_owned()
+    }
 
     fn visit_list<T, F>(&self, list: &Vec<T>,
                         visit: F,
@@ -281,7 +284,8 @@ impl<'a> CCrossCompiler<'a> {
             None => tail(None),
         };
 
-        let out = self.visit_list(&vec!(items, stmts, expr), |_, t: &String| t.clone(), delim);
+        let out = self.visit_list(&vec!(items, stmts, expr),
+                                  |&:_, t: &String| t.clone(), delim);
         self.unindent();
 
         format!("{{{}{}\n{}}}", delim, out, self.ind())
@@ -293,7 +297,7 @@ impl<'a> CCrossCompiler<'a> {
             ConstItem(ref id, ref t, _) => {
                 let ty = self.visit_type(t);
                 let name = self.visit_ident(id);
-                let lit = self.typemap.consts.find(&id.id)
+                let lit = self.typemap.consts.get(&id.id)
                     .expect("finding const in map")
                     .clone().ok().expect("getting const value"); // wee
                 let lit = WithId { id: id.id, val: lit };
@@ -371,7 +375,7 @@ impl<'a> CCrossCompiler<'a> {
 
     fn visit_mangled_path(&self, path: &Path) -> String {
         let resolved_node = self.session.resolver.def_from_path(path);
-        match self.mangle_map.find(&resolved_node) {
+        match self.mangle_map.get(&resolved_node) {
             Some(n) => n.clone(),
             None => self.visit_path(path)
         }
@@ -440,7 +444,7 @@ impl<'a> CCrossCompiler<'a> {
             }
             EnumTy(did, _) |
             StructTy(did, _) => {
-                format!("struct {}", self.mangle_map.find(&did).unwrap())
+                format!("struct {}", self.mangle_map.get(&did).unwrap())
             }
             BottomTy => String::from_str("void"),
             FuncTy(ref d, ref r) => {
@@ -453,7 +457,7 @@ impl<'a> CCrossCompiler<'a> {
     }
 
     fn visit_path_in_enum_access(&self, path: &Path) -> String {
-        let (_, ref variants, ref pos) = *self.enumitemnames.find(&path.val.elems.last().unwrap().val.name).unwrap();
+        let (_, ref variants, ref pos) = *self.enumitemnames.get(&path.val.elems.last().unwrap().val.name).unwrap();
         let variant = &variants[*pos];
         let name = self.session.interner.name_to_str(&variant.ident.val.name);
         name.to_string()
@@ -461,7 +465,7 @@ impl<'a> CCrossCompiler<'a> {
 
     fn visit_path(&self, path: &Path) -> String {
         // TODO: better mangling.
-        match self.enumitemnames.find(&path.val.elems.last().unwrap().val.name) {
+        match self.enumitemnames.get(&path.val.elems.last().unwrap().val.name) {
             Some(&(_, _, ref pos)) => format!("{{ .tag = {} }}", pos),
             None => {
                 let last_component: Vec<String> = path.val.elems.iter()
@@ -475,11 +479,11 @@ impl<'a> CCrossCompiler<'a> {
     }
 
     fn visit_id(&mut self, id: &NodeId) -> String {
-        self.mangle_map.find(id).unwrap().clone()
+        self.mangle_map.get(id).unwrap().clone()
     }
 
     fn visit_ident(&mut self, ident: &Ident) -> String {
-        match self.mangle_map.find(&ident.id) {
+        match self.mangle_map.get(&ident.id) {
             Some(n) => n.clone(),
             _ => String::from_str(self.session.interner.name_to_str(
                 &ident.val.name))
@@ -600,7 +604,7 @@ impl<'a> CCrossCompiler<'a> {
                     PathExpr(ref path) => {
                         let name = self.visit_mangled_path(path);
 
-                        match self.enumitemnames.find(&path.val.elems.last().unwrap().val.name) {
+                        match self.enumitemnames.get(&path.val.elems.last().unwrap().val.name) {
                             Some(&(_, _, pos)) => {
                                 let mut n: u32 = 0;
                                 let args = self.mut_visit_list(args, |me, arg| {
@@ -678,7 +682,7 @@ impl<'a> CCrossCompiler<'a> {
 
                     let body = me.visit_expr(&arm.body);
 
-                    let &(_, ref variants, idx) = me.enumitemnames.find(&path.val.elems.last().unwrap().val.name).unwrap();
+                    let &(_, ref variants, idx) = me.enumitemnames.get(&path.val.elems.last().unwrap().val.name).unwrap();
                     let this_variant = &variants[idx as uint];
 
                     let name = me.visit_path_in_enum_access(path);

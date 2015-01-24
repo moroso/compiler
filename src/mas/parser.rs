@@ -805,7 +805,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
                         _ => panic!()
                     };
                     self.expect(Token::Colon);
-                    if labels.insert(name.clone(), instnum).is_none() {
+                    if labels.insert(name.clone(), instnum).is_some() {
                         self.error(format!("Label '{}' redefined.", name));
                     }
                 },

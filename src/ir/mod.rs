@@ -1,5 +1,6 @@
 use mc::ast::{LitNode, BinOpNode, UnOpNode, Expr};
 
+use std::fmt;
 use std::fmt::{Formatter, Result, Show};
 use std::collections::BTreeSet;
 
@@ -37,6 +38,8 @@ pub struct Var {
     pub generation: Option<uint>,
 }
 
+allow_string!(Var);
+
 impl Show for Var {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self.generation {
@@ -69,6 +72,8 @@ pub enum RValueElem {
     Variable(Var),
     Constant(LitNode),
 }
+
+allow_string!(RValueElem);
 
 impl RValueElem {
     pub fn is_variable(&self) -> bool {
@@ -116,6 +121,8 @@ pub enum Op {
     Nop,
 }
 
+allow_string!(Op);
+
 impl Show for Op {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
@@ -133,19 +140,19 @@ impl Show for Op {
                 write!(f, "{: >12} :={} *{}\n",
                        format!("{}", lv), size, rv),
             Call(ref lv, ref fname, ref args) =>
-                write!(f, "{: >12} := {}({})\n",
+                write!(f, "{: >12} := {}({:?})\n",
                        format!("{}", lv), fname, args),
             Alloca(ref v, ref size) =>
                 write!(f, "{: >12} := alloca({})\n",
                        format!("{}", v), size),
-            Label(ref l, ref vars) => write!(f, "{}({}):\n", l, vars),
-            Goto(ref l, ref vars) => write!(f, "goto {}({})\n", l, vars),
+            Label(ref l, ref vars) => write!(f, "{}({:?}):\n", l, vars),
+            Goto(ref l, ref vars) => write!(f, "goto {}({:?})\n", l, vars),
             CondGoto(ref neg, ref e, ref l, ref vars) =>
-                write!(f, "if {}{} goto {}({})\n",
+                write!(f, "if {}{} goto {}({:?})\n",
                        if *neg { "!" } else { "" }, e, l, vars),
             Return(ref v) => write!(f, "return {}\n", v),
             Func(ref name, ref vars, is_extern) =>
-                write!(f, "{}fn {}({})\n",
+                write!(f, "{}fn {}({:?})\n",
                        if is_extern { "extern " } else { "" }, name, vars),
             Nop => write!(f, "{: >16}\n", "nop"),
         }

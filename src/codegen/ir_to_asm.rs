@@ -501,18 +501,18 @@ fn convert_unop<'a>(
         }
     }
 
-    let reg_op = match *op {
+    let reg_op: &Fn(Reg) -> Vec<InstNode> = match *op {
         Deref |
         AddrOf => panic!("Should not have & or * in IR."),
-        Negate => |x| vec!(InstNode::alu2short(pred, RsbAluOp, dest, x, 0, 0)),
-        LogNot => |x| vec!(InstNode::alu2short(pred, XorAluOp, dest, x, 1, 0)),
-        BitNot => |x| vec!(InstNode::alu1reg(pred, MvnAluOp, dest, x,
+        Negate => &|&:x| vec!(InstNode::alu2short(pred, RsbAluOp, dest, x, 0, 0)),
+        LogNot => &|&:x| vec!(InstNode::alu2short(pred, XorAluOp, dest, x, 1, 0)),
+        BitNot => &|&:x| vec!(InstNode::alu1reg(pred, MvnAluOp, dest, x,
                                              SllShift, 0)),
-        Identity => |x| if dest == x { vec!() } else {
+        Identity => &|&:x| if dest == x { vec!() } else {
             vec!(InstNode::alu1reg(pred, MovAluOp, dest, x, SllShift, 0)) },
-        SxbOp => |x| vec!(InstNode::alu1reg(pred, SxbAluOp, dest, x,
+        SxbOp => &|&:x| vec!(InstNode::alu1reg(pred, SxbAluOp, dest, x,
                                             SllShift, 0)),
-        SxhOp => |x| vec!(InstNode::alu1reg(pred, SxhAluOp, dest, x,
+        SxhOp => &|&:x| vec!(InstNode::alu1reg(pred, SxhAluOp, dest, x,
                                             SllShift, 0)),
     };
 
@@ -712,14 +712,11 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
     while !reg_transformations.is_empty() {
         // See if there's any assignment rA->rB where rB is not also the source
         // of an assignment. If so, it's safe to store rA in rB.
-        let res = reg_transformations.iter().get(|&(_, &(dest, _, _))|
-                                                  !reg_transformations.contains_key(
-                                                      &dest)).map(|(x, y)|
-                                                                  (x.clone(),
-                                                                   y.clone()));
-
+        let res = reg_transformations.iter().filter(|&:&(_, &(dest, _, _))|
+                                                    !reg_transformations.contains_key(
+                                                        &dest)).next().clone();
         match res {
-            Some((src_reg, (dest_reg, ref src_insts, ref dest_insts))) =>
+            Some((&src_reg, &(dest_reg, ref src_insts, ref dest_insts))) =>
             {
                 // There's a leaf; it's safe to just assign it.
                 reg_transformations.remove(&src_reg);
@@ -742,8 +739,8 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
                 // Start with any assignment at all. They're all part
                 // of cycles.
                 let (src_reg, (dest_reg, src_insts, dest_insts)) =
-                    reg_transformations.iter().get(|_|true)
-                    .map(|(x, y)| (x.clone(), y.clone())).unwrap();
+                    reg_transformations.iter()
+                    .map(|&:(x, y)| (x.clone(), y.clone())).next().unwrap();
                 reg_transformations.remove(&src_reg);
                 result.push_all(src_insts.as_slice());
                 result.push(

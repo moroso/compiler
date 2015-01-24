@@ -237,14 +237,14 @@ impl RuleMatcher<IntKind> for IntTypeRule {
                     _ => panic!(),
                 };
 
-                let w = match from_str_radix::<u8>(groups.at(1), 10) {
+                let w = match from_str_radix::<u8>(groups.at(1).unwrap(), 10) {
                     Some(32) => Width::Width32,
                     Some(16) => Width::Width16,
                     Some(8)  => Width::Width8,
                     _ => panic!(),
                 };
 
-                Some((groups.at(0).len(), ctor(w)))
+                Some((groups.at(0).unwrap().len(), ctor(w)))
             },
             _ => None
         }
@@ -260,12 +260,12 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
         let matcher = matcher!(r"((?:0[xX]([:xdigit:]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?");
         match matcher.captures(s) {
             Some(groups) => {
-                let (num_str, radix) = match groups.at(2) {
-                    ""  => (groups.at(1), 10),
+                let (num_str, radix) = match groups.at(2).unwrap() {
+                    ""  => (groups.at(1).unwrap(), 10),
                     hex => (hex, 16),
                 };
 
-                let s = groups.at(3);
+                let s = groups.at(3).unwrap();
                 let kind = if s.len() > 0 {
                     let ctor: fn(Width) -> IntKind = match s.char_at(0) {
                         'u' | 'U' => IntKind::UnsignedInt,
@@ -273,7 +273,7 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
                         _ => panic!(),
                     };
 
-                    let w = match from_str_radix::<u8>(groups.at(4), 10) {
+                    let w = match from_str_radix::<u8>(groups.at(4).unwrap(), 10) {
                         None     => Width::AnyWidth,
                         Some(32) => Width::Width32,
                         Some(16) => Width::Width16,
@@ -286,7 +286,7 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
                     IntKind::GenericInt
                 };
 
-                Some((groups.at(0).len(), (from_str_radix(num_str, radix).take().unwrap(), kind)))
+                Some((groups.at(0).unwrap().len(), (from_str_radix(num_str, radix).unwrap(), kind)))
             },
             _ => None
         }
@@ -300,8 +300,8 @@ impl RuleMatcher<String> for IdentBangRule {
         let matcher = matcher!(r"([a-zA-Z_]\w*)!");
         match matcher.captures(s) {
            Some(groups) => {
-                let t = groups.at(0);
-                Some((t.len(), String::from_str(groups.at(1))))
+                let t = groups.at(0).unwrap();
+                Some((t.len(), String::from_str(groups.at(1).unwrap())))
            },
             _ => None
         }
@@ -316,8 +316,8 @@ impl RuleMatcher<String> for StringRule {
         match matcher.captures(s) {
            Some(groups) => {
                 use rust_syntax::parse::str_lit;
-                let t = groups.at(0);
-                Some((t.len(), str_lit(groups.at(1))))
+                let t = groups.at(0).unwrap();
+                Some((t.len(), str_lit(groups.at(1).unwrap())))
            },
             _ => None
         }
@@ -331,8 +331,8 @@ impl RuleMatcher<(u64, IntKind)> for CharRule {
         match matcher.captures(s) {
            Some(groups) => {
                use rust_syntax::parse::char_lit;
-               let t = groups.at(0);
-               let (c, _) = char_lit(groups.at(1));
+               let t = groups.at(0).unwrap();
+               let (c, _) = char_lit(groups.at(1).unwrap());
                Some((t.len(), (c as u64, IntKind::UnsignedInt(Width::Width8))))
            },
             _ => None
@@ -340,7 +340,7 @@ impl RuleMatcher<(u64, IntKind)> for CharRule {
     }
 }
 
-pub fn new_mb_lexer<'a, S: ?Sized + StrExt, B: BufReader>(name: &S, buffer: B) -> Lexer<'a, B, Token> {
+pub fn new_mb_lexer<'a, S: ?Sized + ToString, B: BufReader>(name: &S, buffer: B) -> Lexer<'a, B, Token> {
     let lang = Language {
         eof: Token::Eof,
         ws: Token::WS,
@@ -442,8 +442,8 @@ pub fn new_mb_lexer<'a, S: ?Sized + StrExt, B: BufReader>(name: &S, buffer: B) -
             // Literals
             Token::IdentTok     => matcher!(r"[a-zA-Z_]\w*"),
             Token::IdentBangTok => IdentBangRule,
-            Token::NumberTok    => NumberRule,
-            Token::NumberTok    => CharRule,
+            |&: (n, ik)| Token::NumberTok(n, ik)    => NumberRule,
+            |&: (n, ik)| Token::NumberTok(n, ik)    => CharRule,
             Token::StringTok    => StringRule
         },
 

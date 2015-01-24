@@ -93,13 +93,13 @@ impl<'a, B: BufReader, T> Lexer<'a, B, T> {
         self.name.clone()
     }
 
-    pub fn new<S: ?Sized + StrExt>(lang: Language<T>,
+    pub fn new<S: ?Sized + ToString>(lang: Language<'a, T>,
                           name: &S, buffer: B) -> Lexer<'a, B, T> {
         Lexer {
             pos:  SourcePos::new(),
             line: Some(String::new()),
             lines: BufferLines::new(buffer),
-            name: name.into_string(),
+            name: name.to_string(),
             rules: lang.rules,
             comment_rules: lang.comment_rules,
             comment_nest: 0,
@@ -231,15 +231,15 @@ impl<T: MaybeArg> RuleMatcher<T> for Regex {
 // Utility trait to optionally grab the match as an argument
 // (useful to avoid unnecessary string copies when we will just throw the result away anyway)
 trait MaybeArg {
-    fn maybe_arg<T: ?Sized + StrExt>(arg: &T) -> Self;
+    fn maybe_arg<T: ?Sized + ToString>(arg: &T) -> Self;
 }
 
 impl MaybeArg for () {
-    fn maybe_arg<T: ?Sized + StrExt>(_: &T) { }
+    fn maybe_arg<T: ?Sized + ToString>(_: &T) { }
 }
 
 impl MaybeArg for String {
-    fn maybe_arg<T: ?Sized + StrExt>(s: &T) -> String { s.into_string() }
+    fn maybe_arg<T: ?Sized + ToString>(s: &T) -> String { s.to_string() }
 }
 
 struct BufferLines<B> {

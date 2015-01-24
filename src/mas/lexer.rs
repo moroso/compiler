@@ -84,7 +84,7 @@ pub enum Token {
 }
 allow_string!(Token);
 
-pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + StrExt>(
+pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
     name: &S,
     buffer: T) -> Lexer<'a, T, Token> {
 

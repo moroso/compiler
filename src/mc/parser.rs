@@ -53,7 +53,7 @@ pub struct Parser {
 }
 
 /// The state for parsing a stream of tokens into an AST node
-pub struct StreamParser<'a, T> {
+pub struct StreamParser<'a, T: Iterator<Item=SourceToken<Token>>> {
     /// The token stream.
     tokens: T,
     /// The next token in the stream
@@ -234,32 +234,37 @@ impl Parser {
                                           lexer: Lexer<T, Token>,
                                           f: F) -> U
         where F: Fn(&mut StreamParser<Lexer<T, Token>>) -> U {
-        let name = session.interner.intern(lexer.get_name());
-        let mut tokp = StreamParser::new(session, name, lexer);
-        f(&mut tokp)
+            let name = session.interner.intern(lexer.get_name());
+            //TODO!!!!!
+            //let mut tokp = StreamParser::new(session, name, lexer);
+            //f(&mut tokp)
+            panic!()
     }
 
-    pub fn parse_stream<T: Iterator, U, F>(session: &mut Session,
+    pub fn parse_stream<T: Iterator<Item=SourceToken<Token>>, U, F>(session: &mut Session,
                                            name: Name,
                                            tokens: T,
                                            f: F) -> U
         where F: Fn(&mut StreamParser<T>) -> U {
-        let mut tokp = StreamParser::new(session, name, tokens);
-        f(&mut tokp)
+            //TODO!!!!!
+        //let mut tokp = StreamParser::new(session, name, tokens);
+            //f(&mut tokp)
+            panic!()
     }
 }
 
 impl OpTable {
-    fn parse_expr<'a, T: Iterator>(&self, parser: &mut StreamParser<'a, T>) -> Expr {
-        fn parse_row<'a, T: Iterator>(r: uint, rows: &[OpTableRow], parser: &mut StreamParser<'a, T>) -> Expr {
+    fn parse_expr<'a, T: Iterator<Item=SourceToken<Token>>>(&self, parser: &mut StreamParser<'a, T>) -> Expr {
+        fn parse_row<'a, T: Iterator<Item=SourceToken<Token>>>(r: uint, rows: &[OpTableRow], parser: &mut StreamParser<'a, T>) -> Expr {
             if r == 0 {
                 parser.parse_unop_expr_maybe_cast()
             } else {
                 let row = &rows[r - 1];
                 let start_span = parser.cur_span();
-                let parse_simpler_expr = |p: &mut StreamParser<'a, T>| parse_row(r - 1, rows, p);
+                let parse_simpler_expr = |&: p: &mut StreamParser<'a, T>| parse_row(r - 1, rows, p);
                 let e = parse_simpler_expr(parser);
-                parser.maybe_parse_binop(row.ops, row.assoc, parse_simpler_expr, e, start_span)
+                parser.maybe_parse_binop(row.ops, row.assoc,
+                                         parse_simpler_expr, e, start_span)
             }
         }
 
@@ -267,7 +272,7 @@ impl OpTable {
     }
 }
 
-impl<'a, T: Iterator> StreamParser<'a, T> {
+impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
     fn new(session: &'a mut Session<'a>, name: Name, tokens: T) -> StreamParser<'a, T> {
         StreamParser {
             name: name,
@@ -890,7 +895,7 @@ impl<'a, T: Iterator> StreamParser<'a, T> {
     }
 
     fn parse_unop_expr_maybe_cast(&mut self) -> Expr {
-        fn maybe_parse_cast<'a, T: Iterator>(p: &mut StreamParser<'a, T>, expr: Expr, start_span: Span) -> Expr {
+        fn maybe_parse_cast<'a, T: Iterator<Item=SourceToken<Token>>>(p: &mut StreamParser<'a, T>, expr: Expr, start_span: Span) -> Expr {
             match *p.peek() {
                 As => {
                     p.expect(Token::As);
@@ -1584,7 +1589,9 @@ impl<'a, T: Iterator> StreamParser<'a, T> {
                     })
                 };
 
-                self.session.parse_file(file)
+                //TODO!!!!!!!
+                //self.session.parse_file(file)
+                panic!()
             }
             _ => self.peek_error("Expected opening brace or semicolon"),
         };

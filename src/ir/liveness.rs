@@ -23,7 +23,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
     let len = ops.len();
 
     for u in range(0, len) {
-        let opinfo = opinfo.get_mut(u);
+        let opinfo = opinfo.get_mut(u).unwrap();
         match ops[u] {
             Op::BinOp(ref lv, _, ref rve1, ref rve2, _) => {
                 opinfo.def.insert(lv.clone());
@@ -153,13 +153,13 @@ fn propagate_once(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) -> bool {
         let mut this_opinfo = OpInfo::new();
         // This working relies on instructions not being able to be their own
         // successor. If they were, then we'd be emptying information we need.
-        swap(&mut this_opinfo, opinfo.get_mut(u));
+        swap(&mut this_opinfo, opinfo.get_mut(u).unwrap());
 
         for usedvar in this_opinfo.used.iter() {
             modified = modified || this_opinfo.live.insert(usedvar.clone());
         }
         for next_idx in this_opinfo.succ.iter() {
-            let next_opinfo = opinfo.get_mut(*next_idx);
+            let next_opinfo = opinfo.get_mut(*next_idx).unwrap();
             for livevar in next_opinfo.live.iter() {
                 if !this_opinfo.def.contains(livevar) {
                     modified = modified
@@ -167,7 +167,7 @@ fn propagate_once(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) -> bool {
                 }
             }
         }
-        *opinfo.get_mut(u) = this_opinfo;
+        *opinfo.get_mut(u).unwrap() = this_opinfo;
     }
     modified
 }

@@ -67,8 +67,10 @@ with_id! {
     Import   => ImportNode,
 }
 
-#[derive(Eq, PartialEq, Clone, Ord, PartialOrd, Show)]
+#[derive(Eq, PartialEq, Clone, Ord, PartialOrd, Show, Copy)]
 pub struct NodeId(pub uint);
+
+allow_string!(NodeId);
 
 impl NodeId {
     pub fn to_uint(&self) -> uint {

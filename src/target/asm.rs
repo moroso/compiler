@@ -70,7 +70,7 @@ impl Target for AsmTarget {
         let mangler = NameMangler::new(session, &module, true, true);
         let mut session = mangler.session;
 
-        print!("Mangler: {}\n", mangler.names);
+        print!("Mangler: {:?}\n", mangler.names);
 
         let (mut result, mut staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
@@ -82,11 +82,12 @@ impl Target for AsmTarget {
 
         // TODO: this is a hack. Eventually we should extract names from labels
         // in any included asm files.
-        let asm_staticitems = vec!("MANGLEDprelude_print_uint",
-                                   "MANGLEDprelude_print_int",
-                                   "rt_memcpy")
+        let asm_staticitems: Vec<StaticIRItem>
+            = vec!("MANGLEDprelude_print_uint",
+                   "MANGLEDprelude_print_int",
+                   "rt_memcpy")
             .iter()
-            .map(|x|
+            .map(|&:x|
                  StaticIRItem {
                      name: session.interner.intern(
                          x.to_string()),
@@ -97,12 +98,12 @@ impl Target for AsmTarget {
                      is_extern: true,
                      expr: None,
                  }).collect();
-        staticitems.push_all_move(asm_staticitems);
+        staticitems.extend(asm_staticitems.into_iter());
 
 
         let global_map = ASTToIntermediate::allocate_globals(staticitems);
         if self.verbose {
-            print!("Global map: {}\n", global_map);
+            print!("Global map: {:?}\n", global_map);
         }
         let global_initializer = {
             let mut converter = ASTToIntermediate::new(&mut session,
@@ -127,20 +128,20 @@ impl Target for AsmTarget {
 
         let mut strings: BTreeSet<Name> = BTreeSet::new();
 
-        for insts in result.mut_iter() {
+        for insts in result.iter_mut() {
             ToSSA::to_ssa(insts, self.verbose);
             ConstantFolder::fold(insts, &global_map, self.verbose);
             let opinfo = LivenessAnalyzer::analyze(insts);
             if self.verbose {
                 for a in opinfo.iter() {
-                    print!("{}\n", a);
+                    print!("{:?}\n", a);
                 }
-                print!("{}\n", insts);
+                print!("{:?}\n", insts);
                 let (conflict_map, counts, must_colors, mem_vars) =
                     ConflictAnalyzer::conflicts(insts, &opinfo);
-                print!("conflicts: {}\ncounts: {}\nmust: {}\nin mem: {}\n",
+                print!("conflicts: {:?}\ncounts: {:?}\nmust: {:?}\nin mem: {:?}\n",
                        conflict_map, counts, must_colors, mem_vars);
-                print!("{}\n",
+                print!("{:?}\n",
                        RegisterColorer::color(conflict_map, counts,
                                               must_colors, mem_vars,
                                               &global_map,

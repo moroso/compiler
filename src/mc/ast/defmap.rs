@@ -52,6 +52,8 @@ pub enum Def {
     ConstDef(Type),
 }
 
+allow_string!(Def);
+
 pub struct DefMap {
     table: BTreeMap<NodeId, Def>,
 }

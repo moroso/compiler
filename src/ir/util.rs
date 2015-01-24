@@ -34,7 +34,7 @@ pub fn subst(ops: &mut Vec<Op>,
              new_rvelem: &RValueElem) {
     let wrapped_var = Variable(orig_var.clone());
 
-    for op in ops.mut_iter() {
+    for op in ops.iter_mut() {
         let temp = match *op {
             Op::UnOp(ref v, ref op, ref rv) =>
                 if v == orig_var {
