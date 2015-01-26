@@ -8,7 +8,7 @@ pub enum Width {
     Width8,
 }
 
-impl fmt::Show for Width {
+impl fmt::Debug for Width {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{:?}", match *self {
             Width::AnyWidth => "",
@@ -57,7 +57,7 @@ impl IntKind {
     }
 }
 
-impl fmt::Show for IntKind {
+impl fmt::Debug for IntKind {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             IntKind::GenericInt     => write!(f, ""),

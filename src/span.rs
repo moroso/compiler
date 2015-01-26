@@ -14,7 +14,7 @@ impl PartialOrd for SourcePos {
     }
 }
 
-impl fmt::Show for SourcePos {
+impl fmt::Debug for SourcePos {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "line {:?}, column {:?}", self.row+1, self.col+1)
     }
@@ -34,7 +34,7 @@ pub struct Span {
     end:   SourcePos,
 }
 
-impl fmt::Show for Span {
+impl fmt::Debug for Span {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?} - {:?}", self.begin, self.end)
     }

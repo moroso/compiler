@@ -6,7 +6,7 @@ use std::collections::HashMap;
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Name(u32);
 
-impl fmt::Show for Name {
+impl fmt::Debug for Name {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
     }

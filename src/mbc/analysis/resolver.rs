@@ -204,9 +204,9 @@ impl<'a> ResolverVisitor<'a> {
     fn try_resolve_subscope(&mut self, global: bool,
                             path: &[Ident]) -> Option<&[Subscope]> {
         let mut search_scope = if global {
-            slice::ref_slice(&self.scope[0])
+            &self.scope[0..1]
         } else {
-            self.scope.slice_from(self.root)
+            &self.scope[self.root..]
         };
 
         for elem in path.iter() {

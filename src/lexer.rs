@@ -13,7 +13,7 @@ pub struct SourceToken<T> {
     pub sp: Span,
 }
 
-impl<T: fmt::Show> fmt::Show for SourceToken<T> {
+impl<T: fmt::Debug> fmt::Debug for SourceToken<T> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "SourceToken {{ tok: {:?}, sp: {:?} }}", self.tok, self.sp)
     }
@@ -112,7 +112,7 @@ impl<B: Reader, T: Eq> Iterator for Lexer<B, T> {
                         };
 
                         for rule in rules.iter() {
-                            let m = rule(line.slice_from(self.pos.col));
+                            let m = rule(&line[self.pos.col..]);
                             match m {
                                 Some((len, tok)) => {
                                     if len > longest {
@@ -186,7 +186,7 @@ impl<'a, T: SimpleRuleArg<'a>> RuleMatcher<'a, T> for &'a str {
         match s.starts_with(*self) {
             true => {
                 let len = self.len();
-                let t = s.slice(0, len);
+                let t = &s[..len];
                 Some((len, SimpleRuleArg::make_from(t)))
             },
             _ => None
@@ -199,7 +199,7 @@ impl<'a, T: SimpleRuleArg<'a>> RuleMatcher<'a, T> for Regex {
     fn check(&self, s: &'a str) -> Option<(usize, T)> {
         match self.find(s) {
             Some((_, end)) => {
-                let t = s.slice(0, end);
+                let t = &s[..end];
                 Some((t.len(), SimpleRuleArg::make_from(t)))
             },
             _ => None

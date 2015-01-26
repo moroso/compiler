@@ -35,7 +35,7 @@ impl<T: PartialEq> PartialEq for WithId<T> {
     }
 }
 
-impl<T: fmt::Show> fmt::Show for WithId<T> {
+impl<T: fmt::Debug> fmt::Debug for WithId<T> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.val.fmt(f)
     }
@@ -77,7 +77,7 @@ pub struct IdentNode {
     pub name: Name,
 }
 
-impl fmt::Show for IdentNode {
+impl fmt::Debug for IdentNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         try!(write!(f, "{:?}", self.name));
         for tps in self.tps.iter() {
@@ -95,7 +95,7 @@ pub struct PathNode {
     pub global: bool,
 }
 
-impl fmt::Show for PathNode {
+impl fmt::Debug for PathNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let global = if self.global { "::" } else { "" };
         let elems: Vec<String> = self.elems.iter().map(|e| format!("{:?}", e)).collect();
@@ -109,7 +109,7 @@ pub struct FieldPat {
     pub pat:  Pat,
 }
 
-impl fmt::Show for FieldPat {
+impl fmt::Debug for FieldPat {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{:?}: {:?}", self.name, self.pat)
     }
@@ -124,7 +124,7 @@ pub enum PatNode {
     StructPat(Path, Vec<FieldPat>),
 }
 
-impl fmt::Show for PatNode {
+impl fmt::Debug for PatNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             DiscardPat(ref t)             => write!(f, "_{:?}",
@@ -152,7 +152,7 @@ pub enum TypeNode {
     TupleType(Vec<Type>),
 }
 
-impl fmt::Show for TypeNode {
+impl fmt::Debug for TypeNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             BoolType                  => write!(f, "bool"),
@@ -190,7 +190,7 @@ pub enum BinOpNode {
     RightShiftOp,
 }
 
-impl fmt::Show for BinOpNode {
+impl fmt::Debug for BinOpNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{:?}", match *self {
             PlusOp      => "+",
@@ -227,7 +227,7 @@ pub enum UnOpNode {
     SxhOp,
 }
 
-impl fmt::Show for UnOpNode {
+impl fmt::Debug for UnOpNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{:?}", match *self {
             Deref  => "*",
@@ -250,7 +250,7 @@ pub enum LitNode {
     NullLit,
 }
 
-impl fmt::Show for LitNode {
+impl fmt::Debug for LitNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             NumLit(i, nt)     => write!(f, "{:?}{:?}", i, nt),
@@ -267,7 +267,7 @@ pub struct MatchArm {
     pub body: Expr,
 }
 
-impl fmt::Show for MatchArm {
+impl fmt::Debug for MatchArm {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{:?} => {:?}", self.pat, self.body)
     }
@@ -303,7 +303,7 @@ pub enum ExprNode {
     MacroExpr(Name, Vec<Vec<Token>>),
 }
 
-impl fmt::Show for ExprNode {
+impl fmt::Debug for ExprNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             UnitExpr                            => write!(f, "()"),
@@ -349,7 +349,7 @@ pub enum StmtNode {
     SemiStmt(Expr), // trailing semicolon, any type OK
 }
 
-impl fmt::Show for StmtNode {
+impl fmt::Debug for StmtNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             LetStmt(ref pat, ref expr) => {
@@ -373,7 +373,7 @@ pub struct BlockNode {
     pub expr:  Option<Expr>,
 }
 
-impl fmt::Show for BlockNode {
+impl fmt::Debug for BlockNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         try!(write!(f, "{:?}\n", "{"));
         for item in self.items.iter() {
@@ -404,7 +404,7 @@ pub struct FuncArg {
     pub argtype: Type,
 }
 
-impl fmt::Show for FuncArg {
+impl fmt::Debug for FuncArg {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{:?}: {:?}", self.ident, self.argtype)
     }
@@ -416,7 +416,7 @@ pub struct Variant {
     pub args: Vec<Type>,
 }
 
-impl fmt::Show for Variant {
+impl fmt::Debug for Variant {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         try!(write!(f, "{:?}(", self.ident));
         for ref argtype in self.args.iter() {
@@ -432,7 +432,7 @@ pub struct Field {
     pub fldtype: Type,
 }
 
-impl fmt::Show for Field {
+impl fmt::Debug for Field {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{:?}: {:?}", self.name, self.fldtype)
     }
@@ -506,7 +506,7 @@ pub enum ItemNode {
     ConstItem(Ident, Type, Expr),
 }
 
-impl fmt::Show for ItemNode {
+impl fmt::Debug for ItemNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             FuncItem(ref id, ref args, ref t, LocalFn(ref block), ref tps) => {
@@ -583,7 +583,7 @@ pub struct ModuleNode {
     pub items: Vec<Item>
 }
 
-impl fmt::Show for ModuleNode {
+impl fmt::Debug for ModuleNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         for item in self.items.iter() {
             for line in format!("{:?}", item).as_slice().lines() {

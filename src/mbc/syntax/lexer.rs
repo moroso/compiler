@@ -132,7 +132,7 @@ pub enum Token {
     EndComment,
 }
 
-impl<'a> fmt::Show for Token {
+impl<'a> fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match *self {
             Token::Let                    => "let",
