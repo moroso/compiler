@@ -132,14 +132,14 @@ struct ModuleCollector {
 
 struct ResolverVisitor<'a> {
     resolver: &'a mut Resolver,
-    session: &'a mut Session,
+    session: &'a Session,
     scope: Vec<Subscope>,
     tree: BTreeMap<NodeId, ModuleScope>,
     root: usize,
 }
 
 impl Resolver {
-    pub fn new(session: &mut Session, expn: &Expansion) -> Resolver {
+    pub fn new(session: &Session, expn: &Expansion) -> Resolver {
         let root = RootCollector::collect(expn);
         let tree = ModuleCollector::collect(expn);
 

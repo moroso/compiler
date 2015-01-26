@@ -15,15 +15,17 @@ pub struct Analysis {
     pub defmap: DefMap,
     pub pathmap: PathMap,
     pub resolver: Resolver,
+    session: Session,
     expn: Expansion,
 }
 
 impl Analysis {
-    pub fn run(session: &mut Session, expn: Expansion) -> Analysis {
+    pub fn run(session: Session, expn: Expansion) -> Analysis {
         Analysis {
             defmap: DefMap::new(&expn),
             pathmap: PathMap::new(&expn),
-            resolver: Resolver::new(session, &expn),
+            resolver: Resolver::new(&session, &expn),
+            session: session,
             expn: expn,
         }
     }

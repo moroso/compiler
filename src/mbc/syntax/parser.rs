@@ -27,10 +27,10 @@ use mclib::intern::Name;
 use mclib::lexer::{Lexer, SourceToken};
 use mclib::span::{SourcePos, Span, mk_sp};
 
+use driver::Options;
 use syntax::ast::{self, WithId, NodeId};
 use syntax::lexer::{new_mb_lexer, Token};
-
-use session::{Options, Session};
+use session::Session;
 
 type FuncProto = (ast::Ident, Vec<ast::FuncArg>, ast::Type, Vec<ast::Ident>);
 type StaticDecl = (ast::Ident, ast::Type);
@@ -77,7 +77,7 @@ impl ParseState {
     fn set_file(&mut self, id: NodeId, name: Name) {
         self.filemap.insert(id, name);
     }
-    
+
     fn get_cur_rel_path(&self) -> &Path {
         &self.cur_rel_path
     }

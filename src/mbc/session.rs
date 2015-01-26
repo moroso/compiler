@@ -6,7 +6,7 @@
 
 use std::borrow::IntoCow;
 use std::cell::RefCell;
-use std::collections::{HashMap, BTreeMap};
+use std::collections::BTreeMap;
 use std::io;
 use std::thread_local;
 
@@ -14,24 +14,15 @@ use mclib::span::Span;
 use mclib::intern::{Interner, Name};
 use mclib::lexer::{Lexer, SourceToken};
 
+use driver::Options;
 use syntax::ast::{self, NodeId, Module};
 use syntax::lexer::{Token, new_mb_lexer};
 use syntax::parser::{Parser, ParseState};
-
-pub struct Options {
-    pub search_paths: HashMap<String, Path>,
-}
 
 pub struct Session {
     pub options: Options,
     pub interner: Interner,
     pub state: ParseState,
-}
-
-impl Options {
-    pub fn new() -> Options {
-        Options { search_paths: HashMap::new() }
-    }
 }
 
 impl Session {

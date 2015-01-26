@@ -10,6 +10,7 @@ extern crate "syntax" as rust_syntax;
 extern crate mclib;
 
 pub mod analysis;
+pub mod driver;
 pub mod syntax;
 pub mod session;
 
