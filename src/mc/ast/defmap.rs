@@ -2,7 +2,7 @@ use util::Name;
 use mc::session::Session;
 
 use std::fmt;
-use std::fmt::{Formatter, Show};
+use std::fmt::{Formatter, Display, Debug};
 use std::collections::BTreeMap;
 
 use super::visitor::*;
@@ -12,7 +12,7 @@ use super::*;
 /// by an Ident.  This can be used by the Resolver to map the usages of Idents
 /// in types and expressions to the things they define.
 
-#[derive(Show, Clone)]
+#[derive(Debug, Clone)]
 pub enum Def {
     /// Module definition, with its qualified name and the NodeIds of the child items
     ModDef(Vec<Name>, Vec<NodeId>),

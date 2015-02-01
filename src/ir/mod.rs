@@ -1,7 +1,7 @@
 use mc::ast::{LitNode, BinOpNode, UnOpNode, Expr};
 
 use std::fmt;
-use std::fmt::{Formatter, Result, Show};
+use std::fmt::{Formatter, Result, Display, Debug};
 use std::collections::BTreeSet;
 
 use util::{Name, Width};
@@ -17,7 +17,7 @@ pub mod ssa;
 pub mod util;
 pub mod conflicts;
 
-#[derive(Clone, Eq, PartialEq, Show)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct StaticIRItem {
     pub name: Name,
     pub size: uint,
@@ -30,7 +30,9 @@ pub struct StaticIRItem {
     pub expr: Option<Expr>,
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
+allow_string!(StaticIRItem);
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub struct Var {
     pub name: Name,
     // If set, stores the generation of the variable. This will be None
@@ -38,9 +40,7 @@ pub struct Var {
     pub generation: Option<uint>,
 }
 
-allow_string!(Var);
-
-impl Show for Var {
+impl Display for Var {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self.generation {
             Some(g) => write!(f, "{}<{}>", self.name, g),
@@ -57,7 +57,7 @@ pub enum LValue {
     PtrLValue(Var),
 }
 
-impl Show for LValue {
+impl Display for LValue {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
             VarLValue(ref v) => write!(f, "{}", v),
@@ -66,14 +66,12 @@ impl Show for LValue {
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 // An "element" of an RValue: either a variable or a constant.
 pub enum RValueElem {
     Variable(Var),
     Constant(LitNode),
 }
-
-allow_string!(RValueElem);
 
 impl RValueElem {
     pub fn is_variable(&self) -> bool {
@@ -84,7 +82,7 @@ impl RValueElem {
     }
 }
 
-impl Show for RValueElem {
+impl Display for RValueElem {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
             Variable(ref v) => write!(f, "{}", v),
@@ -93,7 +91,7 @@ impl Show for RValueElem {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Op {
     // Apply a unary operator
     UnOp(Var, UnOpNode, RValueElem),
@@ -121,9 +119,7 @@ pub enum Op {
     Nop,
 }
 
-allow_string!(Op);
-
-impl Show for Op {
+impl Display for Op {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
             UnOp(ref lv, ref op, ref rve) =>
@@ -159,13 +155,15 @@ impl Show for Op {
     }
 }
 
-#[derive(Show, Clone)]
+#[derive(Debug, Clone)]
 pub struct OpInfo {
     pub live: BTreeSet<Var>, // Which variables are live at this instruction?
     pub used: BTreeSet<Var>, // Which variables are used?
     pub def: BTreeSet<Var>, // Which variables are defined here?
     pub succ: BTreeSet<uint>, // Instructions which can follow this one.
 }
+
+allow_string!(OpInfo);
 
 impl OpInfo {
     fn new() -> OpInfo {

@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::fmt::{Show, Formatter};
+use std::fmt::{Display, Formatter, Debug};
 
 use std::fmt;
 
@@ -18,9 +18,7 @@ impl Name {
     }
 }
 
-allow_string!(Name);
-
-impl Show for Name {
+impl Display for Name {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         use mc::session::interner;
 
@@ -28,7 +26,15 @@ impl Show for Name {
     }
 }
 
-#[derive(Eq, Ord, PartialOrd, PartialEq, Clone)]
+impl Debug for Name {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        use mc::session::interner;
+
+        write!(f, "{}", interner.name_to_str(self))
+    }
+}
+
+#[derive(Eq, Ord, PartialOrd, PartialEq, Clone, Debug)]
 pub enum Width {
     AnyWidth,
     Width32,
@@ -36,9 +42,7 @@ pub enum Width {
     Width8,
 }
 
-allow_string!(Width);
-
-impl Show for Width {
+impl Display for Width {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", match *self {
             Width::AnyWidth => "",
@@ -49,14 +53,12 @@ impl Show for Width {
     }
 }
 
-#[derive(Eq, Clone, PartialEq)]
+#[derive(Eq, Clone, PartialEq, Debug)]
 pub enum IntKind {
     GenericInt,
     SignedInt(Width),
     UnsignedInt(Width),
 }
-
-allow_string!(IntKind);
 
 impl IntKind {
     pub fn is_signed(&self) -> bool {
@@ -89,7 +91,7 @@ impl IntKind {
     }
 }
 
-impl Show for IntKind {
+impl Display for IntKind {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             IntKind::GenericInt     => write!(f, ""),

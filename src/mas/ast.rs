@@ -5,7 +5,7 @@
 // processor!
 
 use std::fmt;
-use std::fmt::{Formatter, Show};
+use std::fmt::{Formatter, Display, Debug};
 use mas::util::fits_in_bits;
 use std::ops::Index;
 use std::option::IterMut;
@@ -33,13 +33,13 @@ pub static link_reg: Reg = Reg {
 
 
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub struct Pred {
     pub inverted: bool,
     pub reg: u8, // Can only take the values 0-3.
 }
 
-impl Show for Pred {
+impl Display for Pred {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}p{}",
                if self.inverted { "!" } else { "" },
@@ -47,18 +47,18 @@ impl Show for Pred {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub struct Reg {
     pub index: u8,
 }
 
-impl Show for Reg {
+impl Display for Reg {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "r{}", self.index)
     }
 }
 
-#[derive(Show, Clone, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub enum CoReg {
     PFLAGS,
     PTB,
@@ -77,7 +77,7 @@ pub enum CoReg {
 }
 
 // Opcodes for the ALU.
-#[derive(Show, Eq, PartialEq, Clone, Ord, PartialOrd)]
+#[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd)]
 pub enum AluOp {
     AddAluOp,
     AndAluOp,
@@ -124,7 +124,7 @@ impl AluOp {
 }
 
 // Compare types.
-#[derive(Show, Eq, PartialEq, Clone, Ord, PartialOrd)]
+#[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd)]
 pub enum CompareType {
     CmpLTU,
     CmpLEU,
@@ -137,7 +137,7 @@ pub enum CompareType {
 }
 
 // Shift types.
-#[derive(Clone, Eq, PartialEq, FromPrimitive, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, FromPrimitive, Ord, PartialOrd, Debug)]
 pub enum ShiftType {
     SllShift,
     SrlShift,
@@ -146,7 +146,7 @@ pub enum ShiftType {
 }
 
 // Load/Store types.
-#[derive(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub enum LsuWidth {
     LsuWidthB,
     LsuWidthH,
@@ -155,7 +155,7 @@ pub enum LsuWidth {
 }
 
 // Flush types
-#[derive(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub enum FlushType {
     DataFlush,
     InstFlush,
@@ -163,13 +163,13 @@ pub enum FlushType {
     ItlbFlush,
 }
 
-#[derive(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd)]
 pub struct LsuOp {
     pub store: bool,
     pub width: LsuWidth,
 }
 
-impl Show for ShiftType {
+impl Display for ShiftType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}",
                match *self {
@@ -182,20 +182,20 @@ impl Show for ShiftType {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd)]
 pub enum JumpTarget {
     JumpOffs(i32),
     // TODO: allow arithmetic on labels.
     JumpLabel(String),
 }
 
-#[derive(Clone, Eq, PartialEq, Show, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd)]
 pub enum LongValue {
     Immediate(u32),
     LabelOffs(String),
 }
 
-#[derive(Show, Eq, PartialEq, Clone, Ord, PartialOrd)]
+#[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd)]
 pub enum InstNode {
     ALU1ShortInst(Pred, // Instruction predicate
                   AluOp, // Actual op
@@ -717,7 +717,7 @@ impl InstPacket {
     }
 }
 
-impl Show for InstPacket {
+impl Display for InstPacket {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let InstPacket(ref packet) = *self;
         write!(f, "{{ {}; {}; {}; {} }}",

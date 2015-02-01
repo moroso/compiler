@@ -6,7 +6,7 @@ use span::Span;
 use std::collections::{VecMap, BTreeMap, BTreeSet};
 
 use std::fmt;
-use std::fmt::{Show, Formatter};
+use std::fmt::{Display, Formatter};
 use std::iter::FromIterator;
 
 use values::eval_binop;
@@ -25,8 +25,10 @@ pub use self::TyBounds::*;
 use self::Kind::*;
 use self::ErrorCause::*;
 
-#[derive(Eq, PartialEq, Show, Clone)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 struct BoundsId(uint);
+
+allow_string!(BoundsId);
 
 impl BoundsId {
     pub fn to_uint(&self) -> uint {
@@ -35,7 +37,7 @@ impl BoundsId {
     }
 }
 
-#[derive(Eq, PartialEq, Show, Clone)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum Ty {
     BoolTy,
     GenericIntTy,
@@ -284,7 +286,7 @@ impl Ty {
     }
 }
 
-#[derive(Eq, PartialEq, Clone, Ord, PartialOrd)]
+#[derive(Eq, PartialEq, Clone, Ord, PartialOrd, Debug)]
 enum Kind {
     EqKind,
     CmpKind,
@@ -321,9 +323,7 @@ enum ErrorCause {
     InvalidStmt,
 }
 
-allow_string!(ErrorCause);
-
-impl fmt::Show for ErrorCause {
+impl fmt::Display for ErrorCause {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match *self {
             InvalidArg => "incorrect arg type",
@@ -375,7 +375,7 @@ impl CLike for Kind {
     }
 }*/
 
-impl fmt::Show for Kind {
+impl fmt::Display for Kind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             EqKind     => write!(f, "Eq"),
@@ -403,8 +403,6 @@ pub enum TyBounds {
     Unconstrained,
 }
 
-allow_string!(TyBounds);
-
 impl TyBounds {
     fn with_id(self, nid: NodeId) -> WithId<TyBounds> {
         WithId { id: nid, val: self }
@@ -415,7 +413,7 @@ impl TyBounds {
     }
 }
 
-impl fmt::Show for TyBounds {
+impl fmt::Display for TyBounds {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Concrete(ref t) => write!(f, "{}", t),

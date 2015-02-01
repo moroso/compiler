@@ -211,9 +211,9 @@ impl<'a> Session<'a> {
         use std::mem::replace;
 
         let filename = format!("{}", file.path().display());
-        let old_wd = cur_rel_path.with(|p| replace(&*p.borrow_mut(), file.path().dir_path()));
+        let old_wd = cur_rel_path.with(|p| replace(&mut *p.borrow_mut(), file.path().dir_path()));
         let module = f(self, filename, old_io::BufferedReader::new(file));
-        cur_rel_path.with(|p| replace(&*p.borrow_mut(), old_wd));
+        cur_rel_path.with(|p| replace(&mut *p.borrow_mut(), old_wd));
         module
     }
 

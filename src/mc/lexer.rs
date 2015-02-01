@@ -8,10 +8,10 @@ pub use util::lexer::{RuleMatcher, SourceToken, TokenMaker};
 pub use util::lexer::BufReader;
 
 use std::fmt;
-use std::fmt::{Formatter, Show};
+use std::fmt::{Formatter, Display, Debug};
 use std::str::StrExt;
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Token {
     // Whitespace
     WS,
@@ -110,9 +110,7 @@ pub enum Token {
     EndComment,
 }
 
-allow_string!(Token);
-
-impl fmt::Show for Token {
+impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match *self {
             Token::Let                    => String::from_str("let"),

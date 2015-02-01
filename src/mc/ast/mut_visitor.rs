@@ -176,7 +176,7 @@ pub fn walk_expr<T: MutVisitor>(visitor: &mut T, expr: &mut Expr) {
         StructExpr(ref mut p, ref mut flds) => {
             visitor.visit_path(p);
             for fld in flds.iter_mut() {
-                visitor.visit_expr(&fld.1);
+                visitor.visit_expr(&mut fld.1);
             }
         }
         BinOpExpr(_, ref mut l, ref mut r) => {

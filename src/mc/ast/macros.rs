@@ -5,7 +5,7 @@ use mc::session::Session;
 
 use std::fmt;
 use std::collections::BTreeMap;
-use std::fmt::{Formatter, Show};
+use std::fmt::{Formatter, Display};
 use std::mem::swap;
 use std::ops::Fn;
 use util::lexer::SourceToken;

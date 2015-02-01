@@ -15,7 +15,7 @@ use std::old_io::stdio::StdinReader;
 
 /// A token together with a Span, to keep track of where in the source file
 /// it was.
-#[derive(Show, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct SourceToken<T> {
     pub tok: T,
     pub sp: Span,

@@ -2,7 +2,7 @@ use util::{IntKind, Name, Width};
 use super::lexer::Token;
 
 use std::fmt;
-use std::fmt::{Debug, Formatter, Show};
+use std::fmt::{Debug, Formatter, Display};
 
 pub use self::PatNode::*;
 pub use self::TypeNode::*;
@@ -40,7 +40,7 @@ impl<T: Debug> Debug for WithId<T> {
     }
 }
 
-impl<T: fmt::String> fmt::String for WithId<T> {
+impl<T: Display> Display for WithId<T> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.val.fmt(f)
     }
@@ -67,7 +67,7 @@ with_id! {
     Import   => ImportNode,
 }
 
-#[derive(Eq, PartialEq, Clone, Ord, PartialOrd, Show, Copy)]
+#[derive(Eq, PartialEq, Clone, Ord, PartialOrd, Debug, Copy)]
 pub struct NodeId(pub uint);
 
 allow_string!(NodeId);
@@ -81,15 +81,13 @@ impl NodeId {
 
 // This is a fully-type-applied reference to an identifier.
 // e.g. "foo::<int,int*>"
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct IdentNode {
     pub tps: Option<Vec<Type>>, // type arguments. Option<Vec> to avoid alloc.
     pub name: Name,
 }
 
-allow_string!(IdentNode);
-
-impl Show for IdentNode {
+impl Display for IdentNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         try!(write!(f, "{}", self.name));
         for tps in self.tps.iter() {
@@ -101,15 +99,13 @@ impl Show for IdentNode {
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct PathNode {
     pub elems: Vec<Ident>,
     pub global: bool,
 }
 
-allow_string!(PathNode);
-
-impl Show for PathNode {
+impl Display for PathNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let global = if self.global { "::" } else { "" };
         let elems: Vec<String> = self.elems.iter().map(|e| format!("{}", e)).collect();
@@ -117,19 +113,19 @@ impl Show for PathNode {
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct FieldPat {
     pub name: Name,
     pub pat:  Pat,
 }
 
-impl Show for FieldPat {
+impl Display for FieldPat {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}: {}", self.name, self.pat)
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum PatNode {
     DiscardPat(Option<Type>),
     IdentPat(Ident, Option<Type>),
@@ -138,9 +134,7 @@ pub enum PatNode {
     StructPat(Path, Vec<FieldPat>),
 }
 
-allow_string!(PatNode);
-
-impl Show for PatNode {
+impl Display for PatNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             DiscardPat(ref t)             => write!(f, "_{}",
@@ -155,7 +149,7 @@ impl Show for PatNode {
 }
 
 /// Types
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum TypeNode {
     BoolType,
     UnitType,
@@ -168,9 +162,7 @@ pub enum TypeNode {
     TupleType(Vec<Type>),
 }
 
-allow_string!(TypeNode);
-
-impl Show for TypeNode {
+impl Display for TypeNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             BoolType                  => write!(f, "bool"),
@@ -186,7 +178,7 @@ impl Show for TypeNode {
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum BinOpNode {
     PlusOp,
     MinusOp,
@@ -208,9 +200,7 @@ pub enum BinOpNode {
     RightShiftOp,
 }
 
-allow_string!(BinOpNode);
-
-impl Show for BinOpNode {
+impl Display for BinOpNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", match *self {
             PlusOp      => "+",
@@ -235,7 +225,7 @@ impl Show for BinOpNode {
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum UnOpNode {
     Deref,
     AddrOf,
@@ -247,9 +237,7 @@ pub enum UnOpNode {
     SxhOp,
 }
 
-allow_string!(UnOpNode);
-
-impl Show for UnOpNode {
+impl Display for UnOpNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", match *self {
             Deref  => "*",
@@ -264,7 +252,7 @@ impl Show for UnOpNode {
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum LitNode {
     NumLit(u64, IntKind),
     StringLit(String),
@@ -272,9 +260,7 @@ pub enum LitNode {
     NullLit,
 }
 
-allow_string!(LitNode);
-
-impl Show for LitNode {
+impl Display for LitNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             NumLit(i, nt)     => write!(f, "{}{}", i, nt),
@@ -285,21 +271,19 @@ impl Show for LitNode {
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct MatchArm {
     pub pat: Pat,
     pub body: Expr,
 }
 
-allow_string!(MatchArm);
-
-impl Show for MatchArm {
+impl Display for MatchArm {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{} => {}", self.pat, self.body)
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum ExprNode {
     UnitExpr,
     LitExpr(Lit),
@@ -329,9 +313,7 @@ pub enum ExprNode {
     MacroExpr(Name, Vec<Vec<Token>>),
 }
 
-allow_string!(ExprNode);
-
-impl Show for ExprNode {
+impl Display for ExprNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             UnitExpr                            => write!(f, "()"),
@@ -370,16 +352,14 @@ impl Show for ExprNode {
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum StmtNode {
     LetStmt(Pat, Option<Expr>),
     ExprStmt(Expr), // no trailing semicolon, must have unit type
     SemiStmt(Expr), // trailing semicolon, any type OK
 }
 
-allow_string!(StmtNode);
-
-impl Show for StmtNode {
+impl Display for StmtNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             LetStmt(ref pat, ref expr) => {
@@ -396,16 +376,14 @@ impl Show for StmtNode {
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct BlockNode {
     pub items: Vec<Item>,
     pub stmts: Vec<Stmt>,
     pub expr:  Option<Expr>,
 }
 
-allow_string!(BlockNode);
-
-impl Show for BlockNode {
+impl Display for BlockNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         try!(write!(f, "{}\n", "{"));
         for item in self.items.iter() {
@@ -430,29 +408,25 @@ impl Show for BlockNode {
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct FuncArg {
     pub ident:   Ident,
     pub argtype: Type,
 }
 
-allow_string!(FuncArg);
-
-impl Show for FuncArg {
+impl Display for FuncArg {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}: {}", self.ident, self.argtype)
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct Variant {
     pub ident: Ident,
     pub args: Vec<Type>,
 }
 
-allow_string!(Variant);
-
-impl Show for Variant {
+impl Display for Variant {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         try!(write!(f, "{}(", self.ident));
         for ref argtype in self.args.iter() {
@@ -462,28 +436,28 @@ impl Show for Variant {
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct Field {
     pub name:    Name,
     pub fldtype: Type,
 }
 
-allow_string!(Field);
-
-impl Show for Field {
+impl Display for Field {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}: {}", self.name, self.fldtype)
     }
 }
 
-#[derive(Clone, Show, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MacroToken {
     MacroTok(Token),
     MacroVar(Name),
     MacroVarArgs,
 }
 
-#[derive(Clone, Show, Eq, PartialEq)]
+allow_string!(MacroToken);
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MacroDef {
     pub name: Name,
     pub args: Vec<Name>,
@@ -498,13 +472,15 @@ impl MacroDef {
 
 allow_string!(MacroDef);
 
-#[derive(Clone, Show, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ImportSpec {
     ImportNames(Vec<Ident>),
     ImportAll
 }
 
-#[derive(Eq, PartialEq, Clone, Show)]
+allow_string!(ImportSpec);
+
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct ImportNode {
     pub elems: Vec<Ident>,
     pub import: ImportSpec,
@@ -513,7 +489,7 @@ pub struct ImportNode {
 
 allow_string!(ImportNode);
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum FuncDef {
     LocalFn(Block),
     ExternFn(Name),
@@ -535,7 +511,7 @@ impl FuncDef {
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum ItemNode {
     FuncItem(Ident, Vec<FuncArg>, Type, FuncDef, Vec<Ident>),
     StructItem(Ident, Vec<Field>, Vec<Ident>),
@@ -548,9 +524,7 @@ pub enum ItemNode {
     ConstItem(Ident, Type, Expr),
 }
 
-allow_string!(ItemNode);
-
-impl Show for ItemNode {
+impl Display for ItemNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             FuncItem(ref id, ref args, ref t, LocalFn(ref block), ref tps) => {
@@ -622,12 +596,12 @@ impl Show for ItemNode {
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct ModuleNode {
     pub items: Vec<Item>
 }
 
-impl Show for ModuleNode {
+impl Display for ModuleNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         for item in self.items.iter() {
             for line in format!("{}", item).as_slice().lines() {

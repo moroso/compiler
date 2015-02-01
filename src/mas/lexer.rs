@@ -1,5 +1,5 @@
 use std::fmt;
-use std::fmt::{Formatter, Show};
+use std::fmt::{Formatter, Display};
 use std::old_io;
 use std::str::StrExt;
 use std::ascii::AsciiExt;
@@ -7,7 +7,7 @@ use util::lexer::*;
 use super::ast;
 use super::ast::*;
 
-#[derive(Eq, PartialEq, Clone, Show)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Token {
     WS,
 
