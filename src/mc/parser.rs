@@ -375,7 +375,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         let mut res = vec!(p(self));
         while *self.peek() != end {
             match *self.peek() {
-                Comma => {
+                Token::Comma => {
                     self.expect(Token::Comma);
                     if !allow_trailing_comma || *self.peek() != end {
                         res.push(p(self))
@@ -435,7 +435,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         }
 
         match *self.peek() {
-            Less => {
+            Token::Less => {
                 self.expect(Token::Less);
                 let tps = self.parse_list(|p| p.parse_ident(), Token::Greater, false);
                 self.expect(Token::Greater);
@@ -450,7 +450,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
 
         let path = self.parse_path_common(false, true);
         let import = match *self.peek() {
-            Star => {
+            Token::Star => {
                 self.expect(Token::Star);
                 ImportNode {
                     elems: path.val.elems,
@@ -458,7 +458,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
                     import: ImportAll
                 }
             }
-            LBrace => {
+            Token::LBrace => {
                 self.expect(Token::LBrace);
                 let mut idents = vec!(self.parse_ident());
 
@@ -497,7 +497,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         let start_span = self.cur_span();
 
         let global = match *self.peek() {
-            ColonColon => {
+            Token::ColonColon => {
                 self.expect(Token::ColonColon);
                 true
             }
@@ -572,7 +572,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
 
         let maybe_type = |&: p: &mut StreamParser<'a, T>, allow_types| {
             match *p.peek() {
-                Colon if allow_types => {
+                Token::Colon if allow_types => {
                     p.expect(Token::Colon);
                     let t = p.parse_type();
                     Some(t)
@@ -611,13 +611,13 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
                     }
                 }
             }
-            LParen => {
+            Token::LParen => {
                 self.expect(Token::LParen);
                 let args = self.parse_list(|p| p.parse_pat_common(allow_types), Token::RParen, true);
                 self.expect(Token::RParen);
                 TuplePat(args)
             }
-            Underscore => {
+            Token::Underscore => {
                 self.expect(Token::Underscore);
                 DiscardPat(maybe_type(self, allow_types))
             }
@@ -679,7 +679,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
             Token::ColonColon | Token::IdentTok(..) => {
                 let mut path = self.parse_path_no_tps();
                 match *self.peek() {
-                    Less => {
+                    Token::Less => {
                         let elem = path.val.elems[path.val.elems.len()-1];
                         elem.val.tps = Some(self.parse_type_params());
                     }
@@ -733,11 +733,11 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         let pat = self.parse_pat();
 
         let expr = match *self.peek() {
-            Semicolon => {
+            Token::Semicolon => {
                 self.expect(Token::Semicolon);
                 None
             },
-            Eq => {
+            Token::Eq => {
                 self.expect(Token::Eq);
                 let var_value = self.with_restriction(Restriction::NoRestriction, |p| p.parse_expr());
                 self.expect(Token::Semicolon);
@@ -758,10 +758,10 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         let true_block = self.parse_block();
 
         let false_block = match *self.peek() {
-            Else => {
+            Token::Else => {
                 self.expect(Token::Else);
                 match *self.peek() {
-                    If => {
+                    Token::If => {
                         let start_span = self.cur_span();
                         let node = BlockNode {
                             items: vec!(),
@@ -825,13 +825,13 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         self.expect(Token::LParen);
         let this_span = self.cur_span();
         let init = match *self.peek() {
-            Semicolon => self.add_id_and_span(UnitExpr, this_span),
+            Token::Semicolon => self.add_id_and_span(UnitExpr, this_span),
             _ => self.parse_expr(),
         };
         self.expect(Token::Semicolon);
         let this_span = self.cur_span();
         let cond = match *self.peek() {
-            Semicolon => self.add_id_and_span(UnitExpr, this_span),
+            Token::Semicolon => self.add_id_and_span(UnitExpr, this_span),
             _ => self.parse_expr(),
         };
         self.expect(Token::Semicolon);
@@ -896,7 +896,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
     fn parse_unop_expr_maybe_cast(&mut self) -> Expr {
         fn maybe_parse_cast<'a, T: Iterator<Item=SourceToken<Token>>>(p: &mut StreamParser<'a, T>, expr: Expr, start_span: Span) -> Expr {
             match *p.peek() {
-                As => {
+                Token::As => {
                     p.expect(Token::As);
                     let t = p.parse_type();
                     let node = CastExpr(Box::new(expr), t);
@@ -1054,7 +1054,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         let start_span = self.cur_span();
         let path = self.parse_path();
         let node = match *self.peek() {
-            LBrace if self.restriction != Restriction::NoAmbiguousLBraceRestriction => {
+            Token::LBrace if self.restriction != Restriction::NoAmbiguousLBraceRestriction => {
                 self.expect(Token::LBrace);
                 let fields = self.parse_list(|p| {
                     let name = p.parse_name();
@@ -1221,23 +1221,23 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         // While the next token cannot start an expression and expr is not complete
         while !(can_start_expr(self.peek()) && self.expr_is_complete(&expr)) {
             let node = match *self.peek() {
-                Period => {
+                Token::Period => {
                     self.expect(Token::Period);
                     let field = self.parse_name();
                     DotExpr(Box::new(expr), field)
                 }
-                Arrow => {
+                Token::Arrow => {
                     self.expect(Token::Arrow);
                     let field = self.parse_name();
                     ArrowExpr(Box::new(expr), field)
                 }
-                LBracket => {
+                Token::LBracket => {
                     self.expect(Token::LBracket);
                     let subscript = self.parse_expr();
                     self.expect(Token::RBracket);
                     IndexExpr(Box::new(expr), Box::new(subscript))
                 }
-                LParen => {
+                Token::LParen => {
                     self.expect(Token::LParen);
                     let args = self.parse_list(|p| p.parse_expr(), Token::RParen, true);
                     self.expect(Token::RParen);
@@ -1283,12 +1283,12 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_stmt(&mut self) -> Stmt {
         match *self.peek() {
-            Let => self.parse_let_stmt(),
+            Token::Let => self.parse_let_stmt(),
             _ => {
                 let start_span = self.cur_span();
                 let expr = self.with_restriction(Restriction::ExprStmtRestriction, |p| p.parse_expr());
                 match *self.peek() {
-                    Semicolon => {
+                    Token::Semicolon => {
                         self.expect(Token::Semicolon);
                         let end_span = self.cur_span();
                         self.add_id_and_span(SemiStmt(expr), start_span.to(end_span))
@@ -1359,7 +1359,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         };
 
         match *self.peek() {
-            Fn => {
+            Token::Fn => {
                 let (funcname, args, return_type, type_params) = self.parse_func_prototype();
                 self.expect(Token::Semicolon);
                 let end_span = self.cur_span();
@@ -1368,7 +1368,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
                                               ExternFn(abi), type_params),
                                      start_span.to(end_span))
             }
-            Static => {
+            Token::Static => {
                 if abi != None {
                     self.peek_error("ABI specifiers are invalid on extern static items");
                 }
@@ -1391,10 +1391,10 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         let args = self.parse_list(|p| p.parse_func_arg(), Token::RParen, true);
         self.expect(Token::RParen);
         let return_type = match *self.peek() {
-            Arrow => {
+            Token::Arrow => {
                 self.expect(Token::Arrow);
                 match *self.peek() {
-                    Bang => {
+                    Token::Bang => {
                         self.expect(Token::Bang);
                         let span = self.last_span;
                         self.add_id_and_span(DivergingType, span)
@@ -1446,7 +1446,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
     fn parse_variant(&mut self) -> Variant {
         let ident = self.parse_ident();
         let types = match *self.peek() {
-            LParen => {
+            Token::LParen => {
                 self.expect(Token::LParen);
                 let typelist = self.parse_list(|p| p.parse_type(), Token::RParen, true);
                 self.expect(Token::RParen);
@@ -1508,7 +1508,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         let mut count = 0;
         while *self.peek() != end {
             match *self.peek() {
-                Use => {
+                Token::Use => {
                     if count > use_items.len() {
                         let spot = self.cur_span().get_begin();
                         self.error("'use' declarations must come before everything else", spot)
@@ -1545,13 +1545,13 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         self.expect(Token::Mod);
         let ident = self.parse_ident();
         let module = match *self.peek() {
-            LBrace => {
+            Token::LBrace => {
                 self.expect(Token::LBrace);
                 let module = self.parse_module_until(Token::RBrace);
                 self.expect(Token::RBrace);
                 module
             }
-            Semicolon => {
+            Token::Semicolon => {
                 self.expect(Token::Semicolon);
                 let file = {
                     let name = self.session.interner.name_to_str(&ident.val.name);
@@ -1610,7 +1610,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         let start_span = self.cur_span();
         let (name, ty) = self.parse_static_decl();
         let expr = match *self.peek() {
-            Eq => {
+            Token::Eq => {
                 self.expect(Token::Eq);
                 Some(self.parse_expr())
             },
@@ -1676,15 +1676,15 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_item(&mut self) -> Item {
         match *self.peek() {
-            Fn => self.parse_func_item(),
-            Struct => self.parse_struct_item(),
-            Enum => self.parse_enum_item(),
-            Type => self.parse_type_item(),
-            Mod => self.parse_mod_item(),
-            Static => self.parse_static_item(),
-            Extern => self.parse_extern_item(),
-            Macro => self.parse_macro_item(),
-            Const => self.parse_const_item(),
+            Token::Fn => self.parse_func_item(),
+            Token::Struct => self.parse_struct_item(),
+            Token::Enum => self.parse_enum_item(),
+            Token::Type => self.parse_type_item(),
+            Token::Mod => self.parse_mod_item(),
+            Token::Static => self.parse_static_item(),
+            Token::Extern => self.parse_extern_item(),
+            Token::Macro => self.parse_macro_item(),
+            Token::Const => self.parse_const_item(),
             _ => self.peek_error("Expected an item definition (fn, struct, enum, mod)"),
         }
     }

@@ -394,7 +394,7 @@ impl<'a> CCrossCompiler<'a> {
                     // Is this type a type parameter?
                     let d = self.session.defmap.find(&did).take().unwrap();
                     match *d {
-                        GenericDef => true,
+                        Def::GenericDef => true,
                         _ => false,
                     }
                 };

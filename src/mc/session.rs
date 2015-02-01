@@ -18,6 +18,7 @@ use super::lexer::new_mb_lexer;
 use super::ast::visitor::Visitor;
 use super::ast::macros::MacroExpander;
 
+use std::borrow::BorrowFrom;
 use std::collections::{HashMap, BTreeMap};
 use std::cell::RefCell;
 use std::str::StrExt;
@@ -25,8 +26,9 @@ use std::str::StrExt;
 use std::old_io;
 use std::thread_local;
 
-// TODO: thread-local?
-pub static interner: Interner = Interner::new();
+thread_local! {
+    pub static interner: ::std::rc::Rc<Interner> = ::std::rc::Rc::new(Interner::new())
+}
 
 thread_local! {
     pub static cur_rel_path: RefCell<Path> = RefCell::new(Path::new("."))
@@ -40,19 +42,6 @@ pub struct Options {
     pub search_paths: HashMap<String, Path>,
 }
 
-pub struct Session<'a> {
-    pub options: Options,
-    pub defmap: DefMap,
-    pub pathmap: PathMap,
-    pub resolver: Resolver,
-    pub parser: Parser,
-    pub expander: MacroExpander<'a>,
-    pub interner: &'a Interner,
-}
-
-pub struct Interner {
-    strings: RefCell<HashMap<String, Name>>,
-}
 
 impl Options {
     pub fn new() -> Options {
@@ -60,6 +49,28 @@ impl Options {
     }
 }
 
+pub struct Session<'a> {
+    pub options: Options,
+    pub defmap: DefMap,
+    pub pathmap: PathMap,
+    pub resolver: Resolver,
+    pub parser: Parser,
+    pub expander: MacroExpander<'a>,
+    pub interner: ::std::rc::Rc<Interner>,
+}
+
+pub struct Interner {
+    strings: RefCell<HashMap<String, Name>>,
+}
+
+unsafe impl Sync for Interner {}
+
+impl BorrowFrom<Name> for usize {
+    fn borrow_from(name: &Name) -> &usize {
+        let Name(ref id) = *name;
+        id
+    }
+}
 
 impl Interner {
     pub fn new() -> Interner {
@@ -77,37 +88,39 @@ impl Interner {
                 }
             }
         }
-
         panic!()
     }
 
     pub fn intern(&self, s: String) -> Name {
+        //match self.strings.find_equiv(&s) {
+        // Some(name) => *name,
+        // None => {
+        // let name = Name(self.strings.len());
+        // self.strings.insert(s, name);
+        // name
+        // }
+        //}
         let mut strings = self.strings.borrow_mut();
-        match strings.get(&s) {
-            Some(name) => *name,
-            None => {
-                let name = Name(strings.len());
-                strings.insert(s, name);
-                name
-            }
-        }
-        //let mut strings = self.strings.borrow_mut();
-        //let name = Name(strings.len());
-        //*strings.find_or_insert(s, name)
+        let name = Name(strings.len());
+        *strings.entry(s).get().unwrap_or_else(|&:vacant| vacant.insert(name))
     }
 }
 
 impl<'a> Session<'a> {
     pub fn new(opts: Options) -> Session<'a> {
-        Session {
-            options: opts,
-            defmap: DefMap::new(),
-            pathmap: PathMap::new(),
-            resolver: Resolver::new(),
-            parser: Parser::new(),
-            expander: MacroExpander::new(),
-            interner: &interner,
-        }
+        use mc::session::interner;
+
+        interner.with(|x| {
+            Session {
+                options: opts,
+                defmap: DefMap::new(),
+                pathmap: PathMap::new(),
+                resolver: Resolver::new(),
+                parser: Parser::new(),
+                expander: MacroExpander::new(),
+                interner: *x,
+            }
+        })
     }
 
     pub fn messages<T: Str>(&self, errors: &[(NodeId, T)]) {

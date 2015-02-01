@@ -33,7 +33,7 @@ pub static link_reg: Reg = Reg {
 
 
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
 pub struct Pred {
     pub inverted: bool,
     pub reg: u8, // Can only take the values 0-3.
@@ -47,7 +47,7 @@ impl Display for Pred {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
 pub struct Reg {
     pub index: u8,
 }

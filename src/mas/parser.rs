@@ -179,7 +179,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
             Token::Reg(reg) => (reg, from_int(0).unwrap(), Ok(0)),
 
             // Something parenthesized.
-            LParen => {
+            Token::LParen => {
                 // No matter what, there should be a register.
                 let reg = match *self.peek() {
                     Token::Reg(reg) => { self.eat(); reg },
@@ -452,7 +452,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
                     _ => self.error("Need a number."),
                 }
             },
-            RParen => 0,
+            Token::RParen => 0,
             _ => self.error("Need +, -, or a closing paren."),
         };
 

@@ -160,7 +160,7 @@ impl IRTarget {
         // Do the actual conversion.
         for op in ops.iter() {
             match *op {
-                Nop => {},
+                Op::Nop => {},
                 _ => s = s + format!("  // {}", op).as_slice()
             }
             s = s + (match *op {
@@ -475,7 +475,7 @@ impl Target for IRTarget {
                 }
             }
             let start = precise_time_ns();
-            write!(f, "{}\n", self.convert_function(session.interner, insts, &global_map));
+            write!(f, "{}\n", self.convert_function(&*session.interner, insts, &global_map));
             let end = precise_time_ns();
             convert_time += end-start;
         }

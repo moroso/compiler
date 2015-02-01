@@ -22,7 +22,7 @@ pub mod defmap;
 pub mod macros;
 pub mod pathmap;
 
-#[derive(Clone, Eq)]
+#[derive(Clone, Eq, Copy)]
 pub struct WithId<T> {
     pub id: NodeId,
     pub val: T,
@@ -178,7 +178,7 @@ impl Display for TypeNode {
     }
 }
 
-#[derive(Eq, PartialEq, Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug, Copy)]
 pub enum BinOpNode {
     PlusOp,
     MinusOp,
@@ -225,7 +225,7 @@ impl Display for BinOpNode {
     }
 }
 
-#[derive(Eq, PartialEq, Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug, Copy)]
 pub enum UnOpNode {
     Deref,
     AddrOf,

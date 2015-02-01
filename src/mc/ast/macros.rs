@@ -217,8 +217,10 @@ impl<'a> MacroExpander<'a> {
         let mut macros = BTreeMap::new();
 
         for &(s, e) in builtin_macros.iter() {
-            let name = interner.intern(String::from_str(s));
-            macros.insert(name, Box::new(ExpanderFn(e)) as Box<Expander>);
+            interner.with(|&: x| {
+                let name = x.intern(String::from_str(s));
+                macros.insert(name, Box::new(ExpanderFn(e)) as Box<Expander>);
+            })
         }
 
         MacroExpander {

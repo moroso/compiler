@@ -8,11 +8,11 @@ pub mod graph;
 
 // This represents an interned string/name/identifier. The mapping from strings
 // to Names and Names to strings is in the Interner (session.rs).
-#[derive(Eq, Ord, PartialOrd, PartialEq, Clone)]
+#[derive(Eq, Ord, PartialOrd, PartialEq, Clone, Copy)]
 pub struct Name(pub uint);
 
 impl Name {
-    fn as_uint(&self) -> uint {
+    pub fn as_uint(&self) -> uint {
         let Name(result) = *self;
         result
     }
@@ -22,7 +22,7 @@ impl Display for Name {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         use mc::session::interner;
 
-        write!(f, "{}", interner.name_to_str(self))
+        interner.with(|&: x| write!(f, "{}", x.name_to_str(self)))
     }
 }
 
@@ -30,11 +30,11 @@ impl Debug for Name {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         use mc::session::interner;
 
-        write!(f, "{}", interner.name_to_str(self))
+        interner.with(|&: x| write!(f, "{}", x.name_to_str(self)))
     }
 }
 
-#[derive(Eq, Ord, PartialOrd, PartialEq, Clone, Debug)]
+#[derive(Eq, Ord, PartialOrd, PartialEq, Clone, Debug, Copy)]
 pub enum Width {
     AnyWidth,
     Width32,
@@ -53,7 +53,7 @@ impl Display for Width {
     }
 }
 
-#[derive(Eq, Clone, PartialEq, Debug)]
+#[derive(Eq, Clone, PartialEq, Debug, Copy)]
 pub enum IntKind {
     GenericInt,
     SignedInt(Width),
