@@ -2,7 +2,7 @@ use util::{IntKind, Name, Width};
 use super::lexer::Token;
 
 use std::fmt;
-use std::fmt::{Formatter, Show};
+use std::fmt::{Debug, Formatter, Show};
 
 pub use self::PatNode::*;
 pub use self::TypeNode::*;
@@ -34,7 +34,7 @@ impl<T: PartialEq> PartialEq for WithId<T> {
     }
 }
 
-impl<T: Show> Show for WithId<T> {
+impl<T: Debug> Debug for WithId<T> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.val.fmt(f)
     }

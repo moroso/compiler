@@ -6,9 +6,9 @@
 
 macro_rules! allow_string {
     ($st:ty) => {
-        impl fmt::String for $st {
+        impl fmt::Display for $st {
             fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-                (self as &Show).fmt(f)
+                (self as &Debug).fmt(f)
             }
         }
     }

@@ -1,4 +1,4 @@
-use std::io::Writer;
+use std::old_io::Writer;
 use package::Package;
 
 pub use self::ir::IRTarget;

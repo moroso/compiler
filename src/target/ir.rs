@@ -20,10 +20,10 @@ use super::Target;
 use target::util::NameMangler;
 
 use std::collections::{BTreeMap, VecMap, BTreeSet};
-use std::io::stdio;
+use std::old_io::stdio;
 use std::iter::FromIterator;
 
-use std::io;
+use std::old_io;
 
 use mc::ast::*;
 use ir::*;
@@ -327,7 +327,7 @@ impl Target for IRTarget {
     }
 
     #[allow(unused_must_use)]
-    fn compile(&self, p: Package, f: &mut io::Writer) {
+    fn compile(&self, p: Package, f: &mut old_io::Writer) {
         let Package {
             module:  module,
             session: session,

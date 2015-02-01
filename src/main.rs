@@ -1,4 +1,4 @@
-#![feature(plugin,overloaded_calls,import_shadowing,slicing_syntax,old_impl_check)]
+#![feature(plugin,overloaded_calls,slicing_syntax,old_impl_check)]
 #![allow(dead_code,unused_imports)]
 
 #[plugin]

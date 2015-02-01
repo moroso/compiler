@@ -29,7 +29,7 @@ use mas::parser::AsmParser;
 
 use util::Name;
 
-use std::io::{Writer, stdio, File, BufferedReader};
+use std::old_io::{Writer, stdio, File, BufferedReader};
 use std::collections::BTreeSet;
 
 pub struct AsmTarget {

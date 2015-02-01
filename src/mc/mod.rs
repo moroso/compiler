@@ -6,7 +6,7 @@ use self::session::{Session, Options};
 
 use getopts;
 use getopts::{getopts, reqopt, optopt, optflag, optmulti};
-use std::io::{BufferedReader, File, Writer, stdio};
+use std::old_io::{BufferedReader, File, Writer, stdio};
 use std::ascii::AsciiExt;
 
 use std::os;
@@ -179,13 +179,13 @@ mod tests {
     use package::Package;
     use super::{NullTarget, setup_builtin_search_paths};
     use target::Target;
-    use std::io::stdio;
+    use std::old_io::stdio;
 
     fn package_from_str(s: &str) -> Package {
         use std::str::StrSlice;
-        use std::io;
+        use std::old_io;
         let bytes = s.as_bytes().to_vec();
-        let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
+        let buffer = old_io::BufferedReader::new(old_io::MemReader::new(bytes));
         let mut opts = super::session::Options::new();
         setup_builtin_search_paths(&mut opts);
         Package::from_buffer(opts, "<input>", buffer)

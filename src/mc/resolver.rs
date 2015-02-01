@@ -67,7 +67,7 @@ impl Subscope {
                     };
 
                     let allow: &Fn(&Ident) -> bool = match import.val.import {
-                        ImportNames(..) => &|&: id: &Ident| filter.contains(&id.val.name),
+                        ImportNames(..) => &|&: id: &Ident| -> bool filter.contains(&id.val.name),
                         ImportAll => &|&: _: &Ident| true,
                     };
 

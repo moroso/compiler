@@ -15,7 +15,7 @@ use intrinsics::size_of;
 use std::collections::{BTreeSet, BTreeMap};
 
 use util;
-use std::io::Writer;
+use std::old_io::Writer;
 
 use mc::ast::*;
 use mc::ast::defmap::*;
@@ -284,8 +284,10 @@ impl<'a> CCrossCompiler<'a> {
             None => tail(None),
         };
 
-        let out = self.visit_list(&vec!(items, stmts, expr),
-                                  |&:_, t: &String| t.clone(), delim);
+        //TODO!!!!!!!
+        //let out = self.visit_list(&vec!(items, stmts, expr),
+            //                          |&:_, t: &String| t.clone(), delim);
+            let out = "";
         self.unindent();
 
         format!("{{{}{}\n{}}}", delim, out, self.ind())
@@ -675,7 +677,7 @@ impl<'a> CCrossCompiler<'a> {
 
                 let expr = self.visit_expr(&**e);
                 let arms = self.mut_visit_list(arms, |me, arm| {
-                    let (path, vars) = match arm.pat.val {
+                    let (path, vars): (&Path, &Vec<Pat>) = match arm.pat.val {
                         VariantPat(ref path, ref args) => (path, args),
                         _ => panic!("Only VariantPats are supported in match arms for now")
                     };
@@ -688,7 +690,10 @@ impl<'a> CCrossCompiler<'a> {
                     let name = me.visit_path_in_enum_access(path);
 
                     let mut n = 0;
-                    let vars = me.visit_list(vars, |me, var| {
+                    //TODO!!!!!!!
+                    let vars = "";
+                    /*
+                    let vars = me.visit_list(vars, |me, var: &Pat| {
                         n += 1;
                         let ty = me.visit_type(&this_variant.args[n - 1]);
                         let varname = match var.val {
@@ -697,7 +702,7 @@ impl<'a> CCrossCompiler<'a> {
                         };
                         format!("{} {} = {}.val.{}.field{};",
                                 ty, varname, expr.as_slice(), name, n - 1)
-                    }, "; ");
+                    }, "; ");*/
 
                     if is_void {
                         format!("case {}: {{\n {}; ({}); break;}}\n",

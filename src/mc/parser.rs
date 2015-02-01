@@ -19,16 +19,15 @@
 
 use span::{SourcePos, Span, mk_sp};
 use util::Name;
-use util::lexer::BufReader;
 
 use super::session::{Session, Options};
 use super::session::get_cur_rel_path;
 
-use std::{io, mem, num, vec};
+use std::{old_io, mem, num, vec};
 use std::collections::{HashMap, BTreeMap, BTreeSet};
 use std::iter::{Peekable, FromIterator};
 
-use std::io::fs::PathExtensions;
+use std::old_io::fs::PathExtensions;
 
 use super::ast;
 use super::ast::*;
@@ -190,7 +189,7 @@ fn binop_token(op: BinOpNode) -> Token {
 
 // Convenience function for testing
 pub fn ast_from_str<'a, U, F>(s: &str, f: F) -> (Session<'a>, U)
-    where F: Fn(&mut StreamParser<Lexer<::std::io::BufferedReader<::std::io::MemReader>, Token>>) -> U {
+    where F: Fn(&mut StreamParser<Lexer<::std::old_io::BufferedReader<::std::old_io::MemReader>, Token>>) -> U {
     let mut session = Session::new(Options::new());
     let tree = Parser::parse_with(&mut session, lexer_from_str(s), f);
     (session, tree)
@@ -346,7 +345,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
 
         let s = format!("Parse error: {}\n    at {} {}\n",
                         message.as_slice(), path, pos);
-        let _ = io::stderr().write_str(s.as_slice());
+        let _ = old_io::stderr().write_str(s.as_slice());
         panic!()
     }
 
@@ -1583,7 +1582,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
                                        start_span.get_begin()),
                     };
 
-                    ::std::io::File::open(&filename).unwrap_or_else(|e| {
+                    ::std::old_io::File::open(&filename).unwrap_or_else(|e| {
                         self.error(format!("failed to open {}: {}",
                                            filename.display(), e), start_span.get_begin())
                     })

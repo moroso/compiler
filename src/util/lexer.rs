@@ -7,11 +7,11 @@
 use span::{Span, SourcePos, mk_sp};
 
 use regex::Regex;
-use std::{io, option, iter};
+use std::{old_io, option, iter};
 
 use std::str::StrExt;
-use std::io::IoResult;
-use std::io::stdio::StdinReader;
+use std::old_io::IoResult;
+use std::old_io::stdio::StdinReader;
 
 /// A token together with a Span, to keep track of where in the source file
 /// it was.

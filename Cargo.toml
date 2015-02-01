@@ -2,8 +2,8 @@
 name = "moroso_compiler"
 version = "0.0.1"
 authors = [ "mrwright", "kemurphy", "sully" ]
-features = ["mc"]
 
 [dependencies]
-regex_macros = "0.1.5"
-time = "0.1.12"
+regex = "0.1.12"
+regex_macros = "0.1.6"
+time = "0.1.14"

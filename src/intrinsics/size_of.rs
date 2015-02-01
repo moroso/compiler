@@ -158,8 +158,8 @@ mod tests {
     use mc::parser::Parser;
     use typechecker::Typechecker;
 
-    use std::io;
-    use std::io::stdio;
+    use std::old_io;
+    use std::old_io::stdio;
 
     use mc::session::*;
     use mc::setup_builtin_search_paths;
@@ -169,7 +169,7 @@ mod tests {
     // Helper function: we pass it a string describing a type and an expected
     // size, and it asserts that the size is what we expect.
     fn test_ty_size(t: &str, expected_size: u64) {
-        let buffer = io::BufferedReader::new(io::MemReader::new(
+        let buffer = old_io::BufferedReader::new(old_io::MemReader::new(
             t.as_bytes().to_vec()
                 ));
         let lexer = new_mb_lexer("<stdin>", buffer);

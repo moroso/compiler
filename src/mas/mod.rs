@@ -1,4 +1,4 @@
-use std::io::stdio;
+use std::old_io::stdio;
 use std::os;
 
 use self::lexer::{Token, new_asm_lexer};
@@ -7,7 +7,7 @@ use self::encoder::encode;
 
 use getopts;
 use getopts::{getopts, reqopt, optopt, optflag};
-use std::io::Writer;
+use std::old_io::Writer;
 use std::iter::IteratorExt;
 
 pub mod lexer;

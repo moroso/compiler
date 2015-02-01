@@ -22,7 +22,7 @@ use std::collections::{HashMap, BTreeMap};
 use std::cell::RefCell;
 use std::str::StrExt;
 
-use std::io;
+use std::old_io;
 use std::thread_local;
 
 // TODO: thread-local?
@@ -120,7 +120,7 @@ impl<'a> Session<'a> {
                 format!("   {}: {}\n", fname, self.parser.span_of(&nid)).as_slice());
         }
 
-        let _ = io::stderr().write_str(full_msg.as_slice());
+        let _ = old_io::stderr().write_str(full_msg.as_slice());
     }
 
     pub fn message<T: Str>(&self, nid: NodeId, msg: T) {
@@ -129,7 +129,7 @@ impl<'a> Session<'a> {
 
     pub fn errors_fatal<T: Str>(&self, errors: &[(NodeId, T)]) -> ! {
         self.messages(errors);
-        let _ = io::stderr().write_str("\n");
+        let _ = old_io::stderr().write_str("\n");
         panic!("Aborting")
     }
     pub fn error_fatal<T: Str>(&self, nid: NodeId, msg: T) -> ! {
@@ -152,7 +152,7 @@ impl<'a> Session<'a> {
         use std::mem::swap;
 
         let bytes = src.as_bytes().to_vec();
-        let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
+        let buffer = old_io::BufferedReader::new(old_io::MemReader::new(bytes));
         let lexer = new_mb_lexer(name, buffer);
         let mut temp = Parser::parse(self, lexer);
         swap(&mut module.val.items, &mut temp.val.items);
@@ -205,26 +205,26 @@ impl<'a> Session<'a> {
         module
     }
 
-    pub fn parse_file_common<F>(&'a mut self, file: io::File, f: F) -> Module
+    pub fn parse_file_common<F>(&'a mut self, file: old_io::File, f: F) -> Module
         where F: Fn(&mut Session, String,
-                    io::BufferedReader<io::File>) -> Module {
+                    old_io::BufferedReader<old_io::File>) -> Module {
         use std::mem::replace;
 
         let filename = format!("{}", file.path().display());
         let old_wd = cur_rel_path.with(|p| replace(&*p.borrow_mut(), file.path().dir_path()));
-        let module = f(self, filename, io::BufferedReader::new(file));
+        let module = f(self, filename, old_io::BufferedReader::new(file));
         cur_rel_path.with(|p| replace(&*p.borrow_mut(), old_wd));
         module
     }
 
-    pub fn parse_file(&'a mut self, file: io::File) -> Module {
+    pub fn parse_file(&'a mut self, file: old_io::File) -> Module {
         self.parse_file_common(file,
                                |me, filename, buf| me.parse_buffer(
                                    filename.as_slice(), buf))
     }
     //TODO!!!!!
     /*
-    pub fn parse_package_file(&'a mut self, file: io::File) -> Module {
+    pub fn parse_package_file(&'a mut self, file: old_io::File) -> Module {
         self.parse_file_common(file,
                                |me, filename, buf| me.parse_package_buffer(
                                    filename.as_slice(), buf))
@@ -232,7 +232,7 @@ impl<'a> Session<'a> {
 
     pub fn parse_package_str(&'a mut self, s: &str) -> Module {
         let bytes = s.as_bytes().to_vec();
-        let buffer = io::BufferedReader::new(io::MemReader::new(bytes));
+        let buffer = old_io::BufferedReader::new(old_io::MemReader::new(bytes));
         self.parse_package_buffer("<input>", buffer)
     }
 }
