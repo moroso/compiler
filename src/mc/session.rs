@@ -18,7 +18,7 @@ use super::lexer::new_mb_lexer;
 use super::ast::visitor::Visitor;
 use super::ast::macros::MacroExpander;
 
-use std::borrow::BorrowFrom;
+use std::borrow::Borrow;
 use std::collections::{HashMap, BTreeMap};
 use std::cell::RefCell;
 use std::str::StrExt;
@@ -65,9 +65,9 @@ pub struct Interner {
 
 unsafe impl Sync for Interner {}
 
-impl BorrowFrom<Name> for usize {
-    fn borrow_from(name: &Name) -> &usize {
-        let Name(ref id) = *name;
+impl Borrow<usize> for Name {
+    fn borrow(&self) -> &usize {
+        let Name(ref id) = *self;
         id
     }
 }
@@ -102,7 +102,7 @@ impl Interner {
         //}
         let mut strings = self.strings.borrow_mut();
         let name = Name(strings.len());
-        *strings.entry(s).get().unwrap_or_else(|&:vacant| vacant.insert(name))
+        *strings.entry(s).get().unwrap_or_else(|vacant| vacant.insert(name))
     }
 }
 
@@ -207,10 +207,10 @@ impl<'a> Session<'a> {
             injector.visit_module(&mut module);
         }
 
-        self.inject_std(&mut module);
-
         //TODO!!!!!
         /*
+        self.inject_std(&mut module);
+
         MacroExpander::expand_macros(self, &mut module);
         DefMap::record(self, &module);
         PathMap::record(self, &module);

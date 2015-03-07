@@ -1,7 +1,7 @@
 #![feature(plugin,overloaded_calls,slicing_syntax,old_impl_check)]
 #![allow(dead_code,unused_imports)]
 
-#[plugin]
+#![plugin(regex_macros)]
 extern crate regex_macros;
 
 extern crate collections;

@@ -68,15 +68,15 @@ impl RegisterColorer {
                 .unwrap_or(&empty_treeset);
             let adjacent_colors: BTreeSet<Option<RegisterColor>>
                 = FromIterator::from_iter(adjacent_vars.iter()
-                                          .map(|&:var|
+                                          .map(|var|
                                                coloring
                                                .get(var)
-                                               .map(|&:&x|x)
+                                               .map(|&x|x)
                                                ));
 
             // If we already have a coloring, make sure that it hasn't
             // created any inconsistencies.
-            let cur_color = coloring.get(var).map(|&:&x|x);
+            let cur_color = coloring.get(var).map(|&x|x);
             if cur_color.is_some() {
                 assert!(!adjacent_colors.contains(&cur_color),
                         "var {} has an adjacent color {}", var, cur_color.unwrap());

@@ -741,7 +741,7 @@ impl<'a> ASTToIntermediate<'a> {
                          vec!(),
                          lhs_var,
                          AnyWidth,
-                         &|&:lv, v, _| Op::UnOp(lv, Identity, Variable(v)))
+                         &|lv, v, _| Op::UnOp(lv, Identity, Variable(v)))
                     },
                     UnOpExpr(ref lhs_op, ref e) => {
                         let ty = match *self.lookup_ty(e.id) {
@@ -765,7 +765,7 @@ impl<'a> ASTToIntermediate<'a> {
                                       ),
                                  var.clone(),
                                  width,
-                                 &|&:lv, v, w| Op::Store(lv, v, w))
+                                 &|lv, v, w| Op::Store(lv, v, w))
                             },
                             _ => panic!(),
                         }
@@ -794,7 +794,7 @@ impl<'a> ASTToIntermediate<'a> {
                          },
                          added_addr_var,
                          width,
-                         &|&:lv, v, w| Op::Store(lv, v, w))
+                         &|lv, v, w| Op::Store(lv, v, w))
                     },
                     IndexExpr(ref arr, ref idx) => {
                         let ty = (*self.lookup_ty(e1.id))
@@ -817,7 +817,7 @@ impl<'a> ASTToIntermediate<'a> {
                          },
                          ptr_var,
                          width,
-                         &|&:lv, v, w| Op::Store(lv, v, w))
+                         &|lv, v, w| Op::Store(lv, v, w))
                     }
                     _ => panic!("Got {}", e1.val),
                 };
@@ -1520,7 +1520,7 @@ impl<'a> ASTToIntermediate<'a> {
             .map(|ty| (ty_width(ty),
                        size_of_ty(self.session, self.typemap, ty))));
 
-        let vars: Vec<Var> = (0..sizes.len()).map(|&:_| self.gen_temp()).collect();
+        let vars: Vec<Var> = (0..sizes.len()).map(|_| self.gen_temp()).collect();
 
         for i in range(0, sizes.len()) {
             let offs = enum_tag_size + offset_of(&sizes, i);

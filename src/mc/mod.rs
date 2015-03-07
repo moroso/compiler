@@ -79,7 +79,7 @@ pub fn main() {
         optmulti("l", "lib", "Specify a library location", "<foo:/path/to/foo.mb>"),
     ];
 
-    let bail = |&:error: Option<&str>| {
+    let bail = |error: Option<&str>| {
         match error {
             Some(e) => {
                 os::set_exit_status(1);

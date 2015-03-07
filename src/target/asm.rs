@@ -87,7 +87,7 @@ impl Target for AsmTarget {
                    "MANGLEDprelude_print_int",
                    "rt_memcpy")
             .iter()
-            .map(|&:x|
+            .map(|x|
                  StaticIRItem {
                      name: session.interner.intern(
                          x.to_string()),

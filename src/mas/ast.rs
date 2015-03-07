@@ -58,7 +58,7 @@ impl Display for Reg {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Copy)]
 pub enum CoReg {
     PFLAGS,
     PTB,
@@ -77,7 +77,7 @@ pub enum CoReg {
 }
 
 // Opcodes for the ALU.
-#[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd)]
+#[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd, Copy)]
 pub enum AluOp {
     AddAluOp,
     AndAluOp,
@@ -124,7 +124,7 @@ impl AluOp {
 }
 
 // Compare types.
-#[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd)]
+#[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd, Copy)]
 pub enum CompareType {
     CmpLTU,
     CmpLEU,
@@ -137,7 +137,7 @@ pub enum CompareType {
 }
 
 // Shift types.
-#[derive(Clone, Eq, PartialEq, FromPrimitive, Ord, PartialOrd, Debug)]
+#[derive(Clone, Eq, PartialEq, FromPrimitive, Ord, PartialOrd, Debug, Copy)]
 pub enum ShiftType {
     SllShift,
     SrlShift,
@@ -146,7 +146,7 @@ pub enum ShiftType {
 }
 
 // Load/Store types.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
 pub enum LsuWidth {
     LsuWidthB,
     LsuWidthH,
@@ -155,7 +155,7 @@ pub enum LsuWidth {
 }
 
 // Flush types
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
 pub enum FlushType {
     DataFlush,
     InstFlush,
@@ -163,7 +163,7 @@ pub enum FlushType {
     ItlbFlush,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd, Copy)]
 pub struct LsuOp {
     pub store: bool,
     pub width: LsuWidth,

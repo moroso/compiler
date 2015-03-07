@@ -35,7 +35,7 @@ use super::lexer::*;
 
 use values::*;
 
-use std::path::Path as FilePath;
+use std::old_path::posix::Path as FilePath;
 
 type FuncProto = (Ident, Vec<FuncArg>, ast::Type, Vec<Ident>);
 type StaticDecl = (Ident, ast::Type);
@@ -69,13 +69,14 @@ pub struct StreamParser<'a, T: Iterator<Item=SourceToken<Token>>> {
     source: FilePath,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Copy)]
 enum Restriction {
     ExprStmtRestriction,
     NoAmbiguousLBraceRestriction,
     NoRestriction,
 }
 
+#[derive(Copy)]
 enum Assoc {
     LeftAssoc,
     RightAssoc,
@@ -260,7 +261,7 @@ impl OpTable {
             } else {
                 let row = &rows[r - 1];
                 let start_span = parser.cur_span();
-                let parse_simpler_expr = |&: p: &mut StreamParser<'a, T>| parse_row(r - 1, rows, p);
+                let parse_simpler_expr = |p: &mut StreamParser<'a, T>| parse_row(r - 1, rows, p);
                 let e = parse_simpler_expr(parser);
                 parser.maybe_parse_binop(row.ops, row.assoc,
                                          parse_simpler_expr, e, start_span)
@@ -392,12 +393,12 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
 
     fn with_restriction<U, F>(&mut self, r: Restriction, p: F) -> U
         where F: Fn(&mut StreamParser<'a, T>) -> U {
-        let old = self.restriction;
-        self.restriction = r;
-        let ret = p(self);
-        self.restriction = old;
-        ret
-    }
+            let mut old = r;
+            ::std::mem::swap(&mut old, &mut self.restriction);
+            let ret = p(self);
+            ::std::mem::swap(&mut old, &mut self.restriction);
+            ret
+        }
 
     /////////////////////////////////////////////////////////////////////
     // The actual parser functions begin here!
@@ -515,7 +516,8 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
             self.expect(Token::ColonColon);
             match *self.peek() {
                 Token::Less if with_tps => {
-                    let elem = path.elems[path.elems.len()-1];
+                    let l = path.elems.len()-1;
+                    let elem = &mut path.elems[l];
                     let tps = self.parse_type_params();
                     elem.val.tps = Some(tps);
                 }
@@ -570,7 +572,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
     fn parse_pat_common(&mut self, allow_types: bool) -> Pat {
         let start_span = self.cur_span();
 
-        let maybe_type = |&: p: &mut StreamParser<'a, T>, allow_types| {
+        let maybe_type = |p: &mut StreamParser<'a, T>, allow_types| {
             match *p.peek() {
                 Token::Colon if allow_types => {
                     p.expect(Token::Colon);
@@ -680,7 +682,8 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
                 let mut path = self.parse_path_no_tps();
                 match *self.peek() {
                     Token::Less => {
-                        let elem = path.val.elems[path.val.elems.len()-1];
+                        let l = path.val.elems.len() - 1;
+                        let elem = &mut path.val.elems[l];
                         elem.val.tps = Some(self.parse_type_params());
                     }
                     _ => {}

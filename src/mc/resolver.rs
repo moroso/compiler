@@ -52,8 +52,8 @@ impl Subscope {
         self.insert(ns, ident.val.name, ident.id)
     }
 
-    fn insert_items<F>(&mut self, items: &Vec<Item>, get_pairs: F)
-        where F: Fn(&[Ident]) -> Vec<(NS, Ident)> {
+    fn insert_items<F>(&mut self, items: &Vec<Item>, mut get_pairs: F)
+        where F: FnMut(&[Ident]) -> Vec<(NS, Ident)> {
         for item in items.iter() {
             match item.val {
                 UseItem(ref import) => {
@@ -67,14 +67,14 @@ impl Subscope {
                             BTreeSet::new(),
                     };
 
-                    let allow: &Fn(&Ident) -> bool = match import.val.import {
-                        ImportNames(..) => &|&: id: &Ident| -> bool filter.contains(&id.val.name),
-                        ImportAll => &|&: _: &Ident| true,
-                    };
-
                     let pairs = get_pairs(import.val.elems.as_slice());
                     for &(ns, ref ident) in pairs.iter() {
-                        if allow(ident) {
+                        let allow = match import.val.import {
+                            ImportNames(..) => filter.contains(&ident.val.name),
+                            ImportAll => true,
+                        };
+
+                        if allow {
                             self.insert_ident(ns, ident);
                         }
                     }
@@ -260,13 +260,14 @@ impl<'a> ModuleResolver<'a> {
 
     /// Adds the given name to the given namespace as the given node_id in the current scope
     fn add_to_scope(&mut self, ns: NS, name: Name, node_id: NodeId) {
-        let subscope = self.scope[self.scope.len() - 1];
+        let len = self.scope.len();
+        let subscope = &mut self.scope[len - 1];
         subscope.insert(ns, name, node_id);
     }
 
     /// Descends into a new scope, optionally seeding it with a set of items
-    fn descend<F>(&mut self, items: Option<&Vec<Item>>, visit: F) -> Subscope
-        where F: Fn(&mut ModuleResolver) {
+    fn descend<F>(&mut self, items: Option<&Vec<Item>>, mut visit: F) -> Subscope
+        where F: FnMut(&mut ModuleResolver) {
         let mut subscope = Subscope::new();
 
         items.map(|items| subscope.insert_items(items, |elems| {
@@ -519,11 +520,10 @@ impl<'a> Visitor for ModuleResolver<'a> {
                 let mut idx = self.scope.len();
 
                 // Find the subscope we're about to descend into and swap it out of the tree
-                let subscope = match self.tree.get(&ident.id) {
-                    Some(&OffBranch(subscope)) => subscope,
+                let subscope = match self.tree.insert(ident.id, OnBranch(idx)) {
+                    Some(OffBranch(subscope)) => subscope,
                     _ => panic!(),
                 };
-                self.tree.insert(ident.id, OnBranch(idx));
 
                 // Add the subscope to the scope branch
                 self.scope.push(subscope);

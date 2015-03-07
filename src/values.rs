@@ -81,10 +81,10 @@ pub fn relation_op<U, S>(lhs: &LitNode, rhs: &LitNode,
                 } else {
                     kind1.is_signed()
                 };
-                let f: &Fn(u64, u64) -> bool = if signed {
-                    &|&: x: u64, y: u64| s(x as i64, y as i64)
+                let f: Box<Fn(u64, u64) -> bool> = if signed {
+                    Box::new(|x: u64, y: u64| s(x as i64, y as i64))
                 } else {
-                    &u
+                    Box::new(u)
                 };
                 BoolLit(f(n1, n2))
             },

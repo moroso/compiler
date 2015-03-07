@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::{Formatter, Display};
 use std::cmp::{Eq, Ord, Ordering};
 
-#[derive(Clone, PartialEq, Eq, Ord, Debug)]
+#[derive(Clone, PartialEq, Eq, Ord, Debug, Copy)]
 pub struct SourcePos {
     pub row: uint,
     pub col: uint,
@@ -27,7 +27,7 @@ impl SourcePos {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, PartialOrd, Ord, Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Copy)]
 pub struct Span {
     // Private, so that we must use mk_span (which enforces invariants)
     // to make a Span.

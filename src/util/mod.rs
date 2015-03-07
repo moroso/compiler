@@ -22,7 +22,7 @@ impl Display for Name {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         use mc::session::interner;
 
-        interner.with(|&: x| write!(f, "{}", x.name_to_str(self)))
+        interner.with(|x| write!(f, "{}", x.name_to_str(self)))
     }
 }
 
@@ -30,7 +30,7 @@ impl Debug for Name {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         use mc::session::interner;
 
-        interner.with(|&: x| write!(f, "{}", x.name_to_str(self)))
+        interner.with(|x| write!(f, "{}", x.name_to_str(self)))
     }
 }
 

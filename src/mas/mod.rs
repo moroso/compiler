@@ -38,7 +38,7 @@ pub fn main() {
         optflag("h", "help", "Show this help message."),
     ];
 
-    let bail = |&: error: Option<&str>| {
+    let bail = |error: Option<&str>| {
         match error {
             Some(e) => {
                 os::set_exit_status(1);

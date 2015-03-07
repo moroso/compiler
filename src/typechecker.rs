@@ -149,7 +149,7 @@ impl<'a> ConstCollector<'a> {
 
         ConstGraphBuilder::build_graph(graph, nodes, *session, module);
 
-        match (graph as &GraphExt<NodeId, ()>).toposort() {
+        match (&*graph as &GraphExt<NodeId>).toposort() {
             Ok(order) => order,
             Err(nid)  => session.error_fatal(nid, "Recursive constant"),
         }
@@ -870,7 +870,7 @@ impl<'a> Typechecker<'a> {
                         let tp_tys = self.tps_to_tys(
                             expr.id, tps, &path.val.elems.last().unwrap().val.tps, true);
 
-                        let ctor = |&:tp_tys| EnumTy(*enum_nid, tp_tys);
+                        let ctor = |tp_tys| EnumTy(*enum_nid, tp_tys);
                         if args.len() == 0 {
                             ctor(tp_tys)
                         } else {

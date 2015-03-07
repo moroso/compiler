@@ -236,9 +236,9 @@ impl RuleMatcher<IntKind> for IntTypeRule {
                 };
 
                 let w = match from_str_radix::<u8>(groups.at(1).unwrap(), 10) {
-                    Some(32) => Width::Width32,
-                    Some(16) => Width::Width16,
-                    Some(8)  => Width::Width8,
+                    Ok(32) => Width::Width32,
+                    Ok(16) => Width::Width16,
+                    Ok(8)  => Width::Width8,
                     _ => panic!(),
                 };
 
@@ -272,10 +272,10 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
                     };
 
                     let w = match from_str_radix::<u8>(groups.at(4).unwrap(), 10) {
-                        None     => Width::AnyWidth,
-                        Some(32) => Width::Width32,
-                        Some(16) => Width::Width16,
-                        Some(8)  => Width::Width8,
+                        Err(_) => Width::AnyWidth,
+                        Ok(32) => Width::Width32,
+                        Ok(16) => Width::Width16,
+                        Ok(8) => Width::Width8,
                         _ => panic!(),
                     };
 
@@ -440,8 +440,8 @@ pub fn new_mb_lexer<'a, S: ?Sized + ToString, B: BufReader>(name: &S, buffer: B)
             // Literals
             Token::IdentTok     => matcher!(r"[a-zA-Z_]\w*"),
             Token::IdentBangTok => IdentBangRule,
-            |&: (n, ik)| Token::NumberTok(n, ik)    => NumberRule,
-            |&: (n, ik)| Token::NumberTok(n, ik)    => CharRule,
+            |(n, ik)| Token::NumberTok(n, ik)    => NumberRule,
+            |(n, ik)| Token::NumberTok(n, ik)    => CharRule,
             Token::StringTok    => StringRule
         },
 

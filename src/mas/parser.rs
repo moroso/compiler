@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 pub use self::InstType::*;
 
 pub struct AsmParser<'a, T: Reader> {
-    tokens: Peekable<SourceToken<Token>, Lexer<'a, T, Token>>,
+    tokens: Peekable<Lexer<'a, T, Token>>,
     last_span: Span,
     error_on_misplaced_inst: bool,
 }
@@ -97,7 +97,7 @@ pub fn classify_inst(inst: &InstNode) -> InstType {
 
 impl<'a, T: Reader> AsmParser<'a, T> {
 
-    pub fn new(tokens: Peekable<SourceToken<Token>, Lexer<'a, T, Token>>
+    pub fn new(tokens: Peekable<Lexer<'a, T, Token>>
            ) -> AsmParser<'a, T> {
         AsmParser {
             tokens: tokens,

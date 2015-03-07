@@ -32,7 +32,7 @@ pub struct StaticIRItem {
 
 allow_string!(StaticIRItem);
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
 pub struct Var {
     pub name: Name,
     // If set, stores the generation of the variable. This will be None

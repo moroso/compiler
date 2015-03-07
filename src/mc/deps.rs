@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::old_path::posix::Path;
 use std::old_io::File;
 
 use package::Package;

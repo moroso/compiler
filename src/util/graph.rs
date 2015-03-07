@@ -4,11 +4,11 @@ pub use rustc::middle::graph::NodeIndex as VertexIndex;
 
 use collections::BTreeSet;
 
-pub trait GraphExt<V, E> {
+pub trait GraphExt<V> {
     fn toposort(&self) -> Result<Vec<V>, V>;
 }
 
-impl<V: Copy+Eq+Ord, E> GraphExt<V, E> for Graph<V, E> {
+impl<V: Copy+Eq+Ord, E> GraphExt<V> for Graph<V, E> {
     fn toposort(&self) -> Result<Vec<V>, V> {
         let mut list = vec!();
         let mut visiting = BTreeSet::new();
