@@ -1,8 +1,8 @@
 use mas::ast::*;
 use std::collections::BTreeMap;
 
-fn subst_label(target: &mut JumpTarget, idx: uint,
-               labels: &BTreeMap<String, uint>) {
+fn subst_label(target: &mut JumpTarget, idx: usize,
+               labels: &BTreeMap<String, usize>) {
     let new_target = match *target {
         JumpOffs(..) => target.clone(),
         JumpLabel(ref name) => {
@@ -18,7 +18,7 @@ fn subst_label(target: &mut JumpTarget, idx: uint,
 
 // TODO: eliminate this code duplication.
 fn subst_label_long(target: &mut LongValue,
-               labels: &BTreeMap<String, uint>) {
+               labels: &BTreeMap<String, usize>) {
     let new_target = match *target {
         Immediate(..) => target.clone(),
         LabelOffs(ref name) => {
@@ -34,7 +34,7 @@ fn subst_label_long(target: &mut LongValue,
 }
 
 pub fn resolve_labels(insts: &mut Vec<InstPacket>,
-                      labels: &BTreeMap<String, uint>) {
+                      labels: &BTreeMap<String, usize>) {
     for (count, ref mut packet) in insts.iter_mut().enumerate() {
         for inst in packet.iter_mut() {
             match *inst {

@@ -5,8 +5,8 @@ use mas::ast::*;
 use collections::BTreeMap;
 use mas::labels::resolve_labels;
 
-pub fn link(parts: Vec<(Vec<[InstNode; 4]>, BTreeMap<String, uint>)>
-            ) -> (Vec<[InstNode; 4]>, BTreeMap<String, uint>) {
+pub fn link(parts: Vec<(Vec<[InstNode; 4]>, BTreeMap<String, usize>)>
+            ) -> (Vec<[InstNode; 4]>, BTreeMap<String, usize>) {
     let mut result = vec!();
     let mut pos = 0;
     let mut all_labels = BTreeMap::new();

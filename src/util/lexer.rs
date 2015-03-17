@@ -7,11 +7,11 @@
 use span::{Span, SourcePos, mk_sp};
 
 use regex::Regex;
-use std::{old_io, option, iter};
+use std::{option, iter};
 
-use std::str::StrExt;
-use std::old_io::IoResult;
-use std::old_io::stdio::StdinReader;
+use std::io::{BufRead, Result};
+
+use std::marker::PhantomData;
 
 /// A token together with a Span, to keep track of where in the source file
 /// it was.
@@ -24,14 +24,21 @@ pub struct SourceToken<T> {
 /// A single rule for the lexer. This includes a `matcher`, which matches
 /// a string in the input, and a `maker`, which generates the token from
 /// the matched string.
-pub struct LexerRule<T, U> {
+pub struct LexerRule<A, T, U> {
     pub matcher: T,
     pub maker: U,
+    type_a: PhantomData<A>,
+}
+
+impl<A, T, U> LexerRule<A, T, U> {
+    pub fn new(matcher: T, maker: U) -> LexerRule<A, T, U> {
+        LexerRule { matcher: matcher, maker: maker, type_a: PhantomData }
+    }
 }
 
 // Trait to make lexer_rules! forget the type parameters of LexerRule
 pub trait LexerRuleT<T> {
-    fn run(&self, s: &str) -> Option<(uint, T)>;
+    fn run(&self, s: &str) -> Option<(usize, T)>;
 }
 
 // The idea behind this is to allow very flexible lexer rules in the lexer_rules!
@@ -41,9 +48,10 @@ pub trait LexerRuleT<T> {
 // a raw string as a rule to do a simple string-prefix match, a Regex to check
 // for a regex match, or optionally more complicated rules to e.g. use capture
 // groups from a Regex and construct a token from those.
-#[old_impl_check]
-impl<A, T: RuleMatcher<A>, U: TokenMaker<A, V>, V> LexerRuleT<V> for LexerRule<T, U> {
-    fn run(&self, s: &str) -> Option<(uint, V)> {
+impl<A, T: RuleMatcher<A>, U: TokenMaker<A, V>, V> LexerRuleT<V> for LexerRule<A, T, U> {
+    fn run(&self, s: &str) -> Option<(usize, V)>
+        where T: RuleMatcher<A>,
+              U: TokenMaker<A, V> {
         match self.matcher.find(s) {
             Some((len, args)) => Some((len, self.maker.mk_tok(args))),
             _ => None
@@ -70,7 +78,7 @@ pub struct Lexer<'a, B, T> {
     // Rules specifically for when we're within a comment. We need this
     // for handling multi-line comments.
     comment_rules: Vec<Box<LexerRuleT<T> + 'a>>,
-    comment_nest: uint,
+    comment_nest: usize,
     // We set this to Some(Eof) and take it when we hit EOF
     eof: Option<T>,
     ws: T,
@@ -79,14 +87,17 @@ pub struct Lexer<'a, B, T> {
 }
 
 pub trait BufReader {
-    fn read_line(&mut self) -> IoResult<String>;
+    fn read_line(&mut self) -> Result<String>;
 }
 
-impl<B> BufReader for B where B: Reader {
-    fn read_line(&mut self) -> IoResult<String> {
-        self.read_line()
+impl<B> BufReader for B where B: BufRead {
+    fn read_line(&mut self) -> Result<String> {
+        let mut s = String::new();
+        try!(self.read_line(&mut s));
+        Ok(s)
     }
 }
+
 
 impl<'a, B: BufReader, T> Lexer<'a, B, T> {
     pub fn get_name(&self) -> String {
@@ -118,11 +129,11 @@ impl<'a, B: BufReader, T: Eq> Iterator for Lexer<'a, B, T> {
         loop {
             match self.line {
                 Some(ref line) => {
-                    let line = line.as_slice();
+                    let line = &line[..];
                     while self.pos.col < line.len() {
                         // We apply each rule. Of the ones that match, we take
                         // the longest match.
-                        let mut longest = 0u;
+                        let mut longest = 0;
                         let mut best = None;
                         let rules = if self.comment_nest > 0 {
                             &self.comment_rules
@@ -131,7 +142,7 @@ impl<'a, B: BufReader, T: Eq> Iterator for Lexer<'a, B, T> {
                         };
 
                         for rule in rules.iter() {
-                            let m = rule.run(line.slice_from(self.pos.col));
+                            let m = rule.run(&line[self.pos.col..]);
                             match m {
                                 Some((len, tok)) => {
                                     if len > longest {
@@ -150,7 +161,7 @@ impl<'a, B: BufReader, T: Eq> Iterator for Lexer<'a, B, T> {
 
                         match best {
                             None => panic!("Unexpected input at {} ({} line {} col {})",
-                                          line.slice_from(self.pos.col),
+                                          &line[self.pos.col..],
                                           self.name,
                                           self.pos.row + 1,
                                           self.pos.col,
@@ -202,12 +213,12 @@ pub trait TokenMaker<T, U> {
 // TokenMaker for this RuleMatcher requires the match as an argument, like IdentTok;
 // the type magic is handled by MaybeArg).
 pub trait RuleMatcher<T> {
-    fn find<'a>(&self, s: &'a str) -> Option<(uint, T)>;
+    fn find<'a>(&self, s: &'a str) -> Option<(usize, T)>;
 }
 
 // Simple string-prefix match
 impl<'a, T: MaybeArg> RuleMatcher<T> for &'a str {
-    fn find<'a>(&self, s: &'a str) -> Option<(uint, T)> {
+    fn find(&self, s: &str) -> Option<(usize, T)> {
         match s.starts_with(*self) {
             true => Some((self.len(), MaybeArg::maybe_arg(*self))),
             _ => None
@@ -217,10 +228,10 @@ impl<'a, T: MaybeArg> RuleMatcher<T> for &'a str {
 
 // Regex match
 impl<T: MaybeArg> RuleMatcher<T> for Regex {
-    fn find<'a>(&self, s: &'a str) -> Option<(uint, T)> {
+    fn find<'a>(&self, s: &'a str) -> Option<(usize, T)> {
         match self.find(s) {
             Some((_, end)) => {
-                let t = s.slice(0, end);
+                let t = &s[..end];
                 Some((t.len(), MaybeArg::maybe_arg(t)))
             },
             _ => None
@@ -243,7 +254,7 @@ impl MaybeArg for String {
 }
 
 struct BufferLines<B> {
-    lineno: uint,
+    lineno: usize,
     buffer: B,
 }
 
@@ -257,8 +268,8 @@ impl<B: BufReader> BufferLines<B> {
 }
 
 impl<B: BufReader> Iterator for BufferLines<B> {
-    type Item = (uint, String);
-    fn next(&mut self) -> Option<(uint, String)> {
+    type Item = (usize, String);
+    fn next(&mut self) -> Option<(usize, String)> {
         self.buffer.read_line().ok().map(|l| {
             let n = self.lineno;
             self.lineno += 1;

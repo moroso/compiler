@@ -17,8 +17,8 @@ pub struct MacroExpander<'a> {
     macros: BTreeMap<Name, Box<Expander + 'a>>,
 }
 
-struct MacroExpanderVisitor<'a> {
-    session: &'a mut Session<'a>,
+struct MacroExpanderVisitor<'a, 'b: 'a> {
+    session: &'a mut Session<'b>,
 }
 
 fn expand_file(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
@@ -79,7 +79,7 @@ fn expand_stringify(mut input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> V
     concat.extend(ts.into_iter().map(|t| format!("{}", t)));
 
     for ts in input.into_iter() {
-        concat.push(String::from_str(","));
+        concat.push(",".to_string());
         concat.extend(ts.into_iter().map(|t| format!("{}", t)));
     }
 
@@ -95,9 +95,9 @@ fn expand_map_macro(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -
 
     let mut out = vec!();
     for toks in iter {
-        out.push_all(prefix.as_slice());
+        out.push_all(&prefix[..]);
         out.push(Token::LParen);
-        out.push_all(toks.as_slice());
+        out.push_all(&toks[..]);
         out.push(Token::RParen);
         out.push(Token::Comma);
     }
@@ -111,7 +111,7 @@ fn expand_map_macro(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -
 type ExpanderFnSig = fn(Vec<Vec<Token>>, NodeId, &mut Session) -> Vec<Token>;
 struct ExpanderFn(ExpanderFnSig);
 
-static builtin_macros: &'static [(&'static str, ExpanderFnSig)] = &[
+static BUILTIN_MACROS: &'static [(&'static str, ExpanderFnSig)] = &[
     ("paste", expand_paste),
     ("concat", expand_concat),
     ("stringify", expand_stringify),
@@ -146,7 +146,7 @@ impl Expander for WithId<MacroDef> {
         let mut vararg_toks = vec!();
         // Collect up any remaining args as a comma delimited token stream
         for arg in arg_iter {
-            vararg_toks.push_all(arg.as_slice());
+            vararg_toks.push_all(&arg[..]);
             vararg_toks.push(Token::Comma);
         }
         vararg_toks.pop(); // Pop off a trailing comma if it exists
@@ -156,7 +156,7 @@ impl Expander for WithId<MacroDef> {
             let mut is_empty_varargs = false;
             match *tok {
                 MacroVar(name) => {
-                    output.push_all(args.get(&name).unwrap().as_slice());
+                    output.push_all(&args.get(&name).unwrap()[..]);
                 }
                 // We skip a comma that occurs after an empty ...
                 MacroTok(Token::Comma) if skip_comma => {}
@@ -164,7 +164,7 @@ impl Expander for WithId<MacroDef> {
                     output.push(tok.clone());
                 }
                 MacroVarArgs => {
-                    output.push_all(vararg_toks.as_slice());
+                    output.push_all(&vararg_toks[..]);
                     is_empty_varargs = vararg_toks.is_empty();
                 }
             }
@@ -212,13 +212,13 @@ impl MutVisitor for MacroCollector {
 
 impl<'a> MacroExpander<'a> {
     pub fn new() -> MacroExpander<'a> {
-        use mc::session::interner;
+        use mc::session::INTERNER;
 
         let mut macros = BTreeMap::new();
 
-        for &(s, e) in builtin_macros.iter() {
-            interner.with(|x| {
-                let name = x.intern(String::from_str(s));
+        for &(s, e) in BUILTIN_MACROS.iter() {
+            INTERNER.with(|x| {
+                let name = x.intern(s.to_string());
                 macros.insert(name, Box::new(ExpanderFn(e)) as Box<Expander>);
             })
         }
@@ -228,7 +228,7 @@ impl<'a> MacroExpander<'a> {
         }
     }
 
-    pub fn expand_macros(session: &'a mut Session<'a>, module: &mut Module) {
+    pub fn expand_macros(session: &mut Session, module: &mut Module) {
         let user_macros = MacroCollector::collect(module);
         for def in user_macros.into_iter() {
             let name = def.val.name;
@@ -249,7 +249,7 @@ fn format_st_vec(v: &Vec<SourceToken<Token>>) -> String {
     format!("{:?}", nv)
 }
 
-impl<'a> MacroExpanderVisitor<'a> {
+impl<'a, 'b> MacroExpanderVisitor<'a, 'b> {
     fn expand_macro(&mut self,
                     id: &NodeId,
                     name: Name,
@@ -263,7 +263,7 @@ impl<'a> MacroExpanderVisitor<'a> {
             let this_macro: & &Expander = ::std::mem::transmute(
                 match self.session.expander.macros.get(&name) {
                     Some(m) => m,
-                    None => self.session.error_fatal(*id, format!("Macro {}! is undefined", name).as_slice()),
+                    None => self.session.error_fatal(*id, &format!("Macro {}! is undefined", name)[..]),
                 }
                 );
             this_macro.expand(my_args, *id, self.session)
@@ -281,7 +281,7 @@ impl<'a> MacroExpanderVisitor<'a> {
         // recursively expand it.
         // Is this just totally fucking wrong? It might be.
         let mut new_toks = vec!();
-        while !stream.is_empty() {
+        while stream.peek().is_some() {
             // Do some borrow checker gymnastics. Need to find out whether
             // the next thing is an IdentBangTok without retaining a borrow.
             let is_macro_call = {
@@ -310,7 +310,7 @@ impl<'a> MacroExpanderVisitor<'a> {
 
 }
 
-impl<'a> MutVisitor for MacroExpanderVisitor<'a> {
+impl<'a, 'b> MutVisitor for MacroExpanderVisitor<'a, 'b> {
     fn visit_expr(&mut self, expr: &mut Expr) {
         use mc::parser::Parser;
 

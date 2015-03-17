@@ -199,8 +199,8 @@ impl Shl<LitNode> for LitNode {
     type Output = LitNode;
     fn shl(self, rhs: LitNode) -> LitNode {
         generic_op(&self, &rhs,
-                   |x, y| x << y as uint,
-                   |x, y| x << y as uint,
+                   |x, y| x << y as usize,
+                   |x, y| x << y as usize,
                    |_,_| panic!())
     }
 }
@@ -208,8 +208,8 @@ impl Shr<LitNode> for LitNode {
     type Output = LitNode;
     fn shr(self, rhs: LitNode) -> LitNode {
         generic_op(&self, &rhs,
-                   |x, y| x >> y as uint,
-                   |x, y| x >> y as uint,
+                   |x, y| x >> y as usize,
+                   |x, y| x >> y as usize,
                    |_,_| panic!())
     }
 }

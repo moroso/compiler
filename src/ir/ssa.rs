@@ -7,19 +7,19 @@ use std::collections::{BTreeMap, VecMap, BTreeSet};
 pub struct ToSSA;
 
 // Get the generation of a variable and increment it.
-fn next_gen(generations: &mut BTreeMap<Name, uint>, name: Name) -> Option<uint> {
+fn next_gen(generations: &mut BTreeMap<Name, usize>, name: Name) -> Option<usize> {
     let gen = *generations.get(&name).unwrap_or(&0);
     generations.insert(name, gen+1);
     Some(gen+1)
 }
 
 // Get the generation of a variable.
-fn gen_of(generations: &mut BTreeMap<Name, uint>, name: Name) -> Option<uint> {
+fn gen_of(generations: &mut BTreeMap<Name, usize>, name: Name) -> Option<usize> {
     Some(*generations.get(&name).unwrap_or(&0))
 }
 
 // Fill in the generation of an RValElem.
-fn ssa_rvalelem(generations: &mut BTreeMap<Name, uint>,
+fn ssa_rvalelem(generations: &mut BTreeMap<Name, usize>,
                 rv_elem: &mut RValueElem) {
     match *rv_elem {
         Variable(ref mut var) =>
@@ -30,9 +30,9 @@ fn ssa_rvalelem(generations: &mut BTreeMap<Name, uint>,
 
 // Fill in the generations of variables in the given BTreeSet, using the given
 // gen_of function.
-fn ssa_vars<F>(generations: &mut BTreeMap<Name, uint>, vars: &mut BTreeSet<Var>,
+fn ssa_vars<F>(generations: &mut BTreeMap<Name, usize>, vars: &mut BTreeSet<Var>,
                gen_of: F)
-    where F: Fn(&mut BTreeMap<Name, uint>, Name) -> Option<uint>
+    where F: Fn(&mut BTreeMap<Name, usize>, Name) -> Option<usize>
 {
     let mut new_vars = BTreeSet::new();
     for var in vars.iter() {
@@ -51,7 +51,7 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
 
     let mut label_vars = VecMap::new();
     let len = ops.len();
-    for i in range(0, len) {
+    for i in 0 .. len {
         match ops.get_mut(i) {
             Some(&mut Op::Label(ref label, ref mut vars)) => {
                 let ref live_vars = opinfo[i].live;
@@ -85,7 +85,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
     // then the map will have a single entry, taking
     // 1 to the vector of maps
     // <{Name(1):1, Name(2):1},  {Name(1):3, Name(2):1}>.
-    let mut jump_table = VecMap::<Vec<BTreeMap<Name, uint>>>::new();
+    let mut jump_table = VecMap::<Vec<BTreeMap<Name, usize>>>::new();
     let mut label_table = VecMap::<BTreeSet<Var>>::new();
     for op in ops.iter() {
         match *op {
@@ -114,7 +114,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
 
     let mut substitutions = BTreeSet::<(Var, Var)>::new();
     let mut vars_at_labels_to_clear = VecMap::<BTreeSet<Var>>::new();
-    let mut labels_to_remove = BTreeSet::<uint>::new();
+    let mut labels_to_remove = BTreeSet::<usize>::new();
     let mut changed = false;
 
     // Next step: based on the list of jumps to each label, figure out
@@ -151,7 +151,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
             let mut vars_to_clear = BTreeSet::new();
 
             for var in label_vars.iter() {
-                let mut gens = BTreeSet::<uint>::new();
+                let mut gens = BTreeSet::<usize>::new();
                 let label_gen = var.generation.unwrap();
 
                 // Collect the generations of this variable in all jumps
@@ -272,7 +272,7 @@ impl ToSSA {
     pub fn to_ssa(ops: &mut Vec<Op>, verbose: bool) {
         parameterize_labels(ops);
 
-        let ref mut gens = BTreeMap::<Name, uint>::new();
+        let ref mut gens = BTreeMap::<Name, usize>::new();
 
         for op in ops.iter_mut() {
             match *op {

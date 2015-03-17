@@ -68,12 +68,12 @@ with_id! {
 }
 
 #[derive(Eq, PartialEq, Clone, Ord, PartialOrd, Debug, Copy)]
-pub struct NodeId(pub uint);
+pub struct NodeId(pub usize);
 
 allow_string!(NodeId);
 
 impl NodeId {
-    pub fn to_uint(&self) -> uint {
+    pub fn to_uint(&self) -> usize {
         let NodeId(did) = *self;
         did
     }
@@ -387,18 +387,18 @@ impl Display for BlockNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         try!(write!(f, "{}\n", "{"));
         for item in self.items.iter() {
-            for line in format!("{}", item).as_slice().lines() {
+            for line in (&format!("{}", item)[..]).lines() {
                 try!(write!(f, "    {}\n", line));
             }
         }
         for stmt in self.stmts.iter() {
-            for line in format!("{}", stmt).as_slice().lines() {
+            for line in (&format!("{}", stmt)[..]).lines() {
                 try!(write!(f, "    {};\n", line));
             }
         }
         match self.expr {
             Some(ref e) => {
-                for line in format!("{}", e).as_slice().lines() {
+                for line in (&format!("{}", e)[..]).lines() {
                     try!(write!(f, "    {}\n", line));
                 }
             },
@@ -604,7 +604,7 @@ pub struct ModuleNode {
 impl Display for ModuleNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         for item in self.items.iter() {
-            for line in format!("{}", item).as_slice().lines() {
+            for line in (&format!("{}", item)[..]).lines() {
                 try!(write!(f, "{}\n", line));
             }
         }

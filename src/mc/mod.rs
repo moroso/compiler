@@ -1,16 +1,20 @@
 use package::Package;
-use target::{Target, CTarget, IRTarget, AsmTarget};
+use target::{MkTarget, Target, CTarget, IRTarget, AsmTarget};
 
 use self::ast::visitor::Visitor;
 use self::session::{Session, Options};
 
 use getopts;
 use getopts::{getopts, reqopt, optopt, optflag, optmulti};
-use std::old_io::{BufferedReader, File, Writer, stdio};
+use std::io::{BufReader, Write};
+use std::fs::File;
 use std::ascii::AsciiExt;
 
+use std::io;
 use std::os;
 use std::env;
+use std::path::Path;
+use std::process;
 
 pub mod lexer;
 pub mod parser;
@@ -20,22 +24,24 @@ pub mod resolver;
 pub mod deps;
 
 struct NullTarget;
-impl Target for NullTarget {
+impl MkTarget for NullTarget {
     fn new(_: Vec<String>) -> Box<NullTarget> { Box::new(NullTarget) }
-    fn compile(&self, _: Package, _: &mut Writer) { }
+}
+impl Target for NullTarget {
+    fn compile(&self, _: Package, _: &mut Write) { }
 }
 
 fn package_from_stdin<'a>(opts: Options) -> Package<'a> {
-    Package::from_buffer(opts, "<stdin>", stdio::stdin())
+    Package::from_buffer(opts, "<stdin>", BufReader::new(io::stdin()))
 }
 
-fn new_target<T: Target>(args: Vec<String>) -> Box<T> {
-    Target::new(args)
+fn new_target<T: MkTarget>(args: Vec<String>) -> Box<T> {
+    MkTarget::new(args)
 }
 
 macro_rules! targets {
     ($($n:expr => $t:ty),*) => (
-        vec!($(($n, Box::new(|&:args| { new_target::<$t>(args) as Box<Target> }) as Box<Fn(Vec<String>) -> Box<Target>> )),*)
+        vec!($(($n, Box::new(|args| { new_target::<$t>(args) as Box<Target> }) as Box<Fn(Vec<String>) -> Box<Target>> )),*)
     );
     ($($n:expr => $t:ty),+,) => (targets!($($n => $t),+))
 }
@@ -44,11 +50,11 @@ macro_rules! targets {
 pub fn setup_builtin_search_paths(opts: &mut Options) {
     // Unless it gets overridden, pull out a prelude based on the
     // install location of the binary. This is kind of dubious.
-    match os::self_exe_path() {
-        None => {}, /* whatever? */
-        Some(exe_path) => {
+    match env::current_exe() {
+        Err(_) => {}, /* whatever? */
+        Ok(exe_path) => {
             let prelude_location = exe_path.join(Path::new("lib/prelude.mb"));
-            opts.search_paths.insert(String::from_str("prelude"), prelude_location);
+            opts.search_paths.insert("prelude".to_string(), prelude_location);
         }
     }
 }
@@ -57,11 +63,9 @@ fn parse_search_paths(opts: &mut Options, matches: &getopts::Matches) -> bool {
     // Pull libraries out of the command line
     for string in matches.opt_strs("lib").into_iter() {
         let parts: Vec<&str> = string.split(":").collect();
-        let (module, file) = match parts.as_slice() {
-            [ module, file ] => (module, file),
-            _ => { return false; }
-        };
-        opts.search_paths.insert(String::from_str(module), Path::new(file));
+        if parts.len() != 2 { return false }
+        let (module, file) = (parts[0], parts[1]);
+        opts.search_paths.insert(module.to_string(), Path::new(file).to_path_buf());
     }
 
     true
@@ -81,29 +85,28 @@ pub fn main() {
     ];
 
     let bail = |error: Option<&str>| {
-        match error {
+        let error = match error {
             Some(e) => {
-                env::set_exit_status(1);
                 println!("{}: fatal error: {}", arg0, e);
+                1
             }
-            None => {}
-        }
+            None => 0,
+        };
 
         let brief = format!("Usage: {} [OPTIONS]", arg0);
-        println!("{}", getopts::usage(brief.as_slice(), &opts));
+        println!("{}", getopts::usage(&brief[..], &opts));
+        process::exit(error)
     };
 
     let matches = match getopts(args.tail(), &opts) {
         Ok(m) => m,
-        Err(e) => return bail(Some(format!("{}", e).as_slice())),
+        Err(e) => bail(Some(&format!("{}", e)[..])),
     };
 
     if matches.opt_present("help") {
-        return bail(None);
+        bail(None);
     }
 
-    // TODO: make this work again.
-    /*
     let targets = targets! {
         "c" => CTarget,
         "ir" => IRTarget,
@@ -113,24 +116,24 @@ pub fn main() {
 
     let verbose = matches.opt_present("verbose");
 
-    let target_arg = matches.opt_str("target").unwrap_or(String::from_str("null"));
+    let target_arg = matches.opt_str("target").unwrap_or("null".to_string());
     let target = match targets.into_iter()
-                        .filter(|&(ref t, _)| t.eq_ignore_ascii_case(target_arg.as_slice()))
+                        .filter(|&(ref t, _)| t.eq_ignore_ascii_case(&target_arg[..]))
                         .map(|(_, ctor)| ctor(
                             if verbose {
-                                vec!(String::from_str("verbose"))
+                                vec!("verbose".to_string())
                             } else {
                                 vec!()
                             }))
-                        .next() {
+                        .next()
+    {
         Some(t) => t,
         None => {
             let msg = format!("Unrecognized target `{}'", target_arg);
-            return bail(Some(msg.as_slice()));
+            bail(Some(&msg[..]));
+            panic!()
         }
-                        };*/
-    // TODO!!!!
-    let target = new_target::<CTarget>(vec!());
+    };
 
     let mut options = Options::new();
     setup_builtin_search_paths(&mut options);
@@ -141,17 +144,17 @@ pub fn main() {
     let name = if matches.free.len() == 0 {
         "-"
     } else if matches.free.len() == 1 {
-        matches.free[0].as_slice()
+        &matches.free[0][..]
     } else {
-        return bail(Some("too many arguments"))
+        bail(Some("too many arguments"));
+        panic!()
     };
 
     let package = if name == "-" {
         package_from_stdin(options)
     } else {
         let path = Path::new(name);
-        let file = File::open(&path).unwrap_or_else(|e| panic!("{}", e));
-        Package::from_file(options, file)
+        Package::from_path(options, path)
     };
 
     // FIXME: Hm, maybe should use a MemWriter, gather the buffer,
@@ -159,11 +162,11 @@ pub fn main() {
     // don't truncate the file if it fails, either. (We *shouldn't*
     // fail during compile, but...)
     let mut writer = match matches.opt_str("output") {
-        None => Box::new(stdio::stdout()) as Box<Writer>,
+        None => Box::new(io::stdout()) as Box<Write>,
         Some(name) => {
-            let path = Path::new(name);
+            let path = Path::new(&name);
             let file = File::create(&path).unwrap_or_else(|e| panic!("{}", e));
-            Box::new(file) as Box<Writer>
+            Box::new(file) as Box<Write>
         }
     };
 
@@ -179,14 +182,14 @@ pub fn main() {
 mod tests {
     use package::Package;
     use super::{NullTarget, setup_builtin_search_paths};
-    use target::Target;
+    use target::MkTarget;
     use std::old_io::stdio;
 
     fn package_from_str(s: &str) -> Package {
         use std::str::StrSlice;
         use std::old_io;
         let bytes = s.as_bytes().to_vec();
-        let buffer = old_io::BufferedReader::new(old_io::MemReader::new(bytes));
+        let buffer = io::BufReader::new(old_io::MemReader::new(bytes));
         let mut opts = super::session::Options::new();
         setup_builtin_search_paths(&mut opts);
         Package::from_buffer(opts, "<input>", buffer)
@@ -219,6 +222,6 @@ fn main() {
 }
 ";
         let package = package_from_str(src);
-        NullTarget.compile(package, &mut stdio::stdout() as &mut Writer);
+        NullTarget.compile(package, &mut stdio::stdout() as &mut Write);
     }
 }

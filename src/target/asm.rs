@@ -4,7 +4,7 @@ use mc::lexer::Lexer;
 use mc::parser::Parser;
 use mc::session::Interner;
 
-use super::Target;
+use super::{MkTarget,Target};
 
 use ir::liveness::LivenessAnalyzer;
 use ir::ast_to_intermediate::ASTToIntermediate;
@@ -16,7 +16,7 @@ use ir::StaticIRItem;
 use target::NameMangler;
 
 use codegen::register_color::RegisterColorer;
-use codegen::num_usable_vars;
+use codegen::NUM_USABLE_VARS;
 use codegen::IrToAsm;
 use codegen::combine::link;
 
@@ -29,7 +29,9 @@ use mas::parser::AsmParser;
 
 use util::Name;
 
-use std::old_io::{Writer, stdio, File, BufferedReader};
+use std::io::{Write, BufReader};
+use std::fs::File;
+use std::path::Path;
 use std::collections::BTreeSet;
 
 pub struct AsmTarget {
@@ -37,34 +39,36 @@ pub struct AsmTarget {
 }
 
 // TODO: move this somewhere common.
-fn print_bin(n: u32, stream: &mut Writer) {
+fn print_bin(n: u32, stream: &mut Write) {
     // Write in little-endian format.
     (stream.write(vec!(
         (n >>  0) as u8,
         (n >>  8) as u8,
         (n >> 16) as u8,
         (n >> 24) as u8,
-        ).as_slice())).ok();
+        ).as_ref())).ok();
 }
 
-impl Target for AsmTarget {
+impl MkTarget for AsmTarget {
     fn new(args: Vec<String>) -> Box<AsmTarget> {
         let mut verbose = false;
         for arg in args.iter() {
-            if *arg == String::from_str("verbose") {
+            if *arg == "verbose".to_string() {
                 print!("Enabling verbose mode.\n");
                 verbose = true;
             }
         }
         Box::new(AsmTarget { verbose: verbose })
     }
+}
 
+impl Target for AsmTarget {
     #[allow(unused_must_use)]
-    fn compile(&self, p: Package, f: &mut Writer) {
+    fn compile(&self, p: Package, f: &mut Write) {
         let Package {
-            module:  module,
-            session: session,
-            typemap: mut typemap,
+            module,
+            session,
+            mut typemap,
         } = p;
 
         let mangler = NameMangler::new(session, &module, true, true);
@@ -118,7 +122,7 @@ impl Target for AsmTarget {
         let path = Path::new(fname);
         let file = File::open(&path).unwrap_or_else(|e| panic!("{}", e));
 
-        let reader = BufferedReader::new(file);
+        let reader = BufReader::new(file);
         let asm_lexer = new_asm_lexer(fname, reader);
         let asm_peekable = asm_lexer.peekable();
         let mut asm_parser = AsmParser::new(asm_peekable);
@@ -145,7 +149,7 @@ impl Target for AsmTarget {
                        RegisterColorer::color(conflict_map, counts,
                                               must_colors, mem_vars,
                                               &global_map,
-                                              num_usable_vars as uint));
+                                              NUM_USABLE_VARS as usize));
             }
             let (asm_insts, labels) = IrToAsm::ir_to_asm(insts,
                                                          &global_map,

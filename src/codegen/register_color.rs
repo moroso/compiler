@@ -16,7 +16,7 @@ impl RegisterColorer {
                  must_colors: BTreeMap<Var, RegisterColor>,
                  mem_vars: BTreeSet<Name>,
                  global_map: &BTreeMap<Name, StaticIRItem>,
-                 num_colors: uint
+                 num_colors: usize
                  ) -> BTreeMap<Var, RegisterColor> {
         let mut coloring: BTreeMap<Var, RegisterColor> =
             FromIterator::from_iter(must_colors.into_iter());
@@ -25,7 +25,7 @@ impl RegisterColorer {
         // but some of these are global).
         let new_mem_vars = mem_vars.into_iter().filter(
             |name| global_map.get(name).is_none());
-        let mem_locs: BTreeMap<Name, uint> = FromIterator::from_iter(
+        let mem_locs: BTreeMap<Name, usize> = FromIterator::from_iter(
             new_mem_vars.enumerate().map(|(x,y)| (y,x)));
 
         let mut freq_vec: Vec<(&Var, &u32)> = frequencies.iter().collect();
@@ -38,7 +38,7 @@ impl RegisterColorer {
                 // We don't want to override any "must colors", but otherwise want to put every generation
                 // of a given variable in the same place on the stack.
                 Some(i) if coloring.get(var).is_none() => { coloring.insert(var.clone(),
-                                                                             StackColor(*i as int)); },
+                                                                             StackColor(*i as isize)); },
                 _ => {},
             }
         }
@@ -83,7 +83,7 @@ impl RegisterColorer {
                 continue;
             }
 
-            let mut i = 0i;
+            let mut i = 0;
             loop {
                 if !adjacent_colors.contains(&Some(StackColor(i))) {
                     break;
@@ -93,15 +93,15 @@ impl RegisterColorer {
 
             let mut color = StackColor(i);
 
-            for n in range(0, num_colors) {
+            for n in 0 .. num_colors {
                 let n = n as u8;
                 // No matter what, we're not allowed to assign these registers.
-                if n == spill_reg_base ||
-                    n == spill_reg_base+1 ||
-                    n == spill_reg_base+2 ||
-                    n == link_register.index ||
-                    n == stack_pointer.index ||
-                    n == global_reg.index
+                if n == SPILL_REG_BASE ||
+                    n == SPILL_REG_BASE+1 ||
+                    n == SPILL_REG_BASE+2 ||
+                    n == LINK_REGISTER.index ||
+                    n == STACK_POINTER.index ||
+                    n == GLOBAL_REG.index
                 {
                     continue;
                 }
@@ -137,7 +137,7 @@ mod tests {
         let conflicts: BTreeMap<Var, BTreeSet<Var>> = BTreeMap::new();
         let mut frequencies: BTreeMap<Var, u32> = BTreeMap::new();
 
-        for n in range(0u32, 10) {
+        for n in 0u32 .. 10 {
             frequencies.insert(var(n), 1);
         }
 
@@ -157,11 +157,11 @@ mod tests {
         let mut conflicts: BTreeMap<Var, BTreeSet<Var>> = BTreeMap::new();
         let mut frequencies: BTreeMap<Var, u32> = BTreeMap::new();
 
-        for n in range(0u32, 20) {
+        for n in 0u32 .. 20 {
             frequencies.insert(var(n), (25 - n) as u32);
 
             let mut conflict_set = BTreeSet::<Var>::new();
-            for m in range(0u32, 20) {
+            for m in 0u32 .. 20 {
                 if n != m {
                     conflict_set.insert(var(m));
                 }
@@ -175,12 +175,12 @@ mod tests {
                                               &BTreeMap::<Name,
                                                          StaticIRItem>::new(),
                                               10);
-        for i in range(0u32, 8) {
+        for i in 0u32 .. 8 {
             let color = *coloring.get(&var(i)).unwrap();
             assert_eq!(color, RegColor(Reg { index: i as u8 } ));
         }
 
-        for i in range(8u32, 20) {
+        for i in 8u32 .. 20 {
             let color = *coloring.get(&var(i)).unwrap();
             match color {
                 StackColor(_) => {},
@@ -194,12 +194,12 @@ mod tests {
         let mut conflicts: BTreeMap<Var, BTreeSet<Var>> = BTreeMap::new();
         let mut frequencies: BTreeMap<Var, u32> = BTreeMap::new();
 
-        for n in range(0u32, 20) {
+        for n in 0u32 .. 20 {
             frequencies.insert(var(n), (25 - n) as u32);
 
             let mut conflict_set = BTreeSet::<Var>::new();
             // Each variable conflicts with the adjacent ones.
-            for m in range(0u32, 20) {
+            for m in 0u32 .. 20 {
                 if n - m == 1 || m - n == 1 {
                     conflict_set.insert(var(m));
                 }
@@ -213,7 +213,7 @@ mod tests {
                                               &BTreeMap::<Name,
                                                          StaticIRItem>::new(),
                                               10);
-        for i in range(0u32, 20) {
+        for i in 0u32 .. 20 {
             let color = *coloring.get(&var(i)).unwrap();
             assert_eq!(color, RegColor(Reg { index: (i%2) as u8 } ));
         }

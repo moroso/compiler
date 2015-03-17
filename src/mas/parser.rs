@@ -5,13 +5,14 @@ use mas::ast::*;
 use mas::util::{pack_int, fits_in_bits};
 use util::lexer::{Lexer, SourceToken, BufReader};
 use std::iter::Peekable;
-use std::num::FromPrimitive;
 use span::{SourcePos, Span, mk_sp};
 use std::collections::BTreeMap;
+use std::io::{BufRead, Read, Write};
+use num::FromPrimitive;
 
 pub use self::InstType::*;
 
-pub struct AsmParser<'a, T: Reader> {
+pub struct AsmParser<'a, T: BufRead> {
     tokens: Peekable<Lexer<'a, T, Token>>,
     last_span: Span,
     error_on_misplaced_inst: bool,
@@ -95,7 +96,7 @@ pub fn classify_inst(inst: &InstNode) -> InstType {
     }
 }
 
-impl<'a, T: Reader> AsmParser<'a, T> {
+impl<'a, T: BufRead> AsmParser<'a, T> {
 
     pub fn new(tokens: Peekable<Lexer<'a, T, Token>>
            ) -> AsmParser<'a, T> {
@@ -112,7 +113,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
 
     /// "Peek" at the next token, returning the token, without consuming
     /// it from the stream.
-    fn peek<'a>(&'a mut self) -> &'a Token {
+    fn peek(&mut self) -> &Token {
         match self.tokens.peek() {
             Some(st) => &st.tok,
             None => panic!("Tried to peek past EOF"),
@@ -141,8 +142,8 @@ impl<'a, T: Reader> AsmParser<'a, T> {
         }
     }
 
-    fn error<'a, U: Str>(&self, message: U) -> ! {
-        panic!("\n{}\nat {}", message.as_slice(), self.last_span.get_begin())
+    fn error<U: AsRef<str>>(&self, message: U) -> ! {
+        panic!("\n{}\nat {}", message.as_ref(), self.last_span.get_begin())
     }
 
     /// Assert that `num` fits into `size` bits.
@@ -159,7 +160,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
         // But we also have to make sure the sign bit is okay.
         // This checks that the sign bit is cleared if n is
         // nonnegative, and set if it's negative.
-        if (num >= 0) != (num & (1<<((size-1) as uint)) == 0) {
+        if (num >= 0) != (num & (1<<((size-1) as usize)) == 0) {
             self.error(format!(
                 "Signed number {} (0b{:b}) needs more than {} bits.",
                 num, num, size));
@@ -759,7 +760,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
         let mut insts: InstPacket = [NopInst, NopInst, NopInst, NopInst];
 
         self.expect(Token::LBrace);
-        for i in range(0u, 4u) {
+        for i in 0 .. 4 {
             match *self.peek() {
                 Token::RBrace => {
                     self.eat();
@@ -792,7 +793,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
     }
 
     pub fn parse_toplevel(&mut self) -> (Vec<InstPacket>,
-                                         BTreeMap<String, uint>) {
+                                         BTreeMap<String, usize>) {
         let mut labels = BTreeMap::new();
         let mut packets = vec!();
         let mut instnum = 0;
@@ -923,7 +924,7 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_invalid_short_in_alu1inst()
     {
         // This value is too long to be packed into the instruction.
@@ -1008,7 +1009,7 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_invalid_short_in_alu2short() {
         // Value is too long for the instruction.
         inst_from_str("r6 <- r7 + 0b11111111111");
@@ -1056,7 +1057,7 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_invalid_shift_in_alu1reg() {
         // We're shifting by too much.
         inst_from_str("r4 <- (r5 << 33)");
@@ -1226,7 +1227,7 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_parse_nop_with_pred() {
         // Nop instructions can't have predicates.
         inst_from_str("p0 -> nop");
@@ -1238,7 +1239,7 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_parse_long_with_pred() {
         // Long directives can't have predicates.
         inst_from_str("p0 -> long 0x56");
@@ -1313,14 +1314,14 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_load_with_bad_offset() {
         // This offset is too long.
         inst_from_str("r9 <- *l(r8 + 0b100000000000)");
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_load_with_bad_negative_offset() {
         // This offset is too long.
         inst_from_str("r9 <- *l(r8 - 0b100000000001)");
@@ -1476,13 +1477,13 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_compareshort_bad_const() {
         inst_from_str("p1 <- r3 == 0b11111111111");
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_compareshort_negated_dest() {
         inst_from_str("!p1 <- r3 == 0");
     }
@@ -1562,13 +1563,13 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_branchimm_bad_offs() {
         inst_from_str("bl 0x1000000");
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_branchimm_bad_negative_offs() {
         inst_from_str("bl -0x1000001");
     }
@@ -1625,13 +1626,13 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_branchreg_bad_offs() {
         inst_from_str("bl r6 + 0x1000000");
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_branchreg_bad_negative_offs() {
         inst_from_str("bl r6 - 0x1000001");
     }

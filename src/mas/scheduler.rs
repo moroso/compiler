@@ -1,7 +1,7 @@
 use mas::ast::*;
 use mas::parser::{classify_inst, InstType};
 use collections::{BTreeSet, BTreeMap, BinaryHeap};
-use std::iter::{range_inclusive, FromIterator};
+use std::iter::FromIterator;
 
 // Return Rd.
 fn destreg(inst: &InstNode) -> Option<Reg> {
@@ -219,10 +219,10 @@ fn compatible(packet: &[InstNode; 4], inst: &InstNode) -> bool {
     packet.iter().all(|x| compatible_insts(x, inst))
 }
 
-fn update_labels(label_map: &BTreeMap<uint, Vec<&String>>,
-                 new_label_list: &mut BTreeMap<String, uint>,
-                 orig_pos: uint,
-                 new_pos: uint) {
+fn update_labels(label_map: &BTreeMap<usize, Vec<&String>>,
+                 new_label_list: &mut BTreeMap<String, usize>,
+                 orig_pos: usize,
+                 new_pos: usize) {
     let labels = label_map.get(&orig_pos);
     match labels {
         // Update the labels that pointed here.
@@ -238,13 +238,13 @@ fn update_labels(label_map: &BTreeMap<uint, Vec<&String>>,
 
 /// Dummy scheduler: one instruction per packet.
 pub fn schedule_dummy(insts: &Vec<InstNode>,
-                      labels: &BTreeMap<String, uint>,
+                      labels: &BTreeMap<String, usize>,
                       _: bool) -> (Vec<[InstNode; 4]>,
-                                   BTreeMap<String, uint>) {
+                                   BTreeMap<String, usize>) {
     let mut packets = vec!();
 
-    let mut modified_labels: BTreeMap<String, uint> = BTreeMap::new();
-    let mut jump_target_dict: BTreeMap<uint, Vec<&String>> = BTreeMap::new();
+    let mut modified_labels: BTreeMap<String, usize> = BTreeMap::new();
+    let mut jump_target_dict: BTreeMap<usize, Vec<&String>> = BTreeMap::new();
     for (label, pos) in labels.iter() {
         if jump_target_dict.contains_key(pos) {
             jump_target_dict.get_mut(pos).unwrap().push(label);
@@ -253,7 +253,7 @@ pub fn schedule_dummy(insts: &Vec<InstNode>,
         }
     }
 
-    for i in range(0, insts.len()) {
+    for i in 0 .. insts.len() {
         match insts[i] {
             LongInst(..) => continue,
             _ => {},
@@ -281,13 +281,13 @@ pub fn schedule_dummy(insts: &Vec<InstNode>,
 }
 
 pub fn schedule(insts: &Vec<InstNode>,
-                labels: &BTreeMap<String, uint>,
+                labels: &BTreeMap<String, usize>,
                 debug: bool) -> (Vec<[InstNode; 4]>,
-                                 BTreeMap<String, uint>) {
+                                 BTreeMap<String, usize>) {
     let mut packets: Vec<[InstNode; 4]> = vec!();
 
-    let mut modified_labels: BTreeMap<String, uint> = BTreeMap::new();
-    let mut jump_target_dict: BTreeMap<uint, Vec<&String>> = BTreeMap::new();
+    let mut modified_labels: BTreeMap<String, usize> = BTreeMap::new();
+    let mut jump_target_dict: BTreeMap<usize, Vec<&String>> = BTreeMap::new();
     for (label, pos) in labels.iter() {
         if jump_target_dict.contains_key(pos) {
             jump_target_dict.get_mut(pos).unwrap().push(label);
@@ -297,7 +297,7 @@ pub fn schedule(insts: &Vec<InstNode>,
     }
 
     // Include all jump targets...
-    let mut jump_targets: Vec<uint> =
+    let mut jump_targets: Vec<usize> =
         FromIterator::from_iter(labels.iter().map(|(_, &b)| b));
     // .. and all jumps.
     for (idx, inst) in insts.iter().enumerate() {
@@ -325,16 +325,16 @@ pub fn schedule(insts: &Vec<InstNode>,
         }
 
         // Start by building the instruction DAG.
-        let mut edges: BTreeSet<(uint, uint)> = BTreeSet::new();
-        let mut all: BTreeSet<uint> =
-            FromIterator::from_iter(range(start, end));
+        let mut edges: BTreeSet<(usize, usize)> = BTreeSet::new();
+        let mut all: BTreeSet<usize> =
+            FromIterator::from_iter(start .. end);
         let mut this_packet: [InstNode; 4] =
             [NopInst, NopInst, NopInst, NopInst];
         let mut packet_added = false;
-        for idx in range(start, end) {
+        for idx in start .. end {
             let inst = &insts[idx];
 
-            for prev_idx in range(start, idx) {
+            for prev_idx in start .. idx {
                 let prev_inst = &insts[prev_idx];
                 if !commutes(prev_inst, inst) {
                     edges.insert((prev_idx, idx));
@@ -350,9 +350,9 @@ pub fn schedule(insts: &Vec<InstNode>,
         // Scheduling involves essentially a topological sort of this DAG.
 
         while !all.is_empty() {
-            let non_schedulables: BTreeSet<uint> = FromIterator::from_iter(
+            let non_schedulables: BTreeSet<usize> = FromIterator::from_iter(
                 edges.iter().map(|&(_, x)| x));
-            let leaves: BTreeSet<uint> = FromIterator::from_iter(
+            let leaves: BTreeSet<usize> = FromIterator::from_iter(
                 all.iter()
                     .map(|&x| x)
                     .filter(|x| !non_schedulables.contains(x)));
@@ -360,13 +360,13 @@ pub fn schedule(insts: &Vec<InstNode>,
             for leaf in leaves.iter() {
                 let inst = &insts[*leaf];
                 if compatible(&this_packet, inst) {
-                    for idx in range_inclusive(
-                        0,
-                        match classify_inst(inst) {
-                            InstType::ControlType => 0u,
+                    for idx in (
+                        0 ..
+                        (match classify_inst(inst) {
+                            InstType::ControlType => 0,
                             InstType::MemoryType => 1,
                             _ => 3
-                        }).rev() {
+                        })+1).rev() {
                         // Does this expect a long after it?
                         let is_long = match *inst {
                             ALU2LongInst(..) |
@@ -380,7 +380,7 @@ pub fn schedule(insts: &Vec<InstNode>,
                             // Usually we just have to move one instruction
                             // into the packet, but for instructions expecting
                             // a long we have to move two.
-                            for offs in range(0, if is_long { 2 } else { 1 }) {
+                            for offs in 0 .. if is_long { 2 } else { 1 } {
                                 let inst = &insts[*leaf+offs];
                                 all.remove(&(*leaf+offs));
                                 update_labels(&jump_target_dict,

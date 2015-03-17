@@ -1,14 +1,21 @@
-#![feature(plugin,overloaded_calls,slicing_syntax,old_impl_check)]
+#![feature(plugin,box_syntax)]
+// Unstable libraries
+#![feature(path_ext)]
+#![feature(rustc_private)] // do we really want to use this?
+#![feature(collections)] // hm
+#![feature(custom_derive)]
 #![allow(dead_code,unused_imports)]
 
 #![plugin(regex_macros)]
-extern crate regex_macros;
+#![plugin(num_macros)]
+
+extern crate num;
 
 extern crate collections;
 extern crate getopts;
 extern crate regex;
-extern crate rustc;
-extern crate "syntax" as rust_syntax;
+extern crate rustc_data_structures;
+extern crate syntax as rust_syntax;
 extern crate time;
 
 #[cfg(test)]

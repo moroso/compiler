@@ -4,8 +4,8 @@ use std::cmp::{Eq, Ord, Ordering};
 
 #[derive(Clone, PartialEq, Eq, Ord, Debug, Copy)]
 pub struct SourcePos {
-    pub row: uint,
-    pub col: uint,
+    pub row: usize,
+    pub col: usize,
 }
 
 impl PartialOrd for SourcePos {
@@ -59,7 +59,7 @@ impl Span {
     }
 }
 
-pub fn mk_sp(begin: SourcePos, len: uint) -> Span {
+pub fn mk_sp(begin: SourcePos, len: usize) -> Span {
     let mut end = begin.clone();
     end.col += len;
     Span { begin: begin, end: end }

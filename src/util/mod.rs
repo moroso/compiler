@@ -6,13 +6,32 @@ use std::fmt;
 pub mod lexer;
 pub mod graph;
 
+/// I copied a bunch of simple unstable library functions out so I
+/// don't need to say feature(core).
+
+/// Transforms lifetime of the second pointer to match the first.
+#[inline]
+pub unsafe fn copy_lifetime<'a, S: ?Sized, T: ?Sized + 'a>(_ptr: &'a S,
+                                                        ptr: &T) -> &'a T {
+    use std::mem::transmute;
+    transmute(ptr)
+}
+
+/// Converts a pointer to A into a slice of length 1 (without copying).
+pub fn ref_slice<'a, A>(s: &'a A) -> &'a [A] {
+    use std::slice::from_raw_parts;
+    unsafe {
+        from_raw_parts(s, 1)
+    }
+}
+
 // This represents an interned string/name/identifier. The mapping from strings
 // to Names and Names to strings is in the Interner (session.rs).
 #[derive(Eq, Ord, PartialOrd, PartialEq, Clone, Copy)]
-pub struct Name(pub uint);
+pub struct Name(pub usize);
 
 impl Name {
-    pub fn as_uint(&self) -> uint {
+    pub fn as_usize(&self) -> usize {
         let Name(result) = *self;
         result
     }
@@ -20,17 +39,17 @@ impl Name {
 
 impl Display for Name {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        use mc::session::interner;
+        use mc::session::INTERNER;
 
-        interner.with(|x| write!(f, "{}", x.name_to_str(self)))
+        INTERNER.with(|x| write!(f, "{}", x.name_to_str(self)))
     }
 }
 
 impl Debug for Name {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        use mc::session::interner;
+        use mc::session::INTERNER;
 
-        interner.with(|x| write!(f, "{}", x.name_to_str(self)))
+        INTERNER.with(|x| write!(f, "{}", x.name_to_str(self)))
     }
 }
 

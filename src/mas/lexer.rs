@@ -1,7 +1,7 @@
 use std::fmt;
 use std::fmt::{Formatter, Display};
-use std::old_io;
-use std::str::StrExt;
+use std::io;
+//use std::str::StrExt;
 use std::ascii::AsciiExt;
 use util::lexer::*;
 use super::ast;
@@ -84,13 +84,20 @@ pub enum Token {
 }
 allow_string!(Token);
 
+// XXX: This is a workaround I don't totally understand and might not work.
+fn mk_rule<A: 'static, T: RuleMatcher<A>+'static, U: TokenMaker<A, Token>+'static>(
+    matcher: T, maker: U)
+    -> Box<LexerRuleT<Token>> {
+    box LexerRule::<A, _, _>::new(matcher, maker) as Box<LexerRuleT<Token>>
+}
+
 pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
     name: &S,
     buffer: T) -> Lexer<'a, T, Token> {
 
     macro_rules! lexer_rules {
         ( $( $c:expr => $m:expr ),*) => (
-            vec!( $( box LexerRule { matcher: $m, maker: $c } as Box<LexerRuleT<Token>> ),* )
+            vec!( $( mk_rule($m, $c) ),* )
                 )
     }
     macro_rules! matcher { ( $e:expr ) => ( regex!(concat!("^(?:", $e, ")"))) }
@@ -98,9 +105,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
     // Matcher for a register, such as "r8".
     struct RegisterRule;
     impl RuleMatcher<ast::Reg> for RegisterRule {
-        fn find(&self, s: &str) -> Option<(uint, ast::Reg)> {
-            use std::num::from_str_radix;
-
+        fn find(&self, s: &str) -> Option<(usize, ast::Reg)> {
             let matcher = matcher!(r"r(\d+|l)");
             match matcher.captures(s) {
                 Some(groups) => {
@@ -108,7 +113,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
                           if groups.at(1).unwrap() == "l" {
                               ast::Reg { index: 31 }
                           } else {
-                              let n = from_str_radix(groups.at(1).unwrap(), 10).unwrap();
+                              let n = u8::from_str_radix(groups.at(1).unwrap(), 10).unwrap();
                               ast::Reg { index: n }
                           }))
                 },
@@ -126,7 +131,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     struct CharLiteralRule;
     impl RuleMatcher<u32> for CharLiteralRule {
-        fn find(&self, s: &str) -> Option<(uint, u32)> {
+        fn find(&self, s: &str) -> Option<(usize, u32)> {
             let matcher = matcher!(r"'(.)'");
 
             match matcher.captures(s) {
@@ -142,9 +147,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     struct NumberLiteralRule;
     impl RuleMatcher<u32> for NumberLiteralRule {
-        fn find(&self, s: &str) -> Option<(uint, u32)> {
-            use std::num::from_str_radix;
-
+        fn find(&self, s: &str) -> Option<(usize, u32)> {
             let matcher = matcher!(r"(-?)((?:0[xX]([:xdigit:]+))|(?:0[bB]([01]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?");
 
             match matcher.captures(s) {
@@ -161,7 +164,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
                     let negated = groups.at(1).unwrap() == "-";
 
-                    let mut num: u32 = from_str_radix(num_str, radix).unwrap();
+                    let mut num = u32::from_str_radix(num_str, radix).unwrap();
 
                     if negated { num = -(num as i32) as u32; }
 
@@ -174,7 +177,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     struct PredicateRule;
     impl RuleMatcher<Pred> for PredicateRule {
-        fn find(&self, s: &str) -> Option<(uint, Pred)> {
+        fn find(&self, s: &str) -> Option<(usize, Pred)> {
             let matcher = matcher!(r"(!?)p([0123])");
             match matcher.captures(s) {
                 Some(groups) => {
@@ -191,7 +194,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     struct ShiftRule;
     impl RuleMatcher<ShiftType> for ShiftRule {
-        fn find(&self, s: &str) -> Option<(uint, ShiftType)> {
+        fn find(&self, s: &str) -> Option<(usize, ShiftType)> {
             let matcher = matcher!(r"(<<|>>u|>>s|>>r)");
             match matcher.captures(s) {
                 Some(groups) => {
@@ -212,7 +215,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     struct LoadStoreRule;
     impl RuleMatcher<LsuWidth> for LoadStoreRule {
-        fn find(&self, s: &str) -> Option<(uint, LsuWidth)> {
+        fn find(&self, s: &str) -> Option<(usize, LsuWidth)> {
             let matcher = matcher!(r"\*(sc|llsc|ll|w|l|h|b)");
             match matcher.captures(s) {
                 Some(groups) =>
@@ -235,12 +238,12 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     struct CoRegRule;
     impl RuleMatcher<ast::CoReg> for CoRegRule {
-        fn find(&self, s: &str) -> Option<(uint, ast::CoReg)> {
+        fn find(&self, s: &str) -> Option<(usize, ast::CoReg)> {
             let matcher = matcher!(r"(?i:(PFLAGS|PTB|EHA|EPC|EC0|EC1|EC2|EC3|EA0|EA1|SP0|SP1|SP2|SP3))");
             match matcher.captures(s) {
                 Some(groups) =>
                     Some((groups.at(0).unwrap().len(),
-                          match groups.at(1).unwrap().to_ascii_uppercase().as_slice() {
+                          match &groups.at(1).unwrap().to_ascii_uppercase()[..] {
                               "PFLAGS" => PFLAGS,
                               "PTB" => PTB,
                               "EHA" => EHA,
@@ -264,12 +267,12 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     struct FlushRule;
     impl RuleMatcher<FlushType> for FlushRule {
-        fn find(&self, s: &str) -> Option<(uint, FlushType)> {
+        fn find(&self, s: &str) -> Option<(usize, FlushType)> {
             let matcher = matcher!(r"(?i:flush\.(data|inst|dtlb|itlb))");
             match matcher.captures(s) {
                 Some(groups) =>
                     Some((groups.at(0).unwrap().len(),
-                          match groups.at(1).unwrap().to_ascii_uppercase().as_slice() {
+                          match &groups.at(1).unwrap().to_ascii_uppercase()[..] {
                               "DATA" => DataFlush,
                               "INST" => InstFlush,
                               "DTLB" => DtlbFlush,
@@ -403,8 +406,8 @@ impl<T, F: Fn(T) -> Token> TokenMaker<T, Token> for F {
 }
 
 // Convenience for tests
-pub fn asm_lexer_from_str(s: &str) -> Lexer<old_io::BufferedReader<old_io::MemReader>, Token> {
-    let bytes = s.as_bytes().to_vec();
-    let buffer = old_io::BufferedReader::new(old_io::MemReader::new(bytes));
+pub fn asm_lexer_from_str(s: &str) -> Lexer<io::BufReader<&[u8]>, Token> {
+    let bytes = s.as_bytes();
+    let buffer = io::BufReader::new(bytes);
     new_asm_lexer("test", buffer)
 }

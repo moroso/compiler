@@ -5,7 +5,7 @@ use mc::resolver::Resolver;
 use mc::session::Session;
 
 use package::Package;
-use target::Target;
+use target::{MkTarget,Target};
 use target::NameMangler;
 
 use util::{IntKind, Name, Width};
@@ -15,7 +15,7 @@ use intrinsics::size_of;
 use std::collections::{BTreeSet, BTreeMap};
 
 use util;
-use std::old_io::Writer;
+use std::io::Write;
 
 use mc::ast::*;
 use mc::ast::defmap::*;
@@ -25,7 +25,7 @@ use values::*;
 
 
 #[allow(unused_must_use)]
-pub fn emit_ccross_prelude(f: &mut Writer) {
+pub fn emit_ccross_prelude(f: &mut Write) {
     // This freestanding stuff is a hack but hey, so is the rest of this?
     writeln!(f, "{}", "#include <stdint.h>");
     writeln!(f, "{}", "#include <stdlib.h>");
@@ -48,12 +48,12 @@ pub fn emit_ccross_prelude(f: &mut Writer) {
 
 struct CCrossCompiler<'a> {
     structnames: BTreeSet<NodeId>,
-    enumitemnames: BTreeMap<Name, (Ident, Vec<Variant>, uint)>,
+    enumitemnames: BTreeMap<Name, (Ident, Vec<Variant>, usize)>,
     enumnames: BTreeMap<NodeId, Name>,
     session: Session<'a>,
     typemap: Typemap,
     mangle_map: BTreeMap<NodeId, String>,
-    indent: uint,
+    indent: usize,
 }
 
 fn find_structs(module: &Module) -> BTreeSet<NodeId> {
@@ -74,7 +74,7 @@ fn find_structs(module: &Module) -> BTreeSet<NodeId> {
 }
 
 fn find_enum_item_names(module: &Module)
-                        -> BTreeMap<Name, (Ident, Vec<Variant>, uint)> {
+                        -> BTreeMap<Name, (Ident, Vec<Variant>, usize)> {
     let mut enum_map = BTreeMap::new();
 
     for item in module.val.items.iter() {
@@ -126,7 +126,7 @@ fn is_block_empty(block: &Block) -> bool {
 }
 
 
-static INDENT_AMT: uint = 4;
+static INDENT_AMT: usize = 4;
 
 impl<'a> CCrossCompiler<'a> {
     fn indent(&mut self) { self.indent += INDENT_AMT; }
@@ -134,24 +134,24 @@ impl<'a> CCrossCompiler<'a> {
     fn ind(&self) -> String {
         let v = (0..self.indent).map(|_|' ' as u8);
         let v: Vec<u8> = v.collect();
-        String::from_utf8_lossy(v.as_slice()).into_owned()
+        String::from_utf8_lossy(&v[..]).into_owned()
     }
 
     fn visit_list<T, F>(&self, list: &Vec<T>,
-                        visit: F,
+                        mut visit: F,
                         delimiter: &str) -> String
-        where F: Fn(&CCrossCompiler, &T) -> String {
+        where F: FnMut(&CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
-            .filter(|x| *x != String::from_str("")).collect();
-        list.connect(format!("{}", delimiter).as_slice())
+            .filter(|x| *x != "".to_string()).collect();
+        list.connect(&format!("{}", delimiter)[..])
     }
 
     fn mut_visit_list<T, F>(&mut self, list: &Vec<T>,
-                            visit: F,
+                            mut visit: F,
                             delimiter: &str) -> String
-        where F: Fn(&mut CCrossCompiler, &T) -> String {
+        where F: FnMut(&mut CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
-            .filter(|x| *x != String::from_str("")).collect();
+            .filter(|x| *x != "".to_string()).collect();
         list.connect(delimiter)
     }
 
@@ -174,12 +174,12 @@ impl<'a> CCrossCompiler<'a> {
     }
 
     fn visit_name_and_type(&mut self, name: Name, t: &Type) -> String {
-        let name = String::from_str(self.session.interner.name_to_str(&name));
+        let name = self.session.interner.name_to_str(&name).to_string();
         self.visit_string_and_type(name, t)
     }
 
     fn visit_name_and_ty(&self, name: Name, t: &Ty) -> String {
-        let name = String::from_str(self.session.interner.name_to_str(&name));
+        let name = self.session.interner.name_to_str(&name).to_string();
         self.visit_string_and_ty(name, t)
     }
 
@@ -270,7 +270,7 @@ impl<'a> CCrossCompiler<'a> {
         where F: Fn(Option<String>) -> String {
         self.indent();
         let delim_s = format!("\n{}", self.ind());
-        let delim = delim_s.as_slice();
+        let delim = &delim_s[..];
         let items = self.mut_visit_list(&block.val.items, |me, t| me.visit_item(t), delim);
         let stmts = self.mut_visit_list(&block.val.stmts, |me, t| me.visit_stmt(t), delim);
         let expr = match block.val.expr {
@@ -284,10 +284,8 @@ impl<'a> CCrossCompiler<'a> {
             None => tail(None),
         };
 
-        //TODO!!!!!!!
-        //let out = self.visit_list(&vec!(items, stmts, expr),
-            //                          |&:_, t: &String| t.clone(), delim);
-            let out = "";
+        let out = self.visit_list(&vec!(items, stmts, expr),
+                                  |_, t| t.clone(), delim);
         self.unindent();
 
         format!("{{{}{}\n{}}}", delim, out, self.ind())
@@ -316,7 +314,7 @@ impl<'a> CCrossCompiler<'a> {
                         let block = self.visit_block(block, |e| {
                             match e {
                                 Some(e) => format!("return {};", e),
-                                None => String::from_str("return;"),
+                                None => "return;".to_string(),
                             }
                         });
 
@@ -331,7 +329,7 @@ impl<'a> CCrossCompiler<'a> {
                     fields,
                     |me, field| format!("{};", me.visit_name_and_type(field.name, &field.fldtype)),
                     "\n    ");
-                format!("typedef struct {} {{\n    {}\n}} {};", name.as_slice(), fields, name.as_slice())
+                format!("typedef struct {} {{\n    {}\n}} {};", &name[..], fields, &name[..])
             }
             EnumItem(ref id, ref variants, _) => {
                 let name = self.visit_ident(id);
@@ -344,14 +342,14 @@ impl<'a> CCrossCompiler<'a> {
                     format!("struct {{ {} }} {};", fields, name)
                 }, "\n");
                 format!("typedef struct {} {{\n    int tag;\n    union {{\n        {}\n    }} val;\n}} {};",
-                        name.as_slice(),
+                        &name[..],
                         variants,
-                        name.as_slice())
+                        &name[..])
             }
             TypeItem(ref id, ref ty, _) => {
                 let name = self.visit_ident(id);
                 let ty = self.visit_type(ty);
-                format!("typedef {} {};\n", name.as_slice(), ty.as_slice())
+                format!("typedef {} {};\n", &name[..], &ty[..])
             }
             StaticItem(ref id, ref ty, ref expr, is_extern) => {
                 let name_and_type = self.visit_id_and_type(id.id, ty);
@@ -400,7 +398,7 @@ impl<'a> CCrossCompiler<'a> {
                 };
                 if is_param {
                     // Treat all type parameters as void.
-                    String::from_str("void")
+                    "void".to_string()
                 } else if self.structnames.contains(&did) {
                     format!("struct {}", self.visit_mangled_path(path))
                 } else {
@@ -419,20 +417,20 @@ impl<'a> CCrossCompiler<'a> {
                                              "; ");
                 format!("struct {{ {} }}", fields)
             }
-            BoolType => String::from_str("int"),
-            UnitType => String::from_str("void"),
-            DivergingType => String::from_str("void"), // this probably is okay
+            BoolType => "int".to_string(),
+            UnitType => "void".to_string(),
+            DivergingType => "void".to_string(), // this probably is okay
             IntType(IntKind::UnsignedInt(w)) => format!("uint{}_t", w),
             IntType(IntKind::SignedInt(w)) => format!("int{}_t", w),
-            IntType(IntKind::GenericInt) => String::from_str("int"),
+            IntType(IntKind::GenericInt) => "int".to_string(),
         }
     }
 
     fn visit_ty(&self, t: &Ty) -> String {
         match *t {
-            BoolTy => String::from_str("int"),
-            UnitTy => String::from_str("void"),
-            GenericIntTy => String::from_str("int"),
+            BoolTy => "int".to_string(),
+            UnitTy => "void".to_string(),
+            GenericIntTy => "int".to_string(),
             IntTy(w) => format!("int{}_t", w),
             UintTy(w) => format!("uint{}_t", w),
             PtrTy(ref t) | ArrayTy(ref t, _) => {
@@ -448,7 +446,7 @@ impl<'a> CCrossCompiler<'a> {
             StructTy(did, _) => {
                 format!("struct {}", self.mangle_map.get(&did).unwrap())
             }
-            BottomTy => String::from_str("void"),
+            BottomTy => "void".to_string(),
             FuncTy(ref d, ref r) => {
                 let ty = self.visit_ty(&r.val);
                 let list = self.visit_list(d, |me, x| me.visit_ty(&x.val), ", ");
@@ -472,9 +470,8 @@ impl<'a> CCrossCompiler<'a> {
             None => {
                 let last_component: Vec<String> = path.val.elems.iter()
                     .map(|elem|
-                         String::from_str(
-                             self.session.interner.name_to_str(&elem.val.name)
-                                 )).collect();
+                         self.session.interner.name_to_str(&elem.val.name).to_string())
+                    .collect();
                 last_component.connect("_")
             },
         }
@@ -487,8 +484,7 @@ impl<'a> CCrossCompiler<'a> {
     fn visit_ident(&mut self, ident: &Ident) -> String {
         match self.mangle_map.get(&ident.id) {
             Some(n) => n.clone(),
-            _ => String::from_str(self.session.interner.name_to_str(
-                &ident.val.name))
+            _ => self.session.interner.name_to_str(&ident.val.name).to_string()
         }
     }
 
@@ -509,13 +505,13 @@ impl<'a> CCrossCompiler<'a> {
             },
             // I'm sorry about the cast in the following.
             StringLit(ref s) => {
-                let parts: Vec<String> = s.as_slice().bytes()
+                let parts: Vec<String> = (&s[..]).bytes()
                     .map(|b: u8|format!("\\x{:02x}", b))
                     .collect();
                 format!("(uint8_t*)\"{}\"", parts.concat())
             },
             BoolLit(ref b) => format!("{}", if *b { 1u8 } else { 0 }),
-            NullLit => String::from_str("NULL"),
+            NullLit => "NULL".to_string(),
         }
     }
 
@@ -539,7 +535,7 @@ impl<'a> CCrossCompiler<'a> {
 
     fn visit_expr(&mut self, expr: &Expr) -> String {
         match expr.val {
-            UnitExpr => String::from_str("({})"),
+            UnitExpr => "({})".to_string(),
             LitExpr(ref l) => self.visit_lit(l),
             SizeofExpr(ref t) => format!("sizeof({})", self.visit_type(t)),
             TupleExpr(..) => panic!("Tuples not yet supported."),
@@ -685,15 +681,12 @@ impl<'a> CCrossCompiler<'a> {
                     let body = me.visit_expr(&arm.body);
 
                     let &(_, ref variants, idx) = me.enumitemnames.get(&path.val.elems.last().unwrap().val.name).unwrap();
-                    let this_variant = &variants[idx as uint];
+                    let this_variant = &variants[idx as usize];
 
                     let name = me.visit_path_in_enum_access(path);
 
                     let mut n = 0;
-                    //TODO!!!!!!!
-                    let vars = "";
-                    /*
-                    let vars = me.visit_list(vars, |me, var: &Pat| {
+                    let vars = me.visit_list(vars, |me, var| {
                         n += 1;
                         let ty = me.visit_type(&this_variant.args[n - 1]);
                         let varname = match var.val {
@@ -701,8 +694,8 @@ impl<'a> CCrossCompiler<'a> {
                             _ => panic!("Only IdentPats are supported in the arguments of a VariantPat in a match arm for now"),
                         };
                         format!("{} {} = {}.val.{}.field{};",
-                                ty, varname, expr.as_slice(), name, n - 1)
-                    }, "; ");*/
+                                ty, varname, &expr[..], name, n - 1)
+                    }, "; ");
 
                     if is_void {
                         format!("case {}: {{\n {}; ({}); break;}}\n",
@@ -728,17 +721,16 @@ impl<'a> CCrossCompiler<'a> {
     // Visit a module and all of its submodules, applying a worker function.
     // We need this so we can print out all the modules, then all the structs,
     // etc.
-    fn visit_module_worker<F>(&mut self,
-                              results: &mut Vec<String>,
-                              module: &Module,
-                              f: F)
-        where F: Fn(&mut CCrossCompiler, &mut Vec<String>,&Module) {
+    fn visit_module_worker(&mut self,
+                           results: &mut Vec<String>,
+                           module: &Module,
+                           f: &Fn(&mut CCrossCompiler, &mut Vec<String>,&Module)) {
 
         for item in module.val.items.iter() {
             match item.val {
                 ModItem(_, ref module) =>
                     self.visit_module_worker(results, module,
-                                             |me, results, x| f(me,results,x)),
+                                             &|me, results, x| f(me,results,x)),
                 _ => {}
             }
         }
@@ -750,27 +742,27 @@ impl<'a> CCrossCompiler<'a> {
         let mut results = vec!();
 
         // Typedefs
-        self.visit_module_worker(&mut results, module, |me, results, module| {
+        self.visit_module_worker(&mut results, module, &|me, results, module| {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
                 match item.val {
                     TypeItem(..) => me.visit_item(item),
-                    _ => String::from_str(""),
+                    _ => "".to_string(),
                 }
             }, "\n"));
         });
 
         // Constants
-        self.visit_module_worker(&mut results, module, |me, results, module| {
+        self.visit_module_worker(&mut results, module, &|me, results, module| {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
                 match item.val {
                     ConstItem(..) => me.visit_item(item),
-                    _ => String::from_str(""),
+                    _ => "".to_string(),
                 }
             }, "\n"));
         });
 
         // Now print struct prototypes.
-        self.visit_module_worker(&mut results, module, |me, results, module| {
+        self.visit_module_worker(&mut results, module, &|me, results, module| {
             for item in module.val.items.iter() {
                 match item.val {
                     StructItem(ref id, _, _) |
@@ -784,7 +776,7 @@ impl<'a> CCrossCompiler<'a> {
         });
 
         // Now print function prototypes.
-        self.visit_module_worker(&mut results, module, |me, results, module| {
+        self.visit_module_worker(&mut results, module, &|me, results, module| {
 
             for item in module.val.items.iter() {
                 match item.val {
@@ -792,9 +784,9 @@ impl<'a> CCrossCompiler<'a> {
                         let ty = me.visit_type(t);
                         let name = me.visit_ident(name);
                         // This is a terrible hack.
-                        if name.as_slice() == "malloc" ||
-                            name.as_slice() == "calloc" ||
-                            name.as_slice() == "assert" {
+                        if &name[..] == "malloc" ||
+                            &name[..] == "calloc" ||
+                            &name[..] == "assert" {
                                 continue;
                             }
                         let args = me.mut_visit_list(
@@ -818,32 +810,32 @@ impl<'a> CCrossCompiler<'a> {
 
         // Structs and enums.
         // FIXME: need to topo sort structs
-        self.visit_module_worker(&mut results, module, |me, results, module| {
+        self.visit_module_worker(&mut results, module, &|me, results, module| {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
                 match item.val {
                     StructItem(..) |
                     EnumItem(..) => me.visit_item(item),
-                    _ => String::from_str(""),
+                    _ => "".to_string(),
                 }
             }, "\n"));
         });
 
         // Now globals
-        self.visit_module_worker(&mut results, module, |me, results, module| {
+        self.visit_module_worker(&mut results, module, &|me, results, module| {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
                 match item.val {
                     StaticItem(..) => me.visit_item(item),
-                    _ => String::from_str(""),
+                    _ => "".to_string(),
                 }
             }, "\n"));
         });
 
         // And functions
-        self.visit_module_worker(&mut results, module, |me, results, module| {
+        self.visit_module_worker(&mut results, module, &|me, results, module| {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
                 match item.val {
                     FuncItem(..) => me.visit_item(item),
-                    _ => String::from_str(""),
+                    _ => "".to_string(),
                 }
             }, "\n"));
         });
@@ -856,17 +848,18 @@ pub struct CTarget {
     opts: (),
 }
 
-impl Target for CTarget {
+impl MkTarget for CTarget {
     fn new(_args: Vec<String>) -> Box<CTarget> {
         Box::new(CTarget { opts: () })
     }
-
+}
+impl Target for CTarget {
     #[allow(unused_must_use)]
-    fn compile(&self, p: Package, f: &mut Writer) {
+    fn compile(&self, p: Package, f: &mut Write) {
         let Package {
-            module:  module,
-            session: session,
-            typemap: typemap,
+            module,
+            session,
+            typemap,
         } = p;
 
         let mangler = NameMangler::new(session, &module, false, false);

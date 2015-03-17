@@ -21,25 +21,26 @@ use super::ast::macros::MacroExpander;
 use std::borrow::Borrow;
 use std::collections::{HashMap, BTreeMap};
 use std::cell::RefCell;
-use std::str::StrExt;
 
-use std::old_io;
-use std::thread_local;
+use std::io;
+use std::thread;
+use std::path::{Path, PathBuf};
+use std::fs;
 
 thread_local! {
-    pub static interner: ::std::rc::Rc<Interner> = ::std::rc::Rc::new(Interner::new())
+    pub static INTERNER: ::std::rc::Rc<Interner> = ::std::rc::Rc::new(Interner::new())
 }
 
 thread_local! {
-    pub static cur_rel_path: RefCell<Path> = RefCell::new(Path::new("."))
+    pub static CUR_REL_PATH: RefCell<PathBuf> = RefCell::new(Path::new(".").to_path_buf())
 }
 
-pub fn get_cur_rel_path() -> Path {
-    cur_rel_path.with(|p| p.borrow().clone())
+pub fn get_cur_rel_path() -> PathBuf {
+    CUR_REL_PATH.with(|p| p.borrow().clone())
 }
 
 pub struct Options {
-    pub search_paths: HashMap<String, Path>,
+    pub search_paths: HashMap<String, PathBuf>,
 }
 
 
@@ -83,8 +84,8 @@ impl Interner {
         for x in strings.iter() {
             if x.1 == name {
                 unsafe {
-                    use std::mem::copy_lifetime;
-                    return copy_lifetime(self, x.0).as_slice();
+                    use util::copy_lifetime;
+                    return &copy_lifetime(self, x.0)[..];
                 }
             }
         }
@@ -102,15 +103,15 @@ impl Interner {
         //}
         let mut strings = self.strings.borrow_mut();
         let name = Name(strings.len());
-        *strings.entry(s).get().unwrap_or_else(|vacant| vacant.insert(name))
+        *strings.entry(s).or_insert(name)
     }
 }
 
 impl<'a> Session<'a> {
     pub fn new(opts: Options) -> Session<'a> {
-        use mc::session::interner;
+        use mc::session::INTERNER;
 
-        interner.with(|x| {
+        INTERNER.with(|x| {
             Session {
                 options: opts,
                 defmap: DefMap::new(),
@@ -118,58 +119,60 @@ impl<'a> Session<'a> {
                 resolver: Resolver::new(),
                 parser: Parser::new(),
                 expander: MacroExpander::new(),
-                interner: *x,
+                interner: x.clone(),
             }
         })
     }
 
-    pub fn messages<T: Str>(&self, errors: &[(NodeId, T)]) {
+    pub fn messages<T: AsRef<str>>(&self, errors: &[(NodeId, T)]) {
+        use std::io::prelude::*;
         let mut full_msg = String::new();
         for &(nid, ref msg) in errors.iter() {
-            full_msg.push_str(msg.as_slice());
+            full_msg.push_str(msg.as_ref());
             full_msg.push_str("\n");
             let fname = self.interner.name_to_str(&self.parser.filename_of(&nid));
             full_msg.push_str(
-                format!("   {}: {}\n", fname, self.parser.span_of(&nid)).as_slice());
+                &format!("   {}: {}\n", fname, self.parser.span_of(&nid))[..]);
         }
 
-        let _ = old_io::stderr().write_str(full_msg.as_slice());
+        let _ = writeln!(&mut io::stderr(), "{}", full_msg);
     }
 
-    pub fn message<T: Str>(&self, nid: NodeId, msg: T) {
+    pub fn message<T: AsRef<str>>(&self, nid: NodeId, msg: T) {
         self.messages(&[(nid, msg)]);
     }
 
-    pub fn errors_fatal<T: Str>(&self, errors: &[(NodeId, T)]) -> ! {
+    pub fn errors_fatal<T: AsRef<str>>(&self, errors: &[(NodeId, T)]) -> ! {
+        use std::io::prelude::*;
         self.messages(errors);
-        let _ = old_io::stderr().write_str("\n");
+        let _ = writeln!(&mut io::stderr(), "");
         panic!("Aborting")
     }
-    pub fn error_fatal<T: Str>(&self, nid: NodeId, msg: T) -> ! {
+    pub fn error_fatal<T: AsRef<str>>(&self, nid: NodeId, msg: T) -> ! {
         self.errors_fatal(&[(nid, msg)]);
     }
 
     // For now everything is fatal.
-    pub fn error<T: Str>(&self, nid: NodeId, msg: T) -> ! {
+    pub fn error<T: AsRef<str>>(&self, nid: NodeId, msg: T) -> ! {
         self.error_fatal(nid, msg);
     }
 
-    pub fn bug_span<T: Str>(&self, nid: NodeId, msg: T) -> ! {
+    pub fn bug_span<T: AsRef<str>>(&self, nid: NodeId, msg: T) -> ! {
         let sp = self.parser.span_of(&nid);
         panic!("\nBum bum bum budda bum bum tsch:\n\
               Internal Compiler Error{}\n\
-              at: {}\n", msg.as_slice(), sp);
+              at: {}\n", msg.as_ref(), sp);
     }
 
     fn inject(&mut self, src: &str, name: &str, module: &mut Module) {
         use std::mem::swap;
 
-        let bytes = src.as_bytes().to_vec();
-        let buffer = old_io::BufferedReader::new(old_io::MemReader::new(bytes));
+        let bytes = src.as_bytes();
+        let buffer = io::BufReader::new(bytes);
         let lexer = new_mb_lexer(name, buffer);
         let mut temp = Parser::parse(self, lexer);
         swap(&mut module.val.items, &mut temp.val.items);
-        module.val.items.push_all(temp.val.items.as_slice());
+        module.val.items.push_all(&temp.val.items[..]);
     }
 
 
@@ -188,11 +191,13 @@ impl<'a> Session<'a> {
         Parser::parse(self, lexer)
     }
 
-    pub fn parse_package_buffer<S: ?Sized + ToString, T: BufReader>(&'a mut self, name: &S, buffer: T) -> Module {
+    pub fn parse_package_buffer<S: ?Sized + ToString, T: BufReader>(
+        &mut self, name: &S, buffer: T) -> Module {
+
         use super::ast::mut_visitor::MutVisitor;
 
-        struct PreludeInjector<'a> { session: &'a mut Session<'a> }
-        impl<'a> MutVisitor for PreludeInjector<'a> {
+        struct PreludeInjector<'a,'b: 'a> { session: &'a mut Session<'b> }
+        impl<'a,'b> MutVisitor for PreludeInjector<'a,'b> {
             fn visit_module(&mut self, module: &mut Module) {
                 use super::ast::mut_visitor::walk_module;
                 self.session.inject_prelude(module);
@@ -207,45 +212,43 @@ impl<'a> Session<'a> {
             injector.visit_module(&mut module);
         }
 
-        //TODO!!!!!
-        /*
         self.inject_std(&mut module);
 
         MacroExpander::expand_macros(self, &mut module);
         DefMap::record(self, &module);
         PathMap::record(self, &module);
-        Resolver::resolve(self, &module);*/
+        Resolver::resolve(self, &module);
         module
     }
 
-    pub fn parse_file_common<F>(&'a mut self, file: old_io::File, f: F) -> Module
+    pub fn parse_file_common<F>(&mut self, filename: &Path, file: fs::File, f: F) -> Module
         where F: Fn(&mut Session, String,
-                    old_io::BufferedReader<old_io::File>) -> Module {
+                    io::BufReader<fs::File>) -> Module {
         use std::mem::replace;
 
-        let filename = format!("{}", file.path().display());
-        let old_wd = cur_rel_path.with(|p| replace(&mut *p.borrow_mut(), file.path().dir_path()));
-        let module = f(self, filename, old_io::BufferedReader::new(file));
-        cur_rel_path.with(|p| replace(&mut *p.borrow_mut(), old_wd));
+        let filename_str = filename.to_str().unwrap().to_string();
+        let old_wd = CUR_REL_PATH.with(|p| replace(&mut *p.borrow_mut(),
+                                                   filename.parent().unwrap().to_path_buf()));
+        let module = f(self, filename_str, io::BufReader::new(file));
+        CUR_REL_PATH.with(|p| replace(&mut *p.borrow_mut(), old_wd));
         module
     }
 
-    pub fn parse_file(&'a mut self, file: old_io::File) -> Module {
-        self.parse_file_common(file,
+    // FIXME: there is some silliness here with filename
+    pub fn parse_file(&mut self, filename: &Path, file: fs::File) -> Module {
+        self.parse_file_common(filename, file,
                                |me, filename, buf| me.parse_buffer(
-                                   filename.as_slice(), buf))
+                                   &filename[..], buf))
     }
-    //TODO!!!!!
-    /*
-    pub fn parse_package_file(&'a mut self, file: old_io::File) -> Module {
-        self.parse_file_common(file,
+    pub fn parse_package_file(&mut self, filename: &Path, file: fs::File) -> Module {
+        self.parse_file_common(filename, file,
                                |me, filename, buf| me.parse_package_buffer(
-                                   filename.as_slice(), buf))
-    }*/
+                                   &filename[..], buf))
+    }
 
     pub fn parse_package_str(&'a mut self, s: &str) -> Module {
-        let bytes = s.as_bytes().to_vec();
-        let buffer = old_io::BufferedReader::new(old_io::MemReader::new(bytes));
+        let bytes = s.as_bytes();
+        let buffer = io::BufReader::new(bytes);
         self.parse_package_buffer("<input>", buffer)
     }
 }

@@ -7,3 +7,5 @@ authors = [ "mrwright", "kemurphy", "sully" ]
 regex = "0.1.17"
 regex_macros = "0.1.10"
 time = "0.1.19"
+num = "*"
+num-macros = "*"

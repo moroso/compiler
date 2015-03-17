@@ -1,6 +1,7 @@
 use mc::session::Interner;
 use mc::session::Session;
 use util::Name;
+use util;
 
 use std::collections::{VecMap, BTreeMap};
 use std::slice;
@@ -12,21 +13,20 @@ pub use self::NS::*;
 
 use self::ModuleScope::*;
 
-//#[allow(non_camel_case_types)] leaving the warning so we remember to patch rust later
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub enum NS {
-    TypeAndModNS = 0i,
+    TypeAndModNS = 0,
     ValNS,
     StructNS,
 }
 
 enum ModuleScope {
     OffBranch(Subscope),
-    OnBranch(uint),
+    OnBranch(usize),
 }
 
 struct Subscope {
-    names: VecMap<BTreeMap<uint, NodeId>>,
+    names: VecMap<BTreeMap<usize, NodeId>>,
 }
 
 impl Subscope {
@@ -37,13 +37,13 @@ impl Subscope {
     }
 
     fn insert(&mut self, ns: NS, name: Name, node_id: NodeId) -> bool {
-        let ns = ns as uint;
+        let ns = ns as usize;
 
-        if !self.names.contains_key(&name.as_uint()) {
-            self.names.insert(name.as_uint(), BTreeMap::new());
+        if !self.names.contains_key(&name.as_usize()) {
+            self.names.insert(name.as_usize(), BTreeMap::new());
         }
 
-        let names = self.names.get_mut(&name.as_uint()).unwrap();
+        let names = self.names.get_mut(&name.as_usize()).unwrap();
 
         names.insert(ns, node_id).is_some()
     }
@@ -67,7 +67,7 @@ impl Subscope {
                             BTreeSet::new(),
                     };
 
-                    let pairs = get_pairs(import.val.elems.as_slice());
+                    let pairs = get_pairs(&import.val.elems[..]);
                     for &(ns, ref ident) in pairs.iter() {
                         let allow = match import.val.import {
                             ImportNames(..) => filter.contains(&ident.val.name),
@@ -110,8 +110,8 @@ impl Subscope {
     }
 
     fn find(&self, ns: NS, ident: &Ident) -> Option<NodeId> {
-        let ns = ns as uint;
-        self.names.get(&ident.val.name.as_uint())
+        let ns = ns as usize;
+        self.names.get(&ident.val.name.as_usize())
             .and_then(|names| names.get(&ns))
             .map(|id| *id)
     }
@@ -125,11 +125,11 @@ struct ModuleCollector {
     tree: BTreeMap<NodeId, ModuleScope>,
 }
 
-struct ModuleResolver<'a> {
-    session: &'a mut Session<'a>,
+struct ModuleResolver<'a, 'b: 'a> {
+    session: &'a mut Session<'b>,
     scope: Vec<Subscope>,
     tree: BTreeMap<NodeId, ModuleScope>,
-    root: uint,
+    root: usize,
 }
 
 impl Resolver {
@@ -153,8 +153,8 @@ impl Resolver {
     }
 
     // The entry point for the resolver
-    pub fn resolve<'a>(session: &'a mut Session<'a>,
-                       module: &Module) {
+    pub fn resolve(session: &mut Session,
+                   module: &Module) {
         let (root, tree) = ModuleCollector::collect(module);
 
         let mut modres = ModuleResolver {
@@ -182,12 +182,12 @@ fn try_resolve_ident(scope: &[Subscope], ns: NS, ident: &Ident) -> Option<NodeId
     scope.iter().rev().filter_map(|subscope| subscope.find(ns, ident)).next()
 }
 
-impl<'a> ModuleResolver<'a> {
+impl<'a, 'b> ModuleResolver<'a, 'b> {
     // Takes a module path
     fn try_resolve_subscope(&mut self, global: bool,
                             path: &[Ident]) -> Option<&[Subscope]> {
         let mut search_scope = if global {
-            slice::ref_slice(&self.scope[0])
+            &self.scope[0..1]
         } else {
             &self.scope[self.root..]
         };
@@ -201,8 +201,8 @@ impl<'a> ModuleResolver<'a> {
             match maybe_modscope {
                 Some(modscope) => {
                     search_scope = match *modscope {
-                        OnBranch(idx) => slice::ref_slice(&self.scope[idx]),
-                        OffBranch(ref subscope) => slice::ref_slice(subscope),
+                        OnBranch(idx) => &self.scope[idx..idx+1],
+                        OffBranch(ref subscope) => util::ref_slice(subscope),
                     }
                 }
                 None => return None,
@@ -234,9 +234,8 @@ impl<'a> ModuleResolver<'a> {
 
     fn fail_resolve(&mut self, id: NodeId, path: &[Ident]) -> ! {
         let elems: Vec<String> =
-            path.iter().map(|e|
-                       String::from_str(
-                           self.session.interner.name_to_str(&e.val.name))).collect();
+            path.iter().map(|e| self.session.interner.name_to_str(&e.val.name).to_string())
+            .collect();
         self.session.error(id,
                            format!("Unresolved name `{}`", elems.connect("::")));
     }
@@ -248,7 +247,7 @@ impl<'a> ModuleResolver<'a> {
                 node_id
             }
             None => {
-                self.fail_resolve(path.id, path.val.elems.as_slice())
+                self.fail_resolve(path.id, &path.val.elems[..])
             }
         }
     }
@@ -277,7 +276,7 @@ impl<'a> ModuleResolver<'a> {
             let mut pairs = vec!();
             for (name, map) in names.iter() {
                 for ns in [TypeAndModNS, ValNS, StructNS].iter() {
-                    for nid in map.get(&(*ns as uint)).iter() {
+                    for nid in map.get(&(*ns as usize)).iter() {
                         let ident = IdentNode {
                             tps: None,
                             name: Name(name),
@@ -313,7 +312,7 @@ impl<'a> ModuleResolver<'a> {
             if !found {
                 let mut path = elems.to_vec();
                 path.push(ident.clone());
-                self.fail_resolve(ident.id, path.as_slice());
+                self.fail_resolve(ident.id, &path[..]);
             }
         }
     }
@@ -338,7 +337,7 @@ impl<'a> ModuleResolver<'a> {
         // Ok, now that we have found the stuff, add it all in.
         for (name, map) in scope.iter() {
             for ns in [TypeAndModNS, ValNS, StructNS].iter() {
-                for id in map.get(&(*ns as uint)).iter() {
+                for id in map.get(&(*ns as usize)).iter() {
                     self.add_to_scope(*ns, Name(name), **id);
                 }
             }
@@ -348,11 +347,11 @@ impl<'a> ModuleResolver<'a> {
     fn handle_use(&mut self, import: &Import) {
         match import.val.import {
             ImportNames(ref id) => self.handle_use_names(import.val.global,
-                                                         import.val.elems.as_slice(),
-                                                         id.as_slice()),
+                                                         &import.val.elems[..],
+                                                         &id[..]),
             ImportAll => self.handle_use_all(import.id,
                                              import.val.global,
-                                             import.val.elems.as_slice())
+                                             &import.val.elems[..])
         };
 
     }
@@ -372,7 +371,7 @@ impl Visitor for ModuleCollector {
     }
 }
 
-impl<'a> Visitor for ModuleResolver<'a> {
+impl<'a, 'b> Visitor for ModuleResolver<'a, 'b> {
     fn visit_type(&mut self, t: &Type) {
         match t.val {
             NamedType(ref path) => {
@@ -571,14 +570,14 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn unresolved_name() {
         let (mut session, tree) = ast_from_str("fn lol<T>(t: T) { let u = wot; }", |p| p.parse_module()); // unresolved name wot
         Resolver::resolve(&mut session, &tree);
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn unresolved_type() {
         let (mut session, tree) = ast_from_str("fn welp<T>(t: U) { let u = t; }", |p| p.parse_module()); // unresolved name U
         Resolver::resolve(&mut session, &tree);

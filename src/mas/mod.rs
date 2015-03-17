@@ -1,4 +1,5 @@
-use std::old_io::stdio;
+use std::process;
+use std::io;
 use std::env;
 
 use self::lexer::{Token, new_asm_lexer};
@@ -7,8 +8,8 @@ use self::encoder::encode;
 
 use getopts;
 use getopts::{getopts, reqopt, optopt, optflag};
-use std::old_io::Writer;
-use std::iter::IteratorExt;
+use std::io::{Write, BufReader};
+
 
 pub mod lexer;
 pub mod parser;
@@ -18,14 +19,14 @@ pub mod util;
 pub mod labels;
 pub mod scheduler;
 
-fn print_bin<T: Writer>(n: u32, stream: &mut T) {
+fn print_bin<T: Write>(n: u32, stream: &mut T) {
     // Write in little-endian format.
     (stream.write_all(vec!(
         (n >>  0) as u8,
         (n >>  8) as u8,
         (n >> 16) as u8,
         (n >> 24) as u8,
-        ).as_slice())).ok();
+        ).as_ref())).ok();
 }
 
 pub fn main() {
@@ -39,21 +40,22 @@ pub fn main() {
     ];
 
     let bail = |error: Option<&str>| {
-        match error {
+        let error = match error {
             Some(e) => {
-                env::set_exit_status(1);
                 println!("{}: fatal error: {}", arg0, e);
+                1
             }
-            None => {}
-        }
+            None => 0,
+        };
 
         let brief = format!("Usage: {} [OPTIONS]", arg0);
-        println!("{}", getopts::usage(brief.as_slice(), &opts));
+        println!("{}", getopts::usage(&brief[..], &opts));
+        process::exit(error)
     };
 
     let matches = match getopts(args.tail(), &opts) {
         Ok(m) => m,
-        Err(e) => return bail(Some(format!("{}", e).as_slice())),
+        Err(e) => return bail(Some(&format!("{}", e)[..])),
     };
 
     if matches.opt_present("help") {
@@ -61,23 +63,23 @@ pub fn main() {
     }
 
     let format_arg = matches.opt_str("fmt").unwrap_or(
-        String::from_str("internal"));
+        "internal".to_string());
 
-    if format_arg.as_slice() == "internal" {
+    if &format_arg[..] == "internal" {
         print!("Moroso assembler.\n");
     }
 
-    let lexer = new_asm_lexer("<stdin>", stdio::stdin());
+    let lexer = new_asm_lexer("<stdin>", BufReader::new(io::stdin()));
     let peekable = lexer.peekable();
     let mut parser = AsmParser::new(peekable);
     let (mut insts, labels) = parser.parse_toplevel();
-    let mut stdout = stdio::stdout();
+    let mut stdout = io::stdout();
 
     labels::resolve_labels(&mut insts, &labels);
 
     for packet in insts.iter() {
-        match format_arg.as_slice() {
-            "internal" => print!("{}\n", packet),
+        match &format_arg[..] {
+            "internal" => print!("{:?}\n", packet),
             "c" => print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",
                           encode(&packet[0]),
                           encode(&packet[1]),

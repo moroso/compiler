@@ -1,7 +1,7 @@
 use super::ast;
 
 use util::{IntKind, Width};
-use std::{old_io, option, iter};
+use std::{io, option, iter};
 
 pub use util::lexer::{Language, Lexer, LexerRule, LexerRuleT};
 pub use util::lexer::{RuleMatcher, SourceToken, TokenMaker};
@@ -9,7 +9,6 @@ pub use util::lexer::BufReader;
 
 use std::fmt;
 use std::fmt::{Formatter, Display, Debug};
-use std::str::StrExt;
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Token {
@@ -113,93 +112,93 @@ pub enum Token {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match *self {
-            Token::Let                    => String::from_str("let"),
-            Token::As                     => String::from_str("as"),
-            Token::If                     => String::from_str("if"),
-            Token::Else                   => String::from_str("else"),
-            Token::Fn                     => String::from_str("fn"),
-            Token::Return                 => String::from_str("return"),
-            Token::True                   => String::from_str("true"),
-            Token::False                  => String::from_str("false"),
-            Token::While                  => String::from_str("while"),
-            Token::Do                     => String::from_str("do"),
-            Token::For                    => String::from_str("for"),
-            Token::Struct                 => String::from_str("struct"),
-            Token::Enum                   => String::from_str("enum"),
-            Token::Type                   => String::from_str("type"),
-            Token::Match                  => String::from_str("match"),
-            Token::Mod                    => String::from_str("mod"),
-            Token::Null                   => String::from_str("null"),
-            Token::Break                  => String::from_str("break"),
-            Token::Continue               => String::from_str("continue"),
-            Token::Static                 => String::from_str("static"),
-            Token::Extern                 => String::from_str("extern"),
-            Token::Use                    => String::from_str("use"),
-            Token::Macro                  => String::from_str("macro"),
-            Token::Const                  => String::from_str("const"),
-            Token::Sizeof                 => String::from_str("sizeof"),
+            Token::Let                    => "let".to_string(),
+            Token::As                     => "as".to_string(),
+            Token::If                     => "if".to_string(),
+            Token::Else                   => "else".to_string(),
+            Token::Fn                     => "fn".to_string(),
+            Token::Return                 => "return".to_string(),
+            Token::True                   => "true".to_string(),
+            Token::False                  => "false".to_string(),
+            Token::While                  => "while".to_string(),
+            Token::Do                     => "do".to_string(),
+            Token::For                    => "for".to_string(),
+            Token::Struct                 => "struct".to_string(),
+            Token::Enum                   => "enum".to_string(),
+            Token::Type                   => "type".to_string(),
+            Token::Match                  => "match".to_string(),
+            Token::Mod                    => "mod".to_string(),
+            Token::Null                   => "null".to_string(),
+            Token::Break                  => "break".to_string(),
+            Token::Continue               => "continue".to_string(),
+            Token::Static                 => "static".to_string(),
+            Token::Extern                 => "extern".to_string(),
+            Token::Use                    => "use".to_string(),
+            Token::Macro                  => "macro".to_string(),
+            Token::Const                  => "const".to_string(),
+            Token::Sizeof                 => "sizeof".to_string(),
 
             Token::IntTypeTok(ik)         => format!("{}", ik),
-            Token::Bool                   => String::from_str("bool"),
+            Token::Bool                   => "bool".to_string(),
 
-            Token::LParen                 => String::from_str("("),
-            Token::RParen                 => String::from_str(")"),
-            Token::LBrace                 => String::from_str("{"),
-            Token::RBrace                 => String::from_str("}"),
-            Token::LBracket               => String::from_str("["),
-            Token::RBracket               => String::from_str("]"),
-            Token::Less                   => String::from_str("<"),
-            Token::Greater                => String::from_str(">"),
-            Token::LessEq                 => String::from_str("<="),
-            Token::GreaterEq              => String::from_str(">="),
-            Token::Tilde                  => String::from_str("~"),
-            Token::Ampersand              => String::from_str("&"),
-            Token::Pipe                   => String::from_str("|"),
-            Token::Caret                  => String::from_str("^"),
-            Token::AmpAmp                 => String::from_str("&&"),
-            Token::PipePipe               => String::from_str("||"),
-            Token::Plus                   => String::from_str("+"),
-            Token::Dash                   => String::from_str("-"),
-            Token::Star                   => String::from_str("*"),
-            Token::Percent                => String::from_str("%"),
-            Token::ForwardSlash           => String::from_str("/"),
-            Token::Lsh                    => String::from_str("<<"),
-            Token::Rsh                    => String::from_str(">>"),
-            Token::Colon                  => String::from_str(":"),
-            Token::ColonColon             => String::from_str("::"),
-            Token::Semicolon              => String::from_str(";"),
-            Token::Eq                     => String::from_str("="),
-            Token::EqEq                   => String::from_str("=="),
-            Token::BangEq                 => String::from_str("!="),
-            Token::Bang                   => String::from_str("!"),
-            Token::Arrow                  => String::from_str("->"),
-            Token::DoubleArrow            => String::from_str("=>"),
-            Token::Comma                  => String::from_str(","),
-            Token::QuestionMark           => String::from_str("?"),
-            Token::Period                 => String::from_str("."),
-            Token::Underscore             => String::from_str("_"),
-            Token::PlusEq                 => String::from_str("+="),
-            Token::MinusEq                => String::from_str("-="),
-            Token::TimesEq                => String::from_str("*="),
-            Token::SlashEq                => String::from_str("/="),
-            Token::PipeEq                 => String::from_str("|="),
-            Token::CaretEq                => String::from_str("^="),
-            Token::AmpEq                  => String::from_str("&="),
-            Token::LshEq                  => String::from_str("<<="),
-            Token::RshEq                  => String::from_str(">>="),
-            Token::PercentEq              => String::from_str("%="),
-            Token::Dollar                 => String::from_str("$"),
-            Token::DotDotDot              => String::from_str("..."),
+            Token::LParen                 => "(".to_string(),
+            Token::RParen                 => ")".to_string(),
+            Token::LBrace                 => "{".to_string(),
+            Token::RBrace                 => "}".to_string(),
+            Token::LBracket               => "[".to_string(),
+            Token::RBracket               => "]".to_string(),
+            Token::Less                   => "<".to_string(),
+            Token::Greater                => ">".to_string(),
+            Token::LessEq                 => "<=".to_string(),
+            Token::GreaterEq              => ">=".to_string(),
+            Token::Tilde                  => "~".to_string(),
+            Token::Ampersand              => "&".to_string(),
+            Token::Pipe                   => "|".to_string(),
+            Token::Caret                  => "^".to_string(),
+            Token::AmpAmp                 => "&&".to_string(),
+            Token::PipePipe               => "||".to_string(),
+            Token::Plus                   => "+".to_string(),
+            Token::Dash                   => "-".to_string(),
+            Token::Star                   => "*".to_string(),
+            Token::Percent                => "%".to_string(),
+            Token::ForwardSlash           => "/".to_string(),
+            Token::Lsh                    => "<<".to_string(),
+            Token::Rsh                    => ">>".to_string(),
+            Token::Colon                  => ":".to_string(),
+            Token::ColonColon             => "::".to_string(),
+            Token::Semicolon              => ";".to_string(),
+            Token::Eq                     => "=".to_string(),
+            Token::EqEq                   => "==".to_string(),
+            Token::BangEq                 => "!=".to_string(),
+            Token::Bang                   => "!".to_string(),
+            Token::Arrow                  => "->".to_string(),
+            Token::DoubleArrow            => "=>".to_string(),
+            Token::Comma                  => ",".to_string(),
+            Token::QuestionMark           => "?".to_string(),
+            Token::Period                 => ".".to_string(),
+            Token::Underscore             => "_".to_string(),
+            Token::PlusEq                 => "+=".to_string(),
+            Token::MinusEq                => "-=".to_string(),
+            Token::TimesEq                => "*=".to_string(),
+            Token::SlashEq                => "/=".to_string(),
+            Token::PipeEq                 => "|=".to_string(),
+            Token::CaretEq                => "^=".to_string(),
+            Token::AmpEq                  => "&=".to_string(),
+            Token::LshEq                  => "<<=".to_string(),
+            Token::RshEq                  => ">>=".to_string(),
+            Token::PercentEq              => "%=".to_string(),
+            Token::Dollar                 => "$".to_string(),
+            Token::DotDotDot              => "...".to_string(),
 
             Token::IdentTok(ref id)       => format!("{}", id),
             Token::IdentBangTok(ref id)   => format!("{}!", id),
             Token::NumberTok(n, ik)       => format!("{}{}", n, ik),
             Token::StringTok(ref s)       => format!("\"{}\"", s.escape_default()),
 
-            Token::WS                     => String::from_str(" "),
-            Token::Eof                    => String::from_str("<EOF>"),
-            Token::BeginComment           => String::from_str("/*"),
-            Token::EndComment             => String::from_str("*/"),
+            Token::WS                     => " ".to_string(),
+            Token::Eof                    => "<EOF>".to_string(),
+            Token::BeginComment           => "/*".to_string(),
+            Token::EndComment             => "*/".to_string(),
         };
 
         write!(f, "{}", s)
@@ -207,35 +206,38 @@ impl fmt::Display for Token {
 }
 
 // Convenience for tests
-pub fn lexer_from_str(s: &str) -> Lexer<old_io::BufferedReader<old_io::MemReader>, Token> {
-    let bytes = s.as_bytes().to_vec();
-    let buffer = old_io::BufferedReader::new(old_io::MemReader::new(bytes));
+pub fn lexer_from_str(s: &str) -> Lexer<io::BufReader<&[u8]>, Token> {
+    let bytes = s.as_bytes();
+    let buffer = io::BufReader::new(bytes);
     new_mb_lexer("test", buffer)
 }
 
+// XXX: This is a workaround I don't totally understand and might not work.
+fn mk_rule<A: 'static, T: RuleMatcher<A>+'static, U: TokenMaker<A, Token>+'static>(
+    matcher: T, maker: U)
+    -> Box<LexerRuleT<Token>> {
+    box LexerRule::<A, _, _>::new(matcher, maker) as Box<LexerRuleT<Token>>
+}
 macro_rules! matcher { ( $e:expr ) => ( regex!(concat!("^(?:", $e, ")"))) }
 macro_rules! lexer_rules {
     ( $( $c:expr => $m:expr ),*) => (
-        vec! ( $( box LexerRule { matcher: $m, maker: $c } as Box<LexerRuleT<Token>> ),* )
+        vec! ( $( mk_rule($m, $c) ),* )
     )
 }
 
 // Rule to match U32, U16, U8, I32, I16, I8
 struct IntTypeRule;
 impl RuleMatcher<IntKind> for IntTypeRule {
-    fn find(&self, s: &str) -> Option<(uint, IntKind)> {
-        use std::num::from_str_radix;
-
+    fn find(&self, s: &str) -> Option<(usize, IntKind)> {
         let matcher = matcher!(r"[uUiI](32|16|8)");
         match matcher.captures(s) {
             Some(groups) => {
-                let ctor: fn(Width) -> IntKind = match s.char_at(0) {
+                let ctor: fn(Width) -> IntKind = match s.chars().nth(0).unwrap() {
                     'u' | 'U' => IntKind::UnsignedInt,
                     'i' | 'I' => IntKind::SignedInt,
                     _ => panic!(),
                 };
-
-                let w = match from_str_radix::<u8>(groups.at(1).unwrap(), 10) {
+                let w = match u8::from_str_radix(groups.at(1).unwrap(), 10) {
                     Ok(32) => Width::Width32,
                     Ok(16) => Width::Width16,
                     Ok(8)  => Width::Width8,
@@ -252,9 +254,7 @@ impl RuleMatcher<IntKind> for IntTypeRule {
 // Rule to match a numeric literal and parse it into a number
 struct NumberRule;
 impl RuleMatcher<(u64, IntKind)> for NumberRule {
-    fn find(&self, s: &str) -> Option<(uint, (u64, IntKind))> {
-        use std::num::from_str_radix;
-
+    fn find(&self, s: &str) -> Option<(usize, (u64, IntKind))> {
         let matcher = matcher!(r"((?:0[xX]([:xdigit:]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?");
         match matcher.captures(s) {
             Some(groups) => {
@@ -265,13 +265,13 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
 
                 let s = groups.at(3).unwrap();
                 let kind = if s.len() > 0 {
-                    let ctor: fn(Width) -> IntKind = match s.char_at(0) {
+                    let ctor: fn(Width) -> IntKind = match s.chars().nth(0).unwrap() {
                         'u' | 'U' => IntKind::UnsignedInt,
                         'i' | 'I' => IntKind::SignedInt,
                         _ => panic!(),
                     };
 
-                    let w = match from_str_radix::<u8>(groups.at(4).unwrap(), 10) {
+                    let w = match u8::from_str_radix(groups.at(4).unwrap(), 10) {
                         Err(_) => Width::AnyWidth,
                         Ok(32) => Width::Width32,
                         Ok(16) => Width::Width16,
@@ -284,7 +284,8 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
                     IntKind::GenericInt
                 };
 
-                Some((groups.at(0).unwrap().len(), (from_str_radix(num_str, radix).unwrap(), kind)))
+                Some((groups.at(0).unwrap().len(),
+                      (u64::from_str_radix(num_str, radix).unwrap(), kind)))
             },
             _ => None
         }
@@ -294,12 +295,12 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
 // Rule to match a name followed by a Bang and strip off the trailing Bang
 struct IdentBangRule;
 impl RuleMatcher<String> for IdentBangRule {
-    fn find(&self, s: &str) -> Option<(uint, String)> {
+    fn find(&self, s: &str) -> Option<(usize, String)> {
         let matcher = matcher!(r"([a-zA-Z_]\w*)!");
         match matcher.captures(s) {
            Some(groups) => {
                 let t = groups.at(0).unwrap();
-                Some((t.len(), String::from_str(groups.at(1).unwrap())))
+                Some((t.len(), groups.at(1).unwrap().to_string()))
            },
             _ => None
         }
@@ -309,7 +310,7 @@ impl RuleMatcher<String> for IdentBangRule {
 // Rule to match a string literal and strip off the surrounding quotes
 struct StringRule;
 impl RuleMatcher<String> for StringRule {
-    fn find(&self, s: &str) -> Option<(uint, String)> {
+    fn find(&self, s: &str) -> Option<(usize, String)> {
         let matcher = matcher!(r#""((?:\\"|[^"])*)""#);
         match matcher.captures(s) {
            Some(groups) => {
@@ -324,7 +325,7 @@ impl RuleMatcher<String> for StringRule {
 
 struct CharRule;
 impl RuleMatcher<(u64, IntKind)> for CharRule {
-    fn find(&self, s: &str) -> Option<(uint, (u64, IntKind))> {
+    fn find(&self, s: &str) -> Option<(usize, (u64, IntKind))> {
         let matcher = matcher!(r#"'((?:\\["nrt'\\]|\\[xX][0-9a-fA-F]+|[^']))'"#);
         match matcher.captures(s) {
            Some(groups) => {
@@ -505,27 +506,27 @@ mod tests {
         let lexer1 = lexer_from_str(r#"f(x - /* I am a comment */ 0x3f5B)+1 "Hello\" World")"#);
         let tokens1: Vec<SourceToken> = FromIterator::from_iter(lexer1);
 
-        compare(tokens1.as_slice(),
+        compare(&tokens1[..],
                 vec! {
-                    IdentTok(String::from_str("f")),
+                    IdentTok("f".to_string()),
                     LParen,
-                    IdentTok(String::from_str("x")),
+                    IdentTok("x".to_string()),
                     Dash,
                     NumberTok(0x3f5B, GenericInt),
                     RParen,
                     Plus,
                     NumberTok(1, GenericInt),
-                    StringTok(String::from_str(r#"Hello" World"#)),
+                    StringTok(r#"Hello" World"#).to_string(),
                 }.as_slice());
 
         let lexer2 = lexer_from_str("let x: int = 5;");
         let tokens2: Vec<SourceToken> = FromIterator::from_iter(lexer2);
-        compare(tokens2.as_slice(),
+        compare(&tokens2[..],
                 vec! {
                     Let,
-                    IdentTok(String::from_str("x")),
+                    IdentTok("x".to_string()),
                     Colon,
-                    IdentTok(String::from_str("int")),
+                    IdentTok("int".to_string()),
                     Eq,
                     NumberTok(5, GenericInt),
                 }.as_slice());

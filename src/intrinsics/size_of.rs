@@ -1,7 +1,7 @@
 use mc::ast::{Module, NodeId};
 use mc::ast::Type;
 
-use std::iter::AdditiveIterator;
+//use std::iter::AdditiveIterator;
 
 use mc::ast::defmap::*;
 use mc::session::*;
@@ -9,7 +9,7 @@ use typechecker::*;
 use util::*;
 
 /// The size of the tag for enums.
-pub static enum_tag_size: u64 = 4;
+pub static ENUM_TAG_SIZE: u64 = 4;
 
 /// Return the alignment for an object of a certain size.
 pub fn alignment(size: u64) -> u64 {
@@ -37,9 +37,9 @@ pub fn offset_of_struct_field(session: &Session,
     match *def {
         Def::StructDef(_, ref fields, _) => {
             let names_and_sizes = struct_field_sizes(session, typemap, fields);
-            let (names, sizes): (Vec<Name>, Vec<u64>) = IteratorExt::unzip(names_and_sizes.into_iter());
+            let (names, sizes): (Vec<Name>, Vec<u64>) = Iterator::unzip(names_and_sizes.into_iter());
 
-            for i in range(0, sizes.len())
+            for i in 0 .. sizes.len()
             {
                 if names[i] == *field {
                     return offset_of(&sizes, i);
@@ -64,9 +64,9 @@ pub fn size_of_def(session: &Session, typemap: &Typemap, node: &NodeId) -> u64 {
             let max_variant_size = variants.iter()
                 .map(|v| size_of_def(session, typemap, v)).max().unwrap();
             if max_variant_size == 0 {
-                enum_tag_size
+                ENUM_TAG_SIZE
             } else {
-                packed_size(&vec!(enum_tag_size, max_variant_size))
+                packed_size(&vec!(ENUM_TAG_SIZE, max_variant_size))
             }
         },
         Def::VariantDef(_, _, ref types) => {
@@ -141,7 +141,7 @@ pub fn packed_size(sizes: &Vec<u64>) -> u64 {
     size_so_far
 }
 
-pub fn offset_of(sizes: &Vec<u64>, item: uint) -> u64 {
+pub fn offset_of(sizes: &Vec<u64>, item: usize) -> u64 {
     let mut size_so_far = 0;
     for size in sizes.iter().take(item) {
         size_so_far += increment_of(size_so_far, *size);
@@ -169,7 +169,7 @@ mod tests {
     // Helper function: we pass it a string describing a type and an expected
     // size, and it asserts that the size is what we expect.
     fn test_ty_size(t: &str, expected_size: u64) {
-        let buffer = old_io::BufferedReader::new(old_io::MemReader::new(
+        let buffer = io::BufReader::new(old_io::MemReader::new(
             t.as_bytes().to_vec()
                 ));
         let lexer = new_mb_lexer("<stdin>", buffer);
@@ -219,7 +219,7 @@ mod tests {
     // Asserts that the `expected` vector describes the offsets for the items
     // whose sizes are in `sizes`.
     fn test_offset_helper(sizes: &Vec<u64>, expected: &Vec<u64>) {
-        for i in range(0, sizes.len()) {
+        for i in 0 .. sizes.len() {
             assert_eq!(offset_of(sizes, i), *expected.get(i));
         }
     }

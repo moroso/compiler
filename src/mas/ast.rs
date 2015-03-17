@@ -137,7 +137,7 @@ pub enum CompareType {
 }
 
 // Shift types.
-#[derive(Clone, Eq, PartialEq, FromPrimitive, Ord, PartialOrd, Debug, Copy)]
+#[derive(Clone, Eq, PartialEq, NumFromPrimitive, Ord, PartialOrd, Debug, Copy)]
 pub enum ShiftType {
     SllShift,
     SrlShift,
@@ -332,13 +332,13 @@ fn assert_reg(reg: Reg) {
 }
 
 fn assert_offs(offs: i32, width: u8) {
-    let mask = (-1 as u32) << (width as uint);
+    let mask = !0u32 << (width as usize);
     // Check that the sign bit is extended all the way.
     assert_eq!((mask & (offs as u32) == mask),
-               (((offs as u32) & (1<<((width-1) as uint)) != 0)));
+               (((offs as u32) & (1<<((width-1) as usize)) != 0)));
     // No sign bit means none of the high bits should be set.
     assert_eq!((mask & (offs as u32) == 0),
-               ((offs as u32) & (1<<((width-1) as uint))) == 0);
+               ((offs as u32) & (1<<((width-1) as usize))) == 0);
 }
 
 // Helper functions that will make instruction representations, and also
@@ -700,7 +700,7 @@ allow_string!(InstNode);
 
 //pub struct InstPacket([InstNode; 4]);
 pub type InstPacket = [InstNode; 4];
-allow_string!(InstPacket);
+//allow_string!(InstPacket);
 /*
 impl Index<uint> for InstPacket {
     type Output = InstNode;

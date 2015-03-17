@@ -16,14 +16,14 @@ use typechecker::*;
 use std::mem::swap;
 use std::cmp::max;
 
-pub struct ASTToIntermediate<'a> {
-    var_count: uint,
-    label_count: uint,
-    session: &'a mut Session<'a>,
+pub struct ASTToIntermediate<'a, 'b: 'a> {
+    var_count: usize,
+    label_count: usize,
+    session: &'a mut Session<'b>,
     typemap: &'a mut Typemap,
     manglemap: &'a BTreeMap<NodeId, String>,
-    continue_labels: Vec<uint>,
-    break_labels: Vec<uint>,
+    continue_labels: Vec<usize>,
+    break_labels: Vec<usize>,
 }
 
 fn ty_is_reference(ty: &Ty) -> bool {
@@ -68,11 +68,11 @@ fn adjust_constant(c: &LitNode) -> LitNode {
     }
 }
 
-impl<'a> ASTToIntermediate<'a> {
-    pub fn new(session: &'a mut Session<'a>,
-               typemap: &'a mut Typemap,
-               manglemap: &'a BTreeMap<NodeId, String>
-               ) -> ASTToIntermediate<'a> {
+impl<'a, 'b> ASTToIntermediate<'a, 'b> {
+    pub fn new<'c,'d>(session: &'c mut Session<'d>,
+                      typemap: &'c mut Typemap,
+                      manglemap: &'c BTreeMap<NodeId, String>
+                      ) -> ASTToIntermediate<'c,'d> {
         ASTToIntermediate { var_count: 0,
                             label_count: 0,
                             session: session,
@@ -135,7 +135,7 @@ impl<'a> ASTToIntermediate<'a> {
         res
     }
 
-    fn gen_label(&mut self) -> uint {
+    fn gen_label(&mut self) -> usize {
         let res = self.label_count;
         self.label_count += 1;
         res
@@ -300,7 +300,7 @@ impl<'a> ASTToIntermediate<'a> {
         (vec!(),
          vec!(StaticIRItem {
              name: name,
-             size: size as uint,
+             size: size as usize,
              offset: None,
              is_ref: ty_is_reference(ty),
              is_func: false,
@@ -324,7 +324,7 @@ impl<'a> ASTToIntermediate<'a> {
 
     pub fn allocate_globals(globals: Vec<StaticIRItem>
                             ) -> BTreeMap<Name, StaticIRItem> {
-        let mut offs: uint = 0;
+        let mut offs: usize = 0;
         let mut result = BTreeMap::new();
 
         for mut global in globals.into_iter() {
@@ -400,9 +400,9 @@ impl<'a> ASTToIntermediate<'a> {
                     e: &Expr,
                     block_insts: Vec<Op>,
                     iter_insts: Option<Vec<Op>>,
-                    break_label: uint,
-                    continue_label: uint,
-                    middle_label: Option<uint>) -> (Vec<Op>, Option<Var>) {
+                    break_label: usize,
+                    continue_label: usize,
+                    middle_label: Option<usize>) -> (Vec<Op>, Option<Var>) {
         // In the case of a while loop, a "continue" should go all the way
         // back to the beginning. But in the case of a for loop, the beginning
         // label will be different, and "continue" will jump to the end of
@@ -452,7 +452,7 @@ impl<'a> ASTToIntermediate<'a> {
         match name_opt {
             Some(ref n) => self.session.interner.intern((*n).clone()),
             None => path.val.elems.last().expect(
-                format!("Empty path: {}", path).as_slice()
+                &format!("Empty path: {}", path)[..]
                     ).val.name
         }
     }
@@ -508,11 +508,11 @@ impl<'a> ASTToIntermediate<'a> {
         ops
     }
 
-    pub fn binop_helper<'a>(&mut self, op: &'a ast::BinOp,
+    pub fn binop_helper<'c>(&mut self, op: &'c ast::BinOp,
                             var1: Var, mut var2: Var,
-                            e1ty: &'a Ty, e2ty: &'a Ty,
+                            e1ty: &'c Ty, e2ty: &'c Ty,
                             insts1: Vec<Op>, insts2: Vec<Op>,
-                            dest_ty: &'a Ty) -> (Vec<Op>, Var) {
+                            dest_ty: &'c Ty) -> (Vec<Op>, Var) {
         let mut insts = vec!();
         insts.extend(insts1.into_iter());
 
@@ -670,7 +670,7 @@ impl<'a> ASTToIntermediate<'a> {
                 // We do this to avoid borrowing self.
                 let def = {
                     let d = self.session.defmap.find(&defid).expect(
-                        format!("Unable to find defid {}", defid).as_slice());
+                        &format!("Unable to find defid {}", defid)[..]);
                     (*d).clone()
                 };
                 match def {
@@ -731,7 +731,7 @@ impl<'a> ASTToIntermediate<'a> {
                 //     and width are passed into it.
                 let (binop_var, binop_insts, lhs_var, width,
                      finalize): (Var, Vec<Op>, Var, Width,
-                                 &Fn(Var, Var, Width) -> Op) = match unwrapped.val {
+                                 Box<Fn(Var, Var, Width) -> Op>) = match unwrapped.val {
                     PathExpr(ref path) => {
                         let lhs_var = Var {
                             name: self.mangled_path(path),
@@ -741,7 +741,7 @@ impl<'a> ASTToIntermediate<'a> {
                          vec!(),
                          lhs_var,
                          AnyWidth,
-                         &|lv, v, _| Op::UnOp(lv, Identity, Variable(v)))
+                         box |lv, v, _| Op::UnOp(lv, Identity, Variable(v)))
                     },
                     UnOpExpr(ref lhs_op, ref e) => {
                         let ty = match *self.lookup_ty(e.id) {
@@ -765,7 +765,7 @@ impl<'a> ASTToIntermediate<'a> {
                                       ),
                                  var.clone(),
                                  width,
-                                 &|lv, v, w| Op::Store(lv, v, w))
+                                 box |lv, v, w| Op::Store(lv, v, w))
                             },
                             _ => panic!(),
                         }
@@ -794,7 +794,7 @@ impl<'a> ASTToIntermediate<'a> {
                          },
                          added_addr_var,
                          width,
-                         &|lv, v, w| Op::Store(lv, v, w))
+                         box |lv, v, w| Op::Store(lv, v, w))
                     },
                     IndexExpr(ref arr, ref idx) => {
                         let ty = (*self.lookup_ty(e1.id))
@@ -817,7 +817,7 @@ impl<'a> ASTToIntermediate<'a> {
                          },
                          ptr_var,
                          width,
-                         &|lv, v, w| Op::Store(lv, v, w))
+                         box |lv, v, w| Op::Store(lv, v, w))
                     }
                     _ => panic!("Got {}", e1.val),
                 };
@@ -974,8 +974,7 @@ impl<'a> ASTToIntermediate<'a> {
                         // We do this to avoid borrowing self.
                         let def = {
                             let d = self.session.defmap.find(&defid).expect(
-                                format!("Cannot find defid {}",
-                                        defid).as_slice());
+                                &format!("Cannot find defid {}", defid)[..]);
                             (*d).clone()
                         };
                         match def {
@@ -1002,7 +1001,7 @@ impl<'a> ASTToIntermediate<'a> {
 
                                 insts.extend(ops.into_iter());
 
-                                for i in range(0, vars.len()) {
+                                for i in 0 .. vars.len() {
                                     let var = vars[i];
                                     let width = &widths[i];
                                     let (expr_insts, expr_var) =
@@ -1221,7 +1220,7 @@ impl<'a> ASTToIntermediate<'a> {
                 let total_size = size_of_ty(self.session,
                                             self.typemap,
                                             ty);
-                assert_eq!(elems.len() as uint, nelems as uint);
+                assert_eq!(elems.len() as usize, nelems as usize);
                 assert_eq!(total_size, inner_len * nelems);
                 let result_var = self.gen_temp();
                 let mut ops = vec!(Op::Alloca(result_var, total_size));
@@ -1273,7 +1272,7 @@ impl<'a> ASTToIntermediate<'a> {
 
                     let ty = &{
                         let def = self.session.defmap.find(&defid).expect(
-                            format!("Cannot find defid {}", defid).as_slice());
+                            &format!("Cannot find defid {}", defid)[..]);
                         match *def {
                             StructDef(_, ref fields, _) => {
                                 let &(_, ref t) =
@@ -1345,7 +1344,7 @@ impl<'a> ASTToIntermediate<'a> {
 
                 // These are the labels for each pattern. The are off by one:
                 // we never need to jump to the beginning of the first variant.
-                let mut begin_labels: Vec<uint> = (0..arms.len() - 1).map(
+                let mut begin_labels: Vec<usize> = (0..arms.len() - 1).map(
                     |_| self.gen_label()).collect();
                 // We do, however, need to jump to to the end of the last, and
                 // it's convenient to put the ending label at the end of this
@@ -1362,7 +1361,7 @@ impl<'a> ASTToIntermediate<'a> {
                     let patid = self.session.resolver.def_from_path(path);
                     let def =
                         (*self.session.defmap.find(&patid).expect(
-                            format!("Cannot find defid {}", patid).as_slice()
+                            &format!("Cannot find defid {}", patid)[..]
                                 )).clone();
                     let (parent_id, types) = match def {
                         VariantDef(_, ref parent_id, ref types) =>
@@ -1468,14 +1467,14 @@ impl<'a> ASTToIntermediate<'a> {
 
         let ty = {
             let def = self.session.defmap.find(&id).expect(
-                format!("Cannot find defid {}", id).as_slice());
+                &format!("Cannot find defid {}", id)[..]);
 
             match *def {
                 StructDef(_, ref fields, _) => {
                     let &(_, ref t) =
                         fields.iter()
                         .find(|&&(a, _)| a == *name)
-                        .expect(format!("Cannot find name {}", name).as_slice()
+                        .expect(&format!("Cannot find name {}", name)[..]
                                 );
                     self.lookup_ty(t.id)
                 },
@@ -1498,10 +1497,10 @@ impl<'a> ASTToIntermediate<'a> {
 
     fn variant_index(&mut self, defid: &NodeId, parent_id: &NodeId) -> u64 {
         (match *self.session.defmap.find(parent_id).expect(
-            format!("Cannot find defid {}", parent_id).as_slice()) {
+            &format!("Cannot find defid {}", parent_id)[..]) {
             EnumDef(_, ref variants, _) =>
                 variants.iter().position(|&n| n == *defid).expect(
-                    format!("Cannot find defid {}", defid).as_slice()),
+                    &format!("Cannot find defid {}", defid)[..]),
             _ => panic!(),
         }) as u64
     }
@@ -1515,15 +1514,15 @@ impl<'a> ASTToIntermediate<'a> {
                       types: &Vec<Type>,
                       base_var: &Var) -> (Vec<Op>, Vec<Var>, Vec<Width>) {
         let mut insts = vec!();
-        let (widths, sizes): (Vec<Width>, Vec<u64>) = IteratorExt::unzip(types.iter()
+        let (widths, sizes): (Vec<Width>, Vec<u64>) = Iterator::unzip(types.iter()
             .map(|t| self.lookup_ty(t.id))
             .map(|ty| (ty_width(ty),
                        size_of_ty(self.session, self.typemap, ty))));
 
         let vars: Vec<Var> = (0..sizes.len()).map(|_| self.gen_temp()).collect();
 
-        for i in range(0, sizes.len()) {
-            let offs = enum_tag_size + offset_of(&sizes, i);
+        for i in 0 .. sizes.len() {
+            let offs = ENUM_TAG_SIZE + offset_of(&sizes, i);
 
             let new_offs_var = &vars[i];
             insts.push(Op::BinOp(new_offs_var.clone(),
@@ -1564,8 +1563,8 @@ impl<'a> ASTToIntermediate<'a> {
         (ops, ptr_var, ty_width(ty), ty_is_reference(ty))
     }
 
-    fn unwrap_group<'a>(&mut self,
-                        grp: &'a Expr) -> &'a Expr {
+    fn unwrap_group<'c>(&mut self,
+                        grp: &'c Expr) -> &'c Expr {
         let mut unwrapped = grp;
         loop {
             match unwrapped.val {

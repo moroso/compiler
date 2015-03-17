@@ -15,18 +15,16 @@ use ir::ast_to_intermediate::ASTToIntermediate;
 use ir::constant_fold::ConstantFolder;
 use ir::ssa::ToSSA;
 
-use super::Target;
+use super::{MkTarget,Target};
 
 use target::util::NameMangler;
 
-use std::collections::{BTreeMap, VecMap, BTreeSet};
-use std::old_io::stdio;
-use std::iter::FromIterator;
-
-use std::old_io;
-
 use mc::ast::*;
 use ir::*;
+
+use std::collections::{BTreeMap, VecMap, BTreeSet};
+use std::iter::FromIterator;
+use std::io::Write;
 
 pub struct IRTarget {
     verbose: bool,
@@ -79,7 +77,7 @@ fn print_rvalelem(interner: &Interner,
                 BoolLit(true) => format!("1"),
                 BoolLit(false) => format!("0"),
                 StringLit(ref s) => {
-                    let parts: Vec<String> = s.as_slice().bytes()
+                    let parts: Vec<String> = (&s[..]).bytes()
                         .map(|b: u8|format!("\\x{:02x}", b))
                         .collect();
                     format!("\"{}\"", parts.concat())
@@ -91,7 +89,7 @@ fn print_rvalelem(interner: &Interner,
 
 fn assign_vars(interner: &Interner,
                global_map: &BTreeMap<Name, StaticIRItem>,
-               label: &BTreeMap<Name, uint>,
+               label: &BTreeMap<Name, usize>,
                vars: &BTreeSet<Var>) -> String {
     let mut s = "".to_string();
     for var in vars.iter() {
@@ -105,9 +103,9 @@ fn assign_vars(interner: &Interner,
             Some(ref i) if i.is_func => {},
             _ =>
                 s = s +
-                    format!("  {} = {};\n",
+                    &format!("  {} = {};\n",
                             print_var(interner, global_map, &new_var),
-                            print_var(interner, global_map, var)).as_slice(),
+                            print_var(interner, global_map, var))[..],
         }
     }
     s
@@ -118,12 +116,12 @@ impl IRTarget {
                         ops: &Vec<Op>,
                         global_map: &BTreeMap<Name, StaticIRItem>) -> String {
         // If this is the case, it's an extern. We don't want to emit it.
-        if ops.len() <= 1 { return String::from_str("") }
+        if ops.len() <= 1 { return "".to_string() }
 
+        let opinfo = LivenessAnalyzer::unanalyzed_opinfo(ops);
         let mut s = "".to_string();
         let mut vars = BTreeSet::new();
-        let mut labels: VecMap<BTreeMap<Name, uint>> = VecMap::new();
-        let opinfo = LivenessAnalyzer::unanalyzed_opinfo(ops);
+        let mut labels: VecMap<BTreeMap<Name, usize>> = VecMap::new();
         // Find all variables we need to declare. This is all variables
         // that are defined anywhere, except in the very first instruction
         // (which must be a function definition instruction).
@@ -144,7 +142,7 @@ impl IRTarget {
         for op in ops.iter() {
             match *op {
                 Op::Label(ref idx, ref vars) => {
-                    let mut varmap: BTreeMap<Name, uint> = BTreeMap::new();
+                    let mut varmap: BTreeMap<Name, usize> = BTreeMap::new();
                     for var in vars.iter() {
                         varmap.insert(var.name.clone(),
                                       var.generation.unwrap());
@@ -161,9 +159,9 @@ impl IRTarget {
         for op in ops.iter() {
             match *op {
                 Op::Nop => {},
-                _ => s = s + format!("  // {}", op).as_slice()
+                _ => s = s + &format!("  // {}", op)[..]
             }
-            s = s + (match *op {
+            s = s + &(match *op {
                 Op::BinOp(ref v, ref op, ref rv1, ref rv2, signed) => {
                     let cast = if signed {
                         "(long)"
@@ -225,7 +223,7 @@ impl IRTarget {
                     let list: Vec<String> = args.iter()
                         .map(|arg| print_var(interner, global_map, arg)
                              ).collect();
-                    s = s + list.connect(", ").as_slice();
+                    s = s + &list.connect(", ")[..];
                     s = s + ");\n";
                     s
                 },
@@ -289,11 +287,10 @@ impl IRTarget {
                     let mut s = format!("");
                     for var in vars.iter() {
                         if global_map.get(&var.name).is_none() {
-                            s = s + format!("  long {};\n",
+                            s = s + &format!("  long {};\n",
                                          print_var(interner,
                                                    global_map,
-                                                   *var))
-                                .as_slice();
+                                                   *var))[..];
                         }
                     }
 
@@ -308,30 +305,31 @@ impl IRTarget {
                             s)
                 }
                 //_ => format!(""),
-            }.as_slice());
+            }[..]);
         }
         s + "}\n"
     }
 }
 
-impl Target for IRTarget {
+impl MkTarget for IRTarget {
     fn new(args: Vec<String>) -> Box<IRTarget> {
         let mut verbose = false;
         for arg in args.iter() {
-            if *arg == String::from_str("verbose") {
+            if *arg == "verbose".to_string() {
                 print!("Enabling verbose mode.\n");
                 verbose = true;
             }
         }
         Box::new(IRTarget { verbose: verbose })
     }
-
+}
+impl Target for IRTarget {
     #[allow(unused_must_use)]
-    fn compile(&self, p: Package, f: &mut old_io::Writer) {
+    fn compile(&self, p: Package, f: &mut Write) {
         let Package {
-            module:  module,
-            session: session,
-            typemap: mut typemap,
+            module,
+            session,
+            mut typemap,
         } = p;
 
         let mangler = NameMangler::new(session, &module, true, false);

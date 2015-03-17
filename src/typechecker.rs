@@ -25,13 +25,13 @@ pub use self::TyBounds::*;
 use self::Kind::*;
 use self::ErrorCause::*;
 
-#[derive(Eq, PartialEq, Debug, Clone)]
-struct BoundsId(uint);
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
+struct BoundsId(usize);
 
 allow_string!(BoundsId);
 
 impl BoundsId {
-    pub fn to_uint(&self) -> uint {
+    pub fn to_uint(&self) -> usize {
         let BoundsId(bid) = *self;
         bid
     }
@@ -79,7 +79,7 @@ fn constant_fold(session: &Session, map: &ConstantMap, expr: &Expr)
                   -> ConstantResult {
     match expr.val {
         LitExpr(ref lit) => {
-            use std::mem::copy_lifetime;
+            use util::copy_lifetime;
             match lit.val {
                 NullLit                 => Err((lit.id, "`null` is not valid here")),
                 ref val                 => Ok(val.clone())
@@ -116,7 +116,7 @@ impl<'a> Visitor for ConstCollector<'a> {
     fn visit_item(&mut self, item: &Item) {
         match item.val {
             ConstItem(ref ident, _, ref e) => {
-                use std::mem::copy_lifetime;
+                use util::copy_lifetime;
                 let vid = self.graph.add_node(ident.id);
                 self.nodes.insert(ident.id, vid);
                 let expr = unsafe { copy_lifetime(self.session, e) };
@@ -137,14 +137,14 @@ impl<'a> ConstCollector<'a> {
         }
     }
 
-    fn get_order(&'a mut self, module: &'a Module) -> Vec<NodeId> {
+    fn get_order(&mut self, module: &Module) -> Vec<NodeId> {
         use util::graph::GraphExt;
 
         let ConstCollector {
-            nodes: ref nodes,
+            ref nodes,
             consts: _,
-            graph: ref mut graph,
-            session: ref session,
+            ref mut graph,
+            ref session,
         } = *self;
 
         ConstGraphBuilder::build_graph(graph, nodes, *session, module);
@@ -350,11 +350,11 @@ impl fmt::Display for ErrorCause {
 
 /*
 impl CLike for Kind {
-    fn to_uint(&self) -> uint {
-        *self as uint
+    fn to_uint(&self) -> usize {
+        *self as usize
     }
 
-    fn from_uint(u: uint) -> Kind {
+    fn from_uint(u: usize) -> Kind {
         match u {
             0 => EqKind,
             1 => CmpKind,
@@ -433,7 +433,7 @@ pub struct Typechecker<'a> {
     defs: BTreeMap<NodeId, BoundsId>,
     generics: Vec<BTreeMap<NodeId, WithId<Ty>>>,
     session: &'a Session<'a>,
-    next_bounds_id: uint,
+    next_bounds_id: usize,
     exits: Vec<WithId<Ty>>,
     typemap: Typemap,
     // This is hacky but it cuts down on plumbing
@@ -579,22 +579,22 @@ impl<'a> Typechecker<'a> {
         let mut errors = vec!();
         match self.current_cause {
             None => panic!("ICE: type_error without cause"),
-            Some((nid, cause)) => errors.push((nid, format!("{}: {}", cause, msg))),
+            Some((nid, ref cause)) => errors.push((nid, format!("{}: {}", cause, msg))),
         }
 
         errors.extend(notes.into_iter());
 
-        self.session.errors_fatal(errors.as_slice())
+        self.session.errors_fatal(&errors[..])
     }
 
     pub fn type_error(&self, msg: String) -> ! {
         self.type_error_with_notes(msg, vec!())
     }
 
-    pub fn error_fatal<T: Str>(&self, nid: NodeId, msg: T) -> ! {
+    pub fn error_fatal<T: AsRef<str>>(&self, nid: NodeId, msg: T) -> ! {
         self.session.error_fatal(nid, msg);
     }
-    pub fn error<T: Str>(&self, nid: NodeId, msg: T) {
+    pub fn error<T: AsRef<str>>(&self, nid: NodeId, msg: T) {
         self.session.error(nid, msg);
     }
 
@@ -1217,11 +1217,11 @@ impl<'a> Typechecker<'a> {
         match bounds.val {
             Unconstrained => t1.val,
             Concrete(t2) => self.unify(t1, t2.with_id(idb)),
-            Constrained(ks) => {
+            Constrained(ref ks) => {
                 match t1.val {
                     BoundTy(bid) => {
                         let b1 = self.get_bounds(bid).with_id(idt);
-                        let bounds = self.merge_bounds(b1, bounds);
+                        let bounds = self.merge_bounds(b1, bounds.clone());
                         self.update_bounds(bid, bounds);
                         BoundTy(bid)
                     }
@@ -1256,7 +1256,7 @@ impl<'a> Typechecker<'a> {
                 UintTy(Width::Width32), //TODO PtrWidth
             (_, l_ty_val, r_ty_val) => {
                 let kinds = op_to_kind_set(op);
-                let bounds = Constrained(kinds);
+                let bounds = Constrained(kinds.clone());
 
                 let l_ty = WithId {
                     id: l_ty.id,
@@ -1542,7 +1542,7 @@ impl<'a> Visitor for Typechecker<'a> {
 
                     let mut ty = me.type_to_ty(t).val;
                     let diverges = ty == BottomTy;
-                    for i in range(0, me.exits.len()).rev() {
+                    for i in (0 .. me.exits.len()).rev() {
                         let exit_ty = me.exits.swap_remove(i);
                         ty = me.unify_with_cause(item.id, InvalidReturn, ty.with_id_of(item), exit_ty);
                     }

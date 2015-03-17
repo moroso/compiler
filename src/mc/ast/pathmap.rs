@@ -20,7 +20,7 @@ impl PathMap {
         self.table.get(id)
     }
 
-    pub fn record<'a>(session: &'a mut Session<'a>, module: &Module) {
+    pub fn record(session: &mut Session, module: &Module) {
         let mut visitor = PathMapVisitor {
             session: session,
             path: vec!(),
@@ -30,16 +30,15 @@ impl PathMap {
     }
 }
 
-pub struct PathMapVisitor<'a> {
-    session: &'a mut Session<'a>,
+pub struct PathMapVisitor<'a, 'b: 'a> {
+    session: &'a mut Session<'b>,
     path: Vec<String>,
 }
 
-impl<'a> PathMapVisitor<'a> {
+impl<'a, 'b> PathMapVisitor<'a, 'b> {
 
     fn insert(&mut self, id: &Ident, item: &Item) {
-        let name = String::from_str(
-            self.session.interner.name_to_str(&id.val.name));
+        let name = self.session.interner.name_to_str(&id.val.name).to_string();
 
         let mut path = self.path.clone();
         path.push(name.clone());
@@ -49,14 +48,13 @@ impl<'a> PathMapVisitor<'a> {
     }
 }
 
-impl<'a> Visitor for PathMapVisitor<'a> {
+impl<'a, 'b> Visitor for PathMapVisitor<'a, 'b> {
     fn visit_item(&mut self, item: &Item) {
         match item.val {
             ModItem(ref id, ref body) => {
                 self.insert(id, item);
 
-                let name = String::from_str(
-                    self.session.interner.name_to_str(&id.val.name));
+                let name = self.session.interner.name_to_str(&id.val.name).to_string();
                 self.path.push(name);
                 self.visit_module(body);
                 self.path.pop();
