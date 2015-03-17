@@ -728,17 +728,16 @@ impl<'a> CCrossCompiler<'a> {
     // Visit a module and all of its submodules, applying a worker function.
     // We need this so we can print out all the modules, then all the structs,
     // etc.
-    fn visit_module_worker<F>(&mut self,
-                              results: &mut Vec<String>,
-                              module: &Module,
-                              f: F)
-        where F: Fn(&mut CCrossCompiler, &mut Vec<String>,&Module) {
+    fn visit_module_worker(&mut self,
+                           results: &mut Vec<String>,
+                           module: &Module,
+                           f: &Fn(&mut CCrossCompiler, &mut Vec<String>,&Module)) {
 
         for item in module.val.items.iter() {
             match item.val {
                 ModItem(_, ref module) =>
                     self.visit_module_worker(results, module,
-                                             |me, results, x| f(me,results,x)),
+                                             &|me, results, x| f(me,results,x)),
                 _ => {}
             }
         }
@@ -750,7 +749,7 @@ impl<'a> CCrossCompiler<'a> {
         let mut results = vec!();
 
         // Typedefs
-        self.visit_module_worker(&mut results, module, |me, results, module| {
+        self.visit_module_worker(&mut results, module, &|me, results, module| {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
                 match item.val {
                     TypeItem(..) => me.visit_item(item),
@@ -760,7 +759,7 @@ impl<'a> CCrossCompiler<'a> {
         });
 
         // Constants
-        self.visit_module_worker(&mut results, module, |me, results, module| {
+        self.visit_module_worker(&mut results, module, &|me, results, module| {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
                 match item.val {
                     ConstItem(..) => me.visit_item(item),
@@ -770,7 +769,7 @@ impl<'a> CCrossCompiler<'a> {
         });
 
         // Now print struct prototypes.
-        self.visit_module_worker(&mut results, module, |me, results, module| {
+        self.visit_module_worker(&mut results, module, &|me, results, module| {
             for item in module.val.items.iter() {
                 match item.val {
                     StructItem(ref id, _, _) |
@@ -784,7 +783,7 @@ impl<'a> CCrossCompiler<'a> {
         });
 
         // Now print function prototypes.
-        self.visit_module_worker(&mut results, module, |me, results, module| {
+        self.visit_module_worker(&mut results, module, &|me, results, module| {
 
             for item in module.val.items.iter() {
                 match item.val {
@@ -818,7 +817,7 @@ impl<'a> CCrossCompiler<'a> {
 
         // Structs and enums.
         // FIXME: need to topo sort structs
-        self.visit_module_worker(&mut results, module, |me, results, module| {
+        self.visit_module_worker(&mut results, module, &|me, results, module| {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
                 match item.val {
                     StructItem(..) |
@@ -829,7 +828,7 @@ impl<'a> CCrossCompiler<'a> {
         });
 
         // Now globals
-        self.visit_module_worker(&mut results, module, |me, results, module| {
+        self.visit_module_worker(&mut results, module, &|me, results, module| {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
                 match item.val {
                     StaticItem(..) => me.visit_item(item),
@@ -839,7 +838,7 @@ impl<'a> CCrossCompiler<'a> {
         });
 
         // And functions
-        self.visit_module_worker(&mut results, module, |me, results, module| {
+        self.visit_module_worker(&mut results, module, &|me, results, module| {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
                 match item.val {
                     FuncItem(..) => me.visit_item(item),
