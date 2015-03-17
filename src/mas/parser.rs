@@ -112,7 +112,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
 
     /// "Peek" at the next token, returning the token, without consuming
     /// it from the stream.
-    fn peek<'a>(&'a mut self) -> &'a Token {
+    fn peek(&mut self) -> &Token {
         match self.tokens.peek() {
             Some(st) => &st.tok,
             None => panic!("Tried to peek past EOF"),
@@ -141,7 +141,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
         }
     }
 
-    fn error<'a, U: Str>(&self, message: U) -> ! {
+    fn error<U: Str>(&self, message: U) -> ! {
         panic!("\n{}\nat {}", message.as_slice(), self.last_span.get_begin())
     }
 

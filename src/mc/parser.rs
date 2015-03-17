@@ -301,7 +301,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
 
     /// "Peek" at the next token, returning the token, without consuming
     /// it from the stream.
-    fn peek<'a>(&'a mut self) -> &'a Token {
+    fn peek<'b>(&'b mut self) -> &'b Token {
         if self.next.is_none() {
             self.advance();
         }
@@ -341,7 +341,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         }
     }
 
-    fn error<'a, U: Str>(&self, message: U, pos: SourcePos) -> ! {
+    fn error<U: Str>(&self, message: U, pos: SourcePos) -> ! {
         let path = self.session.interner.name_to_str(&self.name);
 
         let s = format!("Parse error: {}\n    at {} {}\n",
@@ -352,7 +352,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
 
     /// A convenience function to generate an error message when we've
     /// peeked at a token, but it doesn't match any token we were expecting.
-    fn peek_error<'a, U: Str>(&mut self, message: U) -> ! {
+    fn peek_error<U: Str>(&mut self, message: U) -> ! {
         let tok = self.peek().clone();
         let pos = self.peek_span().get_begin();
         self.error(format!("{} (got token {})", message.as_slice(), tok), pos)

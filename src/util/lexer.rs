@@ -217,7 +217,7 @@ pub trait RuleMatcher<T> {
 
 // Simple string-prefix match
 impl<'a, T: MaybeArg> RuleMatcher<T> for &'a str {
-    fn find<'a>(&self, s: &'a str) -> Option<(uint, T)> {
+    fn find(&self, s: &str) -> Option<(uint, T)> {
         match s.starts_with(*self) {
             true => Some((self.len(), MaybeArg::maybe_arg(*self))),
             _ => None

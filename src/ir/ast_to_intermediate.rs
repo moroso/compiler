@@ -508,11 +508,11 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         ops
     }
 
-    pub fn binop_helper<'a>(&mut self, op: &'a ast::BinOp,
+    pub fn binop_helper<'c>(&mut self, op: &'c ast::BinOp,
                             var1: Var, mut var2: Var,
-                            e1ty: &'a Ty, e2ty: &'a Ty,
+                            e1ty: &'c Ty, e2ty: &'c Ty,
                             insts1: Vec<Op>, insts2: Vec<Op>,
-                            dest_ty: &'a Ty) -> (Vec<Op>, Var) {
+                            dest_ty: &'c Ty) -> (Vec<Op>, Var) {
         let mut insts = vec!();
         insts.extend(insts1.into_iter());
 
@@ -1564,8 +1564,8 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         (ops, ptr_var, ty_width(ty), ty_is_reference(ty))
     }
 
-    fn unwrap_group<'a>(&mut self,
-                        grp: &'a Expr) -> &'a Expr {
+    fn unwrap_group<'c>(&mut self,
+                        grp: &'c Expr) -> &'c Expr {
         let mut unwrapped = grp;
         loop {
             match unwrapped.val {
