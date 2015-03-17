@@ -137,7 +137,7 @@ impl<'a> ConstCollector<'a> {
         }
     }
 
-    fn get_order(&'a mut self, module: &'a Module) -> Vec<NodeId> {
+    fn get_order(&mut self, module: &Module) -> Vec<NodeId> {
         use util::graph::GraphExt;
 
         let ConstCollector {
