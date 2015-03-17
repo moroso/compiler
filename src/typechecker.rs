@@ -25,7 +25,7 @@ pub use self::TyBounds::*;
 use self::Kind::*;
 use self::ErrorCause::*;
 
-#[derive(Eq, PartialEq, Debug, Clone)]
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
 struct BoundsId(uint);
 
 allow_string!(BoundsId);
@@ -579,7 +579,7 @@ impl<'a> Typechecker<'a> {
         let mut errors = vec!();
         match self.current_cause {
             None => panic!("ICE: type_error without cause"),
-            Some((nid, cause)) => errors.push((nid, format!("{}: {}", cause, msg))),
+            Some((nid, ref cause)) => errors.push((nid, format!("{}: {}", cause, msg))),
         }
 
         errors.extend(notes.into_iter());
@@ -1217,11 +1217,11 @@ impl<'a> Typechecker<'a> {
         match bounds.val {
             Unconstrained => t1.val,
             Concrete(t2) => self.unify(t1, t2.with_id(idb)),
-            Constrained(ks) => {
+            Constrained(ref ks) => {
                 match t1.val {
                     BoundTy(bid) => {
                         let b1 = self.get_bounds(bid).with_id(idt);
-                        let bounds = self.merge_bounds(b1, bounds);
+                        let bounds = self.merge_bounds(b1, bounds.clone());
                         self.update_bounds(bid, bounds);
                         BoundTy(bid)
                     }
@@ -1256,7 +1256,7 @@ impl<'a> Typechecker<'a> {
                 UintTy(Width::Width32), //TODO PtrWidth
             (_, l_ty_val, r_ty_val) => {
                 let kinds = op_to_kind_set(op);
-                let bounds = Constrained(kinds);
+                let bounds = Constrained(kinds.clone());
 
                 let l_ty = WithId {
                     id: l_ty.id,
