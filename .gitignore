@@ -12,3 +12,5 @@
 /test/asm-bin/
 /test/asm-results/
 /tmp/
+/target/
+/Cargo.lock
