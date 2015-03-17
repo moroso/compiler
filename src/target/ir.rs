@@ -120,10 +120,10 @@ impl IRTarget {
         // If this is the case, it's an extern. We don't want to emit it.
         if ops.len() <= 1 { return String::from_str("") }
 
+        let opinfo = LivenessAnalyzer::unanalyzed_opinfo(ops);
         let mut s = "".to_string();
         let mut vars = BTreeSet::new();
         let mut labels: VecMap<BTreeMap<Name, uint>> = VecMap::new();
-        let opinfo = LivenessAnalyzer::unanalyzed_opinfo(ops);
         // Find all variables we need to declare. This is all variables
         // that are defined anywhere, except in the very first instruction
         // (which must be a function definition instruction).
