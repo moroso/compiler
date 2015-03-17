@@ -118,7 +118,7 @@ impl<'a> Session<'a> {
                 resolver: Resolver::new(),
                 parser: Parser::new(),
                 expander: MacroExpander::new(),
-                interner: *x,
+                interner: x.clone(),
             }
         })
     }
