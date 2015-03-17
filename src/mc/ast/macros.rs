@@ -79,7 +79,7 @@ fn expand_stringify(mut input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> V
     concat.extend(ts.into_iter().map(|t| format!("{}", t)));
 
     for ts in input.into_iter() {
-        concat.push(String::from_str(","));
+        concat.push(",".to_string());
         concat.extend(ts.into_iter().map(|t| format!("{}", t)));
     }
 

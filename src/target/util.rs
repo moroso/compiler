@@ -33,9 +33,9 @@ impl<'a> NameMangler<'a> {
         // avoid colliding with C.
         let mangled_name =
             if !self.mangle_main &&
-            pre_mangled_path == String::from_str("main") {
+            pre_mangled_path == "main".to_string() {
                 // ... except main, which we don't want to mangle!
-                String::from_str("main")
+                "main".to_string()
             } else {
                 format!("__{}", pre_mangled_path)
             };

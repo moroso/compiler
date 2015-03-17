@@ -605,7 +605,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
                     }
                     _ => {
                         if path.val.global || path.val.elems.len() != 1 {
-                            self.error(String::from_str("Expected ident, found path"), self.last_span.get_begin());
+                            self.error("Expected ident, found path".to_string(), self.last_span.get_begin());
                         }
                         let mut elems = path.val.elems;
                         let ident = elems.pop().unwrap();
@@ -1366,7 +1366,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
                 let (funcname, args, return_type, type_params) = self.parse_func_prototype();
                 self.expect(Token::Semicolon);
                 let end_span = self.cur_span();
-                let abi = self.session.interner.intern(abi.unwrap_or(String::from_str("C")));
+                let abi = self.session.interner.intern(abi.unwrap_or("C".to_string()));
                 self.add_id_and_span(FuncItem(funcname, args, return_type,
                                               ExternFn(abi), type_params),
                                      start_span.to(end_span))

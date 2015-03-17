@@ -142,7 +142,7 @@ impl<'a> CCrossCompiler<'a> {
                         delimiter: &str) -> String
         where F: FnMut(&CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
-            .filter(|x| *x != String::from_str("")).collect();
+            .filter(|x| *x != "".to_string()).collect();
         list.connect(format!("{}", delimiter).as_slice())
     }
 
@@ -151,7 +151,7 @@ impl<'a> CCrossCompiler<'a> {
                             delimiter: &str) -> String
         where F: FnMut(&mut CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
-            .filter(|x| *x != String::from_str("")).collect();
+            .filter(|x| *x != "".to_string()).collect();
         list.connect(delimiter)
     }
 
@@ -316,7 +316,7 @@ impl<'a> CCrossCompiler<'a> {
                         let block = self.visit_block(block, |e| {
                             match e {
                                 Some(e) => format!("return {};", e),
-                                None => String::from_str("return;"),
+                                None => "return;".to_string(),
                             }
                         });
 
@@ -400,7 +400,7 @@ impl<'a> CCrossCompiler<'a> {
                 };
                 if is_param {
                     // Treat all type parameters as void.
-                    String::from_str("void")
+                    "void".to_string()
                 } else if self.structnames.contains(&did) {
                     format!("struct {}", self.visit_mangled_path(path))
                 } else {
@@ -419,20 +419,20 @@ impl<'a> CCrossCompiler<'a> {
                                              "; ");
                 format!("struct {{ {} }}", fields)
             }
-            BoolType => String::from_str("int"),
-            UnitType => String::from_str("void"),
-            DivergingType => String::from_str("void"), // this probably is okay
+            BoolType => "int".to_string(),
+            UnitType => "void".to_string(),
+            DivergingType => "void".to_string(), // this probably is okay
             IntType(IntKind::UnsignedInt(w)) => format!("uint{}_t", w),
             IntType(IntKind::SignedInt(w)) => format!("int{}_t", w),
-            IntType(IntKind::GenericInt) => String::from_str("int"),
+            IntType(IntKind::GenericInt) => "int".to_string(),
         }
     }
 
     fn visit_ty(&self, t: &Ty) -> String {
         match *t {
-            BoolTy => String::from_str("int"),
-            UnitTy => String::from_str("void"),
-            GenericIntTy => String::from_str("int"),
+            BoolTy => "int".to_string(),
+            UnitTy => "void".to_string(),
+            GenericIntTy => "int".to_string(),
             IntTy(w) => format!("int{}_t", w),
             UintTy(w) => format!("uint{}_t", w),
             PtrTy(ref t) | ArrayTy(ref t, _) => {
@@ -448,7 +448,7 @@ impl<'a> CCrossCompiler<'a> {
             StructTy(did, _) => {
                 format!("struct {}", self.mangle_map.get(&did).unwrap())
             }
-            BottomTy => String::from_str("void"),
+            BottomTy => "void".to_string(),
             FuncTy(ref d, ref r) => {
                 let ty = self.visit_ty(&r.val);
                 let list = self.visit_list(d, |me, x| me.visit_ty(&x.val), ", ");
@@ -515,7 +515,7 @@ impl<'a> CCrossCompiler<'a> {
                 format!("(uint8_t*)\"{}\"", parts.concat())
             },
             BoolLit(ref b) => format!("{}", if *b { 1u8 } else { 0 }),
-            NullLit => String::from_str("NULL"),
+            NullLit => "NULL".to_string(),
         }
     }
 
@@ -539,7 +539,7 @@ impl<'a> CCrossCompiler<'a> {
 
     fn visit_expr(&mut self, expr: &Expr) -> String {
         match expr.val {
-            UnitExpr => String::from_str("({})"),
+            UnitExpr => "({})".to_string(),
             LitExpr(ref l) => self.visit_lit(l),
             SizeofExpr(ref t) => format!("sizeof({})", self.visit_type(t)),
             TupleExpr(..) => panic!("Tuples not yet supported."),
@@ -753,7 +753,7 @@ impl<'a> CCrossCompiler<'a> {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
                 match item.val {
                     TypeItem(..) => me.visit_item(item),
-                    _ => String::from_str(""),
+                    _ => "".to_string(),
                 }
             }, "\n"));
         });
@@ -763,7 +763,7 @@ impl<'a> CCrossCompiler<'a> {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
                 match item.val {
                     ConstItem(..) => me.visit_item(item),
-                    _ => String::from_str(""),
+                    _ => "".to_string(),
                 }
             }, "\n"));
         });
@@ -822,7 +822,7 @@ impl<'a> CCrossCompiler<'a> {
                 match item.val {
                     StructItem(..) |
                     EnumItem(..) => me.visit_item(item),
-                    _ => String::from_str(""),
+                    _ => "".to_string(),
                 }
             }, "\n"));
         });
@@ -832,7 +832,7 @@ impl<'a> CCrossCompiler<'a> {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
                 match item.val {
                     StaticItem(..) => me.visit_item(item),
-                    _ => String::from_str(""),
+                    _ => "".to_string(),
                 }
             }, "\n"));
         });
@@ -842,7 +842,7 @@ impl<'a> CCrossCompiler<'a> {
             results.push(me.mut_visit_list(&module.val.items, |me, item| {
                 match item.val {
                     FuncItem(..) => me.visit_item(item),
-                    _ => String::from_str(""),
+                    _ => "".to_string(),
                 }
             }, "\n"));
         });

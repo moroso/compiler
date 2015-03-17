@@ -118,7 +118,7 @@ impl IRTarget {
                         ops: &Vec<Op>,
                         global_map: &BTreeMap<Name, StaticIRItem>) -> String {
         // If this is the case, it's an extern. We don't want to emit it.
-        if ops.len() <= 1 { return String::from_str("") }
+        if ops.len() <= 1 { return "".to_string() }
 
         let opinfo = LivenessAnalyzer::unanalyzed_opinfo(ops);
         let mut s = "".to_string();
@@ -318,7 +318,7 @@ impl Target for IRTarget {
     fn new(args: Vec<String>) -> Box<IRTarget> {
         let mut verbose = false;
         for arg in args.iter() {
-            if *arg == String::from_str("verbose") {
+            if *arg == "verbose".to_string() {
                 print!("Enabling verbose mode.\n");
                 verbose = true;
             }

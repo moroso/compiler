@@ -47,7 +47,7 @@ pub fn setup_builtin_search_paths(opts: &mut Options) {
         None => {}, /* whatever? */
         Some(exe_path) => {
             let prelude_location = exe_path.join(Path::new("lib/prelude.mb"));
-            opts.search_paths.insert(String::from_str("prelude"), prelude_location);
+            opts.search_paths.insert("prelude".to_string(), prelude_location);
         }
     }
 }
@@ -112,12 +112,12 @@ pub fn main() {
 
     let verbose = matches.opt_present("verbose");
 
-    let target_arg = matches.opt_str("target").unwrap_or(String::from_str("null"));
+    let target_arg = matches.opt_str("target").unwrap_or("null".to_string());
     let target = match targets.into_iter()
                         .filter(|&(ref t, _)| t.eq_ignore_ascii_case(target_arg.as_slice()))
                         .map(|(_, ctor)| ctor(
                             if verbose {
-                                vec!(String::from_str("verbose"))
+                                vec!("verbose".to_string())
                             } else {
                                 vec!()
                             }))

@@ -61,7 +61,7 @@ pub fn main() {
     }
 
     let format_arg = matches.opt_str("fmt").unwrap_or(
-        String::from_str("internal"));
+        "internal".to_string());
 
     if format_arg.as_slice() == "internal" {
         print!("Moroso assembler.\n");

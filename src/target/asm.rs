@@ -51,7 +51,7 @@ impl Target for AsmTarget {
     fn new(args: Vec<String>) -> Box<AsmTarget> {
         let mut verbose = false;
         for arg in args.iter() {
-            if *arg == String::from_str("verbose") {
+            if *arg == "verbose".to_string() {
                 print!("Enabling verbose mode.\n");
                 verbose = true;
             }
