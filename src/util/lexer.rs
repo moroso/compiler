@@ -13,6 +13,8 @@ use std::str::StrExt;
 use std::old_io::IoResult;
 use std::old_io::stdio::StdinReader;
 
+use std::marker::PhantomData;
+
 /// A token together with a Span, to keep track of where in the source file
 /// it was.
 #[derive(Debug, Eq, PartialEq)]
@@ -24,9 +26,16 @@ pub struct SourceToken<T> {
 /// A single rule for the lexer. This includes a `matcher`, which matches
 /// a string in the input, and a `maker`, which generates the token from
 /// the matched string.
-pub struct LexerRule<T, U> {
+pub struct LexerRule<A, T, U> {
     pub matcher: T,
     pub maker: U,
+    type_A: PhantomData<A>,
+}
+
+impl<A, T, U> LexerRule<A, T, U> {
+    pub fn new(matcher: T, maker: U) -> LexerRule<A, T, U> {
+        LexerRule { matcher: matcher, maker: maker, type_A: PhantomData }
+    }
 }
 
 // Trait to make lexer_rules! forget the type parameters of LexerRule
@@ -41,9 +50,10 @@ pub trait LexerRuleT<T> {
 // a raw string as a rule to do a simple string-prefix match, a Regex to check
 // for a regex match, or optionally more complicated rules to e.g. use capture
 // groups from a Regex and construct a token from those.
-#[old_impl_check]
-impl<A, T: RuleMatcher<A>, U: TokenMaker<A, V>, V> LexerRuleT<V> for LexerRule<T, U> {
-    fn run(&self, s: &str) -> Option<(uint, V)> {
+impl<A, T: RuleMatcher<A>, U: TokenMaker<A, V>, V> LexerRuleT<V> for LexerRule<A, T, U> {
+    fn run(&self, s: &str) -> Option<(uint, V)>
+        where T: RuleMatcher<A>,
+              U: TokenMaker<A, V> {
         match self.matcher.find(s) {
             Some((len, args)) => Some((len, self.maker.mk_tok(args))),
             _ => None

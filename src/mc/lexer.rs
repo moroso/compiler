@@ -216,7 +216,7 @@ pub fn lexer_from_str(s: &str) -> Lexer<old_io::BufferedReader<old_io::MemReader
 macro_rules! matcher { ( $e:expr ) => ( regex!(concat!("^(?:", $e, ")"))) }
 macro_rules! lexer_rules {
     ( $( $c:expr => $m:expr ),*) => (
-        vec! ( $( box LexerRule { matcher: $m, maker: $c } as Box<LexerRuleT<Token>> ),* )
+        vec! ( $( box LexerRule::new($m, $c) as Box<LexerRuleT<Token>> ),* )
     )
 }
 

@@ -90,7 +90,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     macro_rules! lexer_rules {
         ( $( $c:expr => $m:expr ),*) => (
-            vec!( $( box LexerRule { matcher: $m, maker: $c } as Box<LexerRuleT<Token>> ),* )
+            vec!( $( box LexerRule::new($m, $c) as Box<LexerRuleT<Token>> ),* )
                 )
     }
     macro_rules! matcher { ( $e:expr ) => ( regex!(concat!("^(?:", $e, ")"))) }
