@@ -24,8 +24,8 @@ impl<'a> NameMangler<'a> {
     }
 
     fn mangle_id(&mut self, id: &Ident, item: &Item) {
-        let name = String::from_str(
-            self.session.interner.name_to_str(&id.val.name));
+        let name =
+            self.session.interner.name_to_str(&id.val.name).to_string();
         self.path.push(name.clone());
         let pre_mangled_path = self.path.connect("__");
         // We add "__" to the beginning of everything to make it
@@ -49,8 +49,7 @@ impl<'a> Visitor for NameMangler<'a> {
     fn visit_item(&mut self, item: &Item) {
         match item.val {
             ModItem(ref id, ref body) => {
-                let name = String::from_str(
-                    self.session.interner.name_to_str(&id.val.name));
+                let name = self.session.interner.name_to_str(&id.val.name).to_string();
                 self.path.push(name);
                 self.visit_module(body);
                 self.path.pop();
@@ -68,8 +67,7 @@ impl<'a> Visitor for NameMangler<'a> {
                 if self.mangle_externs {
                     self.mangle_id(id, item);
                 } else {
-                    let name = String::from_str(
-                        self.session.interner.name_to_str(&id.val.name));
+                    let name = self.session.interner.name_to_str(&id.val.name).to_string();
                     self.names.insert(id.id, name);
                 }
             },

@@ -38,8 +38,7 @@ pub struct PathMapVisitor<'a> {
 impl<'a> PathMapVisitor<'a> {
 
     fn insert(&mut self, id: &Ident, item: &Item) {
-        let name = String::from_str(
-            self.session.interner.name_to_str(&id.val.name));
+        let name = self.session.interner.name_to_str(&id.val.name).to_string();
 
         let mut path = self.path.clone();
         path.push(name.clone());
@@ -55,8 +54,7 @@ impl<'a> Visitor for PathMapVisitor<'a> {
             ModItem(ref id, ref body) => {
                 self.insert(id, item);
 
-                let name = String::from_str(
-                    self.session.interner.name_to_str(&id.val.name));
+                let name = self.session.interner.name_to_str(&id.val.name).to_string();
                 self.path.push(name);
                 self.visit_module(body);
                 self.path.pop();

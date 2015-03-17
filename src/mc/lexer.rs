@@ -299,7 +299,7 @@ impl RuleMatcher<String> for IdentBangRule {
         match matcher.captures(s) {
            Some(groups) => {
                 let t = groups.at(0).unwrap();
-                Some((t.len(), String::from_str(groups.at(1).unwrap())))
+                Some((t.len(), groups.at(1).unwrap().to_string()))
            },
             _ => None
         }
@@ -515,7 +515,7 @@ mod tests {
                     RParen,
                     Plus,
                     NumberTok(1, GenericInt),
-                    StringTok(String::from_str(r#"Hello" World"#)),
+                    StringTok(r#"Hello" World"#).to_string(),
                 }.as_slice());
 
         let lexer2 = lexer_from_str("let x: int = 5;");

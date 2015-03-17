@@ -1571,7 +1571,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
                             // Search path does *not* use the current relative path.
                             // It is based on the invocation location.
                             // (And may well be absolute, even!)
-                            match self.session.options.search_paths.get(&String::from_str(name)) {
+                            match self.session.options.search_paths.get(&name.to_string()) {
                                 Some(path) => path.clone(),
                                 None =>
                                     self.error(format!("no such module: neither {} nor {} exist.",

@@ -60,7 +60,7 @@ fn parse_search_paths(opts: &mut Options, matches: &getopts::Matches) -> bool {
             [ module, file ] => (module, file),
             _ => { return false; }
         };
-        opts.search_paths.insert(String::from_str(module), Path::new(file));
+        opts.search_paths.insert(module.to_string(), Path::new(file));
     }
 
     true

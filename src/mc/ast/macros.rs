@@ -218,7 +218,7 @@ impl<'a> MacroExpander<'a> {
 
         for &(s, e) in builtin_macros.iter() {
             interner.with(|x| {
-                let name = x.intern(String::from_str(s));
+                let name = x.intern(s.to_string());
                 macros.insert(name, Box::new(ExpanderFn(e)) as Box<Expander>);
             })
         }

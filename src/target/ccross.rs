@@ -174,12 +174,12 @@ impl<'a> CCrossCompiler<'a> {
     }
 
     fn visit_name_and_type(&mut self, name: Name, t: &Type) -> String {
-        let name = String::from_str(self.session.interner.name_to_str(&name));
+        let name = self.session.interner.name_to_str(&name).to_string();
         self.visit_string_and_type(name, t)
     }
 
     fn visit_name_and_ty(&self, name: Name, t: &Ty) -> String {
-        let name = String::from_str(self.session.interner.name_to_str(&name));
+        let name = self.session.interner.name_to_str(&name).to_string();
         self.visit_string_and_ty(name, t)
     }
 
@@ -472,9 +472,8 @@ impl<'a> CCrossCompiler<'a> {
             None => {
                 let last_component: Vec<String> = path.val.elems.iter()
                     .map(|elem|
-                         String::from_str(
-                             self.session.interner.name_to_str(&elem.val.name)
-                                 )).collect();
+                         self.session.interner.name_to_str(&elem.val.name).to_string())
+                    .collect();
                 last_component.connect("_")
             },
         }
@@ -487,8 +486,7 @@ impl<'a> CCrossCompiler<'a> {
     fn visit_ident(&mut self, ident: &Ident) -> String {
         match self.mangle_map.get(&ident.id) {
             Some(n) => n.clone(),
-            _ => String::from_str(self.session.interner.name_to_str(
-                &ident.val.name))
+            _ => self.session.interner.name_to_str(&ident.val.name).to_string()
         }
     }
 

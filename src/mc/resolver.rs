@@ -234,9 +234,8 @@ impl<'a> ModuleResolver<'a> {
 
     fn fail_resolve(&mut self, id: NodeId, path: &[Ident]) -> ! {
         let elems: Vec<String> =
-            path.iter().map(|e|
-                       String::from_str(
-                           self.session.interner.name_to_str(&e.val.name))).collect();
+            path.iter().map(|e| self.session.interner.name_to_str(&e.val.name).to_string())
+            .collect();
         self.session.error(id,
                            format!("Unresolved name `{}`", elems.connect("::")));
     }
