@@ -138,18 +138,18 @@ impl<'a> CCrossCompiler<'a> {
     }
 
     fn visit_list<T, F>(&self, list: &Vec<T>,
-                        visit: F,
+                        mut visit: F,
                         delimiter: &str) -> String
-        where F: Fn(&CCrossCompiler, &T) -> String {
+        where F: FnMut(&CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
             .filter(|x| *x != String::from_str("")).collect();
         list.connect(format!("{}", delimiter).as_slice())
     }
 
     fn mut_visit_list<T, F>(&mut self, list: &Vec<T>,
-                            visit: F,
+                            mut visit: F,
                             delimiter: &str) -> String
-        where F: Fn(&mut CCrossCompiler, &T) -> String {
+        where F: FnMut(&mut CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
             .filter(|x| *x != String::from_str("")).collect();
         list.connect(delimiter)

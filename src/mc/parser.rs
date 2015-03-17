@@ -1504,8 +1504,8 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn parse_items_until<U, F>(&mut self, end: Token,
-                               unmatched: F) -> Vec<Item>
-        where F: Fn(&mut StreamParser<'a, T>) -> U {
+                               mut unmatched: F) -> Vec<Item>
+        where F: FnMut(&mut StreamParser<'a, T>) -> U {
         let mut items = vec!();
         let mut use_items = vec!();
         let mut count = 0;
