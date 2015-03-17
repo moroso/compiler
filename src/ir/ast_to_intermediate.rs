@@ -731,7 +731,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 //     and width are passed into it.
                 let (binop_var, binop_insts, lhs_var, width,
                      finalize): (Var, Vec<Op>, Var, Width,
-                                 &Fn(Var, Var, Width) -> Op) = match unwrapped.val {
+                                 Box<Fn(Var, Var, Width) -> Op>) = match unwrapped.val {
                     PathExpr(ref path) => {
                         let lhs_var = Var {
                             name: self.mangled_path(path),
@@ -741,7 +741,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                          vec!(),
                          lhs_var,
                          AnyWidth,
-                         &|lv, v, _| Op::UnOp(lv, Identity, Variable(v)))
+                         box |lv, v, _| Op::UnOp(lv, Identity, Variable(v)))
                     },
                     UnOpExpr(ref lhs_op, ref e) => {
                         let ty = match *self.lookup_ty(e.id) {
@@ -765,7 +765,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                       ),
                                  var.clone(),
                                  width,
-                                 &|lv, v, w| Op::Store(lv, v, w))
+                                 box |lv, v, w| Op::Store(lv, v, w))
                             },
                             _ => panic!(),
                         }
@@ -794,7 +794,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                          },
                          added_addr_var,
                          width,
-                         &|lv, v, w| Op::Store(lv, v, w))
+                         box |lv, v, w| Op::Store(lv, v, w))
                     },
                     IndexExpr(ref arr, ref idx) => {
                         let ty = (*self.lookup_ty(e1.id))
@@ -817,7 +817,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                          },
                          ptr_var,
                          width,
-                         &|lv, v, w| Op::Store(lv, v, w))
+                         box |lv, v, w| Op::Store(lv, v, w))
                     }
                     _ => panic!("Got {}", e1.val),
                 };
