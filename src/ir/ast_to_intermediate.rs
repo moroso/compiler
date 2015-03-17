@@ -16,10 +16,10 @@ use typechecker::*;
 use std::mem::swap;
 use std::cmp::max;
 
-pub struct ASTToIntermediate<'a> {
+pub struct ASTToIntermediate<'a, 'b: 'a> {
     var_count: uint,
     label_count: uint,
-    session: &'a mut Session<'a>,
+    session: &'a mut Session<'b>,
     typemap: &'a mut Typemap,
     manglemap: &'a BTreeMap<NodeId, String>,
     continue_labels: Vec<uint>,
@@ -68,11 +68,11 @@ fn adjust_constant(c: &LitNode) -> LitNode {
     }
 }
 
-impl<'a> ASTToIntermediate<'a> {
-    pub fn new(session: &'a mut Session<'a>,
-               typemap: &'a mut Typemap,
-               manglemap: &'a BTreeMap<NodeId, String>
-               ) -> ASTToIntermediate<'a> {
+impl<'a, 'b> ASTToIntermediate<'a, 'b> {
+    pub fn new<'c,'d>(session: &'c mut Session<'d>,
+                      typemap: &'c mut Typemap,
+                      manglemap: &'c BTreeMap<NodeId, String>
+                      ) -> ASTToIntermediate<'c,'d> {
         ASTToIntermediate { var_count: 0,
                             label_count: 0,
                             session: session,
