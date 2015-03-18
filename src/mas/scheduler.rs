@@ -253,7 +253,7 @@ pub fn schedule_dummy(insts: &Vec<InstNode>,
         }
     }
 
-    for i in range(0, insts.len()) {
+    for i in 0 .. insts.len() {
         match insts[i] {
             LongInst(..) => continue,
             _ => {},
@@ -327,14 +327,14 @@ pub fn schedule(insts: &Vec<InstNode>,
         // Start by building the instruction DAG.
         let mut edges: BTreeSet<(uint, uint)> = BTreeSet::new();
         let mut all: BTreeSet<uint> =
-            FromIterator::from_iter(range(start, end));
+            FromIterator::from_iter(start .. end);
         let mut this_packet: [InstNode; 4] =
             [NopInst, NopInst, NopInst, NopInst];
         let mut packet_added = false;
-        for idx in range(start, end) {
+        for idx in start .. end {
             let inst = &insts[idx];
 
-            for prev_idx in range(start, idx) {
+            for prev_idx in start .. idx {
                 let prev_inst = &insts[prev_idx];
                 if !commutes(prev_inst, inst) {
                     edges.insert((prev_idx, idx));
@@ -380,7 +380,7 @@ pub fn schedule(insts: &Vec<InstNode>,
                             // Usually we just have to move one instruction
                             // into the packet, but for instructions expecting
                             // a long we have to move two.
-                            for offs in range(0, if is_long { 2 } else { 1 }) {
+                            for offs in 0 .. if is_long { 2 } else { 1 } {
                                 let inst = &insts[*leaf+offs];
                                 all.remove(&(*leaf+offs));
                                 update_labels(&jump_target_dict,

@@ -9,10 +9,10 @@ pub fn pack_int(n: u32, width: u8) -> Option<(u32, u8)> {
         (n << (amt as uint)) | (n >> (32 - (amt as uint)))
     }
 
-    for i in range(0u8, 16u8) {
+    for i in 0u8 .. 16u8 {
         let new_n = rol(n, 2*i);
         let mut max_bit: u8 = 0;
-        for j in range(0u8, 32u8) {
+        for j in 0u8 .. 32u8 {
             if new_n & (1 << (j as uint)) != 0 { max_bit = j }
         }
         if max_bit < width {

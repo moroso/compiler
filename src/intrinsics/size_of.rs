@@ -39,7 +39,7 @@ pub fn offset_of_struct_field(session: &Session,
             let names_and_sizes = struct_field_sizes(session, typemap, fields);
             let (names, sizes): (Vec<Name>, Vec<u64>) = IteratorExt::unzip(names_and_sizes.into_iter());
 
-            for i in range(0, sizes.len())
+            for i in 0 .. sizes.len()
             {
                 if names[i] == *field {
                     return offset_of(&sizes, i);
@@ -219,7 +219,7 @@ mod tests {
     // Asserts that the `expected` vector describes the offsets for the items
     // whose sizes are in `sizes`.
     fn test_offset_helper(sizes: &Vec<u64>, expected: &Vec<u64>) {
-        for i in range(0, sizes.len()) {
+        for i in 0 .. sizes.len() {
             assert_eq!(offset_of(sizes, i), *expected.get(i));
         }
     }

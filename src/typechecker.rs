@@ -1542,7 +1542,7 @@ impl<'a> Visitor for Typechecker<'a> {
 
                     let mut ty = me.type_to_ty(t).val;
                     let diverges = ty == BottomTy;
-                    for i in range(0, me.exits.len()).rev() {
+                    for i in (0 .. me.exits.len()).rev() {
                         let exit_ty = me.exits.swap_remove(i);
                         ty = me.unify_with_cause(item.id, InvalidReturn, ty.with_id_of(item), exit_ty);
                     }

@@ -1193,7 +1193,7 @@ impl IrToAsm {
                     // saving to do.
                     // The "max" here is because we never want to save/restore
                     // r0.
-                    for i in range(0, reg_list.len()) {
+                    for i in 0 .. reg_list.len() {
                         result.push(
                             InstNode::store(
                                 TRUE_PRED,
@@ -1286,7 +1286,7 @@ impl IrToAsm {
                             offs_shift)
                         );
 
-                    for i in range(0, reg_list.len()) {
+                    for i in 0 .. reg_list.len() {
                         result.push(
                             InstNode::load(
                                 TRUE_PRED,

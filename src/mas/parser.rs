@@ -759,7 +759,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
         let mut insts: InstPacket = [NopInst, NopInst, NopInst, NopInst];
 
         self.expect(Token::LBrace);
-        for i in range(0u, 4u) {
+        for i in 0u .. 4u {
             match *self.peek() {
                 Token::RBrace => {
                     self.eat();

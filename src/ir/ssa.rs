@@ -51,7 +51,7 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
 
     let mut label_vars = VecMap::new();
     let len = ops.len();
-    for i in range(0, len) {
+    for i in 0 .. len {
         match ops.get_mut(i) {
             Some(&mut Op::Label(ref label, ref mut vars)) => {
                 let ref live_vars = opinfo[i].live;
