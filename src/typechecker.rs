@@ -584,7 +584,7 @@ impl<'a> Typechecker<'a> {
 
         errors.extend(notes.into_iter());
 
-        self.session.errors_fatal(errors.as_slice())
+        self.session.errors_fatal(&errors[..])
     }
 
     pub fn type_error(&self, msg: String) -> ! {

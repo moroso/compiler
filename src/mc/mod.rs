@@ -57,7 +57,7 @@ fn parse_search_paths(opts: &mut Options, matches: &getopts::Matches) -> bool {
     // Pull libraries out of the command line
     for string in matches.opt_strs("lib").into_iter() {
         let parts: Vec<&str> = string.split(":").collect();
-        let (module, file) = match parts.as_slice() {
+        let (module, file) = match &parts[..] {
             [ module, file ] => (module, file),
             _ => { return false; }
         };
@@ -90,7 +90,7 @@ pub fn main() {
         }
 
         let brief = format!("Usage: {} [OPTIONS]", arg0);
-        println!("{}", getopts::usage(brief.as_slice(), &opts));
+        println!("{}", getopts::usage(&brief[..], &opts));
     };
 
     let matches = match getopts(args.tail(), &opts) {

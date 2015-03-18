@@ -128,7 +128,7 @@ impl<'a, B: BufReader, T: Eq> Iterator for Lexer<'a, B, T> {
         loop {
             match self.line {
                 Some(ref line) => {
-                    let line = line.as_slice();
+                    let line = &line[..];
                     while self.pos.col < line.len() {
                         // We apply each rule. Of the ones that match, we take
                         // the longest match.
@@ -141,7 +141,7 @@ impl<'a, B: BufReader, T: Eq> Iterator for Lexer<'a, B, T> {
                         };
 
                         for rule in rules.iter() {
-                            let m = rule.run(line.slice_from(self.pos.col));
+                            let m = rule.run(&line[self.pos.col..]);
                             match m {
                                 Some((len, tok)) => {
                                     if len > longest {
@@ -160,7 +160,7 @@ impl<'a, B: BufReader, T: Eq> Iterator for Lexer<'a, B, T> {
 
                         match best {
                             None => panic!("Unexpected input at {} ({} line {} col {})",
-                                          line.slice_from(self.pos.col),
+                                          &line[self.pos.col..],
                                           self.name,
                                           self.pos.row + 1,
                                           self.pos.col,
@@ -230,7 +230,7 @@ impl<T: MaybeArg> RuleMatcher<T> for Regex {
     fn find<'a>(&self, s: &'a str) -> Option<(uint, T)> {
         match self.find(s) {
             Some((_, end)) => {
-                let t = s.slice(0, end);
+                let t = &s[..end];
                 Some((t.len(), MaybeArg::maybe_arg(t)))
             },
             _ => None
