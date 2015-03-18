@@ -452,7 +452,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         match name_opt {
             Some(ref n) => self.session.interner.intern((*n).clone()),
             None => path.val.elems.last().expect(
-                format!("Empty path: {}", path).as_slice()
+                &format!("Empty path: {}", path)[..]
                     ).val.name
         }
     }
@@ -670,7 +670,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 // We do this to avoid borrowing self.
                 let def = {
                     let d = self.session.defmap.find(&defid).expect(
-                        format!("Unable to find defid {}", defid).as_slice());
+                        &format!("Unable to find defid {}", defid)[..]);
                     (*d).clone()
                 };
                 match def {
@@ -1002,7 +1002,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
                                 insts.extend(ops.into_iter());
 
-                                for i in range(0, vars.len()) {
+                                for i in 0 .. vars.len() {
                                     let var = vars[i];
                                     let width = &widths[i];
                                     let (expr_insts, expr_var) =

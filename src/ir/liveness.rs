@@ -22,7 +22,7 @@ fn seed_rve(opinfo: &mut OpInfo, rve: &RValueElem) {
 fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
     let len = ops.len();
 
-    for u in range(0, len) {
+    for u in 0..len {
         let opinfo = opinfo.get_mut(u).unwrap();
         match ops[u] {
             Op::BinOp(ref lv, _, ref rve1, ref rve2, _) => {
@@ -90,7 +90,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                 }
             },
             Op::Goto(ref l, ref vars) => {
-                for u2 in range(0, len) {
+                for u2 in 0..len {
                     match ops[u2] {
                         Op::Label(l2, _) if *l == l2 => {
                             opinfo.succ.insert(u2);
@@ -105,7 +105,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
             },
             // TODO: get rid of redundant code.
             Op::CondGoto(_, ref rve, ref l, ref vars) => {
-                for u2 in range(0, len) {
+                for u2 in 0..len {
                     match ops[u2] {
                         Op::Label(l2, _) if *l == l2 => {
                             opinfo.succ.insert(u2);
@@ -146,7 +146,7 @@ fn propagate_once(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) -> bool {
     let mut modified = false;
     let len = ops.len();
 
-    for u in range(0, len) {
+    for u in 0..len {
         // Making this dummy structure is sort of unfortunate.
         // There are ways around it, but it is better than the old
         // clone!

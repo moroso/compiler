@@ -48,12 +48,12 @@ pub fn main() {
         }
 
         let brief = format!("Usage: {} [OPTIONS]", arg0);
-        println!("{}", getopts::usage(brief.as_slice(), &opts));
+        println!("{}", getopts::usage(&brief[..], &opts));
     };
 
     let matches = match getopts(args.tail(), &opts) {
         Ok(m) => m,
-        Err(e) => return bail(Some(format!("{}", e).as_slice())),
+        Err(e) => return bail(Some(&format!("{}", e)[..])),
     };
 
     if matches.opt_present("help") {
