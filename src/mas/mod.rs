@@ -1,5 +1,5 @@
 use std::old_io::stdio;
-use std::os;
+use std::env;
 
 use self::lexer::{Token, new_asm_lexer};
 use self::parser::AsmParser;
@@ -20,7 +20,7 @@ pub mod scheduler;
 
 fn print_bin<T: Writer>(n: u32, stream: &mut T) {
     // Write in little-endian format.
-    (stream.write(vec!(
+    (stream.write_all(vec!(
         (n >>  0) as u8,
         (n >>  8) as u8,
         (n >> 16) as u8,
@@ -30,7 +30,7 @@ fn print_bin<T: Writer>(n: u32, stream: &mut T) {
 
 pub fn main() {
     // TODO: option parsing.
-    let args = os::args();
+    let args: Vec<String> = env::args().collect();
     let arg0 = &args[0];
 
     let opts = [
@@ -41,7 +41,7 @@ pub fn main() {
     let bail = |error: Option<&str>| {
         match error {
             Some(e) => {
-                os::set_exit_status(1);
+                env::set_exit_status(1);
                 println!("{}: fatal error: {}", arg0, e);
             }
             None => {}

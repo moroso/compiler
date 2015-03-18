@@ -10,6 +10,7 @@ use std::old_io::{BufferedReader, File, Writer, stdio};
 use std::ascii::AsciiExt;
 
 use std::os;
+use std::env;
 
 pub mod lexer;
 pub mod parser;
@@ -55,7 +56,7 @@ pub fn setup_builtin_search_paths(opts: &mut Options) {
 fn parse_search_paths(opts: &mut Options, matches: &getopts::Matches) -> bool {
     // Pull libraries out of the command line
     for string in matches.opt_strs("lib").into_iter() {
-        let parts: Vec<&str> = string.as_slice().split_str(":").collect();
+        let parts: Vec<&str> = string.split(":").collect();
         let (module, file) = match parts.as_slice() {
             [ module, file ] => (module, file),
             _ => { return false; }
@@ -67,7 +68,7 @@ fn parse_search_paths(opts: &mut Options, matches: &getopts::Matches) -> bool {
 }
 
 pub fn main() {
-    let args = os::args();
+    let args: Vec<String> = env::args().collect();
     let arg0 = &args[0];
 
     let opts = [
@@ -82,7 +83,7 @@ pub fn main() {
     let bail = |error: Option<&str>| {
         match error {
             Some(e) => {
-                os::set_exit_status(1);
+                env::set_exit_status(1);
                 println!("{}: fatal error: {}", arg0, e);
             }
             None => {}

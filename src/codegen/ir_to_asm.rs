@@ -938,7 +938,7 @@ impl IrToAsm {
                     // Save the return address, offset by one packet size.
                     if has_call {
                         result.push(
-                            InstNode::store(true_pred,
+                            InstNode::store(TRUE_PRED,
                                             store32_op,
                                             stack_pointer,
                                             0,
@@ -952,7 +952,7 @@ impl IrToAsm {
                     for (x, i) in range_inclusive(first_callee_saved_reg.index,
                                                   max_reg_index).enumerate() {
                         result.push(
-                            InstNode::store(true_pred,
+                            InstNode::store(TRUE_PRED,
                                             store32_op,
                                             stack_pointer,
                                             (stack_item_offs as uint +
@@ -974,7 +974,7 @@ impl IrToAsm {
                     for (x, i) in range_inclusive(first_callee_saved_reg.index,
                                                   max_reg_index).enumerate() {
                         result.push(
-                            InstNode::load(true_pred,
+                            InstNode::load(TRUE_PRED,
                                            load32_op,
                                            Reg { index: i },
                                            stack_pointer,
@@ -986,7 +986,7 @@ impl IrToAsm {
                     // Restore link register
                     if has_call {
                         result.push(
-                            InstNode::load(true_pred,
+                            InstNode::load(TRUE_PRED,
                                            load32_op,
                                            link_register,
                                            stack_pointer,
@@ -994,7 +994,7 @@ impl IrToAsm {
                     }
                     // Return
                     result.push(
-                        InstNode::branchreg(true_pred,
+                        InstNode::branchreg(TRUE_PRED,
                                             false,
                                             link_register,
                                             1));
@@ -1037,13 +1037,13 @@ impl IrToAsm {
                                         width: width_to_lsuwidth(width) };
                     result.push(
                         if store {
-                            InstNode::store(true_pred,
+                            InstNode::store(TRUE_PRED,
                                             lsuop,
                                             reg1,
                                             0,
                                             reg2)
                         } else {
-                            InstNode::load(true_pred,
+                            InstNode::load(TRUE_PRED,
                                            lsuop,
                                            reg1,
                                            reg2,
@@ -1058,7 +1058,7 @@ impl IrToAsm {
                     result.extend(before.into_iter());
                     result.push(
                         InstNode::compareshort(
-                            true_pred,
+                            TRUE_PRED,
                             Pred { inverted: false,
                                    reg: 0 },
                             reg,
@@ -1079,7 +1079,7 @@ impl IrToAsm {
                 },
                 Op::Goto(ref label, ref vars) => {
                     result.extend(assign_vars(&regmap, global_map,
-                                                     &true_pred,
+                                                     &TRUE_PRED,
                                                      &labels[*label],
                                                      vars, stack_item_offs).into_iter());
                     // Don't emit redundant jumps.
@@ -1089,7 +1089,7 @@ impl IrToAsm {
                         _ =>
                             result.push(
                                 InstNode::branchimm(
-                                    true_pred,
+                                    TRUE_PRED,
                                     false,
                                     JumpLabel(format!("LABEL{}", label))))
                     }
@@ -1109,7 +1109,7 @@ impl IrToAsm {
                                                              stack_item_offs);
                             result.push(
                                 InstNode::alu2short(
-                                    true_pred,
+                                    TRUE_PRED,
                                     AddAluOp,
                                     reg,
                                     stack_pointer,
@@ -1196,7 +1196,7 @@ impl IrToAsm {
                     for i in range(0, reg_list.len()) {
                         result.push(
                             InstNode::store(
-                                true_pred,
+                                TRUE_PRED,
                                 store32_op,
                                 stack_pointer,
                                 (stack_arg_offs + i as int * 4) as i32,
@@ -1221,7 +1221,7 @@ impl IrToAsm {
                         result.extend(before.into_iter());
                         result.push(
                             InstNode::store(
-                                true_pred,
+                                TRUE_PRED,
                                 store32_op,
                                 stack_pointer,
                                 (stack_arg_offs + i as int * 4) as i32,
@@ -1255,7 +1255,7 @@ impl IrToAsm {
 
                     result.push(
                         InstNode::alu2short(
-                            true_pred,
+                            TRUE_PRED,
                             AddAluOp,
                             stack_pointer,
                             stack_pointer,
@@ -1265,20 +1265,20 @@ impl IrToAsm {
                         Some((reg, before)) => {
                             result.extend(before.into_iter());
                             result.push(InstNode::branchreg(
-                                true_pred,
+                                TRUE_PRED,
                                 true,
                                 reg, 0));
                         },
                         None => {
                             result.push(InstNode::branchimm(
-                                true_pred,
+                                TRUE_PRED,
                                 true,
                                 JumpLabel(format!("{}", func_var.name))));
                         }
                     }
                     result.push(
                         InstNode::alu2short(
-                            true_pred,
+                            TRUE_PRED,
                             SubAluOp,
                             stack_pointer,
                             stack_pointer,
@@ -1289,7 +1289,7 @@ impl IrToAsm {
                     for i in range(0, reg_list.len()) {
                         result.push(
                             InstNode::load(
-                                true_pred,
+                                TRUE_PRED,
                                 load32_op,
                                 reg_list[i],
                                 stack_pointer,

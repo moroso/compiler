@@ -189,7 +189,7 @@ impl<'a> ModuleResolver<'a> {
         let mut search_scope = if global {
             slice::ref_slice(&self.scope[0])
         } else {
-            self.scope.slice_from(self.root)
+            &self.scope[self.root..]
         };
 
         for elem in path.iter() {

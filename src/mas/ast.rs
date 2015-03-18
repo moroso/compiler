@@ -21,13 +21,13 @@ pub use self::LongValue::*;
 pub use self::InstNode::*;
 
 // A predicate that is always true.
-pub static true_pred: Pred = Pred {
+pub static TRUE_PRED: Pred = Pred {
     inverted: false,
     reg: 3,
 };
 
 // The link register.
-pub static link_reg: Reg = Reg {
+pub static LINK_REG: Reg = Reg {
     index: 31,
 };
 

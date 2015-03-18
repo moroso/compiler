@@ -5,7 +5,7 @@ use mas::ast::*;
 use mas::util::{pack_int, fits_in_bits};
 use util::lexer::{Lexer, SourceToken, BufReader};
 use std::iter::Peekable;
-use std::num::from_int;
+use std::num::FromPrimitive;
 use span::{SourcePos, Span, mk_sp};
 use std::collections::BTreeMap;
 
@@ -176,7 +176,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
         let tok = self.eat();
         match tok {
             // Bare register.
-            Token::Reg(reg) => (reg, from_int(0).unwrap(), Ok(0)),
+            Token::Reg(reg) => (reg, FromPrimitive::from_isize(0).unwrap(), Ok(0)),
 
             // Something parenthesized.
             Token::LParen => {
@@ -189,7 +189,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
                 match inner_tok {
                     // There's just the one register, that for some reason
                     // is in parentheses.
-                    Token::RParen => (reg, from_int(0).unwrap(), Ok(0)),
+                    Token::RParen => (reg, FromPrimitive::from_isize(0).unwrap(), Ok(0)),
 
                     // There's a shift.
                     Token::Shift(shifttype) => {
@@ -257,7 +257,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
                     o,
                     rd,
                     reg,
-                    from_int(0).unwrap(),
+                    FromPrimitive::from_isize(0).unwrap(),
                     0)
             },
             // No op was given before this, so the instruction so far looks
@@ -343,7 +343,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
                                     MovAluOp,
                                     rd,
                                     reg,
-                                    from_int(0).unwrap(),
+                                    FromPrimitive::from_isize(0).unwrap(),
                                     0)
                             }
                         }
@@ -714,29 +714,29 @@ impl<'a, T: Reader> AsmParser<'a, T> {
         match cur_tok {
             Token::Reg(reg) => {
                 self.expect(Token::Gets);
-                self.parse_op_or_expr(pred.unwrap_or(true_pred), reg.clone())
+                self.parse_op_or_expr(pred.unwrap_or(TRUE_PRED), reg.clone())
             },
             Token::PredReg(destpred) => {
                 self.expect(Token::Gets);
-                self.parse_conditional(pred.unwrap_or(true_pred), destpred)
+                self.parse_conditional(pred.unwrap_or(TRUE_PRED), destpred)
             },
             Token::LoadStore(width) =>
-                self.parse_store(pred.unwrap_or(true_pred), width),
-            Token::B => self.parse_branch(pred.unwrap_or(true_pred), false),
-            Token::Bl => self.parse_branch(pred.unwrap_or(true_pred), true),
+                self.parse_store(pred.unwrap_or(TRUE_PRED), width),
+            Token::B => self.parse_branch(pred.unwrap_or(TRUE_PRED), false),
+            Token::Bl => self.parse_branch(pred.unwrap_or(TRUE_PRED), true),
             Token::Break => self.parse_break_or_syscall(
-                pred.unwrap_or(true_pred),
+                pred.unwrap_or(TRUE_PRED),
                 InstNode::breaknum),
             Token::Syscall => self.parse_break_or_syscall(
-                pred.unwrap_or(true_pred),
+                pred.unwrap_or(TRUE_PRED),
                 InstNode::syscall),
-            Token::CoReg(cr) => self.parse_mtc(pred.unwrap_or(true_pred), cr),
-            Token::Eret => InstNode::eret(pred.unwrap_or(true_pred)),
-            Token::Fence => InstNode::fence(pred.unwrap_or(true_pred)),
+            Token::CoReg(cr) => self.parse_mtc(pred.unwrap_or(TRUE_PRED), cr),
+            Token::Eret => InstNode::eret(pred.unwrap_or(TRUE_PRED)),
+            Token::Fence => InstNode::fence(pred.unwrap_or(TRUE_PRED)),
             Token::Flush(flushtype) => self.parse_flush(
-                pred.unwrap_or(true_pred),
+                pred.unwrap_or(TRUE_PRED),
                 flushtype),
-            Token::Ovf => self.parse_mthi(pred.unwrap_or(true_pred)),
+            Token::Ovf => self.parse_mthi(pred.unwrap_or(TRUE_PRED)),
             Token::Nop => {
                 if pred != None {
                     self.error("Cannot have a predicate for a nop.");
