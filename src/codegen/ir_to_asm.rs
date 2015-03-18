@@ -10,7 +10,7 @@ use mc::session::Session;
 use util::{Width, Name};
 use std::mem::swap;
 use std::collections::{BTreeMap, BTreeSet, VecMap};
-use std::iter::{range_inclusive, FromIterator};
+use std::iter::FromIterator;
 use std::cmp::max;
 
 pub struct IrToAsm;
@@ -203,7 +203,7 @@ fn convert_binop<'a>(
                                     },
                                     reg_r
                                     )),
-                        _ => 
+                        _ =>
                             result.push(
                                 InstNode::alu2reg(
                                     Pred { inverted: false,
@@ -949,8 +949,7 @@ impl IrToAsm {
                     }
 
                     // Save all callee-save registers
-                    for (x, i) in range_inclusive(first_callee_saved_reg.index,
-                                                  max_reg_index).enumerate() {
+                    for (x, i) in (first_callee_saved_reg.index .. max_reg_index+1).enumerate() {
                         result.push(
                             InstNode::store(TRUE_PRED,
                                             store32_op,
@@ -971,8 +970,7 @@ impl IrToAsm {
                                      session, strings).into_iter());
 
                     // Restore all callee-save registers
-                    for (x, i) in range_inclusive(first_callee_saved_reg.index,
-                                                  max_reg_index).enumerate() {
+                    for (x, i) in (first_callee_saved_reg.index .. max_reg_index+1).enumerate() {
                         result.push(
                             InstNode::load(TRUE_PRED,
                                            load32_op,
@@ -1212,8 +1210,7 @@ impl IrToAsm {
                     // passing any registers on the stack. If we're passing
                     // registers on the stack, it means that we've used all
                     // register slots, and so we don't have to save any.
-                    for (i, arg_idx) in range(num_param_regs,
-                                              total_vars).enumerate() {
+                    for (i, arg_idx) in (num_param_regs .. total_vars).enumerate() {
                         let (reg, before, _) = var_to_reg(&regmap,
                                                           global_map,
                                                           &vars[arg_idx], 0,

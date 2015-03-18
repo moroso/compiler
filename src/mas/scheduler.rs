@@ -1,7 +1,7 @@
 use mas::ast::*;
 use mas::parser::{classify_inst, InstType};
 use collections::{BTreeSet, BTreeMap, BinaryHeap};
-use std::iter::{range_inclusive, FromIterator};
+use std::iter::FromIterator;
 
 // Return Rd.
 fn destreg(inst: &InstNode) -> Option<Reg> {
@@ -360,13 +360,13 @@ pub fn schedule(insts: &Vec<InstNode>,
             for leaf in leaves.iter() {
                 let inst = &insts[*leaf];
                 if compatible(&this_packet, inst) {
-                    for idx in range_inclusive(
-                        0,
-                        match classify_inst(inst) {
+                    for idx in (
+                        0 ..
+                        (match classify_inst(inst) {
                             InstType::ControlType => 0u,
                             InstType::MemoryType => 1,
                             _ => 3
-                        }).rev() {
+                        })+1).rev() {
                         // Does this expect a long after it?
                         let is_long = match *inst {
                             ALU2LongInst(..) |
