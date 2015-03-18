@@ -1,6 +1,8 @@
 #![feature(plugin,overloaded_calls,slicing_syntax,box_syntax,int_uint)]
+// Unstable libraries
 #![feature(rustc_private)] // do we really want to use this?
 #![feature(old_io)] // TODO: should move away from this
+#![feature(collections)] // hm
 #![allow(dead_code,unused_imports)]
 
 #![plugin(regex_macros)]
