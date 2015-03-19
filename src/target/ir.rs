@@ -329,9 +329,9 @@ impl Target for IRTarget {
     #[allow(unused_must_use)]
     fn compile(&self, p: Package, f: &mut old_io::Writer) {
         let Package {
-            module:  module,
-            session: session,
-            typemap: mut typemap,
+            module,
+            session,
+            mut typemap,
         } = p;
 
         let mangler = NameMangler::new(session, &module, true, false);

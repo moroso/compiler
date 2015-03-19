@@ -861,9 +861,9 @@ impl Target for CTarget {
     #[allow(unused_must_use)]
     fn compile(&self, p: Package, f: &mut Writer) {
         let Package {
-            module:  module,
-            session: session,
-            typemap: typemap,
+            module,
+            session,
+            typemap,
         } = p;
 
         let mangler = NameMangler::new(session, &module, false, false);
