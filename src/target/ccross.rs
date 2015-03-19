@@ -507,7 +507,7 @@ impl<'a> CCrossCompiler<'a> {
             },
             // I'm sorry about the cast in the following.
             StringLit(ref s) => {
-                let parts: Vec<String> = s.as_slice().bytes()
+                let parts: Vec<String> = (&s[..]).bytes()
                     .map(|b: u8|format!("\\x{:02x}", b))
                     .collect();
                 format!("(uint8_t*)\"{}\"", parts.concat())

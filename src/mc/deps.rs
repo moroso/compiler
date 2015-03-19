@@ -9,7 +9,7 @@ pub fn output_deps(package: &Package, target: &String) {
     let vec: Vec<String> =
         set.iter().
           map(|name| format!("{}", package.session.interner.name_to_str(name))).
-          filter(|name| name.as_slice().char_at(0) != '<').collect();
+          filter(|name| (&name[..]).char_at(0) != '<').collect();
 
     let mut dep_path = Path::new(target.clone());
     dep_path.set_extension("dep");
