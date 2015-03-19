@@ -161,7 +161,7 @@ impl IRTarget {
         for op in ops.iter() {
             match *op {
                 Op::Nop => {},
-                _ => s = s + format!("  // {}", op).as_slice()
+                _ => s = s + &format!("  // {}", op)[..]
             }
             s = s + (match *op {
                 Op::BinOp(ref v, ref op, ref rv1, ref rv2, signed) => {
@@ -225,7 +225,7 @@ impl IRTarget {
                     let list: Vec<String> = args.iter()
                         .map(|arg| print_var(interner, global_map, arg)
                              ).collect();
-                    s = s + list.connect(", ").as_slice();
+                    s = s + &list.connect(", ")[..];
                     s = s + ");\n";
                     s
                 },

@@ -63,7 +63,7 @@ pub fn main() {
     let format_arg = matches.opt_str("fmt").unwrap_or(
         "internal".to_string());
 
-    if format_arg.as_slice() == "internal" {
+    if &format_arg[..] == "internal" {
         print!("Moroso assembler.\n");
     }
 
@@ -76,7 +76,7 @@ pub fn main() {
     labels::resolve_labels(&mut insts, &labels);
 
     for packet in insts.iter() {
-        match format_arg.as_slice() {
+        match &format_arg[..] {
             "internal" => print!("{}\n", packet),
             "c" => print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",
                           encode(&packet[0]),

@@ -95,9 +95,9 @@ fn expand_map_macro(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -
 
     let mut out = vec!();
     for toks in iter {
-        out.push_all(prefix.as_slice());
+        out.push_all(&prefix[..]);
         out.push(Token::LParen);
-        out.push_all(toks.as_slice());
+        out.push_all(&toks[..]);
         out.push(Token::RParen);
         out.push(Token::Comma);
     }
@@ -146,7 +146,7 @@ impl Expander for WithId<MacroDef> {
         let mut vararg_toks = vec!();
         // Collect up any remaining args as a comma delimited token stream
         for arg in arg_iter {
-            vararg_toks.push_all(arg.as_slice());
+            vararg_toks.push_all(&arg[..]);
             vararg_toks.push(Token::Comma);
         }
         vararg_toks.pop(); // Pop off a trailing comma if it exists
@@ -156,7 +156,7 @@ impl Expander for WithId<MacroDef> {
             let mut is_empty_varargs = false;
             match *tok {
                 MacroVar(name) => {
-                    output.push_all(args.get(&name).unwrap().as_slice());
+                    output.push_all(&args.get(&name).unwrap()[..]);
                 }
                 // We skip a comma that occurs after an empty ...
                 MacroTok(Token::Comma) if skip_comma => {}
@@ -164,7 +164,7 @@ impl Expander for WithId<MacroDef> {
                     output.push(tok.clone());
                 }
                 MacroVarArgs => {
-                    output.push_all(vararg_toks.as_slice());
+                    output.push_all(&vararg_toks[..]);
                     is_empty_varargs = vararg_toks.is_empty();
                 }
             }
@@ -263,7 +263,7 @@ impl<'a> MacroExpanderVisitor<'a> {
             let this_macro: & &Expander = ::std::mem::transmute(
                 match self.session.expander.macros.get(&name) {
                     Some(m) => m,
-                    None => self.session.error_fatal(*id, format!("Macro {}! is undefined", name).as_slice()),
+                    None => self.session.error_fatal(*id, &format!("Macro {}! is undefined", name)[..]),
                 }
                 );
             this_macro.expand(my_args, *id, self.session)

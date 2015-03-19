@@ -84,7 +84,7 @@ impl Interner {
             if x.1 == name {
                 unsafe {
                     use std::mem::copy_lifetime;
-                    return copy_lifetime(self, x.0).as_slice();
+                    return &copy_lifetime(self, x.0)[..];
                 }
             }
         }
@@ -130,10 +130,10 @@ impl<'a> Session<'a> {
             full_msg.push_str("\n");
             let fname = self.interner.name_to_str(&self.parser.filename_of(&nid));
             full_msg.push_str(
-                format!("   {}: {}\n", fname, self.parser.span_of(&nid)).as_slice());
+                &format!("   {}: {}\n", fname, self.parser.span_of(&nid))[..]);
         }
 
-        let _ = old_io::stderr().write_str(full_msg.as_slice());
+        let _ = old_io::stderr().write_str(&full_msg[..]);
     }
 
     pub fn message<T: Str>(&self, nid: NodeId, msg: T) {
@@ -169,7 +169,7 @@ impl<'a> Session<'a> {
         let lexer = new_mb_lexer(name, buffer);
         let mut temp = Parser::parse(self, lexer);
         swap(&mut module.val.items, &mut temp.val.items);
-        module.val.items.push_all(temp.val.items.as_slice());
+        module.val.items.push_all(&temp.val.items[..]);
     }
 
 
@@ -233,14 +233,14 @@ impl<'a> Session<'a> {
     pub fn parse_file(&'a mut self, file: old_io::File) -> Module {
         self.parse_file_common(file,
                                |me, filename, buf| me.parse_buffer(
-                                   filename.as_slice(), buf))
+                                   &filename[..], buf))
     }
     //TODO!!!!!
     /*
     pub fn parse_package_file(&'a mut self, file: old_io::File) -> Module {
         self.parse_file_common(file,
                                |me, filename, buf| me.parse_package_buffer(
-                                   filename.as_slice(), buf))
+                                   &filename[..], buf))
     }*/
 
     pub fn parse_package_str(&'a mut self, s: &str) -> Module {

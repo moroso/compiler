@@ -721,7 +721,7 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
             {
                 // There's a leaf; it's safe to just assign it.
                 reg_transformations.remove(&src_reg);
-                result.push_all(src_insts.as_slice());
+                result.push_all(&src_insts[..]);
                 result.push(
                     InstNode::alu1reg(
                         pred.clone(),
@@ -730,7 +730,7 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
                         src_reg,
                         SllShift,
                         0));
-                result.push_all(dest_insts.as_slice());
+                result.push_all(&dest_insts[..]);
             },
             None => {
                 // This is more exciting! There's a cycle. We need to
@@ -743,7 +743,7 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
                     reg_transformations.iter()
                     .map(|(x, y)| (x.clone(), y.clone())).next().unwrap();
                 reg_transformations.remove(&src_reg);
-                result.push_all(src_insts.as_slice());
+                result.push_all(&src_insts[..]);
                 result.push(
                     InstNode::alu1reg(
                         pred.clone(),

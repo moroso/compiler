@@ -346,7 +346,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
 
         let s = format!("Parse error: {}\n    at {} {}\n",
                         message.as_slice(), path, pos);
-        let _ = old_io::stderr().write_str(s.as_slice());
+        let _ = old_io::stderr().write_str(&s[..]);
         panic!()
     }
 
@@ -1742,7 +1742,7 @@ mod tests {
                            )
                    );
         */
-        assert_eq!(format!("{}", tree).as_slice(),
+        assert_eq!(&format!("{}", tree)[..],
                    "((1+((3*5)/2))-((2*3)*((5+6))))");
     }
 
@@ -1750,7 +1750,7 @@ mod tests {
     /*
     fn compare_canonicalized(raw: &str, parsed: &str) {
         let (_, tree) = ast_from_str(raw, |p| p.parse_let_stmt());
-        assert_eq!(format!("{}", tree).as_slice(), parsed);
+        assert_eq!(&format!("{}", tree)[..], parsed);
     }
 
     #[test]

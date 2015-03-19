@@ -1273,7 +1273,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
                     let ty = &{
                         let def = self.session.defmap.find(&defid).expect(
-                            format!("Cannot find defid {}", defid).as_slice());
+                            &format!("Cannot find defid {}", defid)[..]);
                         match *def {
                             StructDef(_, ref fields, _) => {
                                 let &(_, ref t) =
@@ -1362,7 +1362,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     let patid = self.session.resolver.def_from_path(path);
                     let def =
                         (*self.session.defmap.find(&patid).expect(
-                            format!("Cannot find defid {}", patid).as_slice()
+                            &format!("Cannot find defid {}", patid)[..]
                                 )).clone();
                     let (parent_id, types) = match def {
                         VariantDef(_, ref parent_id, ref types) =>
@@ -1468,14 +1468,14 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
         let ty = {
             let def = self.session.defmap.find(&id).expect(
-                format!("Cannot find defid {}", id).as_slice());
+                &format!("Cannot find defid {}", id)[..]);
 
             match *def {
                 StructDef(_, ref fields, _) => {
                     let &(_, ref t) =
                         fields.iter()
                         .find(|&&(a, _)| a == *name)
-                        .expect(format!("Cannot find name {}", name).as_slice()
+                        .expect(&format!("Cannot find name {}", name)[..]
                                 );
                     self.lookup_ty(t.id)
                 },
@@ -1498,10 +1498,10 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
     fn variant_index(&mut self, defid: &NodeId, parent_id: &NodeId) -> u64 {
         (match *self.session.defmap.find(parent_id).expect(
-            format!("Cannot find defid {}", parent_id).as_slice()) {
+            &format!("Cannot find defid {}", parent_id)[..]) {
             EnumDef(_, ref variants, _) =>
                 variants.iter().position(|&n| n == *defid).expect(
-                    format!("Cannot find defid {}", defid).as_slice()),
+                    &format!("Cannot find defid {}", defid)[..]),
             _ => panic!(),
         }) as u64
     }

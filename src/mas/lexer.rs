@@ -240,7 +240,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
             match matcher.captures(s) {
                 Some(groups) =>
                     Some((groups.at(0).unwrap().len(),
-                          match groups.at(1).unwrap().to_ascii_uppercase().as_slice() {
+                          match &groups.at(1).unwrap().to_ascii_uppercase()[..] {
                               "PFLAGS" => PFLAGS,
                               "PTB" => PTB,
                               "EHA" => EHA,
@@ -269,7 +269,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
             match matcher.captures(s) {
                 Some(groups) =>
                     Some((groups.at(0).unwrap().len(),
-                          match groups.at(1).unwrap().to_ascii_uppercase().as_slice() {
+                          match &groups.at(1).unwrap().to_ascii_uppercase()[..] {
                               "DATA" => DataFlush,
                               "INST" => InstFlush,
                               "DTLB" => DtlbFlush,

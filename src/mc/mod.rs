@@ -95,7 +95,7 @@ pub fn main() {
 
     let matches = match getopts(args.tail(), &opts) {
         Ok(m) => m,
-        Err(e) => return bail(Some(format!("{}", e).as_slice())),
+        Err(e) => return bail(Some(&format!("{}", e)[..])),
     };
 
     if matches.opt_present("help") {
@@ -115,7 +115,7 @@ pub fn main() {
 
     let target_arg = matches.opt_str("target").unwrap_or("null".to_string());
     let target = match targets.into_iter()
-                        .filter(|&(ref t, _)| t.eq_ignore_ascii_case(target_arg.as_slice()))
+                        .filter(|&(ref t, _)| t.eq_ignore_ascii_case(&target_arg[..]))
                         .map(|(_, ctor)| ctor(
                             if verbose {
                                 vec!("verbose".to_string())
@@ -126,7 +126,7 @@ pub fn main() {
         Some(t) => t,
         None => {
             let msg = format!("Unrecognized target `{}'", target_arg);
-            return bail(Some(msg.as_slice()));
+            return bail(Some(&msg[..]));
         }
                         };*/
     // TODO!!!!
@@ -141,7 +141,7 @@ pub fn main() {
     let name = if matches.free.len() == 0 {
         "-"
     } else if matches.free.len() == 1 {
-        matches.free[0].as_slice()
+        &matches.free[0][..]
     } else {
         return bail(Some("too many arguments"))
     };

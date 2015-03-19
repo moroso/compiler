@@ -505,7 +505,7 @@ mod tests {
         let lexer1 = lexer_from_str(r#"f(x - /* I am a comment */ 0x3f5B)+1 "Hello\" World")"#);
         let tokens1: Vec<SourceToken> = FromIterator::from_iter(lexer1);
 
-        compare(tokens1.as_slice(),
+        compare(&tokens1[..],
                 vec! {
                     IdentTok("f".to_string()),
                     LParen,
@@ -520,7 +520,7 @@ mod tests {
 
         let lexer2 = lexer_from_str("let x: int = 5;");
         let tokens2: Vec<SourceToken> = FromIterator::from_iter(lexer2);
-        compare(tokens2.as_slice(),
+        compare(&tokens2[..],
                 vec! {
                     Let,
                     IdentTok("x".to_string()),

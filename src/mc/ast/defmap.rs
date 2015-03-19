@@ -245,9 +245,9 @@ mod tests {
         let (mut session, tree) = ast_from_str("fn wot<T>(t: T) { let u = t; }", |p| p.parse_module());
         DefMap::record(&mut session, &tree);
 
-        assert_eq!(format!("{}", session.defmap.find(&NodeId(0))).as_slice(),
+        assert_eq!(&format!("{}", session.defmap.find(&NodeId(0)))[..],
                    "Some(FuncDef([NodeId(2)], (), None, [NodeId(1)]))");
-        assert_eq!(format!("{}", session.defmap.find(&NodeId(7))).as_slice(),
+        assert_eq!(&format!("{}", session.defmap.find(&NodeId(7)))[..],
                    "Some(PatDef(None))");
     }
 }

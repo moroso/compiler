@@ -67,7 +67,7 @@ impl Subscope {
                             BTreeSet::new(),
                     };
 
-                    let pairs = get_pairs(import.val.elems.as_slice());
+                    let pairs = get_pairs(&import.val.elems[..]);
                     for &(ns, ref ident) in pairs.iter() {
                         let allow = match import.val.import {
                             ImportNames(..) => filter.contains(&ident.val.name),
@@ -247,7 +247,7 @@ impl<'a> ModuleResolver<'a> {
                 node_id
             }
             None => {
-                self.fail_resolve(path.id, path.val.elems.as_slice())
+                self.fail_resolve(path.id, &path.val.elems[..])
             }
         }
     }
@@ -312,7 +312,7 @@ impl<'a> ModuleResolver<'a> {
             if !found {
                 let mut path = elems.to_vec();
                 path.push(ident.clone());
-                self.fail_resolve(ident.id, path.as_slice());
+                self.fail_resolve(ident.id, &path[..]);
             }
         }
     }
@@ -347,11 +347,11 @@ impl<'a> ModuleResolver<'a> {
     fn handle_use(&mut self, import: &Import) {
         match import.val.import {
             ImportNames(ref id) => self.handle_use_names(import.val.global,
-                                                         import.val.elems.as_slice(),
-                                                         id.as_slice()),
+                                                         &import.val.elems[..],
+                                                         &id[..]),
             ImportAll => self.handle_use_all(import.id,
                                              import.val.global,
-                                             import.val.elems.as_slice())
+                                             &import.val.elems[..])
         };
 
     }

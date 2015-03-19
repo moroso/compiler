@@ -134,7 +134,7 @@ impl<'a> CCrossCompiler<'a> {
     fn ind(&self) -> String {
         let v = (0..self.indent).map(|_|' ' as u8);
         let v: Vec<u8> = v.collect();
-        String::from_utf8_lossy(v.as_slice()).into_owned()
+        String::from_utf8_lossy(&v[..]).into_owned()
     }
 
     fn visit_list<T, F>(&self, list: &Vec<T>,
@@ -143,7 +143,7 @@ impl<'a> CCrossCompiler<'a> {
         where F: FnMut(&CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
             .filter(|x| *x != "".to_string()).collect();
-        list.connect(format!("{}", delimiter).as_slice())
+        list.connect(&format!("{}", delimiter)[..])
     }
 
     fn mut_visit_list<T, F>(&mut self, list: &Vec<T>,
@@ -270,7 +270,7 @@ impl<'a> CCrossCompiler<'a> {
         where F: Fn(Option<String>) -> String {
         self.indent();
         let delim_s = format!("\n{}", self.ind());
-        let delim = delim_s.as_slice();
+        let delim = &delim_s[..];
         let items = self.mut_visit_list(&block.val.items, |me, t| me.visit_item(t), delim);
         let stmts = self.mut_visit_list(&block.val.stmts, |me, t| me.visit_stmt(t), delim);
         let expr = match block.val.expr {
@@ -331,7 +331,7 @@ impl<'a> CCrossCompiler<'a> {
                     fields,
                     |me, field| format!("{};", me.visit_name_and_type(field.name, &field.fldtype)),
                     "\n    ");
-                format!("typedef struct {} {{\n    {}\n}} {};", name.as_slice(), fields, name.as_slice())
+                format!("typedef struct {} {{\n    {}\n}} {};", &name[..], fields, &name[..])
             }
             EnumItem(ref id, ref variants, _) => {
                 let name = self.visit_ident(id);
@@ -344,14 +344,14 @@ impl<'a> CCrossCompiler<'a> {
                     format!("struct {{ {} }} {};", fields, name)
                 }, "\n");
                 format!("typedef struct {} {{\n    int tag;\n    union {{\n        {}\n    }} val;\n}} {};",
-                        name.as_slice(),
+                        &name[..],
                         variants,
-                        name.as_slice())
+                        &name[..])
             }
             TypeItem(ref id, ref ty, _) => {
                 let name = self.visit_ident(id);
                 let ty = self.visit_type(ty);
-                format!("typedef {} {};\n", name.as_slice(), ty.as_slice())
+                format!("typedef {} {};\n", &name[..], &ty[..])
             }
             StaticItem(ref id, ref ty, ref expr, is_extern) => {
                 let name_and_type = self.visit_id_and_type(id.id, ty);
@@ -699,7 +699,7 @@ impl<'a> CCrossCompiler<'a> {
                             _ => panic!("Only IdentPats are supported in the arguments of a VariantPat in a match arm for now"),
                         };
                         format!("{} {} = {}.val.{}.field{};",
-                                ty, varname, expr.as_slice(), name, n - 1)
+                                ty, varname, &expr[..], name, n - 1)
                     }, "; ");*/
 
                     if is_void {
@@ -789,9 +789,9 @@ impl<'a> CCrossCompiler<'a> {
                         let ty = me.visit_type(t);
                         let name = me.visit_ident(name);
                         // This is a terrible hack.
-                        if name.as_slice() == "malloc" ||
-                            name.as_slice() == "calloc" ||
-                            name.as_slice() == "assert" {
+                        if &name[..] == "malloc" ||
+                            &name[..] == "calloc" ||
+                            &name[..] == "assert" {
                                 continue;
                             }
                         let args = me.mut_visit_list(
