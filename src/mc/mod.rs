@@ -57,10 +57,8 @@ fn parse_search_paths(opts: &mut Options, matches: &getopts::Matches) -> bool {
     // Pull libraries out of the command line
     for string in matches.opt_strs("lib").into_iter() {
         let parts: Vec<&str> = string.split(":").collect();
-        let (module, file) = match &parts[..] {
-            [ module, file ] => (module, file),
-            _ => { return false; }
-        };
+        if parts.len() != 2 { return false }
+        let (module, file) = (parts[0], parts[1]);
         opts.search_paths.insert(module.to_string(), Path::new(file));
     }
 

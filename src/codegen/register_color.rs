@@ -83,7 +83,7 @@ impl RegisterColorer {
                 continue;
             }
 
-            let mut i = 0i;
+            let mut i = 0;
             loop {
                 if !adjacent_colors.contains(&Some(StackColor(i))) {
                     break;

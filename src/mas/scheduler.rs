@@ -363,7 +363,7 @@ pub fn schedule(insts: &Vec<InstNode>,
                     for idx in (
                         0 ..
                         (match classify_inst(inst) {
-                            InstType::ControlType => 0u,
+                            InstType::ControlType => 0,
                             InstType::MemoryType => 1,
                             _ => 3
                         })+1).rev() {

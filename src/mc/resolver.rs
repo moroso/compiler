@@ -15,7 +15,7 @@ use self::ModuleScope::*;
 //#[allow(non_camel_case_types)] leaving the warning so we remember to patch rust later
 #[derive(Copy)]
 pub enum NS {
-    TypeAndModNS = 0i,
+    TypeAndModNS = 0,
     ValNS,
     StructNS,
 }
@@ -570,14 +570,14 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn unresolved_name() {
         let (mut session, tree) = ast_from_str("fn lol<T>(t: T) { let u = wot; }", |p| p.parse_module()); // unresolved name wot
         Resolver::resolve(&mut session, &tree);
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn unresolved_type() {
         let (mut session, tree) = ast_from_str("fn welp<T>(t: U) { let u = t; }", |p| p.parse_module()); // unresolved name U
         Resolver::resolve(&mut session, &tree);

@@ -132,7 +132,7 @@ impl<'a, B: BufReader, T: Eq> Iterator for Lexer<'a, B, T> {
                     while self.pos.col < line.len() {
                         // We apply each rule. Of the ones that match, we take
                         // the longest match.
-                        let mut longest = 0u;
+                        let mut longest = 0;
                         let mut best = None;
                         let rules = if self.comment_nest > 0 {
                             &self.comment_rules

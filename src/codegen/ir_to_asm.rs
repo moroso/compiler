@@ -818,8 +818,8 @@ impl IrToAsm {
         let mut labels = BTreeMap::new();
         let mut insts: Vec<[InstNode; 4]> = vec!();
         for &Name(s) in strings.iter() {
-            let mut packetpos = 0u;
-            let mut bytepos = 0u;
+            let mut packetpos = 0;
+            let mut bytepos = 0;
             let mut cur = 0u32;
             let mut cur_packet: [InstNode; 4] = IrToAsm::empty_packet();
             labels.insert(format!("__INTERNED_STRING{}", s), insts.len());

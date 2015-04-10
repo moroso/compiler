@@ -759,7 +759,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
         let mut insts: InstPacket = [NopInst, NopInst, NopInst, NopInst];
 
         self.expect(Token::LBrace);
-        for i in 0u .. 4u {
+        for i in 0 .. 4 {
             match *self.peek() {
                 Token::RBrace => {
                     self.eat();
@@ -923,7 +923,7 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_invalid_short_in_alu1inst()
     {
         // This value is too long to be packed into the instruction.
@@ -1008,7 +1008,7 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_invalid_short_in_alu2short() {
         // Value is too long for the instruction.
         inst_from_str("r6 <- r7 + 0b11111111111");
@@ -1056,7 +1056,7 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_invalid_shift_in_alu1reg() {
         // We're shifting by too much.
         inst_from_str("r4 <- (r5 << 33)");
@@ -1226,7 +1226,7 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_parse_nop_with_pred() {
         // Nop instructions can't have predicates.
         inst_from_str("p0 -> nop");
@@ -1238,7 +1238,7 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_parse_long_with_pred() {
         // Long directives can't have predicates.
         inst_from_str("p0 -> long 0x56");
@@ -1313,14 +1313,14 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_load_with_bad_offset() {
         // This offset is too long.
         inst_from_str("r9 <- *l(r8 + 0b100000000000)");
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_load_with_bad_negative_offset() {
         // This offset is too long.
         inst_from_str("r9 <- *l(r8 - 0b100000000001)");
@@ -1476,13 +1476,13 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_compareshort_bad_const() {
         inst_from_str("p1 <- r3 == 0b11111111111");
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_compareshort_negated_dest() {
         inst_from_str("!p1 <- r3 == 0");
     }
@@ -1562,13 +1562,13 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_branchimm_bad_offs() {
         inst_from_str("bl 0x1000000");
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_branchimm_bad_negative_offs() {
         inst_from_str("bl -0x1000001");
     }
@@ -1625,13 +1625,13 @@ mod tests {
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_branchreg_bad_offs() {
         inst_from_str("bl r6 + 0x1000000");
     }
 
     #[test]
-    #[should_fail]
+    #[should_panic]
     fn test_branchreg_bad_negative_offs() {
         inst_from_str("bl r6 - 0x1000001");
     }
