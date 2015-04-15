@@ -103,9 +103,9 @@ fn assign_vars(interner: &Interner,
             Some(ref i) if i.is_func => {},
             _ =>
                 s = s +
-                    format!("  {} = {};\n",
+                    &format!("  {} = {};\n",
                             print_var(interner, global_map, &new_var),
-                            print_var(interner, global_map, var)).as_slice(),
+                            print_var(interner, global_map, var))[..],
         }
     }
     s
@@ -161,7 +161,7 @@ impl IRTarget {
                 Op::Nop => {},
                 _ => s = s + &format!("  // {}", op)[..]
             }
-            s = s + (match *op {
+            s = s + &(match *op {
                 Op::BinOp(ref v, ref op, ref rv1, ref rv2, signed) => {
                     let cast = if signed {
                         "(long)"
@@ -287,11 +287,10 @@ impl IRTarget {
                     let mut s = format!("");
                     for var in vars.iter() {
                         if global_map.get(&var.name).is_none() {
-                            s = s + format!("  long {};\n",
+                            s = s + &format!("  long {};\n",
                                          print_var(interner,
                                                    global_map,
-                                                   *var))
-                                .as_slice();
+                                                   *var))[..];
                         }
                     }
 
@@ -306,7 +305,7 @@ impl IRTarget {
                             s)
                 }
                 //_ => format!(""),
-            }.as_slice());
+            }[..]);
         }
         s + "}\n"
     }
@@ -325,7 +324,7 @@ impl Target for IRTarget {
     }
 
     #[allow(unused_must_use)]
-    fn compile(&self, p: Package, f: &mut old_io::Writer) {
+    fn compile(&self, p: Package, f: &mut Write) {
         let Package {
             module,
             session,
