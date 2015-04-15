@@ -68,12 +68,12 @@ with_id! {
 }
 
 #[derive(Eq, PartialEq, Clone, Ord, PartialOrd, Debug, Copy)]
-pub struct NodeId(pub uint);
+pub struct NodeId(pub usize);
 
 allow_string!(NodeId);
 
 impl NodeId {
-    pub fn to_uint(&self) -> uint {
+    pub fn to_uint(&self) -> usize {
         let NodeId(did) = *self;
         did
     }

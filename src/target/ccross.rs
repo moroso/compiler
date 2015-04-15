@@ -15,7 +15,7 @@ use intrinsics::size_of;
 use std::collections::{BTreeSet, BTreeMap};
 
 use util;
-use std::old_io::Writer;
+use std::io::Write;
 
 use mc::ast::*;
 use mc::ast::defmap::*;
@@ -25,7 +25,7 @@ use values::*;
 
 
 #[allow(unused_must_use)]
-pub fn emit_ccross_prelude(f: &mut Writer) {
+pub fn emit_ccross_prelude(f: &mut Write) {
     // This freestanding stuff is a hack but hey, so is the rest of this?
     writeln!(f, "{}", "#include <stdint.h>");
     writeln!(f, "{}", "#include <stdlib.h>");
@@ -859,7 +859,7 @@ impl Target for CTarget {
     }
 
     #[allow(unused_must_use)]
-    fn compile(&self, p: Package, f: &mut Writer) {
+    fn compile(&self, p: Package, f: &mut Write) {
         let Package {
             module,
             session,

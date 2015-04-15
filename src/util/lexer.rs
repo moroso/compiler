@@ -7,11 +7,11 @@
 use span::{Span, SourcePos, mk_sp};
 
 use regex::Regex;
-use std::{old_io, option, iter};
+use std::{option, iter};
 
-use std::str::StrExt;
-use std::old_io::IoResult;
-use std::old_io::stdio::StdinReader;
+//use std::str::StrExt;
+use std::io::{BufRead, Result};
+use std::io::stdio::Stdin;
 
 use std::marker::PhantomData;
 
@@ -40,7 +40,7 @@ impl<A, T, U> LexerRule<A, T, U> {
 
 // Trait to make lexer_rules! forget the type parameters of LexerRule
 pub trait LexerRuleT<T> {
-    fn run(&self, s: &str) -> Option<(uint, T)>;
+    fn run(&self, s: &str) -> Option<(usize, T)>;
 }
 
 // The idea behind this is to allow very flexible lexer rules in the lexer_rules!
@@ -51,7 +51,7 @@ pub trait LexerRuleT<T> {
 // for a regex match, or optionally more complicated rules to e.g. use capture
 // groups from a Regex and construct a token from those.
 impl<A, T: RuleMatcher<A>, U: TokenMaker<A, V>, V> LexerRuleT<V> for LexerRule<A, T, U> {
-    fn run(&self, s: &str) -> Option<(uint, V)>
+    fn run(&self, s: &str) -> Option<(usize, V)>
         where T: RuleMatcher<A>,
               U: TokenMaker<A, V> {
         match self.matcher.find(s) {
@@ -89,14 +89,17 @@ pub struct Lexer<'a, B, T> {
 }
 
 pub trait BufReader {
-    fn read_line(&mut self) -> IoResult<String>;
+    fn read_line(&mut self) -> Result<String>;
 }
 
-impl<B> BufReader for B where B: Reader {
-    fn read_line(&mut self) -> IoResult<String> {
-        self.read_line()
+impl<B> BufReader for B where B: BufRead {
+    fn read_line(&mut self) -> Result<String> {
+        //self.read_line()
+        //TODO!!!!!!!!!!!!!
+        panic!("unimplemented");
     }
 }
+
 
 impl<'a, B: BufReader, T> Lexer<'a, B, T> {
     pub fn get_name(&self) -> String {
@@ -212,12 +215,12 @@ pub trait TokenMaker<T, U> {
 // TokenMaker for this RuleMatcher requires the match as an argument, like IdentTok;
 // the type magic is handled by MaybeArg).
 pub trait RuleMatcher<T> {
-    fn find<'a>(&self, s: &'a str) -> Option<(uint, T)>;
+    fn find<'a>(&self, s: &'a str) -> Option<(usize, T)>;
 }
 
 // Simple string-prefix match
 impl<'a, T: MaybeArg> RuleMatcher<T> for &'a str {
-    fn find(&self, s: &str) -> Option<(uint, T)> {
+    fn find(&self, s: &str) -> Option<(usize, T)> {
         match s.starts_with(*self) {
             true => Some((self.len(), MaybeArg::maybe_arg(*self))),
             _ => None
@@ -227,7 +230,7 @@ impl<'a, T: MaybeArg> RuleMatcher<T> for &'a str {
 
 // Regex match
 impl<T: MaybeArg> RuleMatcher<T> for Regex {
-    fn find<'a>(&self, s: &'a str) -> Option<(uint, T)> {
+    fn find<'a>(&self, s: &'a str) -> Option<(usize, T)> {
         match self.find(s) {
             Some((_, end)) => {
                 let t = &s[..end];
@@ -253,7 +256,7 @@ impl MaybeArg for String {
 }
 
 struct BufferLines<B> {
-    lineno: uint,
+    lineno: usize,
     buffer: B,
 }
 
@@ -267,8 +270,8 @@ impl<B: BufReader> BufferLines<B> {
 }
 
 impl<B: BufReader> Iterator for BufferLines<B> {
-    type Item = (uint, String);
-    fn next(&mut self) -> Option<(uint, String)> {
+    type Item = (usize, String);
+    fn next(&mut self) -> Option<(usize, String)> {
         self.buffer.read_line().ok().map(|l| {
             let n = self.lineno;
             self.lineno += 1;

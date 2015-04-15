@@ -1,7 +1,7 @@
 use super::ast;
 
 use util::{IntKind, Width};
-use std::{old_io, option, iter};
+use std::{io, option, iter};
 
 pub use util::lexer::{Language, Lexer, LexerRule, LexerRuleT};
 pub use util::lexer::{RuleMatcher, SourceToken, TokenMaker};
@@ -9,7 +9,7 @@ pub use util::lexer::BufReader;
 
 use std::fmt;
 use std::fmt::{Formatter, Display, Debug};
-use std::str::StrExt;
+//use std::str::StrExt;
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Token {
@@ -207,9 +207,9 @@ impl fmt::Display for Token {
 }
 
 // Convenience for tests
-pub fn lexer_from_str(s: &str) -> Lexer<old_io::BufferedReader<old_io::MemReader>, Token> {
-    let bytes = s.as_bytes().to_vec();
-    let buffer = old_io::BufferedReader::new(old_io::MemReader::new(bytes));
+pub fn lexer_from_str(s: &str) -> Lexer<io::BufReader<&[u8]>, Token> {
+    let bytes = s.as_bytes();
+    let buffer = io::BufReader::new(bytes);
     new_mb_lexer("test", buffer)
 }
 

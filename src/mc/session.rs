@@ -21,17 +21,19 @@ use super::ast::macros::MacroExpander;
 use std::borrow::Borrow;
 use std::collections::{HashMap, BTreeMap};
 use std::cell::RefCell;
-use std::str::StrExt;
+//use std::str::StrExt;
 
-use std::old_io;
-use std::thread_local;
+use std::io;
+use std::thread;
+use std::path::{Path, PathBuf};
+use std::fs;
 
 thread_local! {
     pub static interner: ::std::rc::Rc<Interner> = ::std::rc::Rc::new(Interner::new())
 }
 
 thread_local! {
-    pub static cur_rel_path: RefCell<Path> = RefCell::new(Path::new("."))
+    pub static cur_rel_path: RefCell<PathBuf> = RefCell::new(Path::new("."))
 }
 
 pub fn get_cur_rel_path() -> Path {
@@ -39,7 +41,7 @@ pub fn get_cur_rel_path() -> Path {
 }
 
 pub struct Options {
-    pub search_paths: HashMap<String, Path>,
+    pub search_paths: HashMap<String, PathBuf>,
 }
 
 
@@ -123,7 +125,7 @@ impl<'a> Session<'a> {
         })
     }
 
-    pub fn messages<T: Str>(&self, errors: &[(NodeId, T)]) {
+    pub fn messages<T: AsRef<str>>(&self, errors: &[(NodeId, T)]) {
         let mut full_msg = String::new();
         for &(nid, ref msg) in errors.iter() {
             full_msg.push_str(msg.as_slice());
@@ -133,28 +135,28 @@ impl<'a> Session<'a> {
                 &format!("   {}: {}\n", fname, self.parser.span_of(&nid))[..]);
         }
 
-        let _ = old_io::stderr().write_str(&full_msg[..]);
+        let _ = io::stderr().write_str(&full_msg[..]);
     }
 
-    pub fn message<T: Str>(&self, nid: NodeId, msg: T) {
+    pub fn message<T: AsRef<str>>(&self, nid: NodeId, msg: T) {
         self.messages(&[(nid, msg)]);
     }
 
-    pub fn errors_fatal<T: Str>(&self, errors: &[(NodeId, T)]) -> ! {
+    pub fn errors_fatal<T: AsRef<str>>(&self, errors: &[(NodeId, T)]) -> ! {
         self.messages(errors);
-        let _ = old_io::stderr().write_str("\n");
+        let _ = io::stderr().write_str("\n");
         panic!("Aborting")
     }
-    pub fn error_fatal<T: Str>(&self, nid: NodeId, msg: T) -> ! {
+    pub fn error_fatal<T: AsRef<str>>(&self, nid: NodeId, msg: T) -> ! {
         self.errors_fatal(&[(nid, msg)]);
     }
 
     // For now everything is fatal.
-    pub fn error<T: Str>(&self, nid: NodeId, msg: T) -> ! {
+    pub fn error<T: AsRef<str>>(&self, nid: NodeId, msg: T) -> ! {
         self.error_fatal(nid, msg);
     }
 
-    pub fn bug_span<T: Str>(&self, nid: NodeId, msg: T) -> ! {
+    pub fn bug_span<T: AsRef<str>>(&self, nid: NodeId, msg: T) -> ! {
         let sp = self.parser.span_of(&nid);
         panic!("\nBum bum bum budda bum bum tsch:\n\
               Internal Compiler Error{}\n\
@@ -164,8 +166,8 @@ impl<'a> Session<'a> {
     fn inject(&mut self, src: &str, name: &str, module: &mut Module) {
         use std::mem::swap;
 
-        let bytes = src.as_bytes().to_vec();
-        let buffer = old_io::BufferedReader::new(old_io::MemReader::new(bytes));
+        let bytes = src.as_bytes();
+        let buffer = io::BufReader::new(bytes);
         let lexer = new_mb_lexer(name, buffer);
         let mut temp = Parser::parse(self, lexer);
         swap(&mut module.val.items, &mut temp.val.items);
@@ -218,34 +220,34 @@ impl<'a> Session<'a> {
         module
     }
 
-    pub fn parse_file_common<F>(&'a mut self, file: old_io::File, f: F) -> Module
+    pub fn parse_file_common<F>(&'a mut self, file: fs::File, f: F) -> Module
         where F: Fn(&mut Session, String,
-                    old_io::BufferedReader<old_io::File>) -> Module {
+                    io::BufReader<fs::File>) -> Module {
         use std::mem::replace;
 
         let filename = format!("{}", file.path().display());
         let old_wd = cur_rel_path.with(|p| replace(&mut *p.borrow_mut(), file.path().dir_path()));
-        let module = f(self, filename, old_io::BufferedReader::new(file));
+        let module = f(self, filename, io::BufReader::new(file));
         cur_rel_path.with(|p| replace(&mut *p.borrow_mut(), old_wd));
         module
     }
 
-    pub fn parse_file(&'a mut self, file: old_io::File) -> Module {
+    pub fn parse_file(&'a mut self, file: fs::File) -> Module {
         self.parse_file_common(file,
                                |me, filename, buf| me.parse_buffer(
                                    &filename[..], buf))
     }
     //TODO!!!!!
     /*
-    pub fn parse_package_file(&'a mut self, file: old_io::File) -> Module {
+    pub fn parse_package_file(&'a mut self, file: fs::File) -> Module {
         self.parse_file_common(file,
                                |me, filename, buf| me.parse_package_buffer(
                                    &filename[..], buf))
     }*/
 
     pub fn parse_package_str(&'a mut self, s: &str) -> Module {
-        let bytes = s.as_bytes().to_vec();
-        let buffer = old_io::BufferedReader::new(old_io::MemReader::new(bytes));
+        let bytes = s.as_bytes();
+        let buffer = io::BufReader::new(bytes);
         self.parse_package_buffer("<input>", buffer)
     }
 }

@@ -1,7 +1,7 @@
 use mc::ast::{Module, NodeId};
 use mc::ast::Type;
 
-use std::iter::AdditiveIterator;
+//use std::iter::AdditiveIterator;
 
 use mc::ast::defmap::*;
 use mc::session::*;
@@ -37,7 +37,7 @@ pub fn offset_of_struct_field(session: &Session,
     match *def {
         Def::StructDef(_, ref fields, _) => {
             let names_and_sizes = struct_field_sizes(session, typemap, fields);
-            let (names, sizes): (Vec<Name>, Vec<u64>) = IteratorExt::unzip(names_and_sizes.into_iter());
+            let (names, sizes): (Vec<Name>, Vec<u64>) = Iterator::unzip(names_and_sizes.into_iter());
 
             for i in 0 .. sizes.len()
             {
@@ -141,7 +141,7 @@ pub fn packed_size(sizes: &Vec<u64>) -> u64 {
     size_so_far
 }
 
-pub fn offset_of(sizes: &Vec<u64>, item: uint) -> u64 {
+pub fn offset_of(sizes: &Vec<u64>, item: usize) -> u64 {
     let mut size_so_far = 0;
     for size in sizes.iter().take(item) {
         size_so_far += increment_of(size_so_far, *size);
@@ -169,7 +169,7 @@ mod tests {
     // Helper function: we pass it a string describing a type and an expected
     // size, and it asserts that the size is what we expect.
     fn test_ty_size(t: &str, expected_size: u64) {
-        let buffer = old_io::BufferedReader::new(old_io::MemReader::new(
+        let buffer = io::BufReader::new(old_io::MemReader::new(
             t.as_bytes().to_vec()
                 ));
         let lexer = new_mb_lexer("<stdin>", buffer);

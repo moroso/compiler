@@ -974,8 +974,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         // We do this to avoid borrowing self.
                         let def = {
                             let d = self.session.defmap.find(&defid).expect(
-                                format!("Cannot find defid {}",
-                                        defid).as_slice());
+                                &format!("Cannot find defid {}", defid)[..]);
                             (*d).clone()
                         };
                         match def {
@@ -1515,7 +1514,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                       types: &Vec<Type>,
                       base_var: &Var) -> (Vec<Op>, Vec<Var>, Vec<Width>) {
         let mut insts = vec!();
-        let (widths, sizes): (Vec<Width>, Vec<u64>) = IteratorExt::unzip(types.iter()
+        let (widths, sizes): (Vec<Width>, Vec<u64>) = Iterator::unzip(types.iter()
             .map(|t| self.lookup_ty(t.id))
             .map(|ty| (ty_width(ty),
                        size_of_ty(self.session, self.typemap, ty))));

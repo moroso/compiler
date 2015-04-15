@@ -23,11 +23,11 @@ use util::Name;
 use super::session::{Session, Options};
 use super::session::get_cur_rel_path;
 
-use std::{old_io, mem, num, vec};
+use std::{io, mem, num, vec};
 use std::collections::{HashMap, BTreeMap, BTreeSet};
 use std::iter::{Peekable, FromIterator};
 
-use std::old_io::fs::PathExtensions;
+//use std::old_io::fs::PathExtensions;
 
 use super::ast;
 use super::ast::*;
@@ -35,7 +35,7 @@ use super::lexer::*;
 
 use values::*;
 
-use std::old_path::posix::Path as FilePath;
+use std::path::Path as FilePath;
 
 type FuncProto = (Ident, Vec<FuncArg>, ast::Type, Vec<Ident>);
 type StaticDecl = (Ident, ast::Type);
@@ -69,14 +69,14 @@ pub struct StreamParser<'a, T: Iterator<Item=SourceToken<Token>>> {
     source: FilePath,
 }
 
-#[derive(PartialEq, Eq, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 enum Restriction {
     ExprStmtRestriction,
     NoAmbiguousLBraceRestriction,
     NoRestriction,
 }
 
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 enum Assoc {
     LeftAssoc,
     RightAssoc,
@@ -190,7 +190,7 @@ fn binop_token(op: BinOpNode) -> Token {
 
 // Convenience function for testing
 pub fn ast_from_str<'a, U, F>(s: &str, f: F) -> (Session<'a>, U)
-    where F: Fn(&mut StreamParser<Lexer<::std::old_io::BufferedReader<::std::old_io::MemReader>, Token>>) -> U {
+    where F: Fn(&mut StreamParser<Lexer<::std::io::BufReader<&[u8]>, Token>>) -> U {
     let mut session = Session::new(Options::new());
     let tree = Parser::parse_with(&mut session, lexer_from_str(s), f);
     (session, tree)
@@ -341,18 +341,18 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         }
     }
 
-    fn error<U: Str>(&self, message: U, pos: SourcePos) -> ! {
+    fn error<U: AsRef<str>>(&self, message: U, pos: SourcePos) -> ! {
         let path = self.session.interner.name_to_str(&self.name);
 
         let s = format!("Parse error: {}\n    at {} {}\n",
                         message.as_slice(), path, pos);
-        let _ = old_io::stderr().write_str(&s[..]);
+        let _ = io::stderr().write_str(&s[..]);
         panic!()
     }
 
     /// A convenience function to generate an error message when we've
     /// peeked at a token, but it doesn't match any token we were expecting.
-    fn peek_error<U: Str>(&mut self, message: U) -> ! {
+    fn peek_error<U: AsRef<str>>(&mut self, message: U) -> ! {
         let tok = self.peek().clone();
         let pos = self.peek_span().get_begin();
         self.error(format!("{} (got token {})", message.as_slice(), tok), pos)
@@ -1585,7 +1585,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
                                        start_span.get_begin()),
                     };
 
-                    ::std::old_io::File::open(&filename).unwrap_or_else(|e| {
+                    ::std::fs::File::open(&filename).unwrap_or_else(|e| {
                         self.error(format!("failed to open {}: {}",
                                            filename.display(), e), start_span.get_begin())
                     })

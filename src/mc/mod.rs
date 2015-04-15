@@ -6,11 +6,13 @@ use self::session::{Session, Options};
 
 use getopts;
 use getopts::{getopts, reqopt, optopt, optflag, optmulti};
-use std::old_io::{BufferedReader, File, Writer, stdio};
+use std::io::{BufReader, Write, stdio};
+use std::fs::File;
 use std::ascii::AsciiExt;
 
 use std::os;
 use std::env;
+use std::path::Path;
 
 pub mod lexer;
 pub mod parser;
@@ -22,7 +24,7 @@ pub mod deps;
 struct NullTarget;
 impl Target for NullTarget {
     fn new(_: Vec<String>) -> Box<NullTarget> { Box::new(NullTarget) }
-    fn compile(&self, _: Package, _: &mut Writer) { }
+    fn compile(&self, _: Package, _: &mut Write) { }
 }
 
 fn package_from_stdin<'a>(opts: Options) -> Package<'a> {
@@ -44,9 +46,9 @@ macro_rules! targets {
 pub fn setup_builtin_search_paths(opts: &mut Options) {
     // Unless it gets overridden, pull out a prelude based on the
     // install location of the binary. This is kind of dubious.
-    match os::self_exe_path() {
-        None => {}, /* whatever? */
-        Some(exe_path) => {
+    match env::current_exe() {
+        Err(_) => {}, /* whatever? */
+        Ok(exe_path) => {
             let prelude_location = exe_path.join(Path::new("lib/prelude.mb"));
             opts.search_paths.insert("prelude".to_string(), prelude_location);
         }
@@ -157,11 +159,11 @@ pub fn main() {
     // don't truncate the file if it fails, either. (We *shouldn't*
     // fail during compile, but...)
     let mut writer = match matches.opt_str("output") {
-        None => Box::new(stdio::stdout()) as Box<Writer>,
+        None => Box::new(stdio::stdout()) as Box<Write>,
         Some(name) => {
             let path = Path::new(name);
             let file = File::create(&path).unwrap_or_else(|e| panic!("{}", e));
-            Box::new(file) as Box<Writer>
+            Box::new(file) as Box<Write>
         }
     };
 
@@ -184,7 +186,7 @@ mod tests {
         use std::str::StrSlice;
         use std::old_io;
         let bytes = s.as_bytes().to_vec();
-        let buffer = old_io::BufferedReader::new(old_io::MemReader::new(bytes));
+        let buffer = io::BufReader::new(old_io::MemReader::new(bytes));
         let mut opts = super::session::Options::new();
         setup_builtin_search_paths(&mut opts);
         Package::from_buffer(opts, "<input>", buffer)
@@ -217,6 +219,6 @@ fn main() {
 }
 ";
         let package = package_from_str(src);
-        NullTarget.compile(package, &mut stdio::stdout() as &mut Writer);
+        NullTarget.compile(package, &mut stdio::stdout() as &mut Write);
     }
 }

@@ -1,4 +1,4 @@
-use std::old_io::stdio;
+use std::io;
 use std::env;
 
 use self::lexer::{Token, new_asm_lexer};
@@ -7,8 +7,8 @@ use self::encoder::encode;
 
 use getopts;
 use getopts::{getopts, reqopt, optopt, optflag};
-use std::old_io::Writer;
-use std::iter::IteratorExt;
+use std::io::Write;
+
 
 pub mod lexer;
 pub mod parser;
@@ -18,7 +18,7 @@ pub mod util;
 pub mod labels;
 pub mod scheduler;
 
-fn print_bin<T: Writer>(n: u32, stream: &mut T) {
+fn print_bin<T: Write>(n: u32, stream: &mut T) {
     // Write in little-endian format.
     (stream.write_all(vec!(
         (n >>  0) as u8,
@@ -67,11 +67,11 @@ pub fn main() {
         print!("Moroso assembler.\n");
     }
 
-    let lexer = new_asm_lexer("<stdin>", stdio::stdin());
+    let lexer = new_asm_lexer("<stdin>", io::stdin());
     let peekable = lexer.peekable();
     let mut parser = AsmParser::new(peekable);
     let (mut insts, labels) = parser.parse_toplevel();
-    let mut stdout = stdio::stdout();
+    let mut stdout = io::stdout();
 
     labels::resolve_labels(&mut insts, &labels);
 

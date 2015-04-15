@@ -1,5 +1,5 @@
-use std::old_path::posix::Path;
-use std::old_io::File;
+use std::path::Path;
+use std::fs::File;
 
 use package::Package;
 

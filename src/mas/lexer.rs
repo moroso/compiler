@@ -1,7 +1,7 @@
 use std::fmt;
 use std::fmt::{Formatter, Display};
-use std::old_io;
-use std::str::StrExt;
+use std::io;
+//use std::str::StrExt;
 use std::ascii::AsciiExt;
 use util::lexer::*;
 use super::ast;
@@ -403,8 +403,8 @@ impl<T, F: Fn(T) -> Token> TokenMaker<T, Token> for F {
 }
 
 // Convenience for tests
-pub fn asm_lexer_from_str(s: &str) -> Lexer<old_io::BufferedReader<old_io::MemReader>, Token> {
-    let bytes = s.as_bytes().to_vec();
-    let buffer = old_io::BufferedReader::new(old_io::MemReader::new(bytes));
+pub fn asm_lexer_from_str(s: &str) -> Lexer<io::BufReader<&[u8]>, Token> {
+    let bytes = s.as_bytes();
+    let buffer = io::BufReader::new(bytes);
     new_asm_lexer("test", buffer)
 }

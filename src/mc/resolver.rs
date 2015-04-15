@@ -13,7 +13,7 @@ pub use self::NS::*;
 use self::ModuleScope::*;
 
 //#[allow(non_camel_case_types)] leaving the warning so we remember to patch rust later
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub enum NS {
     TypeAndModNS = 0,
     ValNS,

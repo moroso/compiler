@@ -8,10 +8,11 @@ use std::iter::Peekable;
 use std::num::FromPrimitive;
 use span::{SourcePos, Span, mk_sp};
 use std::collections::BTreeMap;
+use std::io::{BufRead, Read, Write};
 
 pub use self::InstType::*;
 
-pub struct AsmParser<'a, T: Reader> {
+pub struct AsmParser<'a, T: BufRead> {
     tokens: Peekable<Lexer<'a, T, Token>>,
     last_span: Span,
     error_on_misplaced_inst: bool,
@@ -95,7 +96,7 @@ pub fn classify_inst(inst: &InstNode) -> InstType {
     }
 }
 
-impl<'a, T: Reader> AsmParser<'a, T> {
+impl<'a, T: BufRead> AsmParser<'a, T> {
 
     pub fn new(tokens: Peekable<Lexer<'a, T, Token>>
            ) -> AsmParser<'a, T> {
@@ -141,7 +142,7 @@ impl<'a, T: Reader> AsmParser<'a, T> {
         }
     }
 
-    fn error<U: Str>(&self, message: U) -> ! {
+    fn error<U: AsRef<str>>(&self, message: U) -> ! {
         panic!("\n{}\nat {}", message.as_slice(), self.last_span.get_begin())
     }
 

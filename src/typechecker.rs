@@ -26,12 +26,12 @@ use self::Kind::*;
 use self::ErrorCause::*;
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
-struct BoundsId(uint);
+struct BoundsId(usize);
 
 allow_string!(BoundsId);
 
 impl BoundsId {
-    pub fn to_uint(&self) -> uint {
+    pub fn to_uint(&self) -> usize {
         let BoundsId(bid) = *self;
         bid
     }
@@ -350,11 +350,11 @@ impl fmt::Display for ErrorCause {
 
 /*
 impl CLike for Kind {
-    fn to_uint(&self) -> uint {
-        *self as uint
+    fn to_uint(&self) -> usize {
+        *self as usize
     }
 
-    fn from_uint(u: uint) -> Kind {
+    fn from_uint(u: usize) -> Kind {
         match u {
             0 => EqKind,
             1 => CmpKind,
@@ -433,7 +433,7 @@ pub struct Typechecker<'a> {
     defs: BTreeMap<NodeId, BoundsId>,
     generics: Vec<BTreeMap<NodeId, WithId<Ty>>>,
     session: &'a Session<'a>,
-    next_bounds_id: uint,
+    next_bounds_id: usize,
     exits: Vec<WithId<Ty>>,
     typemap: Typemap,
     // This is hacky but it cuts down on plumbing
@@ -591,10 +591,10 @@ impl<'a> Typechecker<'a> {
         self.type_error_with_notes(msg, vec!())
     }
 
-    pub fn error_fatal<T: Str>(&self, nid: NodeId, msg: T) -> ! {
+    pub fn error_fatal<T: AsRef<str>>(&self, nid: NodeId, msg: T) -> ! {
         self.session.error_fatal(nid, msg);
     }
-    pub fn error<T: Str>(&self, nid: NodeId, msg: T) {
+    pub fn error<T: AsRef<str>>(&self, nid: NodeId, msg: T) {
         self.session.error(nid, msg);
     }
 

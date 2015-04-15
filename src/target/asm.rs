@@ -29,7 +29,9 @@ use mas::parser::AsmParser;
 
 use util::Name;
 
-use std::old_io::{Writer, stdio, File, BufferedReader};
+use std::io::{Write, stdio, BufReader};
+use std::fs::File;
+use std::path::Path;
 use std::collections::BTreeSet;
 
 pub struct AsmTarget {
@@ -37,7 +39,7 @@ pub struct AsmTarget {
 }
 
 // TODO: move this somewhere common.
-fn print_bin(n: u32, stream: &mut Writer) {
+fn print_bin(n: u32, stream: &mut Write) {
     // Write in little-endian format.
     (stream.write(vec!(
         (n >>  0) as u8,
@@ -60,7 +62,7 @@ impl Target for AsmTarget {
     }
 
     #[allow(unused_must_use)]
-    fn compile(&self, p: Package, f: &mut Writer) {
+    fn compile(&self, p: Package, f: &mut Write) {
         let Package {
             module:  module,
             session: session,
@@ -118,7 +120,7 @@ impl Target for AsmTarget {
         let path = Path::new(fname);
         let file = File::open(&path).unwrap_or_else(|e| panic!("{}", e));
 
-        let reader = BufferedReader::new(file);
+        let reader = BufReader::new(file);
         let asm_lexer = new_asm_lexer(fname, reader);
         let asm_peekable = asm_lexer.peekable();
         let mut asm_parser = AsmParser::new(asm_peekable);

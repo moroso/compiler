@@ -19,7 +19,7 @@ trait Parsable {
     fn parse(self, session: &mut Session) -> Module;
 }
 
-impl Parsable for ::std::old_io::File {
+impl Parsable for ::std::fs::File {
     fn parse(self, session: &mut Session) -> Module {
         //TODO!!!!!
         panic!();
@@ -45,7 +45,7 @@ impl<'a> Package<'a> {
         Package::new(opts, nb)
     }
 
-    pub fn from_file(opts: Options, file: ::std::old_io::File) -> Package<'a> {
+    pub fn from_file(opts: Options, file: ::std::fs::File) -> Package<'a> {
         Package::new(opts, file)
     }
 

@@ -700,7 +700,7 @@ allow_string!(InstNode);
 
 //pub struct InstPacket([InstNode; 4]);
 pub type InstPacket = [InstNode; 4];
-allow_string!(InstPacket);
+//allow_string!(InstPacket);
 /*
 impl Index<uint> for InstPacket {
     type Output = InstNode;
