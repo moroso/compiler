@@ -6,14 +6,14 @@ pub fn pack_int(n: u32, width: u8) -> Option<(u32, u8)> {
     // We do this by trying all rotations and seeing if any of them works.
     // Yeah, we could be more clever about it, but there's really no need.
     fn rol(n: u32, amt: u8) -> u32 {
-        (n << (amt as uint)) | (n >> (32 - (amt as uint)))
+        (n << (amt as usize)) | (n >> (32 - (amt as usize)))
     }
 
     for i in 0u8 .. 16u8 {
         let new_n = rol(n, 2*i);
         let mut max_bit: u8 = 0;
         for j in 0u8 .. 32u8 {
-            if new_n & (1 << (j as uint)) != 0 { max_bit = j }
+            if new_n & (1 << (j as usize)) != 0 { max_bit = j }
         }
         if max_bit < width {
             return Some((new_n, i));
@@ -24,6 +24,6 @@ pub fn pack_int(n: u32, width: u8) -> Option<(u32, u8)> {
 }
 
 pub fn fits_in_bits(num: u32, size: u8) -> bool {
-    let mask: u32 = (-1 as u32) << (size as uint);
+    let mask: u32 = (-1 as u32) << (size as usize);
     (num & mask) == 0
 }

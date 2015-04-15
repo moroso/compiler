@@ -89,7 +89,7 @@ fn print_rvalelem(interner: &Interner,
 
 fn assign_vars(interner: &Interner,
                global_map: &BTreeMap<Name, StaticIRItem>,
-               label: &BTreeMap<Name, uint>,
+               label: &BTreeMap<Name, usize>,
                vars: &BTreeSet<Var>) -> String {
     let mut s = "".to_string();
     for var in vars.iter() {
@@ -121,7 +121,7 @@ impl IRTarget {
         let opinfo = LivenessAnalyzer::unanalyzed_opinfo(ops);
         let mut s = "".to_string();
         let mut vars = BTreeSet::new();
-        let mut labels: VecMap<BTreeMap<Name, uint>> = VecMap::new();
+        let mut labels: VecMap<BTreeMap<Name, usize>> = VecMap::new();
         // Find all variables we need to declare. This is all variables
         // that are defined anywhere, except in the very first instruction
         // (which must be a function definition instruction).
@@ -142,7 +142,7 @@ impl IRTarget {
         for op in ops.iter() {
             match *op {
                 Op::Label(ref idx, ref vars) => {
-                    let mut varmap: BTreeMap<Name, uint> = BTreeMap::new();
+                    let mut varmap: BTreeMap<Name, usize> = BTreeMap::new();
                     for var in vars.iter() {
                         varmap.insert(var.name.clone(),
                                       var.generation.unwrap());

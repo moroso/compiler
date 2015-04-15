@@ -613,14 +613,14 @@ fn var_to_reg(regmap: &BTreeMap<Var, RegisterColor>,
                                         width: LsuWidthL },
                                 reg,
                                 stack_pointer,
-                                (offs as int + pos * 4) as i32)
+                                (offs as isize + pos * 4) as i32)
                      ),
              vec!(
                  InstNode::store(pred,
                                  LsuOp { store: true,
                                          width: LsuWidthL },
                                  stack_pointer,
-                                 (offs as int + pos * 4) as i32,
+                                 (offs as isize + pos * 4) as i32,
                                  reg)
                      ),
                  )
@@ -674,7 +674,7 @@ fn var_to_reg(regmap: &BTreeMap<Var, RegisterColor>,
 fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
                global_map: &BTreeMap<Name, StaticIRItem>,
                pred: &Pred,
-               gens: &BTreeMap<Name, uint>,
+               gens: &BTreeMap<Name, usize>,
                vars: &BTreeSet<Var>,
                offs: u32) -> Vec<InstNode> {
     let mut result = vec!();
@@ -814,7 +814,7 @@ impl IrToAsm {
 
     pub fn strings_to_asm(session: &Session,
                           strings: &BTreeSet<Name>) -> (Vec<[InstNode; 4]>,
-                                                       BTreeMap<String, uint>) {
+                                                       BTreeMap<String, usize>) {
         let mut labels = BTreeMap::new();
         let mut insts: Vec<[InstNode; 4]> = vec!();
         for &Name(s) in strings.iter() {
@@ -857,7 +857,7 @@ impl IrToAsm {
                      global_map: &BTreeMap<Name, StaticIRItem>,
                      session: &mut Session,
                      strings: &mut BTreeSet<Name>
-                     ) -> (Vec<InstNode>, BTreeMap<String, uint>) {
+                     ) -> (Vec<InstNode>, BTreeMap<String, usize>) {
         let opinfo = LivenessAnalyzer::analyze(ops);
         let (conflicts, counts, must_colors, mem_vars) =
             ConflictAnalyzer::conflicts(ops, &opinfo);
@@ -870,7 +870,7 @@ impl IrToAsm {
         // Figure out where objects on the stack will go.
         // stack_item_map is a map from instruction index (for an alloca
         // instruction) to a stack offset.
-        let mut stack_item_map: BTreeMap<uint, u32> = BTreeMap::new();
+        let mut stack_item_map: BTreeMap<usize, u32> = BTreeMap::new();
         // Start at 4, to skip over the saved return value.
         let mut stack_item_offs: u32 = 4;
         for (inst, op) in ops.iter().enumerate() {
@@ -902,16 +902,16 @@ impl IrToAsm {
                                                     _ => 0,
                                                 }).max().unwrap_or(0);
 
-        let mut targets: BTreeMap<String, uint> = BTreeMap::new();
+        let mut targets: BTreeMap<String, usize> = BTreeMap::new();
 
-        let mut labels: VecMap<BTreeMap<Name, uint>> = VecMap::new();
+        let mut labels: VecMap<BTreeMap<Name, usize>> = VecMap::new();
         // Find out which variables are used at each label.
         // TODO: merge this in with the loop above, so we don't iterate over
         // the instruction list as many times?
         for op in ops.iter() {
             match *op {
                 Op::Label(ref idx, ref vars) => {
-                    let mut varmap: BTreeMap<Name, uint> = BTreeMap::new();
+                    let mut varmap: BTreeMap<Name, usize> = BTreeMap::new();
                     for var in vars.iter() {
                         varmap.insert(var.name.clone(),
                                       var.generation.expect(
@@ -954,7 +954,7 @@ impl IrToAsm {
                             InstNode::store(TRUE_PRED,
                                             store32_op,
                                             stack_pointer,
-                                            (stack_item_offs as uint +
+                                            (stack_item_offs as usize +
                                              x * 4) as i32,
                                             Reg { index: i })
                                 );
@@ -976,7 +976,7 @@ impl IrToAsm {
                                            load32_op,
                                            Reg { index: i },
                                            stack_pointer,
-                                           (stack_item_offs as uint +
+                                           (stack_item_offs as usize +
                                             x * 4) as i32
                                            ));
                     }
@@ -1135,8 +1135,8 @@ impl IrToAsm {
 
                     let total_vars = vars.len();
 
-                    let stack_arg_offs = stack_item_offs as int +
-                                         (max_stack_index + num_saved as int) * 4;
+                    let stack_arg_offs = stack_item_offs as isize +
+                                         (max_stack_index + num_saved as isize) * 4;
 
                     // This is where the stack pointer should end up pointing.
                     // We always reserve at least num_param_regs slots: either
@@ -1153,8 +1153,8 @@ impl IrToAsm {
                         match *regmap.get(var).expect(
                             "Variable does not appear in regmap") {
                             RegColor(ref r) => {
-                                if r.index as uint >= total_vars &&
-                                    r.index as uint <= num_param_regs &&
+                                if r.index as usize >= total_vars &&
+                                    r.index as usize <= num_param_regs &&
                                     r.index > 0 {
                                         reg_set.insert(r.clone());
                                     }
@@ -1197,7 +1197,7 @@ impl IrToAsm {
                                 TRUE_PRED,
                                 store32_op,
                                 stack_pointer,
-                                (stack_arg_offs + i as int * 4) as i32,
+                                (stack_arg_offs + i as isize * 4) as i32,
                                 reg_list[i],
                                 ));
                     }
@@ -1221,7 +1221,7 @@ impl IrToAsm {
                                 TRUE_PRED,
                                 store32_op,
                                 stack_pointer,
-                                (stack_arg_offs + i as int * 4) as i32,
+                                (stack_arg_offs + i as isize * 4) as i32,
                                 reg
                                 ));
                     }
@@ -1290,7 +1290,7 @@ impl IrToAsm {
                                 load32_op,
                                 reg_list[i],
                                 stack_pointer,
-                                (stack_arg_offs + i as int * 4) as i32
+                                (stack_arg_offs + i as isize * 4) as i32
                                 ));
                     }
 

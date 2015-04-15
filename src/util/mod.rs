@@ -9,10 +9,10 @@ pub mod graph;
 // This represents an interned string/name/identifier. The mapping from strings
 // to Names and Names to strings is in the Interner (session.rs).
 #[derive(Eq, Ord, PartialOrd, PartialEq, Clone, Copy)]
-pub struct Name(pub uint);
+pub struct Name(pub usize);
 
 impl Name {
-    pub fn as_uint(&self) -> uint {
+    pub fn as_usize(&self) -> usize {
         let Name(result) = *self;
         result
     }

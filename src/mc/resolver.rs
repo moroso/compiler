@@ -22,11 +22,11 @@ pub enum NS {
 
 enum ModuleScope {
     OffBranch(Subscope),
-    OnBranch(uint),
+    OnBranch(usize),
 }
 
 struct Subscope {
-    names: VecMap<BTreeMap<uint, NodeId>>,
+    names: VecMap<BTreeMap<usize, NodeId>>,
 }
 
 impl Subscope {
@@ -37,7 +37,7 @@ impl Subscope {
     }
 
     fn insert(&mut self, ns: NS, name: Name, node_id: NodeId) -> bool {
-        let ns = ns as uint;
+        let ns = ns as usize;
 
         if !self.names.contains_key(&name.as_uint()) {
             self.names.insert(name.as_uint(), BTreeMap::new());
@@ -110,7 +110,7 @@ impl Subscope {
     }
 
     fn find(&self, ns: NS, ident: &Ident) -> Option<NodeId> {
-        let ns = ns as uint;
+        let ns = ns as usize;
         self.names.get(&ident.val.name.as_uint())
             .and_then(|names| names.get(&ns))
             .map(|id| *id)
@@ -129,7 +129,7 @@ struct ModuleResolver<'a> {
     session: &'a mut Session<'a>,
     scope: Vec<Subscope>,
     tree: BTreeMap<NodeId, ModuleScope>,
-    root: uint,
+    root: usize,
 }
 
 impl Resolver {
@@ -276,7 +276,7 @@ impl<'a> ModuleResolver<'a> {
             let mut pairs = vec!();
             for (name, map) in names.iter() {
                 for ns in [TypeAndModNS, ValNS, StructNS].iter() {
-                    for nid in map.get(&(*ns as uint)).iter() {
+                    for nid in map.get(&(*ns as usize)).iter() {
                         let ident = IdentNode {
                             tps: None,
                             name: Name(name),
@@ -337,7 +337,7 @@ impl<'a> ModuleResolver<'a> {
         // Ok, now that we have found the stuff, add it all in.
         for (name, map) in scope.iter() {
             for ns in [TypeAndModNS, ValNS, StructNS].iter() {
-                for id in map.get(&(*ns as uint)).iter() {
+                for id in map.get(&(*ns as usize)).iter() {
                     self.add_to_scope(*ns, Name(name), **id);
                 }
             }

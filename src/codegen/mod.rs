@@ -10,7 +10,7 @@ pub mod ir_to_asm;
 pub mod combine;
 
 /// How many variables are available to the register allocator.
-pub static num_usable_vars: uint = 30;
+pub static num_usable_vars: usize = 30;
 
 // Special registers.
 pub static link_register: Reg = Reg { index: 31 };
@@ -22,7 +22,7 @@ pub static return_reg: Reg = Reg { index: 0 };
 pub static global_reg: Reg = Reg { index: 11 };
 
 // How many parameters we can pass in registers.
-pub static num_param_regs: uint = 8;
+pub static num_param_regs: usize = 8;
 
 // We use three registers, starting at this index, for spilled registers.
 pub static spill_reg_base: u8 = 8;
@@ -33,7 +33,7 @@ pub static global_mem_start: u32 = 0x8000;
 pub enum RegisterColor {
     RegColor(Reg),
     // Offset on the stack, in words.
-    StackColor(int),
+    StackColor(isize),
     // This value is in global storage.
     GlobalColor,
     // This is a structure in global storage; we access it by reference.

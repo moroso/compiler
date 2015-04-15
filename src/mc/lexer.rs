@@ -223,7 +223,7 @@ macro_rules! lexer_rules {
 // Rule to match U32, U16, U8, I32, I16, I8
 struct IntTypeRule;
 impl RuleMatcher<IntKind> for IntTypeRule {
-    fn find(&self, s: &str) -> Option<(uint, IntKind)> {
+    fn find(&self, s: &str) -> Option<(usize, IntKind)> {
         use std::num::from_str_radix;
 
         let matcher = matcher!(r"[uUiI](32|16|8)");
@@ -252,7 +252,7 @@ impl RuleMatcher<IntKind> for IntTypeRule {
 // Rule to match a numeric literal and parse it into a number
 struct NumberRule;
 impl RuleMatcher<(u64, IntKind)> for NumberRule {
-    fn find(&self, s: &str) -> Option<(uint, (u64, IntKind))> {
+    fn find(&self, s: &str) -> Option<(usize, (u64, IntKind))> {
         use std::num::from_str_radix;
 
         let matcher = matcher!(r"((?:0[xX]([:xdigit:]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?");
@@ -294,7 +294,7 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
 // Rule to match a name followed by a Bang and strip off the trailing Bang
 struct IdentBangRule;
 impl RuleMatcher<String> for IdentBangRule {
-    fn find(&self, s: &str) -> Option<(uint, String)> {
+    fn find(&self, s: &str) -> Option<(usize, String)> {
         let matcher = matcher!(r"([a-zA-Z_]\w*)!");
         match matcher.captures(s) {
            Some(groups) => {
@@ -309,7 +309,7 @@ impl RuleMatcher<String> for IdentBangRule {
 // Rule to match a string literal and strip off the surrounding quotes
 struct StringRule;
 impl RuleMatcher<String> for StringRule {
-    fn find(&self, s: &str) -> Option<(uint, String)> {
+    fn find(&self, s: &str) -> Option<(usize, String)> {
         let matcher = matcher!(r#""((?:\\"|[^"])*)""#);
         match matcher.captures(s) {
            Some(groups) => {
@@ -324,7 +324,7 @@ impl RuleMatcher<String> for StringRule {
 
 struct CharRule;
 impl RuleMatcher<(u64, IntKind)> for CharRule {
-    fn find(&self, s: &str) -> Option<(uint, (u64, IntKind))> {
+    fn find(&self, s: &str) -> Option<(usize, (u64, IntKind))> {
         let matcher = matcher!(r#"'((?:\\["nrt'\\]|\\[xX][0-9a-fA-F]+|[^']))'"#);
         match matcher.captures(s) {
            Some(groups) => {

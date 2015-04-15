@@ -160,7 +160,7 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
         // But we also have to make sure the sign bit is okay.
         // This checks that the sign bit is cleared if n is
         // nonnegative, and set if it's negative.
-        if (num >= 0) != (num & (1<<((size-1) as uint)) == 0) {
+        if (num >= 0) != (num & (1<<((size-1) as usize)) == 0) {
             self.error(format!(
                 "Signed number {} (0b{:b}) needs more than {} bits.",
                 num, num, size));
@@ -793,7 +793,7 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
     }
 
     pub fn parse_toplevel(&mut self) -> (Vec<InstPacket>,
-                                         BTreeMap<String, uint>) {
+                                         BTreeMap<String, usize>) {
         let mut labels = BTreeMap::new();
         let mut packets = vec!();
         let mut instnum = 0;

@@ -98,7 +98,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
     // Matcher for a register, such as "r8".
     struct RegisterRule;
     impl RuleMatcher<ast::Reg> for RegisterRule {
-        fn find(&self, s: &str) -> Option<(uint, ast::Reg)> {
+        fn find(&self, s: &str) -> Option<(usize, ast::Reg)> {
             use std::num::from_str_radix;
 
             let matcher = matcher!(r"r(\d+|l)");
@@ -126,7 +126,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     struct CharLiteralRule;
     impl RuleMatcher<u32> for CharLiteralRule {
-        fn find(&self, s: &str) -> Option<(uint, u32)> {
+        fn find(&self, s: &str) -> Option<(usize, u32)> {
             let matcher = matcher!(r"'(.)'");
 
             match matcher.captures(s) {
@@ -142,7 +142,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     struct NumberLiteralRule;
     impl RuleMatcher<u32> for NumberLiteralRule {
-        fn find(&self, s: &str) -> Option<(uint, u32)> {
+        fn find(&self, s: &str) -> Option<(usize, u32)> {
             use std::num::from_str_radix;
 
             let matcher = matcher!(r"(-?)((?:0[xX]([:xdigit:]+))|(?:0[bB]([01]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?");
@@ -174,7 +174,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     struct PredicateRule;
     impl RuleMatcher<Pred> for PredicateRule {
-        fn find(&self, s: &str) -> Option<(uint, Pred)> {
+        fn find(&self, s: &str) -> Option<(usize, Pred)> {
             let matcher = matcher!(r"(!?)p([0123])");
             match matcher.captures(s) {
                 Some(groups) => {
@@ -191,7 +191,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     struct ShiftRule;
     impl RuleMatcher<ShiftType> for ShiftRule {
-        fn find(&self, s: &str) -> Option<(uint, ShiftType)> {
+        fn find(&self, s: &str) -> Option<(usize, ShiftType)> {
             let matcher = matcher!(r"(<<|>>u|>>s|>>r)");
             match matcher.captures(s) {
                 Some(groups) => {
@@ -212,7 +212,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     struct LoadStoreRule;
     impl RuleMatcher<LsuWidth> for LoadStoreRule {
-        fn find(&self, s: &str) -> Option<(uint, LsuWidth)> {
+        fn find(&self, s: &str) -> Option<(usize, LsuWidth)> {
             let matcher = matcher!(r"\*(sc|llsc|ll|w|l|h|b)");
             match matcher.captures(s) {
                 Some(groups) =>
@@ -235,7 +235,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     struct CoRegRule;
     impl RuleMatcher<ast::CoReg> for CoRegRule {
-        fn find(&self, s: &str) -> Option<(uint, ast::CoReg)> {
+        fn find(&self, s: &str) -> Option<(usize, ast::CoReg)> {
             let matcher = matcher!(r"(?i:(PFLAGS|PTB|EHA|EPC|EC0|EC1|EC2|EC3|EA0|EA1|SP0|SP1|SP2|SP3))");
             match matcher.captures(s) {
                 Some(groups) =>
@@ -264,7 +264,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
     struct FlushRule;
     impl RuleMatcher<FlushType> for FlushRule {
-        fn find(&self, s: &str) -> Option<(uint, FlushType)> {
+        fn find(&self, s: &str) -> Option<(usize, FlushType)> {
             let matcher = matcher!(r"(?i:flush\.(data|inst|dtlb|itlb))");
             match matcher.captures(s) {
                 Some(groups) =>

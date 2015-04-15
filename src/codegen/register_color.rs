@@ -16,7 +16,7 @@ impl RegisterColorer {
                  must_colors: BTreeMap<Var, RegisterColor>,
                  mem_vars: BTreeSet<Name>,
                  global_map: &BTreeMap<Name, StaticIRItem>,
-                 num_colors: uint
+                 num_colors: usize
                  ) -> BTreeMap<Var, RegisterColor> {
         let mut coloring: BTreeMap<Var, RegisterColor> =
             FromIterator::from_iter(must_colors.into_iter());
@@ -25,7 +25,7 @@ impl RegisterColorer {
         // but some of these are global).
         let new_mem_vars = mem_vars.into_iter().filter(
             |name| global_map.get(name).is_none());
-        let mem_locs: BTreeMap<Name, uint> = FromIterator::from_iter(
+        let mem_locs: BTreeMap<Name, usize> = FromIterator::from_iter(
             new_mem_vars.enumerate().map(|(x,y)| (y,x)));
 
         let mut freq_vec: Vec<(&Var, &u32)> = frequencies.iter().collect();
@@ -38,7 +38,7 @@ impl RegisterColorer {
                 // We don't want to override any "must colors", but otherwise want to put every generation
                 // of a given variable in the same place on the stack.
                 Some(i) if coloring.get(var).is_none() => { coloring.insert(var.clone(),
-                                                                             StackColor(*i as int)); },
+                                                                             StackColor(*i as isize)); },
                 _ => {},
             }
         }

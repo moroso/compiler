@@ -20,8 +20,8 @@ pub mod conflicts;
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct StaticIRItem {
     pub name: Name,
-    pub size: uint,
-    pub offset: Option<uint>,
+    pub size: usize,
+    pub offset: Option<usize>,
     pub is_extern: bool,
     pub is_ref: bool, // Should this variable be a pointer to global space, or
                       // is it actually stored in global space?
@@ -37,7 +37,7 @@ pub struct Var {
     pub name: Name,
     // If set, stores the generation of the variable. This will be None
     // if we're not yet in SSA form, and must be non-None for SSA.
-    pub generation: Option<uint>,
+    pub generation: Option<usize>,
 }
 
 impl Display for Var {
@@ -105,11 +105,11 @@ pub enum Op {
     Load(Var, Var, Width),
     // A label. The set of variables is ones that are active at that point.
     // TODO: make this a map from name -> gen.
-    Label(uint, BTreeSet<Var>),
+    Label(usize, BTreeSet<Var>),
     // A goto. The set must specify generations for all variables in the label.
-    Goto(uint, BTreeSet<Var>),
+    Goto(usize, BTreeSet<Var>),
     // Conditional goto. Optionally negated.
-    CondGoto(bool, RValueElem, uint, BTreeSet<Var>),
+    CondGoto(bool, RValueElem, usize, BTreeSet<Var>),
     // Return statement.
     Return(RValueElem),
     // Function definition. A special op, that can only appear once, at
@@ -160,7 +160,7 @@ pub struct OpInfo {
     pub live: BTreeSet<Var>, // Which variables are live at this instruction?
     pub used: BTreeSet<Var>, // Which variables are used?
     pub def: BTreeSet<Var>, // Which variables are defined here?
-    pub succ: BTreeSet<uint>, // Instructions which can follow this one.
+    pub succ: BTreeSet<usize>, // Instructions which can follow this one.
 }
 
 allow_string!(OpInfo);

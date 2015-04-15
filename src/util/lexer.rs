@@ -80,7 +80,7 @@ pub struct Lexer<'a, B, T> {
     // Rules specifically for when we're within a comment. We need this
     // for handling multi-line comments.
     comment_rules: Vec<Box<LexerRuleT<T> + 'a>>,
-    comment_nest: uint,
+    comment_nest: usize,
     // We set this to Some(Eof) and take it when we hit EOF
     eof: Option<T>,
     ws: T,

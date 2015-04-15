@@ -219,10 +219,10 @@ fn compatible(packet: &[InstNode; 4], inst: &InstNode) -> bool {
     packet.iter().all(|x| compatible_insts(x, inst))
 }
 
-fn update_labels(label_map: &BTreeMap<uint, Vec<&String>>,
-                 new_label_list: &mut BTreeMap<String, uint>,
-                 orig_pos: uint,
-                 new_pos: uint) {
+fn update_labels(label_map: &BTreeMap<usize, Vec<&String>>,
+                 new_label_list: &mut BTreeMap<String, usize>,
+                 orig_pos: usize,
+                 new_pos: usize) {
     let labels = label_map.get(&orig_pos);
     match labels {
         // Update the labels that pointed here.
@@ -238,13 +238,13 @@ fn update_labels(label_map: &BTreeMap<uint, Vec<&String>>,
 
 /// Dummy scheduler: one instruction per packet.
 pub fn schedule_dummy(insts: &Vec<InstNode>,
-                      labels: &BTreeMap<String, uint>,
+                      labels: &BTreeMap<String, usize>,
                       _: bool) -> (Vec<[InstNode; 4]>,
-                                   BTreeMap<String, uint>) {
+                                   BTreeMap<String, usize>) {
     let mut packets = vec!();
 
-    let mut modified_labels: BTreeMap<String, uint> = BTreeMap::new();
-    let mut jump_target_dict: BTreeMap<uint, Vec<&String>> = BTreeMap::new();
+    let mut modified_labels: BTreeMap<String, usize> = BTreeMap::new();
+    let mut jump_target_dict: BTreeMap<usize, Vec<&String>> = BTreeMap::new();
     for (label, pos) in labels.iter() {
         if jump_target_dict.contains_key(pos) {
             jump_target_dict.get_mut(pos).unwrap().push(label);
@@ -281,13 +281,13 @@ pub fn schedule_dummy(insts: &Vec<InstNode>,
 }
 
 pub fn schedule(insts: &Vec<InstNode>,
-                labels: &BTreeMap<String, uint>,
+                labels: &BTreeMap<String, usize>,
                 debug: bool) -> (Vec<[InstNode; 4]>,
-                                 BTreeMap<String, uint>) {
+                                 BTreeMap<String, usize>) {
     let mut packets: Vec<[InstNode; 4]> = vec!();
 
-    let mut modified_labels: BTreeMap<String, uint> = BTreeMap::new();
-    let mut jump_target_dict: BTreeMap<uint, Vec<&String>> = BTreeMap::new();
+    let mut modified_labels: BTreeMap<String, usize> = BTreeMap::new();
+    let mut jump_target_dict: BTreeMap<usize, Vec<&String>> = BTreeMap::new();
     for (label, pos) in labels.iter() {
         if jump_target_dict.contains_key(pos) {
             jump_target_dict.get_mut(pos).unwrap().push(label);
@@ -297,7 +297,7 @@ pub fn schedule(insts: &Vec<InstNode>,
     }
 
     // Include all jump targets...
-    let mut jump_targets: Vec<uint> =
+    let mut jump_targets: Vec<usize> =
         FromIterator::from_iter(labels.iter().map(|(_, &b)| b));
     // .. and all jumps.
     for (idx, inst) in insts.iter().enumerate() {
@@ -325,8 +325,8 @@ pub fn schedule(insts: &Vec<InstNode>,
         }
 
         // Start by building the instruction DAG.
-        let mut edges: BTreeSet<(uint, uint)> = BTreeSet::new();
-        let mut all: BTreeSet<uint> =
+        let mut edges: BTreeSet<(usize, usize)> = BTreeSet::new();
+        let mut all: BTreeSet<usize> =
             FromIterator::from_iter(start .. end);
         let mut this_packet: [InstNode; 4] =
             [NopInst, NopInst, NopInst, NopInst];
@@ -350,9 +350,9 @@ pub fn schedule(insts: &Vec<InstNode>,
         // Scheduling involves essentially a topological sort of this DAG.
 
         while !all.is_empty() {
-            let non_schedulables: BTreeSet<uint> = FromIterator::from_iter(
+            let non_schedulables: BTreeSet<usize> = FromIterator::from_iter(
                 edges.iter().map(|&(_, x)| x));
-            let leaves: BTreeSet<uint> = FromIterator::from_iter(
+            let leaves: BTreeSet<usize> = FromIterator::from_iter(
                 all.iter()
                     .map(|&x| x)
                     .filter(|x| !non_schedulables.contains(x)));

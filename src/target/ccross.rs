@@ -48,12 +48,12 @@ pub fn emit_ccross_prelude(f: &mut Write) {
 
 struct CCrossCompiler<'a> {
     structnames: BTreeSet<NodeId>,
-    enumitemnames: BTreeMap<Name, (Ident, Vec<Variant>, uint)>,
+    enumitemnames: BTreeMap<Name, (Ident, Vec<Variant>, usize)>,
     enumnames: BTreeMap<NodeId, Name>,
     session: Session<'a>,
     typemap: Typemap,
     mangle_map: BTreeMap<NodeId, String>,
-    indent: uint,
+    indent: usize,
 }
 
 fn find_structs(module: &Module) -> BTreeSet<NodeId> {
@@ -74,7 +74,7 @@ fn find_structs(module: &Module) -> BTreeSet<NodeId> {
 }
 
 fn find_enum_item_names(module: &Module)
-                        -> BTreeMap<Name, (Ident, Vec<Variant>, uint)> {
+                        -> BTreeMap<Name, (Ident, Vec<Variant>, usize)> {
     let mut enum_map = BTreeMap::new();
 
     for item in module.val.items.iter() {
@@ -126,7 +126,7 @@ fn is_block_empty(block: &Block) -> bool {
 }
 
 
-static INDENT_AMT: uint = 4;
+static INDENT_AMT: usize = 4;
 
 impl<'a> CCrossCompiler<'a> {
     fn indent(&mut self) { self.indent += INDENT_AMT; }
@@ -683,7 +683,7 @@ impl<'a> CCrossCompiler<'a> {
                     let body = me.visit_expr(&arm.body);
 
                     let &(_, ref variants, idx) = me.enumitemnames.get(&path.val.elems.last().unwrap().val.name).unwrap();
-                    let this_variant = &variants[idx as uint];
+                    let this_variant = &variants[idx as usize];
 
                     let name = me.visit_path_in_enum_access(path);
 

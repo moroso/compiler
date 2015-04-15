@@ -17,13 +17,13 @@ use std::mem::swap;
 use std::cmp::max;
 
 pub struct ASTToIntermediate<'a, 'b: 'a> {
-    var_count: uint,
-    label_count: uint,
+    var_count: usize,
+    label_count: usize,
     session: &'a mut Session<'b>,
     typemap: &'a mut Typemap,
     manglemap: &'a BTreeMap<NodeId, String>,
-    continue_labels: Vec<uint>,
-    break_labels: Vec<uint>,
+    continue_labels: Vec<usize>,
+    break_labels: Vec<usize>,
 }
 
 fn ty_is_reference(ty: &Ty) -> bool {
@@ -135,7 +135,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         res
     }
 
-    fn gen_label(&mut self) -> uint {
+    fn gen_label(&mut self) -> usize {
         let res = self.label_count;
         self.label_count += 1;
         res
@@ -300,7 +300,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         (vec!(),
          vec!(StaticIRItem {
              name: name,
-             size: size as uint,
+             size: size as usize,
              offset: None,
              is_ref: ty_is_reference(ty),
              is_func: false,
@@ -324,7 +324,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
     pub fn allocate_globals(globals: Vec<StaticIRItem>
                             ) -> BTreeMap<Name, StaticIRItem> {
-        let mut offs: uint = 0;
+        let mut offs: usize = 0;
         let mut result = BTreeMap::new();
 
         for mut global in globals.into_iter() {
@@ -400,9 +400,9 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     e: &Expr,
                     block_insts: Vec<Op>,
                     iter_insts: Option<Vec<Op>>,
-                    break_label: uint,
-                    continue_label: uint,
-                    middle_label: Option<uint>) -> (Vec<Op>, Option<Var>) {
+                    break_label: usize,
+                    continue_label: usize,
+                    middle_label: Option<usize>) -> (Vec<Op>, Option<Var>) {
         // In the case of a while loop, a "continue" should go all the way
         // back to the beginning. But in the case of a for loop, the beginning
         // label will be different, and "continue" will jump to the end of
@@ -1220,7 +1220,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 let total_size = size_of_ty(self.session,
                                             self.typemap,
                                             ty);
-                assert_eq!(elems.len() as uint, nelems as uint);
+                assert_eq!(elems.len() as usize, nelems as usize);
                 assert_eq!(total_size, inner_len * nelems);
                 let result_var = self.gen_temp();
                 let mut ops = vec!(Op::Alloca(result_var, total_size));
@@ -1344,7 +1344,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
                 // These are the labels for each pattern. The are off by one:
                 // we never need to jump to the beginning of the first variant.
-                let mut begin_labels: Vec<uint> = (0..arms.len() - 1).map(
+                let mut begin_labels: Vec<usize> = (0..arms.len() - 1).map(
                     |_| self.gen_label()).collect();
                 // We do, however, need to jump to to the end of the last, and
                 // it's convenient to put the ending label at the end of this

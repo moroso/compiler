@@ -54,8 +54,8 @@ impl ConflictAnalyzer {
                     }
                     for i in num_param_regs .. args.len() {
                         must_colors.insert(args[i],
-                                           StackColor((i as int) - 1 -
-                                                      (args.len() as int)));
+                                           StackColor((i as isize) - 1 -
+                                                      (args.len() as isize)));
                     }
                 }
                 _ => {}

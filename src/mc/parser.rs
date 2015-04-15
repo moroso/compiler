@@ -44,7 +44,7 @@ type StaticDecl = (Ident, ast::Type);
 pub struct Parser {
     /// Each AST node is given a unique identifier. This keeps track of the
     /// next number to assign to an identifier.
-    next_id: uint,
+    next_id: usize,
     /// Tracks the corresponding source position of each AST node.
     spanmap: BTreeMap<NodeId, Span>,
     /// Tracks the corresponding file name of each AST node.
@@ -89,7 +89,7 @@ struct OpTable {
 
 struct OpTableRow {
     assoc: Assoc,
-    ops: uint,
+    ops: usize,
 }
 
 fn can_start_item(t: &Token) -> bool {
@@ -255,7 +255,7 @@ impl Parser {
 
 impl OpTable {
     fn parse_expr<'a, T: Iterator<Item=SourceToken<Token>>>(&self, parser: &mut StreamParser<'a, T>) -> Expr {
-        fn parse_row<'a, T: Iterator<Item=SourceToken<Token>>>(r: uint, rows: &[OpTableRow], parser: &mut StreamParser<'a, T>) -> Expr {
+        fn parse_row<'a, T: Iterator<Item=SourceToken<Token>>>(r: usize, rows: &[OpTableRow], parser: &mut StreamParser<'a, T>) -> Expr {
             if r == 0 {
                 parser.parse_unop_expr_maybe_cast()
             } else {
@@ -932,7 +932,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn maybe_parse_binop<F>(&mut self,
-                            ops: uint,
+                            ops: usize,
                             assoc: Assoc,
                             parse_simpler_expr: F,
                             e: Expr,
@@ -944,7 +944,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
         }
 
         let op = match *self.peek() {
-            ref tok if binop_from_token(tok).map_or(false, |op| ops & (1 << (op as uint)) != 0) => binop_from_token(tok).unwrap(),
+            ref tok if binop_from_token(tok).map_or(false, |op| ops & (1 << (op as usize)) != 0) => binop_from_token(tok).unwrap(),
             _ => return e,
         };
 
@@ -981,7 +981,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
             () => (0);
             (,) => (0);
             ($($op:expr),+,) => (ops!($($ops),+));
-            ($($op:expr),+) => ($((1 << ($op as uint)))|+);
+            ($($op:expr),+) => ($((1 << ($op as usize)))|+);
         }
 
         macro_rules! row {
