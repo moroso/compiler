@@ -7,7 +7,7 @@ use self::encoder::encode;
 
 use getopts;
 use getopts::{getopts, reqopt, optopt, optflag};
-use std::io::Write;
+use std::io::{Write, BufReader};
 
 
 pub mod lexer;
@@ -67,7 +67,7 @@ pub fn main() {
         print!("Moroso assembler.\n");
     }
 
-    let lexer = new_asm_lexer("<stdin>", io::stdin());
+    let lexer = new_asm_lexer("<stdin>", BufReader::new(io::stdin()));
     let peekable = lexer.peekable();
     let mut parser = AsmParser::new(peekable);
     let (mut insts, labels) = parser.parse_toplevel();
@@ -77,7 +77,7 @@ pub fn main() {
 
     for packet in insts.iter() {
         match &format_arg[..] {
-            "internal" => print!("{}\n", packet),
+            "internal" => print!("{:?}\n", packet),
             "c" => print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",
                           encode(&packet[0]),
                           encode(&packet[1]),

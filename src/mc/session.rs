@@ -33,10 +33,10 @@ thread_local! {
 }
 
 thread_local! {
-    pub static cur_rel_path: RefCell<PathBuf> = RefCell::new(Path::new("."))
+    pub static cur_rel_path: RefCell<PathBuf> = RefCell::new(Path::new(".").to_path_buf())
 }
 
-pub fn get_cur_rel_path() -> Path {
+pub fn get_cur_rel_path() -> PathBuf {
     cur_rel_path.with(|p| p.borrow().clone())
 }
 
@@ -85,7 +85,7 @@ impl Interner {
         for x in strings.iter() {
             if x.1 == name {
                 unsafe {
-                    use std::mem::copy_lifetime;
+                    use util::copy_lifetime;
                     return &copy_lifetime(self, x.0)[..];
                 }
             }
@@ -104,7 +104,7 @@ impl Interner {
         //}
         let mut strings = self.strings.borrow_mut();
         let name = Name(strings.len());
-        *strings.entry(s).get().unwrap_or_else(|vacant| vacant.insert(name))
+        *strings.entry(s).or_insert(name)
     }
 }
 
@@ -126,16 +126,17 @@ impl<'a> Session<'a> {
     }
 
     pub fn messages<T: AsRef<str>>(&self, errors: &[(NodeId, T)]) {
+        use std::io::prelude::*;
         let mut full_msg = String::new();
         for &(nid, ref msg) in errors.iter() {
-            full_msg.push_str(msg.as_slice());
+            full_msg.push_str(msg.as_ref());
             full_msg.push_str("\n");
             let fname = self.interner.name_to_str(&self.parser.filename_of(&nid));
             full_msg.push_str(
                 &format!("   {}: {}\n", fname, self.parser.span_of(&nid))[..]);
         }
 
-        let _ = io::stderr().write_str(&full_msg[..]);
+        let _ = writeln!(&mut io::stderr(), "{}", full_msg);
     }
 
     pub fn message<T: AsRef<str>>(&self, nid: NodeId, msg: T) {
@@ -143,8 +144,9 @@ impl<'a> Session<'a> {
     }
 
     pub fn errors_fatal<T: AsRef<str>>(&self, errors: &[(NodeId, T)]) -> ! {
+        use std::io::prelude::*;
         self.messages(errors);
-        let _ = io::stderr().write_str("\n");
+        let _ = writeln!(&mut io::stderr(), "");
         panic!("Aborting")
     }
     pub fn error_fatal<T: AsRef<str>>(&self, nid: NodeId, msg: T) -> ! {
@@ -160,7 +162,7 @@ impl<'a> Session<'a> {
         let sp = self.parser.span_of(&nid);
         panic!("\nBum bum bum budda bum bum tsch:\n\
               Internal Compiler Error{}\n\
-              at: {}\n", msg.as_slice(), sp);
+              at: {}\n", msg.as_ref(), sp);
     }
 
     fn inject(&mut self, src: &str, name: &str, module: &mut Module) {
@@ -220,20 +222,21 @@ impl<'a> Session<'a> {
         module
     }
 
-    pub fn parse_file_common<F>(&'a mut self, file: fs::File, f: F) -> Module
+    pub fn parse_file_common<F>(&'a mut self, filename: &Path, file: fs::File, f: F) -> Module
         where F: Fn(&mut Session, String,
                     io::BufReader<fs::File>) -> Module {
         use std::mem::replace;
 
-        let filename = format!("{}", file.path().display());
-        let old_wd = cur_rel_path.with(|p| replace(&mut *p.borrow_mut(), file.path().dir_path()));
-        let module = f(self, filename, io::BufReader::new(file));
+        let filename_str = filename.to_str().unwrap().to_string();
+        let old_wd = cur_rel_path.with(|p| replace(&mut *p.borrow_mut(),
+                                                   filename.parent().unwrap().to_path_buf()));
+        let module = f(self, filename_str, io::BufReader::new(file));
         cur_rel_path.with(|p| replace(&mut *p.borrow_mut(), old_wd));
         module
     }
 
-    pub fn parse_file(&'a mut self, file: fs::File) -> Module {
-        self.parse_file_common(file,
+    pub fn parse_file(&'a mut self, filename: &Path, file: fs::File) -> Module {
+        self.parse_file_common(filename, file,
                                |me, filename, buf| me.parse_buffer(
                                    &filename[..], buf))
     }

@@ -281,7 +281,7 @@ impl<'a> MacroExpanderVisitor<'a> {
         // recursively expand it.
         // Is this just totally fucking wrong? It might be.
         let mut new_toks = vec!();
-        while !stream.is_empty() {
+        while stream.peek().is_some() {
             // Do some borrow checker gymnastics. Need to find out whether
             // the next thing is an IdentBangTok without retaining a borrow.
             let is_macro_call = {

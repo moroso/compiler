@@ -9,9 +9,7 @@ use span::{Span, SourcePos, mk_sp};
 use regex::Regex;
 use std::{option, iter};
 
-//use std::str::StrExt;
 use std::io::{BufRead, Result};
-use std::io::stdio::Stdin;
 
 use std::marker::PhantomData;
 

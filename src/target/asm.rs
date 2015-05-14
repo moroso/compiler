@@ -29,7 +29,7 @@ use mas::parser::AsmParser;
 
 use util::Name;
 
-use std::io::{Write, stdio, BufReader};
+use std::io::{Write, BufReader};
 use std::fs::File;
 use std::path::Path;
 use std::collections::BTreeSet;
@@ -46,7 +46,7 @@ fn print_bin(n: u32, stream: &mut Write) {
         (n >>  8) as u8,
         (n >> 16) as u8,
         (n >> 24) as u8,
-        ).as_slice())).ok();
+        ).as_ref())).ok();
 }
 
 impl Target for AsmTarget {

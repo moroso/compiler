@@ -12,7 +12,6 @@ pub use self::NS::*;
 
 use self::ModuleScope::*;
 
-//#[allow(non_camel_case_types)] leaving the warning so we remember to patch rust later
 #[derive(Clone, Copy)]
 pub enum NS {
     TypeAndModNS = 0,
@@ -39,11 +38,11 @@ impl Subscope {
     fn insert(&mut self, ns: NS, name: Name, node_id: NodeId) -> bool {
         let ns = ns as usize;
 
-        if !self.names.contains_key(&name.as_uint()) {
-            self.names.insert(name.as_uint(), BTreeMap::new());
+        if !self.names.contains_key(&name.as_usize()) {
+            self.names.insert(name.as_usize(), BTreeMap::new());
         }
 
-        let names = self.names.get_mut(&name.as_uint()).unwrap();
+        let names = self.names.get_mut(&name.as_usize()).unwrap();
 
         names.insert(ns, node_id).is_some()
     }
@@ -111,7 +110,7 @@ impl Subscope {
 
     fn find(&self, ns: NS, ident: &Ident) -> Option<NodeId> {
         let ns = ns as usize;
-        self.names.get(&ident.val.name.as_uint())
+        self.names.get(&ident.val.name.as_usize())
             .and_then(|names| names.get(&ns))
             .map(|id| *id)
     }

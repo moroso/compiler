@@ -332,7 +332,7 @@ fn assert_reg(reg: Reg) {
 }
 
 fn assert_offs(offs: i32, width: u8) {
-    let mask = (-1 as u32) << (width as usize);
+    let mask = !0u32 << (width as usize);
     // Check that the sign bit is extended all the way.
     assert_eq!((mask & (offs as u32) == mask),
                (((offs as u32) & (1<<((width-1) as usize)) != 0)));

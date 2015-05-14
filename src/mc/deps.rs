@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::fs::File;
+use std::io::prelude::*;
 
 use package::Package;
 
@@ -11,7 +12,7 @@ pub fn output_deps(package: &Package, target: &String) {
           map(|name| format!("{}", package.session.interner.name_to_str(name))).
           filter(|name| (&name[..]).char_at(0) != '<').collect();
 
-    let mut dep_path = Path::new(target.clone());
+    let mut dep_path = Path::new(target).to_path_buf();
     dep_path.set_extension("dep");
     let mut file = match File::create(&dep_path) {
         Ok(f) => f,

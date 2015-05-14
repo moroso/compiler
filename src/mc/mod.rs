@@ -6,10 +6,11 @@ use self::session::{Session, Options};
 
 use getopts;
 use getopts::{getopts, reqopt, optopt, optflag, optmulti};
-use std::io::{BufReader, Write, stdio};
+use std::io::{BufReader, Write};
 use std::fs::File;
 use std::ascii::AsciiExt;
 
+use std::io;
 use std::os;
 use std::env;
 use std::path::Path;
@@ -28,7 +29,7 @@ impl Target for NullTarget {
 }
 
 fn package_from_stdin<'a>(opts: Options) -> Package<'a> {
-    Package::from_buffer(opts, "<stdin>", stdio::stdin())
+    Package::from_buffer(opts, "<stdin>", BufReader::new(io::stdin()))
 }
 
 fn new_target<T: Target>(args: Vec<String>) -> Box<T> {
@@ -61,7 +62,7 @@ fn parse_search_paths(opts: &mut Options, matches: &getopts::Matches) -> bool {
         let parts: Vec<&str> = string.split(":").collect();
         if parts.len() != 2 { return false }
         let (module, file) = (parts[0], parts[1]);
-        opts.search_paths.insert(module.to_string(), Path::new(file));
+        opts.search_paths.insert(module.to_string(), Path::new(file).to_path_buf());
     }
 
     true
@@ -159,9 +160,9 @@ pub fn main() {
     // don't truncate the file if it fails, either. (We *shouldn't*
     // fail during compile, but...)
     let mut writer = match matches.opt_str("output") {
-        None => Box::new(stdio::stdout()) as Box<Write>,
+        None => Box::new(io::stdout()) as Box<Write>,
         Some(name) => {
-            let path = Path::new(name);
+            let path = Path::new(&name);
             let file = File::create(&path).unwrap_or_else(|e| panic!("{}", e));
             Box::new(file) as Box<Write>
         }

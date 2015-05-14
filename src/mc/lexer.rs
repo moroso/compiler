@@ -9,7 +9,6 @@ pub use util::lexer::BufReader;
 
 use std::fmt;
 use std::fmt::{Formatter, Display, Debug};
-//use std::str::StrExt;
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Token {
@@ -219,7 +218,6 @@ fn mk_rule<A: 'static, T: RuleMatcher<A>+'static, U: TokenMaker<A, Token>+'stati
     -> Box<LexerRuleT<Token>> {
     box LexerRule::<A, _, _>::new(matcher, maker) as Box<LexerRuleT<Token>>
 }
-
 macro_rules! matcher { ( $e:expr ) => ( regex!(concat!("^(?:", $e, ")"))) }
 macro_rules! lexer_rules {
     ( $( $c:expr => $m:expr ),*) => (
@@ -234,7 +232,7 @@ impl RuleMatcher<IntKind> for IntTypeRule {
         let matcher = matcher!(r"[uUiI](32|16|8)");
         match matcher.captures(s) {
             Some(groups) => {
-                let ctor: fn(Width) -> IntKind = match s.char_at(0) {
+                let ctor: fn(Width) -> IntKind = match s.chars().nth(0).unwrap() {
                     'u' | 'U' => IntKind::UnsignedInt,
                     'i' | 'I' => IntKind::SignedInt,
                     _ => panic!(),
@@ -267,7 +265,7 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
 
                 let s = groups.at(3).unwrap();
                 let kind = if s.len() > 0 {
-                    let ctor: fn(Width) -> IntKind = match s.char_at(0) {
+                    let ctor: fn(Width) -> IntKind = match s.chars().nth(0).unwrap() {
                         'u' | 'U' => IntKind::UnsignedInt,
                         'i' | 'I' => IntKind::SignedInt,
                         _ => panic!(),

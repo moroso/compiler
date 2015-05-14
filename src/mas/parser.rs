@@ -143,7 +143,7 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
     }
 
     fn error<U: AsRef<str>>(&self, message: U) -> ! {
-        panic!("\n{}\nat {}", message.as_slice(), self.last_span.get_begin())
+        panic!("\n{}\nat {}", message.as_ref(), self.last_span.get_begin())
     }
 
     /// Assert that `num` fits into `size` bits.

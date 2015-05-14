@@ -79,7 +79,7 @@ fn constant_fold(session: &Session, map: &ConstantMap, expr: &Expr)
                   -> ConstantResult {
     match expr.val {
         LitExpr(ref lit) => {
-            use std::mem::copy_lifetime;
+            use util::copy_lifetime;
             match lit.val {
                 NullLit                 => Err((lit.id, "`null` is not valid here")),
                 ref val                 => Ok(val.clone())
@@ -116,7 +116,7 @@ impl<'a> Visitor for ConstCollector<'a> {
     fn visit_item(&mut self, item: &Item) {
         match item.val {
             ConstItem(ref ident, _, ref e) => {
-                use std::mem::copy_lifetime;
+                use util::copy_lifetime;
                 let vid = self.graph.add_node(ident.id);
                 self.nodes.insert(ident.id, vid);
                 let expr = unsafe { copy_lifetime(self.session, e) };

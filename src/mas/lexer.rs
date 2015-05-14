@@ -84,13 +84,20 @@ pub enum Token {
 }
 allow_string!(Token);
 
+// XXX: This is a workaround I don't totally understand and might not work.
+fn mk_rule<A: 'static, T: RuleMatcher<A>+'static, U: TokenMaker<A, Token>+'static>(
+    matcher: T, maker: U)
+    -> Box<LexerRuleT<Token>> {
+    box LexerRule::<A, _, _>::new(matcher, maker) as Box<LexerRuleT<Token>>
+}
+
 pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
     name: &S,
     buffer: T) -> Lexer<'a, T, Token> {
 
     macro_rules! lexer_rules {
         ( $( $c:expr => $m:expr ),*) => (
-            vec!( $( box LexerRule::new($m, $c) as Box<LexerRuleT<Token>> ),* )
+            vec!( $( mk_rule($m, $c) ),* )
                 )
     }
     macro_rules! matcher { ( $e:expr ) => ( regex!(concat!("^(?:", $e, ")"))) }

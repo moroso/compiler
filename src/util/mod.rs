@@ -6,6 +6,14 @@ use std::fmt;
 pub mod lexer;
 pub mod graph;
 
+/// Transforms lifetime of the second pointer to match the first.
+#[inline]
+pub unsafe fn copy_lifetime<'a, S: ?Sized, T: ?Sized + 'a>(_ptr: &'a S,
+                                                        ptr: &T) -> &'a T {
+    use std::mem::transmute;
+    transmute(ptr)
+}
+
 // This represents an interned string/name/identifier. The mapping from strings
 // to Names and Names to strings is in the Interner (session.rs).
 #[derive(Eq, Ord, PartialOrd, PartialEq, Clone, Copy)]

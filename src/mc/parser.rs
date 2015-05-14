@@ -27,15 +27,15 @@ use std::{io, mem, num, vec};
 use std::collections::{HashMap, BTreeMap, BTreeSet};
 use std::iter::{Peekable, FromIterator};
 
-//use std::old_io::fs::PathExtensions;
-
 use super::ast;
 use super::ast::*;
 use super::lexer::*;
 
 use values::*;
 
+use std::path::PathBuf;
 use std::path::Path as FilePath;
+use std::fs::PathExt;
 
 type FuncProto = (Ident, Vec<FuncArg>, ast::Type, Vec<Ident>);
 type StaticDecl = (Ident, ast::Type);
@@ -66,7 +66,7 @@ pub struct StreamParser<'a, T: Iterator<Item=SourceToken<Token>>> {
     /// Any parsing restriction in the current context
     restriction: Restriction,
     /// Path to current source file
-    source: FilePath,
+    source: PathBuf,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -281,7 +281,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
             session: session,
             last_span: mk_sp(SourcePos::new(), 0),
             restriction: Restriction::NoRestriction,
-            source: FilePath::new("."),
+            source: FilePath::new(".").to_path_buf(),
         }
     }
 
@@ -342,11 +342,12 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn error<U: AsRef<str>>(&self, message: U, pos: SourcePos) -> ! {
+        use std::io::prelude::*;
         let path = self.session.interner.name_to_str(&self.name);
 
         let s = format!("Parse error: {}\n    at {} {}\n",
-                        message.as_slice(), path, pos);
-        let _ = io::stderr().write_str(&s[..]);
+                        message.as_ref(), path, pos);
+        let _ = writeln!(&mut io::stderr(), "{}", s);
         panic!()
     }
 
@@ -355,7 +356,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
     fn peek_error<U: AsRef<str>>(&mut self, message: U) -> ! {
         let tok = self.peek().clone();
         let pos = self.peek_span().get_begin();
-        self.error(format!("{} (got token {})", message.as_slice(), tok), pos)
+        self.error(format!("{} (got token {})", message.as_ref(), tok), pos)
     }
 
     fn add_id_and_span<U>(&mut self, val: U, sp: Span) -> WithId<U> {
@@ -1556,14 +1557,14 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
             }
             Token::Semicolon => {
                 self.expect(Token::Semicolon);
-                let file = {
+                let filename = {
                     let name = self.session.interner.name_to_str(&ident.val.name);
 
                     let base = get_cur_rel_path();
-                    let filename1 = base.join(FilePath::new(format!("{}.mb", name)));
-                    let filename2 = base.join(FilePath::new(format!("{}/mod.mb", name)));
+                    let filename1 = base.join(FilePath::new(&format!("{}.mb", name)));
+                    let filename2 = base.join(FilePath::new(&format!("{}/mod.mb", name)));
 
-                    let filename = match (filename1.exists(), filename2.exists()) {
+                    match (filename1.exists(), filename2.exists()) {
                         (true,  false) => filename1,
                         (false, true)  => filename2,
                         (false, false) => {
@@ -1583,16 +1584,18 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
                             self.error(format!("ambiguous module name: both {} and {} exist.",
                                                filename1.display(), filename2.display()),
                                        start_span.get_begin()),
-                    };
+                    }
 
-                    ::std::fs::File::open(&filename).unwrap_or_else(|e| {
-                        self.error(format!("failed to open {}: {}",
-                                           filename.display(), e), start_span.get_begin())
-                    })
+
                 };
 
-                //TODO!!!!!!!
-                //self.session.parse_file(file)
+                let file = ::std::fs::File::open(&filename).unwrap_or_else(|e| {
+                    self.error(format!("failed to open {}: {}",
+                                       filename.display(), e), start_span.get_begin())
+                });
+
+                //TODO!!!!!!
+                //self.session.parse_file(&*filename, file)
                 panic!()
             }
             _ => self.peek_error("Expected opening brace or semicolon"),
