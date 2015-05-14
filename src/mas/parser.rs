@@ -8,6 +8,7 @@ use std::iter::Peekable;
 use span::{SourcePos, Span, mk_sp};
 use std::collections::BTreeMap;
 use std::io::{BufRead, Read, Write};
+use num::FromPrimitive;
 
 pub use self::InstType::*;
 

@@ -137,7 +137,7 @@ pub enum CompareType {
 }
 
 // Shift types.
-#[derive(Clone, Eq, PartialEq, FromPrimitive, Ord, PartialOrd, Debug, Copy)]
+#[derive(Clone, Eq, PartialEq, NumFromPrimitive, Ord, PartialOrd, Debug, Copy)]
 pub enum ShiftType {
     SllShift,
     SrlShift,

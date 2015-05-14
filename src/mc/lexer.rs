@@ -224,8 +224,6 @@ macro_rules! lexer_rules {
 struct IntTypeRule;
 impl RuleMatcher<IntKind> for IntTypeRule {
     fn find(&self, s: &str) -> Option<(usize, IntKind)> {
-        use std::num::from_str_radix;
-
         let matcher = matcher!(r"[uUiI](32|16|8)");
         match matcher.captures(s) {
             Some(groups) => {
@@ -234,8 +232,7 @@ impl RuleMatcher<IntKind> for IntTypeRule {
                     'i' | 'I' => IntKind::SignedInt,
                     _ => panic!(),
                 };
-
-                let w = match from_str_radix::<u8>(groups.at(1).unwrap(), 10) {
+                let w = match u8::from_str_radix(groups.at(1).unwrap(), 10) {
                     Ok(32) => Width::Width32,
                     Ok(16) => Width::Width16,
                     Ok(8)  => Width::Width8,
@@ -253,8 +250,6 @@ impl RuleMatcher<IntKind> for IntTypeRule {
 struct NumberRule;
 impl RuleMatcher<(u64, IntKind)> for NumberRule {
     fn find(&self, s: &str) -> Option<(usize, (u64, IntKind))> {
-        use std::num::from_str_radix;
-
         let matcher = matcher!(r"((?:0[xX]([:xdigit:]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?");
         match matcher.captures(s) {
             Some(groups) => {
@@ -271,7 +266,7 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
                         _ => panic!(),
                     };
 
-                    let w = match from_str_radix::<u8>(groups.at(4).unwrap(), 10) {
+                    let w = match u8::from_str_radix(groups.at(4).unwrap(), 10) {
                         Err(_) => Width::AnyWidth,
                         Ok(32) => Width::Width32,
                         Ok(16) => Width::Width16,
@@ -284,7 +279,8 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
                     IntKind::GenericInt
                 };
 
-                Some((groups.at(0).unwrap().len(), (from_str_radix(num_str, radix).unwrap(), kind)))
+                Some((groups.at(0).unwrap().len(),
+                      (u64::from_str_radix(num_str, radix).unwrap(), kind)))
             },
             _ => None
         }

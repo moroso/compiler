@@ -99,8 +99,6 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
     struct RegisterRule;
     impl RuleMatcher<ast::Reg> for RegisterRule {
         fn find(&self, s: &str) -> Option<(usize, ast::Reg)> {
-            use std::num::from_str_radix;
-
             let matcher = matcher!(r"r(\d+|l)");
             match matcher.captures(s) {
                 Some(groups) => {
@@ -108,7 +106,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
                           if groups.at(1).unwrap() == "l" {
                               ast::Reg { index: 31 }
                           } else {
-                              let n = from_str_radix(groups.at(1).unwrap(), 10).unwrap();
+                              let n = u8::from_str_radix(groups.at(1).unwrap(), 10).unwrap();
                               ast::Reg { index: n }
                           }))
                 },
@@ -143,8 +141,6 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
     struct NumberLiteralRule;
     impl RuleMatcher<u32> for NumberLiteralRule {
         fn find(&self, s: &str) -> Option<(usize, u32)> {
-            use std::num::from_str_radix;
-
             let matcher = matcher!(r"(-?)((?:0[xX]([:xdigit:]+))|(?:0[bB]([01]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?");
 
             match matcher.captures(s) {
@@ -161,7 +157,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
 
                     let negated = groups.at(1).unwrap() == "-";
 
-                    let mut num: u32 = from_str_radix(num_str, radix).unwrap();
+                    let mut num = u32::from_str_radix(num_str, radix).unwrap();
 
                     if negated { num = -(num as i32) as u32; }
 
