@@ -154,8 +154,7 @@ pub fn main() {
         package_from_stdin(options)
     } else {
         let path = Path::new(name);
-        let file = File::open(&path).unwrap_or_else(|e| panic!("{}", e));
-        Package::from_file(options, file)
+        Package::from_path(options, path)
     };
 
     // FIXME: Hm, maybe should use a MemWriter, gather the buffer,

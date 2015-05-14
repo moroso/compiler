@@ -192,11 +192,13 @@ impl<'a> Session<'a> {
         Parser::parse(self, lexer)
     }
 
-    pub fn parse_package_buffer<S: ?Sized + ToString, T: BufReader>(&'a mut self, name: &S, buffer: T) -> Module {
+    pub fn parse_package_buffer<S: ?Sized + ToString, T: BufReader>(
+        &mut self, name: &S, buffer: T) -> Module {
+
         use super::ast::mut_visitor::MutVisitor;
 
-        struct PreludeInjector<'a> { session: &'a mut Session<'a> }
-        impl<'a> MutVisitor for PreludeInjector<'a> {
+        struct PreludeInjector<'a,'b: 'a> { session: &'a mut Session<'b> }
+        impl<'a,'b> MutVisitor for PreludeInjector<'a,'b> {
             fn visit_module(&mut self, module: &mut Module) {
                 use super::ast::mut_visitor::walk_module;
                 self.session.inject_prelude(module);
@@ -222,7 +224,7 @@ impl<'a> Session<'a> {
         module
     }
 
-    pub fn parse_file_common<F>(&'a mut self, filename: &Path, file: fs::File, f: F) -> Module
+    pub fn parse_file_common<F>(&mut self, filename: &Path, file: fs::File, f: F) -> Module
         where F: Fn(&mut Session, String,
                     io::BufReader<fs::File>) -> Module {
         use std::mem::replace;
@@ -235,18 +237,18 @@ impl<'a> Session<'a> {
         module
     }
 
-    pub fn parse_file(&'a mut self, filename: &Path, file: fs::File) -> Module {
+    // FIXME: there is some silliness here with filename
+    pub fn parse_file(&mut self, filename: &Path, file: fs::File) -> Module {
         self.parse_file_common(filename, file,
                                |me, filename, buf| me.parse_buffer(
                                    &filename[..], buf))
     }
-    //TODO!!!!!
-    /*
-    pub fn parse_package_file(&'a mut self, file: fs::File) -> Module {
-        self.parse_file_common(file,
+    pub fn parse_package_file(&mut self, filename: &Path, file: fs::File) -> Module {
+        let mut n = 0;
+        self.parse_file_common(filename, file,
                                |me, filename, buf| me.parse_package_buffer(
                                    &filename[..], buf))
-    }*/
+    }
 
     pub fn parse_package_str(&'a mut self, s: &str) -> Module {
         let bytes = s.as_bytes();

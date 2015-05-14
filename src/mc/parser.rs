@@ -1594,9 +1594,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
                                        filename.display(), e), start_span.get_begin())
                 });
 
-                //TODO!!!!!!
-                //self.session.parse_file(&*filename, file)
-                panic!()
+                self.session.parse_file(&*filename, file)
             }
             _ => self.peek_error("Expected opening brace or semicolon"),
         };
