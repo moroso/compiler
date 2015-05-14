@@ -29,15 +29,15 @@ use std::path::{Path, PathBuf};
 use std::fs;
 
 thread_local! {
-    pub static interner: ::std::rc::Rc<Interner> = ::std::rc::Rc::new(Interner::new())
+    pub static INTERNER: ::std::rc::Rc<Interner> = ::std::rc::Rc::new(Interner::new())
 }
 
 thread_local! {
-    pub static cur_rel_path: RefCell<PathBuf> = RefCell::new(Path::new(".").to_path_buf())
+    pub static CUR_REL_PATH: RefCell<PathBuf> = RefCell::new(Path::new(".").to_path_buf())
 }
 
 pub fn get_cur_rel_path() -> PathBuf {
-    cur_rel_path.with(|p| p.borrow().clone())
+    CUR_REL_PATH.with(|p| p.borrow().clone())
 }
 
 pub struct Options {
@@ -110,9 +110,9 @@ impl Interner {
 
 impl<'a> Session<'a> {
     pub fn new(opts: Options) -> Session<'a> {
-        use mc::session::interner;
+        use mc::session::INTERNER;
 
-        interner.with(|x| {
+        INTERNER.with(|x| {
             Session {
                 options: opts,
                 defmap: DefMap::new(),
@@ -228,10 +228,10 @@ impl<'a> Session<'a> {
         use std::mem::replace;
 
         let filename_str = filename.to_str().unwrap().to_string();
-        let old_wd = cur_rel_path.with(|p| replace(&mut *p.borrow_mut(),
+        let old_wd = CUR_REL_PATH.with(|p| replace(&mut *p.borrow_mut(),
                                                    filename.parent().unwrap().to_path_buf()));
         let module = f(self, filename_str, io::BufReader::new(file));
-        cur_rel_path.with(|p| replace(&mut *p.borrow_mut(), old_wd));
+        CUR_REL_PATH.with(|p| replace(&mut *p.borrow_mut(), old_wd));
         module
     }
 

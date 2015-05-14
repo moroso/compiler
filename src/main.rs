@@ -1,15 +1,15 @@
-#![feature(plugin,overloaded_calls,box_syntax,int_uint)]
+#![allow(unused_variables)] // TODO!!!!! drop this once our dead code doesn't cause so many
+
+#![feature(plugin,box_syntax)]
 // Unstable libraries
 #![feature(path_ext)]
 #![feature(rustc_private)] // do we really want to use this?
-#![feature(old_io)] // TODO: should move away from this
 #![feature(collections)] // hm
 #![feature(custom_derive)]
 #![allow(dead_code,unused_imports)]
 
 #![plugin(regex_macros)]
 #![plugin(num_macros)]
-extern crate regex_macros;
 
 extern crate num;
 

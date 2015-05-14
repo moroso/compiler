@@ -96,12 +96,12 @@ impl RegisterColorer {
             for n in 0 .. num_colors {
                 let n = n as u8;
                 // No matter what, we're not allowed to assign these registers.
-                if n == spill_reg_base ||
-                    n == spill_reg_base+1 ||
-                    n == spill_reg_base+2 ||
-                    n == link_register.index ||
-                    n == stack_pointer.index ||
-                    n == global_reg.index
+                if n == SPILL_REG_BASE ||
+                    n == SPILL_REG_BASE+1 ||
+                    n == SPILL_REG_BASE+2 ||
+                    n == LINK_REGISTER.index ||
+                    n == STACK_POINTER.index ||
+                    n == GLOBAL_REG.index
                 {
                     continue;
                 }

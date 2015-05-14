@@ -141,10 +141,10 @@ impl<'a> ConstCollector<'a> {
         use util::graph::GraphExt;
 
         let ConstCollector {
-            nodes: ref nodes,
+            ref nodes,
             consts: _,
-            graph: ref mut graph,
-            session: ref session,
+            ref mut graph,
+            ref session,
         } = *self;
 
         ConstGraphBuilder::build_graph(graph, nodes, *session, module);

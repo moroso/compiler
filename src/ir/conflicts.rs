@@ -37,7 +37,7 @@ impl ConflictAnalyzer {
                 },
                 Op::Call(ref v, _, ref args) => {
                     for (i, arg) in args.iter().enumerate()
-                        .take(num_param_regs)
+                        .take(NUM_PARAM_REGS)
                     {
                         must_colors.insert(*arg,
                                            RegColor(Reg { index: i as u8 }));
@@ -47,12 +47,12 @@ impl ConflictAnalyzer {
                 Op::Func(_, ref args, is_extern) => {
                     if is_extern { break; }
                     for (i, arg) in args.iter().enumerate()
-                        .take(num_param_regs)
+                        .take(NUM_PARAM_REGS)
                     {
                         must_colors.insert(*arg,
                                            RegColor(Reg { index: i as u8 }));
                     }
-                    for i in num_param_regs .. args.len() {
+                    for i in NUM_PARAM_REGS .. args.len() {
                         must_colors.insert(args[i],
                                            StackColor((i as isize) - 1 -
                                                       (args.len() as isize)));

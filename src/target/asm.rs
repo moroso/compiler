@@ -16,7 +16,7 @@ use ir::StaticIRItem;
 use target::NameMangler;
 
 use codegen::register_color::RegisterColorer;
-use codegen::num_usable_vars;
+use codegen::NUM_USABLE_VARS;
 use codegen::IrToAsm;
 use codegen::combine::link;
 
@@ -64,9 +64,9 @@ impl Target for AsmTarget {
     #[allow(unused_must_use)]
     fn compile(&self, p: Package, f: &mut Write) {
         let Package {
-            module:  module,
-            session: session,
-            typemap: mut typemap,
+            module,
+            session,
+            mut typemap,
         } = p;
 
         let mangler = NameMangler::new(session, &module, true, true);
@@ -147,7 +147,7 @@ impl Target for AsmTarget {
                        RegisterColorer::color(conflict_map, counts,
                                               must_colors, mem_vars,
                                               &global_map,
-                                              num_usable_vars as usize));
+                                              NUM_USABLE_VARS as usize));
             }
             let (asm_insts, labels) = IrToAsm::ir_to_asm(insts,
                                                          &global_map,

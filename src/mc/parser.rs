@@ -1007,7 +1007,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
             ($($rows:expr),*) => (OpTable { rows: &[$($rows),+] });
         }
 
-        static optable: OpTable = optable! {
+        static OP_TABLE: OpTable = optable! {
             left!(TimesOp, DivideOp, ModOp),
             left!(PlusOp, MinusOp),
             left!(LeftShiftOp, RightShiftOp),
@@ -1020,7 +1020,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
             left!(OrElseOp),
         };
 
-        optable.parse_expr(self)
+        OP_TABLE.parse_expr(self)
     }
 
     fn parse_expr_no_structs(&mut self) -> Expr {

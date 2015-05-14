@@ -687,10 +687,10 @@ impl<'a> CCrossCompiler<'a> {
 
                     let name = me.visit_path_in_enum_access(path);
 
-                    let mut n = 0;
                     //TODO!!!!!!!
                     let vars = "";
                     /*
+                    let mut n = 0;
                     let vars = me.visit_list(vars, |me, var: &Pat| {
                         n += 1;
                         let ty = me.visit_type(&this_variant.args[n - 1]);

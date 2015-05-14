@@ -9,7 +9,7 @@ use typechecker::*;
 use util::*;
 
 /// The size of the tag for enums.
-pub static enum_tag_size: u64 = 4;
+pub static ENUM_TAG_SIZE: u64 = 4;
 
 /// Return the alignment for an object of a certain size.
 pub fn alignment(size: u64) -> u64 {
@@ -64,9 +64,9 @@ pub fn size_of_def(session: &Session, typemap: &Typemap, node: &NodeId) -> u64 {
             let max_variant_size = variants.iter()
                 .map(|v| size_of_def(session, typemap, v)).max().unwrap();
             if max_variant_size == 0 {
-                enum_tag_size
+                ENUM_TAG_SIZE
             } else {
-                packed_size(&vec!(enum_tag_size, max_variant_size))
+                packed_size(&vec!(ENUM_TAG_SIZE, max_variant_size))
             }
         },
         Def::VariantDef(_, _, ref types) => {

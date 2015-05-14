@@ -27,12 +27,12 @@ pub struct SourceToken<T> {
 pub struct LexerRule<A, T, U> {
     pub matcher: T,
     pub maker: U,
-    type_A: PhantomData<A>,
+    type_a: PhantomData<A>,
 }
 
 impl<A, T, U> LexerRule<A, T, U> {
     pub fn new(matcher: T, maker: U) -> LexerRule<A, T, U> {
-        LexerRule { matcher: matcher, maker: maker, type_A: PhantomData }
+        LexerRule { matcher: matcher, maker: maker, type_a: PhantomData }
     }
 }
 

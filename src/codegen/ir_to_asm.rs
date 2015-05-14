@@ -285,7 +285,7 @@ fn convert_binop<'a>(
                                     Pred { inverted: false,
                                            reg: 3},
                                     MovAluOp,
-                                    global_reg),
+                                    GLOBAL_REG),
                                 InstNode::anylong(longval),
                                 InstNode::mult(
                                     Pred { inverted: false,
@@ -293,7 +293,7 @@ fn convert_binop<'a>(
                                     signed,
                                     dest,
                                     reg_l,
-                                    global_reg)).into_iter()),
+                                    GLOBAL_REG)).into_iter()),
                         DivideOp =>
                             result.extend(vec!(
                                 // TODO: don't always use longs here, and
@@ -303,7 +303,7 @@ fn convert_binop<'a>(
                                     Pred { inverted: false,
                                            reg: 3},
                                     MovAluOp,
-                                    global_reg),
+                                    GLOBAL_REG),
                                 InstNode::anylong(longval),
                                 if swapped {
                                     InstNode::div(
@@ -311,7 +311,7 @@ fn convert_binop<'a>(
                                                reg: 3 },
                                         signed,
                                         dest,
-                                        global_reg,
+                                        GLOBAL_REG,
                                         reg_l)
                                 } else {
                                     InstNode::div(
@@ -320,7 +320,7 @@ fn convert_binop<'a>(
                                         signed,
                                         dest,
                                         reg_l,
-                                        global_reg)
+                                        GLOBAL_REG)
                                 }).into_iter()),
                         ModOp =>
                             result.extend(vec!(
@@ -331,7 +331,7 @@ fn convert_binop<'a>(
                                     Pred { inverted: false,
                                            reg: 3},
                                     MovAluOp,
-                                    global_reg),
+                                    GLOBAL_REG),
                                 InstNode::anylong(longval),
                                 if swapped {
                                     InstNode::div(
@@ -339,7 +339,7 @@ fn convert_binop<'a>(
                                                reg: 3 },
                                         signed,
                                         dest,
-                                        global_reg,
+                                        GLOBAL_REG,
                                         reg_l)
                                 } else {
                                     InstNode::div(
@@ -348,7 +348,7 @@ fn convert_binop<'a>(
                                         signed,
                                         dest,
                                         reg_l,
-                                        global_reg)
+                                        GLOBAL_REG)
                                 },
                                 InstNode::mfhi(
                                     Pred { inverted: false,
@@ -363,14 +363,14 @@ fn convert_binop<'a>(
                                         Pred { inverted: false,
                                                reg: 3},
                                         MovAluOp,
-                                        global_reg),
+                                        GLOBAL_REG),
                                     InstNode::anylong(longval),
                                     InstNode::alu1regsh(
                                         Pred { inverted: false,
                                                reg: 3 },
                                         dest,
                                         MovAluOp,
-                                        global_reg,
+                                        GLOBAL_REG,
                                         if *op == LeftShiftOp {
                                             SllShift
                                         } else if signed {
@@ -461,7 +461,7 @@ fn convert_unop<'a>(
                         return vec!(InstNode::alu2short(pred,
                                                         AddAluOp,
                                                         dest,
-                                                        stack_pointer,
+                                                        STACK_POINTER,
                                                         offs + (n * 4) as u32,
                                                         0));
                     },
@@ -605,21 +605,21 @@ fn var_to_reg(regmap: &BTreeMap<Var, RegisterColor>,
         },
         StackColor(pos) => {
             // TODO: clean up these constants and document this.
-            let reg = Reg { index: spill_reg_base + spill_pos };
+            let reg = Reg { index: SPILL_REG_BASE + spill_pos };
             (reg,
              vec!(
                  InstNode::load(pred,
                                 LsuOp { store: false,
                                         width: LsuWidthL },
                                 reg,
-                                stack_pointer,
+                                STACK_POINTER,
                                 (offs as isize + pos * 4) as i32)
                      ),
              vec!(
                  InstNode::store(pred,
                                  LsuOp { store: true,
                                          width: LsuWidthL },
-                                 stack_pointer,
+                                 STACK_POINTER,
                                  (offs as isize + pos * 4) as i32,
                                  reg)
                      ),
@@ -628,14 +628,14 @@ fn var_to_reg(regmap: &BTreeMap<Var, RegisterColor>,
         GlobalColor => {
             let global_info = global_map.get(&var.name).unwrap();
             let offs = global_info.offset.expect("No offset for global item");
-            let reg = Reg { index: spill_reg_base + spill_pos };
+            let reg = Reg { index: SPILL_REG_BASE + spill_pos };
             if global_info.is_ref {
                 (reg,
                  vec!(InstNode::alu1long(
                      pred,
                      MovAluOp,
                      reg),
-                      InstNode::long(global_mem_start + offs as u32)
+                      InstNode::long(GLOBAL_MEM_START + offs as u32)
                       ),
                  vec!())
             } else {
@@ -643,24 +643,24 @@ fn var_to_reg(regmap: &BTreeMap<Var, RegisterColor>,
                  vec!(InstNode::alu1long(
                      pred,
                      MovAluOp,
-                     global_reg),
-                      InstNode::long(global_mem_start + offs as u32),
+                     GLOBAL_REG),
+                      InstNode::long(GLOBAL_MEM_START + offs as u32),
                       InstNode::load(pred,
                                      LsuOp { store: false,
                                              width: LsuWidthL },
                                      reg,
-                                     global_reg,
+                                     GLOBAL_REG,
                                      0)
                       ),
                  vec!(InstNode::alu1long(
                      pred,
                      MovAluOp,
-                     global_reg),
-                      InstNode::long(global_mem_start + offs as u32),
+                     GLOBAL_REG),
+                      InstNode::long(GLOBAL_MEM_START + offs as u32),
                       InstNode::store(pred,
                                       LsuOp { store: true,
                                               width: LsuWidthL },
-                                      global_reg,
+                                      GLOBAL_REG,
                                       0,
                                       reg)
                       ),
@@ -748,12 +748,12 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
                     InstNode::alu1reg(
                         pred.clone(),
                         MovAluOp,
-                        global_reg.clone(),
+                        GLOBAL_REG.clone(),
                         src_reg.clone(),
                         SllShift,
                         0));
 
-                // global_reg now contains the value that should
+                // GLOBAL_REG now contains the value that should
                 // ultimately go into dest_reg.
 
                 let mut this_src = &src_reg;
@@ -794,7 +794,7 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
                         pred.clone(),
                         MovAluOp,
                         dest_reg,
-                        global_reg.clone(),
+                        GLOBAL_REG.clone(),
                         SllShift,
                         0));
                 result.extend(dest_insts.into_iter());
@@ -863,7 +863,7 @@ impl IrToAsm {
             ConflictAnalyzer::conflicts(ops, &opinfo);
         let regmap = RegisterColorer::color(conflicts, counts, must_colors,
                                             mem_vars, global_map,
-                                            num_usable_vars);
+                                            NUM_USABLE_VARS);
         // Does this function call any other function? If not, we can
         // avoid saving r31.
         let mut has_call = false;
@@ -940,20 +940,20 @@ impl IrToAsm {
                         result.push(
                             InstNode::store(TRUE_PRED,
                                             store32_op,
-                                            stack_pointer,
+                                            STACK_POINTER,
                                             0,
-                                            link_register
+                                            LINK_REGISTER
                                             )
                                 );
                         num_saved = 1;
                     }
 
                     // Save all callee-save registers
-                    for (x, i) in (first_callee_saved_reg.index .. max_reg_index+1).enumerate() {
+                    for (x, i) in (FIRST_CALLEE_SAVED_REG.index .. max_reg_index+1).enumerate() {
                         result.push(
                             InstNode::store(TRUE_PRED,
                                             store32_op,
-                                            stack_pointer,
+                                            STACK_POINTER,
                                             (stack_item_offs as usize +
                                              x * 4) as i32,
                                             Reg { index: i })
@@ -964,18 +964,18 @@ impl IrToAsm {
                 Op::Return(ref rve) => {
                     // Store the result in r0.
                     result.extend(
-                        convert_unop(&regmap, global_map, return_reg,
+                        convert_unop(&regmap, global_map, RETURN_REG,
                                      &Identity, rve,
                                      stack_item_offs,
                                      session, strings).into_iter());
 
                     // Restore all callee-save registers
-                    for (x, i) in (first_callee_saved_reg.index .. max_reg_index+1).enumerate() {
+                    for (x, i) in (FIRST_CALLEE_SAVED_REG.index .. max_reg_index+1).enumerate() {
                         result.push(
                             InstNode::load(TRUE_PRED,
                                            load32_op,
                                            Reg { index: i },
-                                           stack_pointer,
+                                           STACK_POINTER,
                                            (stack_item_offs as usize +
                                             x * 4) as i32
                                            ));
@@ -986,15 +986,15 @@ impl IrToAsm {
                         result.push(
                             InstNode::load(TRUE_PRED,
                                            load32_op,
-                                           link_register,
-                                           stack_pointer,
+                                           LINK_REGISTER,
+                                           STACK_POINTER,
                                            0));
                     }
                     // Return
                     result.push(
                         InstNode::branchreg(TRUE_PRED,
                                             false,
-                                            link_register,
+                                            LINK_REGISTER,
                                             1));
                 },
                 Op::BinOp(ref var, ref op, ref rve1, ref rve2, signed) => {
@@ -1110,7 +1110,7 @@ impl IrToAsm {
                                     TRUE_PRED,
                                     AddAluOp,
                                     reg,
-                                    stack_pointer,
+                                    STACK_POINTER,
                                     // TODO: encode as base/shift?
                                     offs,
                                     0)
@@ -1139,7 +1139,7 @@ impl IrToAsm {
                                          (max_stack_index + num_saved as isize) * 4;
 
                     // This is where the stack pointer should end up pointing.
-                    // We always reserve at least num_param_regs slots: either
+                    // We always reserve at least NUM_PARAM_REGS slots: either
                     // we're using a slot for a parameter, or we're saving
                     // the caller-save variable that goes there.
 
@@ -1154,7 +1154,7 @@ impl IrToAsm {
                             "Variable does not appear in regmap") {
                             RegColor(ref r) => {
                                 if r.index as usize >= total_vars &&
-                                    r.index as usize <= num_param_regs &&
+                                    r.index as usize <= NUM_PARAM_REGS &&
                                     r.index > 0 {
                                         reg_set.insert(r.clone());
                                     }
@@ -1167,11 +1167,11 @@ impl IrToAsm {
                         FromIterator::from_iter(reg_set.iter().map(|&x|x));
 
                     let offs =
-                        if total_vars >= num_param_regs {
+                        if total_vars >= NUM_PARAM_REGS {
                             // We're using all registers that we can, and
                             // possibly passing some arguments on the stack.
                             stack_arg_offs as i32 +
-                                (total_vars as i32 - num_param_regs as i32) * 4
+                                (total_vars as i32 - NUM_PARAM_REGS as i32) * 4
                         } else {
                             // We're not using all the registers, for
                             // arguments, so we may have to save some
@@ -1196,7 +1196,7 @@ impl IrToAsm {
                             InstNode::store(
                                 TRUE_PRED,
                                 store32_op,
-                                stack_pointer,
+                                STACK_POINTER,
                                 (stack_arg_offs + i as isize * 4) as i32,
                                 reg_list[i],
                                 ));
@@ -1210,7 +1210,7 @@ impl IrToAsm {
                     // passing any registers on the stack. If we're passing
                     // registers on the stack, it means that we've used all
                     // register slots, and so we don't have to save any.
-                    for (i, arg_idx) in (num_param_regs .. total_vars).enumerate() {
+                    for (i, arg_idx) in (NUM_PARAM_REGS .. total_vars).enumerate() {
                         let (reg, before, _) = var_to_reg(&regmap,
                                                           global_map,
                                                           &vars[arg_idx], 0,
@@ -1220,7 +1220,7 @@ impl IrToAsm {
                             InstNode::store(
                                 TRUE_PRED,
                                 store32_op,
-                                stack_pointer,
+                                STACK_POINTER,
                                 (stack_arg_offs + i as isize * 4) as i32,
                                 reg
                                 ));
@@ -1254,8 +1254,8 @@ impl IrToAsm {
                         InstNode::alu2short(
                             TRUE_PRED,
                             AddAluOp,
-                            stack_pointer,
-                            stack_pointer,
+                            STACK_POINTER,
+                            STACK_POINTER,
                             offs_base,
                             offs_shift));
                     match reg_opt {
@@ -1277,8 +1277,8 @@ impl IrToAsm {
                         InstNode::alu2short(
                             TRUE_PRED,
                             SubAluOp,
-                            stack_pointer,
-                            stack_pointer,
+                            STACK_POINTER,
+                            STACK_POINTER,
                             offs_base,
                             offs_shift)
                         );
@@ -1289,7 +1289,7 @@ impl IrToAsm {
                                 TRUE_PRED,
                                 load32_op,
                                 reg_list[i],
-                                stack_pointer,
+                                STACK_POINTER,
                                 (stack_arg_offs + i as isize * 4) as i32
                                 ));
                     }

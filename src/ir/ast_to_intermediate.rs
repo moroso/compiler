@@ -1522,7 +1522,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         let vars: Vec<Var> = (0..sizes.len()).map(|_| self.gen_temp()).collect();
 
         for i in 0 .. sizes.len() {
-            let offs = enum_tag_size + offset_of(&sizes, i);
+            let offs = ENUM_TAG_SIZE + offset_of(&sizes, i);
 
             let new_offs_var = &vars[i];
             insts.push(Op::BinOp(new_offs_var.clone(),

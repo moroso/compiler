@@ -111,7 +111,7 @@ fn expand_map_macro(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -
 type ExpanderFnSig = fn(Vec<Vec<Token>>, NodeId, &mut Session) -> Vec<Token>;
 struct ExpanderFn(ExpanderFnSig);
 
-static builtin_macros: &'static [(&'static str, ExpanderFnSig)] = &[
+static BUILTIN_MACROS: &'static [(&'static str, ExpanderFnSig)] = &[
     ("paste", expand_paste),
     ("concat", expand_concat),
     ("stringify", expand_stringify),
@@ -212,12 +212,12 @@ impl MutVisitor for MacroCollector {
 
 impl<'a> MacroExpander<'a> {
     pub fn new() -> MacroExpander<'a> {
-        use mc::session::interner;
+        use mc::session::INTERNER;
 
         let mut macros = BTreeMap::new();
 
-        for &(s, e) in builtin_macros.iter() {
-            interner.with(|x| {
+        for &(s, e) in BUILTIN_MACROS.iter() {
+            INTERNER.with(|x| {
                 let name = x.intern(s.to_string());
                 macros.insert(name, Box::new(ExpanderFn(e)) as Box<Expander>);
             })
