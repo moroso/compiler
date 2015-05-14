@@ -6,12 +6,23 @@ use std::fmt;
 pub mod lexer;
 pub mod graph;
 
+/// I copied a bunch of simple unstable library functions out so I
+/// don't need to say feature(core).
+
 /// Transforms lifetime of the second pointer to match the first.
 #[inline]
 pub unsafe fn copy_lifetime<'a, S: ?Sized, T: ?Sized + 'a>(_ptr: &'a S,
                                                         ptr: &T) -> &'a T {
     use std::mem::transmute;
     transmute(ptr)
+}
+
+/// Converts a pointer to A into a slice of length 1 (without copying).
+pub fn ref_slice<'a, A>(s: &'a A) -> &'a [A] {
+    use std::slice::from_raw_parts;
+    unsafe {
+        from_raw_parts(s, 1)
+    }
 }
 
 // This represents an interned string/name/identifier. The mapping from strings

@@ -1,3 +1,4 @@
+use std::process;
 use std::io;
 use std::env;
 
@@ -25,7 +26,7 @@ fn print_bin<T: Write>(n: u32, stream: &mut T) {
         (n >>  8) as u8,
         (n >> 16) as u8,
         (n >> 24) as u8,
-        ).as_slice())).ok();
+        ).as_ref())).ok();
 }
 
 pub fn main() {
@@ -39,16 +40,17 @@ pub fn main() {
     ];
 
     let bail = |error: Option<&str>| {
-        match error {
+        let error = match error {
             Some(e) => {
-                env::set_exit_status(1);
                 println!("{}: fatal error: {}", arg0, e);
+                1
             }
-            None => {}
-        }
+            None => 0,
+        };
 
         let brief = format!("Usage: {} [OPTIONS]", arg0);
         println!("{}", getopts::usage(&brief[..], &opts));
+        process::exit(error)
     };
 
     let matches = match getopts(args.tail(), &opts) {

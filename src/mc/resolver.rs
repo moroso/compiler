@@ -1,6 +1,7 @@
 use mc::session::Interner;
 use mc::session::Session;
 use util::Name;
+use util;
 
 use std::collections::{VecMap, BTreeMap};
 use std::slice;
@@ -186,7 +187,7 @@ impl<'a> ModuleResolver<'a> {
     fn try_resolve_subscope(&mut self, global: bool,
                             path: &[Ident]) -> Option<&[Subscope]> {
         let mut search_scope = if global {
-            slice::ref_slice(&self.scope[0])
+            &self.scope[0..1]
         } else {
             &self.scope[self.root..]
         };
@@ -200,8 +201,8 @@ impl<'a> ModuleResolver<'a> {
             match maybe_modscope {
                 Some(modscope) => {
                     search_scope = match *modscope {
-                        OnBranch(idx) => slice::ref_slice(&self.scope[idx]),
-                        OffBranch(ref subscope) => slice::ref_slice(subscope),
+                        OnBranch(idx) => &self.scope[idx..idx+1],
+                        OffBranch(ref subscope) => util::ref_slice(subscope),
                     }
                 }
                 None => return None,

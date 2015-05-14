@@ -14,6 +14,7 @@ use std::io;
 use std::os;
 use std::env;
 use std::path::Path;
+use std::process;
 
 pub mod lexer;
 pub mod parser;
@@ -82,25 +83,26 @@ pub fn main() {
     ];
 
     let bail = |error: Option<&str>| {
-        match error {
+        let error = match error {
             Some(e) => {
-                env::set_exit_status(1);
                 println!("{}: fatal error: {}", arg0, e);
+                1
             }
-            None => {}
-        }
+            None => 0,
+        };
 
         let brief = format!("Usage: {} [OPTIONS]", arg0);
         println!("{}", getopts::usage(&brief[..], &opts));
+        process::exit(error)
     };
 
     let matches = match getopts(args.tail(), &opts) {
         Ok(m) => m,
-        Err(e) => return bail(Some(&format!("{}", e)[..])),
+        Err(e) => bail(Some(&format!("{}", e)[..])),
     };
 
     if matches.opt_present("help") {
-        return bail(None);
+        bail(None);
     }
 
     // TODO: make this work again.
@@ -144,7 +146,8 @@ pub fn main() {
     } else if matches.free.len() == 1 {
         &matches.free[0][..]
     } else {
-        return bail(Some("too many arguments"))
+        bail(Some("too many arguments"));
+        panic!()
     };
 
     let package = if name == "-" {
