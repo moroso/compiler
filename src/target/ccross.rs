@@ -5,7 +5,7 @@ use mc::resolver::Resolver;
 use mc::session::Session;
 
 use package::Package;
-use target::Target;
+use target::{MkTarget,Target};
 use target::NameMangler;
 
 use util::{IntKind, Name, Width};
@@ -853,11 +853,12 @@ pub struct CTarget {
     opts: (),
 }
 
-impl Target for CTarget {
+impl MkTarget for CTarget {
     fn new(_args: Vec<String>) -> Box<CTarget> {
         Box::new(CTarget { opts: () })
     }
-
+}
+impl Target for CTarget {
     #[allow(unused_must_use)]
     fn compile(&self, p: Package, f: &mut Write) {
         let Package {

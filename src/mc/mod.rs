@@ -1,5 +1,5 @@
 use package::Package;
-use target::{Target, CTarget, IRTarget, AsmTarget};
+use target::{MkTarget, Target, CTarget, IRTarget, AsmTarget};
 
 use self::ast::visitor::Visitor;
 use self::session::{Session, Options};
@@ -24,8 +24,10 @@ pub mod resolver;
 pub mod deps;
 
 struct NullTarget;
-impl Target for NullTarget {
+impl MkTarget for NullTarget {
     fn new(_: Vec<String>) -> Box<NullTarget> { Box::new(NullTarget) }
+}
+impl Target for NullTarget {
     fn compile(&self, _: Package, _: &mut Write) { }
 }
 
@@ -33,13 +35,13 @@ fn package_from_stdin<'a>(opts: Options) -> Package<'a> {
     Package::from_buffer(opts, "<stdin>", BufReader::new(io::stdin()))
 }
 
-fn new_target<T: Target>(args: Vec<String>) -> Box<T> {
-    Target::new(args)
+fn new_target<T: MkTarget>(args: Vec<String>) -> Box<T> {
+    MkTarget::new(args)
 }
 
 macro_rules! targets {
     ($($n:expr => $t:ty),*) => (
-        vec!($(($n, Box::new(|&:args| { new_target::<$t>(args) as Box<Target> }) as Box<Fn(Vec<String>) -> Box<Target>> )),*)
+        vec!($(($n, Box::new(|args| { new_target::<$t>(args) as Box<Target> }) as Box<Fn(Vec<String>) -> Box<Target>> )),*)
     );
     ($($n:expr => $t:ty),+,) => (targets!($($n => $t),+))
 }
@@ -105,8 +107,6 @@ pub fn main() {
         bail(None);
     }
 
-    // TODO: make this work again.
-    /*
     let targets = targets! {
         "c" => CTarget,
         "ir" => IRTarget,
@@ -125,15 +125,15 @@ pub fn main() {
                             } else {
                                 vec!()
                             }))
-                        .next() {
+                        .next()
+    {
         Some(t) => t,
         None => {
             let msg = format!("Unrecognized target `{}'", target_arg);
-            return bail(Some(&msg[..]));
+            bail(Some(&msg[..]));
+            panic!()
         }
-                        };*/
-    // TODO!!!!
-    let target = new_target::<CTarget>(vec!());
+    };
 
     let mut options = Options::new();
     setup_builtin_search_paths(&mut options);
@@ -183,7 +183,7 @@ pub fn main() {
 mod tests {
     use package::Package;
     use super::{NullTarget, setup_builtin_search_paths};
-    use target::Target;
+    use target::MkTarget;
     use std::old_io::stdio;
 
     fn package_from_str(s: &str) -> Package {

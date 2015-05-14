@@ -4,7 +4,7 @@ use mc::lexer::Lexer;
 use mc::parser::Parser;
 use mc::session::Interner;
 
-use super::Target;
+use super::{MkTarget,Target};
 
 use ir::liveness::LivenessAnalyzer;
 use ir::ast_to_intermediate::ASTToIntermediate;
@@ -49,7 +49,7 @@ fn print_bin(n: u32, stream: &mut Write) {
         ).as_ref())).ok();
 }
 
-impl Target for AsmTarget {
+impl MkTarget for AsmTarget {
     fn new(args: Vec<String>) -> Box<AsmTarget> {
         let mut verbose = false;
         for arg in args.iter() {
@@ -60,7 +60,9 @@ impl Target for AsmTarget {
         }
         Box::new(AsmTarget { verbose: verbose })
     }
+}
 
+impl Target for AsmTarget {
     #[allow(unused_must_use)]
     fn compile(&self, p: Package, f: &mut Write) {
         let Package {

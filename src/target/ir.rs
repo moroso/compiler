@@ -15,7 +15,7 @@ use ir::ast_to_intermediate::ASTToIntermediate;
 use ir::constant_fold::ConstantFolder;
 use ir::ssa::ToSSA;
 
-use super::Target;
+use super::{MkTarget,Target};
 
 use target::util::NameMangler;
 
@@ -311,7 +311,7 @@ impl IRTarget {
     }
 }
 
-impl Target for IRTarget {
+impl MkTarget for IRTarget {
     fn new(args: Vec<String>) -> Box<IRTarget> {
         let mut verbose = false;
         for arg in args.iter() {
@@ -322,7 +322,8 @@ impl Target for IRTarget {
         }
         Box::new(IRTarget { verbose: verbose })
     }
-
+}
+impl Target for IRTarget {
     #[allow(unused_must_use)]
     fn compile(&self, p: Package, f: &mut Write) {
         let Package {
