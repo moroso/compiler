@@ -1,6 +1,6 @@
-pub use rustc::middle::graph::{Graph, Edge, EdgeIndex};
-pub use rustc::middle::graph::Node      as Vertex;
-pub use rustc::middle::graph::NodeIndex as VertexIndex;
+pub use rustc_data_structures::graph::{Graph, Edge, EdgeIndex};
+pub use rustc_data_structures::graph::Node      as Vertex;
+pub use rustc_data_structures::graph::NodeIndex as VertexIndex;
 
 use collections::BTreeSet;
 

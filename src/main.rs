@@ -11,7 +11,7 @@ extern crate regex_macros;
 extern crate collections;
 extern crate getopts;
 extern crate regex;
-extern crate rustc;
+extern crate rustc_data_structures;
 extern crate syntax as rust_syntax;
 extern crate time;
 

@@ -5,7 +5,6 @@ use mas::ast::*;
 use mas::util::{pack_int, fits_in_bits};
 use util::lexer::{Lexer, SourceToken, BufReader};
 use std::iter::Peekable;
-use std::num::FromPrimitive;
 use span::{SourcePos, Span, mk_sp};
 use std::collections::BTreeMap;
 use std::io::{BufRead, Read, Write};
