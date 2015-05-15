@@ -92,9 +92,9 @@ pub trait BufReader {
 
 impl<B> BufReader for B where B: BufRead {
     fn read_line(&mut self) -> Result<String> {
-        //self.read_line()
-        //TODO!!!!!!!!!!!!!
-        panic!("unimplemented");
+        let mut s = String::new();
+        try!(self.read_line(&mut s));
+        Ok(s)
     }
 }
 
