@@ -284,10 +284,8 @@ impl<'a> CCrossCompiler<'a> {
             None => tail(None),
         };
 
-        //TODO!!!!!!!
-        //let out = self.visit_list(&vec!(items, stmts, expr),
-            //                          |&:_, t: &String| t.clone(), delim);
-            let out = "";
+        let out = self.visit_list(&vec!(items, stmts, expr),
+                                  |_, t| t.clone(), delim);
         self.unindent();
 
         format!("{{{}{}\n{}}}", delim, out, self.ind())
