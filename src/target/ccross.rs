@@ -685,11 +685,8 @@ impl<'a> CCrossCompiler<'a> {
 
                     let name = me.visit_path_in_enum_access(path);
 
-                    //TODO!!!!!!!
-                    let vars = "";
-                    /*
                     let mut n = 0;
-                    let vars = me.visit_list(vars, |me, var: &Pat| {
+                    let vars = me.visit_list(vars, |me, var| {
                         n += 1;
                         let ty = me.visit_type(&this_variant.args[n - 1]);
                         let varname = match var.val {
@@ -698,7 +695,7 @@ impl<'a> CCrossCompiler<'a> {
                         };
                         format!("{} {} = {}.val.{}.field{};",
                                 ty, varname, &expr[..], name, n - 1)
-                    }, "; ");*/
+                    }, "; ");
 
                     if is_void {
                         format!("case {}: {{\n {}; ({}); break;}}\n",
