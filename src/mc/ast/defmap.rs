@@ -58,8 +58,8 @@ pub struct DefMap {
     table: BTreeMap<NodeId, Def>,
 }
 
-struct DefMapVisitor<'a> {
-    session: &'a mut Session<'a>,
+struct DefMapVisitor<'a, 'b: 'a> {
+    session: &'a mut Session<'b>,
     qualifier: Vec<Name>,
 }
 
@@ -74,7 +74,7 @@ impl DefMap {
         self.table.get(id)
     }
 
-    pub fn record<'a>(session: &'a mut Session<'a>, module: &Module) {
+    pub fn record(session: &mut Session, module: &Module) {
         let mut visitor = DefMapVisitor {
             session: session,
             qualifier: vec!(),
@@ -84,7 +84,7 @@ impl DefMap {
     }
 }
 
-impl<'a> DefMapVisitor<'a> {
+impl<'a, 'b> DefMapVisitor<'a, 'b> {
     fn make_qualified_name(&self, name: Name) -> Vec<Name> {
         let mut qn = self.qualifier.clone();
         qn.push(name);
@@ -92,7 +92,7 @@ impl<'a> DefMapVisitor<'a> {
     }
 }
 
-impl<'a> Visitor for DefMapVisitor<'a> {
+impl<'a, 'b> Visitor for DefMapVisitor<'a, 'b> {
     fn visit_expr(&mut self, expr: &Expr) {
         match expr.val {
             MatchExpr(ref e, ref arms) => {

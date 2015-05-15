@@ -21,7 +21,6 @@ use super::ast::macros::MacroExpander;
 use std::borrow::Borrow;
 use std::collections::{HashMap, BTreeMap};
 use std::cell::RefCell;
-//use std::str::StrExt;
 
 use std::io;
 use std::thread;
@@ -213,14 +212,12 @@ impl<'a> Session<'a> {
             injector.visit_module(&mut module);
         }
 
-        //TODO!!!!!
-        /*
         self.inject_std(&mut module);
 
         MacroExpander::expand_macros(self, &mut module);
         DefMap::record(self, &module);
         PathMap::record(self, &module);
-        Resolver::resolve(self, &module);*/
+        Resolver::resolve(self, &module);
         module
     }
 
@@ -244,7 +241,6 @@ impl<'a> Session<'a> {
                                    &filename[..], buf))
     }
     pub fn parse_package_file(&mut self, filename: &Path, file: fs::File) -> Module {
-        let mut n = 0;
         self.parse_file_common(filename, file,
                                |me, filename, buf| me.parse_package_buffer(
                                    &filename[..], buf))

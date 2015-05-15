@@ -1,5 +1,3 @@
-#![allow(unused_variables)] // TODO!!!!! drop this once our dead code doesn't cause so many
-
 #![feature(plugin,box_syntax)]
 // Unstable libraries
 #![feature(path_ext)]

@@ -125,8 +125,8 @@ struct ModuleCollector {
     tree: BTreeMap<NodeId, ModuleScope>,
 }
 
-struct ModuleResolver<'a> {
-    session: &'a mut Session<'a>,
+struct ModuleResolver<'a, 'b: 'a> {
+    session: &'a mut Session<'b>,
     scope: Vec<Subscope>,
     tree: BTreeMap<NodeId, ModuleScope>,
     root: usize,
@@ -153,8 +153,8 @@ impl Resolver {
     }
 
     // The entry point for the resolver
-    pub fn resolve<'a>(session: &'a mut Session<'a>,
-                       module: &Module) {
+    pub fn resolve(session: &mut Session,
+                   module: &Module) {
         let (root, tree) = ModuleCollector::collect(module);
 
         let mut modres = ModuleResolver {
@@ -182,7 +182,7 @@ fn try_resolve_ident(scope: &[Subscope], ns: NS, ident: &Ident) -> Option<NodeId
     scope.iter().rev().filter_map(|subscope| subscope.find(ns, ident)).next()
 }
 
-impl<'a> ModuleResolver<'a> {
+impl<'a, 'b> ModuleResolver<'a, 'b> {
     // Takes a module path
     fn try_resolve_subscope(&mut self, global: bool,
                             path: &[Ident]) -> Option<&[Subscope]> {
@@ -371,7 +371,7 @@ impl Visitor for ModuleCollector {
     }
 }
 
-impl<'a> Visitor for ModuleResolver<'a> {
+impl<'a, 'b> Visitor for ModuleResolver<'a, 'b> {
     fn visit_type(&mut self, t: &Type) {
         match t.val {
             NamedType(ref path) => {

@@ -17,8 +17,8 @@ pub struct MacroExpander<'a> {
     macros: BTreeMap<Name, Box<Expander + 'a>>,
 }
 
-struct MacroExpanderVisitor<'a> {
-    session: &'a mut Session<'a>,
+struct MacroExpanderVisitor<'a, 'b: 'a> {
+    session: &'a mut Session<'b>,
 }
 
 fn expand_file(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
@@ -228,7 +228,7 @@ impl<'a> MacroExpander<'a> {
         }
     }
 
-    pub fn expand_macros(session: &'a mut Session<'a>, module: &mut Module) {
+    pub fn expand_macros(session: &mut Session, module: &mut Module) {
         let user_macros = MacroCollector::collect(module);
         for def in user_macros.into_iter() {
             let name = def.val.name;
@@ -249,7 +249,7 @@ fn format_st_vec(v: &Vec<SourceToken<Token>>) -> String {
     format!("{:?}", nv)
 }
 
-impl<'a> MacroExpanderVisitor<'a> {
+impl<'a, 'b> MacroExpanderVisitor<'a, 'b> {
     fn expand_macro(&mut self,
                     id: &NodeId,
                     name: Name,
@@ -310,7 +310,7 @@ impl<'a> MacroExpanderVisitor<'a> {
 
 }
 
-impl<'a> MutVisitor for MacroExpanderVisitor<'a> {
+impl<'a, 'b> MutVisitor for MacroExpanderVisitor<'a, 'b> {
     fn visit_expr(&mut self, expr: &mut Expr) {
         use mc::parser::Parser;
 
