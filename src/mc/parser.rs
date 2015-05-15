@@ -52,7 +52,7 @@ pub struct Parser {
 }
 
 /// The state for parsing a stream of tokens into an AST node
-pub struct StreamParser<'a, T: Iterator<Item=SourceToken<Token>>> {
+pub struct StreamParser<'a, 'b: 'a, T: Iterator<Item=SourceToken<Token>>> {
     /// The token stream.
     tokens: T,
     /// The next token in the stream
@@ -62,7 +62,7 @@ pub struct StreamParser<'a, T: Iterator<Item=SourceToken<Token>>> {
     /// The span corresponding to the last token we consumed from the stream.
     last_span: Span,
     /// The session in which we're parsing this stream
-    session: &'a mut Session<'a>,
+    session: &'a mut Session<'b>,
     /// Any parsing restriction in the current context
     restriction: Restriction,
     /// Path to current source file
@@ -235,10 +235,8 @@ impl Parser {
                                           f: F) -> U
         where F: Fn(&mut StreamParser<Lexer<T, Token>>) -> U {
             let name = session.interner.intern(lexer.get_name());
-            //TODO!!!!!
-            //let mut tokp = StreamParser::new(session, name, lexer);
-            //f(&mut tokp)
-            panic!()
+            let mut tokp = StreamParser::new(session, name, lexer);
+            f(&mut tokp)
     }
 
     pub fn parse_stream<T: Iterator<Item=SourceToken<Token>>, U, F>(session: &mut Session,
@@ -246,22 +244,20 @@ impl Parser {
                                            tokens: T,
                                            f: F) -> U
         where F: Fn(&mut StreamParser<T>) -> U {
-            //TODO!!!!!
-        //let mut tokp = StreamParser::new(session, name, tokens);
-            //f(&mut tokp)
-            panic!()
+            let mut tokp = StreamParser::new(session, name, tokens);
+            f(&mut tokp)
     }
 }
 
 impl OpTable {
-    fn parse_expr<'a, T: Iterator<Item=SourceToken<Token>>>(&self, parser: &mut StreamParser<'a, T>) -> Expr {
-        fn parse_row<'a, T: Iterator<Item=SourceToken<Token>>>(r: usize, rows: &[OpTableRow], parser: &mut StreamParser<'a, T>) -> Expr {
+    fn parse_expr<T: Iterator<Item=SourceToken<Token>>>(&self, parser: &mut StreamParser<T>) -> Expr {
+        fn parse_row<T: Iterator<Item=SourceToken<Token>>>(r: usize, rows: &[OpTableRow], parser: &mut StreamParser<T>) -> Expr {
             if r == 0 {
                 parser.parse_unop_expr_maybe_cast()
             } else {
                 let row = &rows[r - 1];
                 let start_span = parser.cur_span();
-                let parse_simpler_expr = |p: &mut StreamParser<'a, T>| parse_row(r - 1, rows, p);
+                let parse_simpler_expr = |p: &mut StreamParser<T>| parse_row(r - 1, rows, p);
                 let e = parse_simpler_expr(parser);
                 parser.maybe_parse_binop(row.ops, row.assoc,
                                          parse_simpler_expr, e, start_span)
@@ -272,8 +268,8 @@ impl OpTable {
     }
 }
 
-impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
-    fn new(session: &'a mut Session<'a>, name: Name, tokens: T) -> StreamParser<'a, T> {
+impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
+    fn new(session: &'a mut Session<'b>, name: Name, tokens: T) -> StreamParser<'a, 'b, T> {
         StreamParser {
             name: name,
             next: None,
@@ -301,7 +297,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
 
     /// "Peek" at the next token, returning the token, without consuming
     /// it from the stream.
-    fn peek<'b>(&'b mut self) -> &'b Token {
+    fn peek(&mut self) -> &Token {
         if self.next.is_none() {
             self.advance();
         }
@@ -369,7 +365,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
     /// Utility to parse a comma-separated list of things
     fn parse_list<U, F>(&mut self, p: F, end: Token,
                         allow_trailing_comma: bool) -> Vec<U>
-        where F: Fn(&mut StreamParser<'a, T>) -> U {
+        where F: Fn(&mut StreamParser<T>) -> U {
         if *self.peek() == end {
             return vec!();
         }
@@ -393,7 +389,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn with_restriction<U, F>(&mut self, r: Restriction, p: F) -> U
-        where F: Fn(&mut StreamParser<'a, T>) -> U {
+        where F: Fn(&mut StreamParser<T>) -> U {
             let mut old = r;
             ::std::mem::swap(&mut old, &mut self.restriction);
             let ret = p(self);
@@ -573,7 +569,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
     fn parse_pat_common(&mut self, allow_types: bool) -> Pat {
         let start_span = self.cur_span();
 
-        let maybe_type = |p: &mut StreamParser<'a, T>, allow_types| {
+        let maybe_type = |p: &mut StreamParser<T>, allow_types| {
             match *p.peek() {
                 Token::Colon if allow_types => {
                     p.expect(Token::Colon);
@@ -898,7 +894,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
     }
 
     fn parse_unop_expr_maybe_cast(&mut self) -> Expr {
-        fn maybe_parse_cast<'a, T: Iterator<Item=SourceToken<Token>>>(p: &mut StreamParser<'a, T>, expr: Expr, start_span: Span) -> Expr {
+        fn maybe_parse_cast<T: Iterator<Item=SourceToken<Token>>>(p: &mut StreamParser<T>, expr: Expr, start_span: Span) -> Expr {
             match *p.peek() {
                 Token::As => {
                     p.expect(Token::As);
@@ -939,7 +935,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
                             e: Expr,
                             start_span: Span)
                             -> Expr
-        where F: Fn(&mut StreamParser<'a, T>) -> Expr {
+        where F: Fn(&mut StreamParser<T>) -> Expr {
         if self.expr_is_complete(&e) {
             return e;
         }
@@ -1506,7 +1502,7 @@ impl<'a, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, T> {
 
     fn parse_items_until<U, F>(&mut self, end: Token,
                                mut unmatched: F) -> Vec<Item>
-        where F: FnMut(&mut StreamParser<'a, T>) -> U {
+        where F: FnMut(&mut StreamParser<T>) -> U {
         let mut items = vec!();
         let mut use_items = vec!();
         let mut count = 0;
