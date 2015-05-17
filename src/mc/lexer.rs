@@ -258,30 +258,30 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
         let matcher = matcher!(r"((?:0[xX]([:xdigit:]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?");
         match matcher.captures(s) {
             Some(groups) => {
-                let (num_str, radix) = match groups.at(2).unwrap() {
-                    ""  => (groups.at(1).unwrap(), 10),
-                    hex => (hex, 16),
+                let (num_str, radix) = match groups.at(2) {
+                    None => (groups.at(1).unwrap(), 10),
+                    Some(hex) => (hex, 16),
                 };
 
-                let s = groups.at(3).unwrap();
-                let kind = if s.len() > 0 {
-                    let ctor: fn(Width) -> IntKind = match s.chars().nth(0).unwrap() {
-                        'u' | 'U' => IntKind::UnsignedInt,
-                        'i' | 'I' => IntKind::SignedInt,
-                        _ => panic!(),
-                    };
+                let s_opt = groups.at(3);
+                let kind = match s_opt {
+                    Some(s) => {
+                        let ctor: fn(Width) -> IntKind = match s.chars().nth(0).unwrap() {
+                            'u' | 'U' => IntKind::UnsignedInt,
+                            'i' | 'I' => IntKind::SignedInt,
+                            _ => panic!(),
+                        };
+                        let w = match u8::from_str_radix(groups.at(4).unwrap(), 10) {
+                            Err(_) => Width::AnyWidth,
+                            Ok(32) => Width::Width32,
+                            Ok(16) => Width::Width16,
+                            Ok(8) => Width::Width8,
+                            _ => panic!(),
+                        };
 
-                    let w = match u8::from_str_radix(groups.at(4).unwrap(), 10) {
-                        Err(_) => Width::AnyWidth,
-                        Ok(32) => Width::Width32,
-                        Ok(16) => Width::Width16,
-                        Ok(8) => Width::Width8,
-                        _ => panic!(),
-                    };
-
-                    ctor(w)
-                } else {
-                    IntKind::GenericInt
+                        ctor(w)
+                    },
+                    None => IntKind::GenericInt
                 };
 
                 Some((groups.at(0).unwrap().len(),

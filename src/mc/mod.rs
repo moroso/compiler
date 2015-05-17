@@ -53,7 +53,7 @@ pub fn setup_builtin_search_paths(opts: &mut Options) {
     match env::current_exe() {
         Err(_) => {}, /* whatever? */
         Ok(exe_path) => {
-            let prelude_location = exe_path.join(Path::new("lib/prelude.mb"));
+            let prelude_location = exe_path.parent().unwrap().join(Path::new("lib/prelude.mb"));
             opts.search_paths.insert("prelude".to_string(), prelude_location);
         }
     }
