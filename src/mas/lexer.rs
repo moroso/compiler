@@ -154,12 +154,12 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
                 Some(groups) => {
                     // TODO: match on (groups.at(3).unwrap(), groups.at(4).unwrap()) when rust
                     // fixes issue #14927.
-                    let (num_str, radix) = match groups.at(3).unwrap() {
-                        "" => match groups.at(4).unwrap() {
-                            "" => (groups.at(2).unwrap(), 10),
-                            bin => (bin, 2),
+                    let (num_str, radix) = match groups.at(3) {
+                        None => match groups.at(4) {
+                            None => (groups.at(2).unwrap(), 10),
+                            Some(bin) => (bin, 2),
                         },
-                        hex => (hex, 16),
+                        Some(hex) => (hex, 16),
                     };
 
                     let negated = groups.at(1).unwrap() == "-";

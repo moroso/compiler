@@ -6,7 +6,12 @@ pub fn pack_int(n: u32, width: u8) -> Option<(u32, u8)> {
     // We do this by trying all rotations and seeing if any of them works.
     // Yeah, we could be more clever about it, but there's really no need.
     fn rol(n: u32, amt: u8) -> u32 {
-        (n << (amt as usize)) | (n >> (32 - (amt as usize)))
+        if amt == 0 {
+            // this is to prevent overflow in this case.
+            n
+        } else {
+            (n << (amt as usize)) | (n >> ((32 - amt) as usize))
+        }
     }
 
     for i in 0u8 .. 16u8 {

@@ -9,7 +9,7 @@ use span::{Span, SourcePos, mk_sp};
 use regex::Regex;
 use std::{option, iter};
 
-use std::io::{BufRead, Result};
+use std::io::{BufRead, Result, Error, ErrorKind};
 
 use std::marker::PhantomData;
 
@@ -87,14 +87,17 @@ pub struct Lexer<'a, B, T> {
 }
 
 pub trait BufReader {
-    fn read_line(&mut self) -> Result<String>;
+    fn read_line(&mut self) -> Option<String>;
 }
 
 impl<B> BufReader for B where B: BufRead {
-    fn read_line(&mut self) -> Result<String> {
+    fn read_line(&mut self) -> Option<String> {
         let mut s = String::new();
-        try!(self.read_line(&mut s));
-        Ok(s)
+        let result = self.read_line(&mut s);
+        match result {
+            Ok(0) => None,
+            _ => Some(s)
+        }
     }
 }
 
@@ -270,7 +273,7 @@ impl<B: BufReader> BufferLines<B> {
 impl<B: BufReader> Iterator for BufferLines<B> {
     type Item = (usize, String);
     fn next(&mut self) -> Option<(usize, String)> {
-        self.buffer.read_line().ok().map(|l| {
+        self.buffer.read_line().map(|l| {
             let n = self.lineno;
             self.lineno += 1;
             (n, l)
