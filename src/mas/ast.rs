@@ -9,6 +9,7 @@ use std::fmt::{Formatter, Display, Debug};
 use mas::util::fits_in_bits;
 use std::ops::Index;
 use std::option::IterMut;
+use num::FromPrimitive;
 
 pub use self::CoReg::*;
 pub use self::AluOp::*;
@@ -137,13 +138,31 @@ pub enum CompareType {
 }
 
 // Shift types.
-#[derive(Clone, Eq, PartialEq, NumFromPrimitive, Ord, PartialOrd, Debug, Copy)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
 pub enum ShiftType {
     SllShift,
     SrlShift,
     SraShift,
     RorShift,
 }
+
+// XXX: FromPrimitive can be derived from num-macros, but we only use
+// it once and num-macros has had some breakage since it is a compiler
+// plugin.
+impl FromPrimitive for ShiftType {
+    fn from_u64(n: u64) -> Option<Self> {
+        match n {
+            0 => Some(SllShift),
+            1 => Some(SrlShift),
+            2 => Some(SraShift),
+            3 => Some(RorShift),
+            _ => None
+        }
+    }
+    fn from_i64(n: i64) -> Option<Self> { FromPrimitive::from_u64(n as u64) }
+
+}
+
 
 // Load/Store types.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]

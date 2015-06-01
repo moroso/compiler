@@ -7,7 +7,6 @@
 #![allow(dead_code,unused_imports)]
 
 #![plugin(regex_macros)]
-#![plugin(num_macros)]
 
 extern crate num;
 
