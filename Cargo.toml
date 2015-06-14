@@ -1,10 +1,25 @@
 [package]
-name = "moroso_compiler"
+name = "mcc"
 version = "0.0.1"
 authors = [ "mrwright", "kemurphy", "sully" ]
 
 [dependencies]
-regex = "0.1.17"
-regex_macros = "0.1.10"
-time = "0.1.19"
+regex = "0.1.*"
+regex_macros = "0.1.*"
+time = "0.1.*"
 num = "*"
+
+[lib]
+
+name = "moroso"
+path = "src/lib.rs"
+
+[[bin]]
+
+name = "mbc"
+path = "src/mc/main.rs"
+
+[[bin]]
+
+name = "mas"
+path = "src/mas/main.rs"

@@ -1,4 +1,5 @@
 #![feature(plugin,box_syntax)]
+
 // Unstable libraries
 #![feature(path_ext)]
 #![feature(rustc_private)] // do we really want to use this?
@@ -20,12 +21,6 @@ extern crate time;
 #[cfg(test)]
 extern crate debug;
 
-//#[cfg(mc)]
-use mc as front;
-
-#[cfg(mas)]
-use mc as front;
-
 #[macro_use]
 mod allow_string;
 
@@ -39,8 +34,5 @@ mod target;
 mod values;
 mod codegen;
 
-mod mc;
-mod mas;
-
-#[cfg(not(test))]
-fn main() { front::main() }
+pub mod mc;
+pub mod mas;
