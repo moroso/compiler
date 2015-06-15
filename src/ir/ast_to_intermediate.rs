@@ -563,10 +563,10 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         }
                     }
 
-                if !(e1ty.is_generic() || e2ty.is_generic()) {
+                if !(e1ty.is_generic() || e2ty.is_generic() || e1ty.is_ptr() || e1ty.is_ptr()) {
                     assert_eq!(e1ty.is_signed(), e2ty.is_signed());
                 }
-                let signed = if e1ty.is_generic() {
+                let signed = if e1ty.is_generic() || e1ty.is_ptr() {
                     e2ty.is_signed()
                 } else {
                     e1ty.is_signed()
