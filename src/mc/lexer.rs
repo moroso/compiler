@@ -481,7 +481,7 @@ impl<T, F: Fn(T) -> Token> TokenMaker<T, Token> for F {
 
 #[cfg(test)]
 mod tests {
-    use util::GenericInt;
+    use util::IntKind;
 
     use super::SourceToken as ST;
     use super::super::ast;
@@ -504,31 +504,31 @@ mod tests {
     #[test]
     fn test() {
         let lexer1 = lexer_from_str(r#"f(x - /* I am a comment */ 0x3f5B)+1 "Hello\" World")"#);
-        let tokens1: Vec<SourceToken> = FromIterator::from_iter(lexer1);
+        let tokens1: Vec<SourceToken> = lexer1.collect();
 
         compare(&tokens1[..],
-                vec! {
-                    IdentTok("f".to_string()),
-                    LParen,
-                    IdentTok("x".to_string()),
-                    Dash,
-                    NumberTok(0x3f5B, GenericInt),
-                    RParen,
-                    Plus,
-                    NumberTok(1, GenericInt),
-                    StringTok(r#"Hello" World"#).to_string(),
-                }.as_slice());
+                &[
+                    Token::IdentTok("f".to_string()),
+                    Token::LParen,
+                    Token::IdentTok("x".to_string()),
+                    Token::Dash,
+                    Token::NumberTok(0x3f5B, IntKind::GenericInt),
+                    Token::RParen,
+                    Token::Plus,
+                    Token::NumberTok(1, IntKind::GenericInt),
+                    Token::StringTok(r#"Hello" World"#.to_string()),
+                ]);
 
         let lexer2 = lexer_from_str("let x: int = 5;");
-        let tokens2: Vec<SourceToken> = FromIterator::from_iter(lexer2);
+        let tokens2: Vec<SourceToken> = lexer2.collect();
         compare(&tokens2[..],
-                vec! {
-                    Let,
-                    IdentTok("x".to_string()),
-                    Colon,
-                    IdentTok("int".to_string()),
-                    Eq,
-                    NumberTok(5, GenericInt),
-                }.as_slice());
+                &[
+                    Token::Let,
+                    Token::IdentTok("x".to_string()),
+                    Token::Colon,
+                    Token::IdentTok("int".to_string()),
+                    Token::Eq,
+                    Token::NumberTok(5, IntKind::GenericInt),
+                ]);
     }
 }

@@ -1661,7 +1661,6 @@ fn test_match<T>(flags: bool[3], o: Option<T>, f: fn(T) -> ()) -> Option<bool> {
 }
 ");
 
-
         let mut tyck = Typechecker::new(&session);
         tyck.typecheck(&tree);
     }

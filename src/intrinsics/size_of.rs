@@ -158,20 +158,17 @@ mod tests {
     use mc::parser::Parser;
     use typechecker::Typechecker;
 
-    use std::old_io;
-    use std::old_io::stdio;
-
     use mc::session::*;
     use mc::setup_builtin_search_paths;
 
     use super::*;
 
+    use std::io;
+
     // Helper function: we pass it a string describing a type and an expected
     // size, and it asserts that the size is what we expect.
     fn test_ty_size(t: &str, expected_size: u64) {
-        let buffer = io::BufReader::new(old_io::MemReader::new(
-            t.as_bytes().to_vec()
-                ));
+        let buffer = io::BufReader::new(t.as_bytes());
         let lexer = new_mb_lexer("<stdin>", buffer);
 
         let mut session = Session::new(Options::new());
@@ -220,7 +217,7 @@ mod tests {
     // whose sizes are in `sizes`.
     fn test_offset_helper(sizes: &Vec<u64>, expected: &Vec<u64>) {
         for i in 0 .. sizes.len() {
-            assert_eq!(offset_of(sizes, i), *expected.get(i));
+            assert_eq!(offset_of(sizes, i), expected[i]);
         }
     }
 

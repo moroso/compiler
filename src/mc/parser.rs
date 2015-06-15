@@ -1700,7 +1700,6 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
 
 #[cfg(test)]
 mod tests {
-    use super::Parser;
     use super::super::ast::Expr;
 
     use super::*;

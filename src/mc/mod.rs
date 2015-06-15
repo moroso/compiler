@@ -190,14 +190,13 @@ pub fn main() {
 mod tests {
     use package::Package;
     use super::{NullTarget, setup_builtin_search_paths};
-    use target::MkTarget;
-    use std::old_io::stdio;
+    use target::{Target, MkTarget};
+
+    use std::io;
 
     fn package_from_str(s: &str) -> Package {
-        use std::str::StrSlice;
-        use std::old_io;
-        let bytes = s.as_bytes().to_vec();
-        let buffer = io::BufReader::new(old_io::MemReader::new(bytes));
+        let bytes = s.as_bytes();
+        let buffer = io::BufReader::new(bytes);
         let mut opts = super::session::Options::new();
         setup_builtin_search_paths(&mut opts);
         Package::from_buffer(opts, "<input>", buffer)
@@ -230,6 +229,6 @@ fn main() {
 }
 ";
         let package = package_from_str(src);
-        NullTarget.compile(package, &mut stdio::stdout() as &mut Write);
+        NullTarget.compile(package, &mut io::stdout() as &mut io::Write);
     }
 }

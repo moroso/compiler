@@ -129,7 +129,7 @@ mod tests {
     use codegen::*;
 
     fn var(n: u32) -> Var {
-        Var { name: Name(n as uint), generation: Some(1) }
+        Var { name: Name(n as usize), generation: Some(1) }
     }
 
     #[test]
@@ -147,7 +147,7 @@ mod tests {
                                               &BTreeMap::<Name,
                                                          StaticIRItem>::new(),
                                               10);
-        for (idx, (_, &color)) in coloring.iter().enumerate() {
+        for (_, &color) in coloring.iter() {
             assert_eq!(color, RegColor(Reg { index: 0 as u8 } ));
         }
     }
