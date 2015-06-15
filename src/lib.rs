@@ -18,9 +18,6 @@ extern crate rustc_data_structures;
 extern crate syntax as rust_syntax;
 extern crate time;
 
-#[cfg(test)]
-extern crate debug;
-
 #[macro_use]
 mod allow_string;
 

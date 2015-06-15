@@ -246,7 +246,7 @@ impl<'a> Session<'a> {
                                    &filename[..], buf))
     }
 
-    pub fn parse_package_str(&'a mut self, s: &str) -> Module {
+    pub fn parse_package_str(&mut self, s: &str) -> Module {
         let bytes = s.as_bytes();
         let buffer = io::BufReader::new(bytes);
         self.parse_package_buffer("<input>", buffer)
