@@ -246,7 +246,7 @@ mod tests {
         DefMap::record(&mut session, &tree);
 
         assert_eq!(&format!("{:?}", session.defmap.find(&NodeId(0)))[..],
-                   "Some(FuncDef([NodeId(2)], (), None, [NodeId(1)]))");
+                   "Some(FuncDef([NodeId(2)], UnitType, None, [NodeId(1)]))");
         assert_eq!(&format!("{:?}", session.defmap.find(&NodeId(7)))[..],
                    "Some(PatDef(None))");
     }
