@@ -53,7 +53,15 @@ pub fn setup_builtin_search_paths(opts: &mut Options) {
     match env::current_exe() {
         Err(_) => {}, /* whatever? */
         Ok(exe_path) => {
-            let prelude_location = exe_path.parent().unwrap().join(Path::new("lib/prelude.mb"));
+            let mut install_path = exe_path.parent().unwrap().to_path_buf();
+            if install_path.parent().unwrap().ends_with("target") {
+                // If we're installed somewhere like target/release or
+                // target/debug, remove those components from the
+                // path.
+                install_path.pop();
+                install_path.pop();
+            }
+            let prelude_location = install_path.join(Path::new("lib/prelude.mb"));
             opts.search_paths.insert("prelude".to_string(), prelude_location);
         }
     }
