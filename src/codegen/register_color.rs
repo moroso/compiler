@@ -200,7 +200,7 @@ mod tests {
             let mut conflict_set = BTreeSet::<Var>::new();
             // Each variable conflicts with the adjacent ones.
             for m in 0u32 .. 20 {
-                if n - m == 1 || m - n == 1 {
+                if n == 1 + m || m == 1 + n {
                     conflict_set.insert(var(m));
                 }
             }
