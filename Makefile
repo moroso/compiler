@@ -1,11 +1,10 @@
-RUST_FLAGS ?= -O
+TARGET ?= debug
 
 CPU_SIM ?= ../cpu/sim/cpu_sim/cpu_sim
 
 SIM_DURATION ?= 5
 
 MC_FILES := \
-	main.rs \
 	package.rs \
 	span.rs \
 	typechecker.rs \
@@ -106,14 +105,17 @@ ASM_TEST_FILES := \
 IR_TEST_FILES := $(ASM_TEST_FILES)
 #	test_string.mb
 
-mbc: $(addprefix src/,$(MC_FILES))
-	rustc $(RUST_FLAGS) $< --cfg mc -o $@ -g
-
-mas: $(addprefix src/,$(MC_FILES))
-	rustc $(RUST_FLAGS) $< --cfg mas -o $@
+mbc mas: $(addprefix src/,$(MC_FILES))
+ifeq ($(TARGET),debug)
+	cargo build
+else
+	cargo build --release
+endif
+	ln -sf target/$(TARGET)/mbc .
+	ln -sf target/$(TARGET)/mas .
 
 unittest: $(addprefix src/,$(MC_FILES))
-	rustc $(RUST_FLAGS) --test $< -o $@ -g
+	cargo test
 
 all: mc mas unittest
 
