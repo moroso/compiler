@@ -76,13 +76,32 @@ impl Target for AsmTarget {
 
         print!("Mangler: {:?}\n", mangler.names);
 
-        let (mut result, staticitems) = {
+        let (mut result, mut staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,
                                                        &mangler.names);
 
             converter.convert_module(&module)
         };
+
+        // TODO: this is a hack. Eventually we should extract names from labels
+        // in any included asm files.
+        let asm_staticitems: Vec<StaticIRItem> = vec!("MANGLEDprelude_print_uint",
+                                                      "MANGLEDprelude_print_int",
+                                                      "rt_memcpy")
+            .iter()
+            .map(|x|
+                 StaticIRItem {
+                     name: session.interner.intern(
+                         x.to_string()),
+                     size: 0,
+                     offset: None,
+                     is_ref: false,
+                     is_func: true,
+                     is_extern: true,
+                     expr: None,
+                 }).collect();
+        staticitems.extend(asm_staticitems.into_iter());
 
         let global_map = ASTToIntermediate::allocate_globals(staticitems);
         if self.verbose {
