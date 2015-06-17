@@ -723,17 +723,17 @@ impl<'a> CCrossCompiler<'a> {
 
     // Topologically sort structs and enums so that structs come
     // *after* structs that they physically include.
-    fn sort_structs(&mut self, mut map: TreeMap<NodeId, Item>) -> Vec<Item> {
+    fn sort_structs(&mut self, mut map: BTreeMap<NodeId, Item>) -> Vec<Item> {
         let mut graph: Graph<NodeId, ()> = Graph::new();
-        let mut nodes: TreeMap<NodeId, VertexIndex> = TreeMap::new();
+        let mut nodes: BTreeMap<NodeId, VertexIndex> = BTreeMap::new();
 
-        fn add_type_edge(graph: &mut Graph<NodeId, ()>, nodes: &TreeMap<NodeId, VertexIndex>,
+        fn add_type_edge(graph: &mut Graph<NodeId, ()>, nodes: &BTreeMap<NodeId, VertexIndex>,
                          srcidx: &VertexIndex, ty: &Ty) {
             match *ty {
                 StructTy(included_id, _) | EnumTy(included_id, _) => {
                     // The structural type given by "included_id" is part of
                     // id, so we need an edge from id to included_id
-                    let destidx = nodes.find(&included_id)
+                    let destidx = nodes.get(&included_id)
                         .expect("expected destidx in struct graph");
                     graph.add_edge(*srcidx, *destidx, ());
                 }
@@ -749,7 +749,7 @@ impl<'a> CCrossCompiler<'a> {
 
         // Now collect all the edges
         for (id, item) in map.iter() {
-            let srcidx = nodes.find(id).expect("expected srcidx in struct graph");
+            let srcidx = nodes.get(id).expect("expected srcidx in struct graph");
 
             match item.val {
                 StructItem(_, ref fields, _) => {
@@ -777,7 +777,7 @@ impl<'a> CCrossCompiler<'a> {
             Err(nid)  => self.session.error_fatal(nid, "Recursive struct definitions"),
         };
 
-        order.into_iter().map(|id| map.pop(&id).unwrap()).collect()
+        order.into_iter().map(|id| map.remove(&id).unwrap()).collect()
     }
 
     // Visit a module and all of its submodules, applying a worker function.
@@ -786,13 +786,15 @@ impl<'a> CCrossCompiler<'a> {
     fn visit_module_worker(&mut self,
                            results: &mut Vec<String>,
                            module: &Module,
-                           f: &Fn(&mut CCrossCompiler, &mut Vec<String>,&Module)) {
+                           f: &mut FnMut(&mut CCrossCompiler,
+                                         &mut Vec<String>,
+                                         &Module)) {
 
         for item in module.val.items.iter() {
             match item.val {
                 ModItem(_, ref module) =>
                     self.visit_module_worker(results, module,
-                                             &|me, results, x| f(me,results,x)),
+                                             &mut |me, results, x| f(me,results,x)),
                 _ => {}
             }
         }
@@ -803,7 +805,7 @@ impl<'a> CCrossCompiler<'a> {
         // to keep seperation between stuff that came from different
         // modules.
         if results.len() > len {
-            results.push(String::from_str(""));
+            results.push("".to_string());
         }
     }
 
@@ -811,7 +813,7 @@ impl<'a> CCrossCompiler<'a> {
         let mut results = vec!();
 
         // Typedefs
-        self.visit_module_worker(&mut results, module, &|me, results, module| {
+        self.visit_module_worker(&mut results, module, &mut |me, results, module| {
             for item in module.val.items.iter() {
                 match item.val {
                     TypeItem(..) => results.push(me.visit_item(item)),
@@ -821,7 +823,7 @@ impl<'a> CCrossCompiler<'a> {
         });
 
         // Constants
-        self.visit_module_worker(&mut results, module, &|me, results, module| {
+        self.visit_module_worker(&mut results, module, &mut |me, results, module| {
             for item in module.val.items.iter() {
                 match item.val {
                     ConstItem(..) => results.push(me.visit_item(item)),
@@ -831,7 +833,7 @@ impl<'a> CCrossCompiler<'a> {
         });
 
         // Now print struct prototypes.
-        self.visit_module_worker(&mut results, module, &|me, results, module| {
+        self.visit_module_worker(&mut results, module, &mut |me, results, module| {
             for item in module.val.items.iter() {
                 match item.val {
                     StructItem(ref id, _, _) |
@@ -845,7 +847,7 @@ impl<'a> CCrossCompiler<'a> {
         });
 
         // Now print function prototypes.
-        self.visit_module_worker(&mut results, module, &|me, results, module| {
+        self.visit_module_worker(&mut results, module, &mut |me, results, module| {
 
             for item in module.val.items.iter() {
                 match item.val {
@@ -874,8 +876,8 @@ impl<'a> CCrossCompiler<'a> {
         // Structs and enums.
         // First we collect all of the structs in a map which we then
         // toposort by struct inclusion so that C can handle them.
-        let mut struct_map = TreeMap::new();
-        self.visit_module_worker(&mut results, module, &|_, _, module| {
+        let mut struct_map = BTreeMap::new();
+        self.visit_module_worker(&mut results, module, &mut |_, _, module| {
             for item in module.val.items.iter() {
                 match item.val {
                     StructItem(ref id, _, _) | EnumItem(ref id, _, _) => {
@@ -891,7 +893,7 @@ impl<'a> CCrossCompiler<'a> {
         }, "\n\n"));
 
         // Now globals
-        self.visit_module_worker(&mut results, module, &|me, results, module| {
+        self.visit_module_worker(&mut results, module, &mut |me, results, module| {
             for item in module.val.items.iter() {
                 match item.val {
                     StaticItem(..) => results.push(me.visit_item(item)),
@@ -901,7 +903,7 @@ impl<'a> CCrossCompiler<'a> {
         });
 
         // And functions
-        self.visit_module_worker(&mut results, module, &|me, results, module| {
+        self.visit_module_worker(&mut results, module, &mut |me, results, module| {
             for item in module.val.items.iter() {
                 match item.val {
                     FuncItem(..) => results.push(me.visit_item(item)),

@@ -37,14 +37,10 @@ impl<V: Copy+Eq+Ord+Debug, E: Debug> GraphExt<V> for Graph<V, E> {
             if !visited.contains(vertex) {
                 visiting.insert(*vertex);
                 for (_, e) in graph.outgoing_edges(vid) {
-                    visit(graph, e.target(), visiting, visited, list);
-                }
-                graph.each_outgoing_edge(vid, |_, e| {
-                    visit(graph, e.target(), visiting, visited, list);
-                    true
-                });
-                for (_, e) in graph.outgoing_edges(vid) {
-                    visit(graph, e.target(), visiting, visited, list);
+                    err = visit(graph, e.target(), visiting, visited, list);
+                    if err.is_some() {
+                        break;
+                    }
                 }
                 visited.insert(*vertex);
                 visiting.remove(vertex);
