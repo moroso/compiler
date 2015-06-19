@@ -10,10 +10,10 @@ use util::{IntKind, Name};
 use util::IntKind::{GenericInt, SignedInt, UnsignedInt};
 use util::Width::{Width32, Width16, Width8, AnyWidth};
 
-use ir::liveness::LivenessAnalyzer;
+use ir::liveness::{LivenessAnalyzer, get_liveness_times};
 use ir::ast_to_intermediate::ASTToIntermediate;
 use ir::constant_fold::ConstantFolder;
-use ir::ssa::ToSSA;
+use ir::ssa::{ToSSA, get_times, get_param_times};
 
 use super::{MkTarget,Target};
 
@@ -450,5 +450,19 @@ impl Target for IRTarget {
                  ssa_time as f32 / 1000000000f32,
                  fold_time as f32 / 1000000000f32,
                  convert_time as f32 / 1000000000f32);
+        let (label_time, gen_time, min_time) = get_times();
+        writeln!(f, "// label:{}, gen:{}, min:{}",
+                 label_time as f32 / 1000000000f32,
+                 gen_time as f32 / 1000000000f32,
+                 min_time as f32 / 1000000000f32);
+        let (opinfo_time, param_time_1, param_time_2) = get_param_times();
+        writeln!(f, "// opinfo:{}, param1:{}, param2:{}",
+                 opinfo_time as f32 / 1000000000f32,
+                 param_time_1 as f32 / 1000000000f32,
+                 param_time_2 as f32 / 1000000000f32);
+        let (seed_time, propagate_time) = get_liveness_times();
+        writeln!(f, "// seed:{}, propagate:{}",
+                 seed_time as f32 / 1000000000f32,
+                 propagate_time as f32 / 1000000000f32);
     }
 }

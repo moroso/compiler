@@ -1,7 +1,9 @@
 // Liveness analysis
+use time::precise_time_ns;
 
 use std::collections::BTreeSet;
 use std::cmp::Eq;
+use std::iter::FromIterator;
 use std::mem::swap;
 
 use mc::ast::*;
@@ -142,11 +144,11 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
     }
 }
 
-fn propagate_once(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) -> bool {
-    let mut modified = false;
-    let len = ops.len();
-
-    for u in 0..len {
+fn propagate_once(opinfo: &mut Vec<OpInfo>,
+                  active_ops: BTreeSet<usize>,
+                  predecessors: &Vec<BTreeSet<usize>>) -> BTreeSet<usize> {
+    let mut new_active_ops = BTreeSet::<usize>::new();
+    for u in active_ops.into_iter() {
         // Making this dummy structure is sort of unfortunate.
         // There are ways around it, but it is better than the old
         // clone!
@@ -156,24 +158,58 @@ fn propagate_once(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) -> bool {
         swap(&mut this_opinfo, opinfo.get_mut(u).unwrap());
 
         for usedvar in this_opinfo.used.iter() {
-            modified = modified || this_opinfo.live.insert(usedvar.clone());
+            if this_opinfo.live.insert(usedvar.clone()) {
+                new_active_ops.insert(u);
+                for &predecessor in predecessors[u].iter() {
+                    new_active_ops.insert(predecessor);
+                }
+            }
         }
         for next_idx in this_opinfo.succ.iter() {
             let next_opinfo = opinfo.get_mut(*next_idx).unwrap();
             for livevar in next_opinfo.live.iter() {
                 if !this_opinfo.def.contains(livevar) {
-                    modified = modified
-                        || this_opinfo.live.insert(livevar.clone());
+                    if this_opinfo.live.insert(livevar.clone()) {
+                        for &predecessor in predecessors[u].iter() {
+                            new_active_ops.insert(predecessor);
+                        }
+                    }
                 }
             }
         }
         *opinfo.get_mut(u).unwrap() = this_opinfo;
     }
-    modified
+
+    new_active_ops
+}
+
+static mut seed_time: u64 = 0;
+static mut propagate_time: u64 = 0;
+
+pub fn get_liveness_times() -> (u64, u64) {
+    unsafe {
+        (seed_time, propagate_time)
+    }
 }
 
 fn propagate(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
-    while propagate_once(ops, opinfo) {};
+    let start = precise_time_ns();
+
+    let mut active_ops: BTreeSet<usize> = FromIterator::from_iter(0..ops.len());
+    let mut predecessors: Vec<BTreeSet<usize>> = (0..ops.len()).map(|_| BTreeSet::new()).collect();
+    for idx in 0..ops.len() {
+        for &successor in opinfo.get(idx).unwrap().succ.iter() {
+            predecessors[successor].insert(idx);
+        }
+    }
+
+    while active_ops.len() > 0 {
+        active_ops = propagate_once(opinfo, active_ops, &predecessors);
+    }
+    let end = precise_time_ns();
+    unsafe {
+        propagate_time += end-start;
+    }
 }
 
 impl LivenessAnalyzer {
@@ -182,7 +218,12 @@ impl LivenessAnalyzer {
     pub fn unanalyzed_opinfo(ops: &Vec<Op>) -> Vec<OpInfo> {
         let len = ops.len();
         let mut opinfo = (0..len).map(|_| OpInfo::new()).collect();
+        let start = precise_time_ns();
         seed(ops, &mut opinfo);
+        let end = precise_time_ns();
+        unsafe {
+            seed_time += end-start;
+        }
 
         opinfo
     }

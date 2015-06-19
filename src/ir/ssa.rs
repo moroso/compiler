@@ -1,3 +1,5 @@
+use time::precise_time_ns;
+
 use ir::*;
 use ir::util::subst;
 use ir::liveness::LivenessAnalyzer;
@@ -43,12 +45,28 @@ fn ssa_vars<F>(generations: &mut BTreeMap<Name, usize>, vars: &mut BTreeSet<Var>
     *vars = new_vars;
 }
 
+static mut opinfo_time: u64 = 0;
+static mut param_time_1: u64 = 0;
+static mut param_time_2: u64 = 0;
+
+pub fn get_param_times() -> (u64, u64, u64) {
+    unsafe {
+        (opinfo_time, param_time_1, param_time_2)
+    }
+}
+
 fn parameterize_labels(ops: &mut Vec<Op>) {
     // TODO: make it so we don't have to clone these.
 
     // TODO: we have to include assigned variables in the labels, too.
+    let start = precise_time_ns();
     let opinfo = LivenessAnalyzer::analyze(ops);
+    let end = precise_time_ns();
+    unsafe {
+        opinfo_time += end-start;
+    }
 
+    let start = precise_time_ns();
     let mut label_vars = VecMap::new();
     let len = ops.len();
     for i in 0 .. len {
@@ -62,7 +80,12 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
             _ => {},
         }
     }
+    let end = precise_time_ns();
+    unsafe {
+        param_time_1 += end-start;
+    }
 
+    let start = precise_time_ns();
     for op in ops.iter_mut() {
         match *op {
             Op::Goto(i, ref mut vars) |
@@ -72,6 +95,10 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
             },
             _ => {}
         }
+    }
+    let end = precise_time_ns();
+    unsafe {
+        param_time_2 += end-start;
     }
 }
 
@@ -268,12 +295,28 @@ fn minimize(ops: &mut Vec<Op>, verbose: bool) {
     while minimize_once(ops, verbose) {}
 }
 
+static mut label_time: u64 = 0;
+static mut gen_time: u64 = 0;
+static mut minimize_time: u64 = 0;
+
+pub fn get_times() -> (u64, u64, u64) {
+    unsafe {
+        (label_time, gen_time, minimize_time)
+    }
+}
+
 impl ToSSA {
     pub fn to_ssa(ops: &mut Vec<Op>, verbose: bool) {
+        let start = precise_time_ns();
         parameterize_labels(ops);
+        let end = precise_time_ns();
+        unsafe {
+            label_time += end-start;
+        }
 
         let ref mut gens = BTreeMap::<Name, usize>::new();
 
+        let start = precise_time_ns();
         for op in ops.iter_mut() {
             match *op {
                 Op::UnOp(ref mut v, _, ref mut rve) => {
@@ -328,8 +371,17 @@ impl ToSSA {
                 _ => {}
             }
         }
+        let end = precise_time_ns();
+        unsafe {
+            gen_time += end-start;
+        }
 
+        let start = precise_time_ns();
         minimize(ops, verbose);
+        let end = precise_time_ns();
+        unsafe {
+            minimize_time = end-start;
+        }
     }
 
 }
