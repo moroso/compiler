@@ -143,7 +143,7 @@ impl<'a, 'b> Visitor for DefMapVisitor<'a, 'b> {
 
                 let abi = match *def {
                     LocalFn(..) => None,
-                    ExternFn(abi) => Some(abi),
+                    ExternFn(abi, _) => Some(abi),
                 };
 
                 self.session.defmap.table.insert(ident.id, Def::FuncDef(arg_def_ids, t.clone(), abi, tp_def_ids));
@@ -152,7 +152,9 @@ impl<'a, 'b> Visitor for DefMapVisitor<'a, 'b> {
 
                 match *def {
                     LocalFn(ref block) => self.visit_block(block),
-                    ExternFn(..) => {}
+                    ExternFn(_, ref block_opt) => if let &Some(ref block) = block_opt {
+                        self.visit_block(block)
+                    }
                 }
                 self.qualifier.pop();
             },

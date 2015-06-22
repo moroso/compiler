@@ -1,0 +1,24 @@
+fn return_seven() -> u32 {
+    7
+}
+
+extern "bare" fn test(x: u32) -> u32 {
+    asm!(
+            "{ r0 <- r0 + 1; *l(r30 + 4) <- r31; r30 <- r30 + 8 }"
+            "{ bl __prelude__print_uint }"
+            "{ r30 <- r30 - 8 }"
+            "{ r1 <- *l(r30 + 4); r0 <- 42; }"
+            "{ b r1 + 1 }"
+        );
+}
+
+extern "bare" fn test2() -> u32 {
+    asm!(" { b __return_seven } ");
+}
+
+fn main() {
+    print_uint(2);
+    print_uint(test2());
+    print_uint(test(10));
+    print_uint(5);
+}

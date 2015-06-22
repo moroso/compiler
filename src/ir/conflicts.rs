@@ -44,8 +44,8 @@ impl ConflictAnalyzer {
                     }
                     must_colors.insert(*v, RegColor(Reg { index: 0 as u8 }));
                 },
-                Op::Func(_, ref args, is_extern) => {
-                    if is_extern { break; }
+                Op::Func(_, ref args, ref abi) => {
+                    if abi.is_some() { break; }
                     for (i, arg) in args.iter().enumerate()
                         .take(NUM_PARAM_REGS)
                     {

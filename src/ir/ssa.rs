@@ -356,8 +356,8 @@ impl ToSSA {
                 Op::Return(ref mut rv) => {
                     ssa_rvalelem(gens, rv);
                 },
-                Op::Func(_, ref mut vars, is_extern) => {
-                    if is_extern { return; }
+                Op::Func(_, ref mut vars, ref abi) => {
+                    if abi.is_some() { return; }
                     for var in vars.iter_mut() {
                         *var = Var {
                             name: var.name.clone(),

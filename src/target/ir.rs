@@ -394,9 +394,12 @@ impl Target for IRTarget {
         for insts in result.iter() {
             for inst in insts.iter() {
                 match *inst {
-                    Op::Func(ref name, _, is_extern) => {
+                    Op::Func(ref name, _, ref abi) => {
                         write!(f, "{}long {}();\n",
-                               if is_extern { "extern " } else { "" },
+                               match *abi {
+                                   Some(_) => format!("extern "),
+                                   _ => "".to_string()
+                               },
                                session.interner.name_to_str(name));
                     },
                     _ => {}

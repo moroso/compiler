@@ -931,9 +931,21 @@ impl IrToAsm {
         let mut num_saved = 0;
         for (pos, op) in ops.iter().enumerate() {
             match *op {
-                Op::Func(ref name, _, is_extern) => {
-                    if is_extern { continue; }
+                Op::Func(ref name, _, ref abi) => {
+                    if let Some(ref abi) = *abi {
+                        if abi.to_string() == "C" {
+                            // If the ABI is "C", we do nothing at all here!
+                            continue;
+                        }
+                    }
                     targets.insert(format!("{}", name), result.len());
+                    if let Some(ref abi) = *abi {
+                        if abi.to_string() == "bare" {
+                            // For the bare API, we include the label, but we omit all of
+                            // the usual function entry stuff.
+                            continue;
+                        }
+                    }
 
                     // Save the return address, offset by one packet size.
                     if has_call {

@@ -507,7 +507,7 @@ allow_string!(ImportNode);
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum FuncDef {
     LocalFn(Block),
-    ExternFn(Name),
+    ExternFn(Name, Option<Block>),
 }
 
 impl FuncDef {
@@ -522,6 +522,13 @@ impl FuncDef {
         match *self {
             LocalFn(..) => false,
             ExternFn(..) => true,
+        }
+    }
+
+    pub fn abi(&self) -> Option<Name> {
+        match *self {
+            LocalFn(..) => None,
+            ExternFn(name, _) => Some(name.clone())
         }
     }
 }
@@ -549,12 +556,16 @@ impl Display for ItemNode {
                 }
                 write!(f, "({:?}) -> {} {}", args, t, block)
             },
-            FuncItem(ref id, ref args, ref t, ExternFn(ref abi), ref tps) => {
+            FuncItem(ref id, ref args, ref t, ExternFn(ref abi, ref block_opt), ref tps) => {
                 try!(write!(f, "extern \"{}\" fn {}", abi, id));
                 if tps.len() > 0 {
                     try!(write!(f, "<{:?}>", tps));
                 }
-                write!(f, "({:?}) -> {};", args, t)
+                try!(write!(f, "({:?}) -> {}", args, t));
+                match *block_opt {
+                    Some(ref block) => write!(f, "{{ {} }}", block),
+                    None => write!(f, ";"),
+                }
             },
             StructItem(ref id, ref fields, ref tps) => {
                 try!(write!(f, "struct {}", id));

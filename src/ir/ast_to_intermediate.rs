@@ -224,9 +224,21 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             FuncItem(ref id, ref args, _, ref block, _) => {
                 let (new_ops, v) = match *block {
                     LocalFn(ref block) => self.convert_block(block),
-                    // For extern functions, we'll generate a Func() op,
+                    // For externs with no block, we'll generate a Func() op
                     // but nothing else.
-                    ExternFn(..) => (vec!(), Some(self.gen_temp()))
+                    ExternFn(ref abi, ref block_opt) => {
+                        match *block_opt {
+                            Some(ref block) => {
+                                // TODO: this should be a softer error.
+                                assert_eq!(abi.to_string(), "bare");
+                                self.convert_block(block)
+                            },
+                            None => {
+                                assert_eq!(abi.to_string(), "C");
+                                (vec!(), Some(self.gen_temp()))
+                            }
+                        }
+                    }
                 };
 
                 let vars: Vec<Var> = args
@@ -243,11 +255,14 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                     Variable(var.clone()))).collect();
 
                 let mut ops = vec!(Op::Func(self.mangled_ident(id), vars,
-                                        block.is_extern()));
+                                        block.abi()));
                 if block.is_local() {
                     ops.extend(var_stores.into_iter());
-                    ops.extend(new_ops.into_iter());
+                }
 
+                ops.extend(new_ops.into_iter());
+
+                if block.is_local() {
                     match v {
                         Some(v) => ops.push(Op::Return(Variable(v))),
                         // TODO: Return should take an Option.
@@ -347,7 +362,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         let mut res = vec!(
             Op::Func(self.session.interner.intern("_INIT_GLOBALS".to_string()),
                  vec!(),
-                 false));
+                 None));
         for (name, global_item) in global_map.iter() {
             let is_ref = global_item.is_ref;
             let is_func = global_item.is_func;

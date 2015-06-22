@@ -1427,11 +1427,14 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
         match *self.peek() {
             Token::Fn => {
                 let (funcname, args, return_type, type_params) = self.parse_func_prototype();
-                self.expect(Token::Semicolon);
+                let body_opt = match *self.peek() {
+                    Token::Semicolon => { self.expect(Token::Semicolon); None },
+                    _ => Some(self.parse_block())
+                };
                 let end_span = self.cur_span();
                 let abi = self.session.interner.intern(abi.unwrap_or("C".to_string()));
                 self.add_id_and_span(FuncItem(funcname, args, return_type,
-                                              ExternFn(abi), type_params),
+                                              ExternFn(abi, body_opt), type_params),
                                      start_span.to(end_span))
             }
             Token::Static => {

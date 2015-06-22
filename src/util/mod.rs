@@ -53,6 +53,14 @@ impl Debug for Name {
     }
 }
 
+impl Name {
+    fn to_str(&self) -> String {
+        use mc::session::INTERNER;
+
+        INTERNER.with(|x| x.name_to_str(self).to_string())
+    }
+}
+
 #[derive(Eq, Ord, PartialOrd, PartialEq, Clone, Debug, Copy)]
 pub enum Width {
     AnyWidth,

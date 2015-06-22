@@ -133,8 +133,8 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                     _ => {},
                 }
             },
-            Op::Func(_, ref vars, is_extern) => {
-                if is_extern { return; }
+            Op::Func(_, ref vars, ref abi) => {
+                if abi.is_some() { return; }
                 for v in vars.iter() {
                     opinfo.def.insert(v.clone());
                 }

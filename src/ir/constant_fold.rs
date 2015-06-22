@@ -199,8 +199,8 @@ impl ConstantFolder {
                         vars_to_avoid.insert(var.clone());
                     }
                 },
-                Op::Func(_, ref vars, is_extern) => {
-                    if is_extern { return; }
+                Op::Func(_, ref vars, ref abi) => {
+                    if abi.is_some() { return; }
                     for var in vars.iter() {
                         vars_to_avoid.insert(var.clone());
                     }

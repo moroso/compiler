@@ -864,9 +864,12 @@ impl<'a> CCrossCompiler<'a> {
                             LocalFn(_) =>
                                 results.push(format!("{} {}({});",
                                                      ty, name, args)),
-                            ExternFn(_) =>
+                            ExternFn(_, ref body_opt) => {
+                                assert!(body_opt.is_none(),
+                                        "Externs with a body not yet supported in ccross.");
                                 results.push(format!("extern {} {}({});",
                                                      ty, name, args))
+                            }
                         }
                     },
                     _ => {},
