@@ -6,6 +6,8 @@ use std::collections::BTreeSet;
 
 use util::{Name, Width};
 
+use mas::ast::InstNode;
+
 pub use self::LValue::*;
 pub use self::RValueElem::*;
 use self::Op::*;
@@ -116,6 +118,8 @@ pub enum Op {
     // the beginning of a function. The bool is whether it corresponds to
     // an extern.
     Func(Name, Vec<Var>, bool),
+    // Inline asm.
+    AsmOp(Vec<Vec<InstNode>>),
     Nop,
 }
 
@@ -151,6 +155,17 @@ impl Display for Op {
                 write!(f, "{}fn {}({:?})\n",
                        if is_extern { "extern " } else { "" }, name, vars),
             Nop => write!(f, "{: >16}\n", "nop"),
+            AsmOp(ref packets) => {
+                try!(write!(f, "Asm("));
+                for packet in packets.iter() {
+                    try!(write!(f, "[ "));
+                    for inst in packet.iter() {
+                        try!(write!(f, "{}", inst));
+                    }
+                    try!(write!(f, "]"));
+                }
+                write!(f, ")\n;")
+            }
         }
     }
 }

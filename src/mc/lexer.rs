@@ -43,6 +43,7 @@ pub enum Token {
     Macro,
     Const,
     Sizeof,
+    Asm,
 
     // Symbols
     LParen,
@@ -137,6 +138,7 @@ impl fmt::Display for Token {
             Token::Macro                  => "macro".to_string(),
             Token::Const                  => "const".to_string(),
             Token::Sizeof                 => "sizeof".to_string(),
+            Token::Asm                    => "asm!".to_string(),
 
             Token::IntTypeTok(ik)         => format!("{}", ik),
             Token::Bool                   => "bool".to_string(),
@@ -383,6 +385,7 @@ pub fn new_mb_lexer<'a, S: ?Sized + ToString, B: BufReader>(name: &S, buffer: B)
             Token::Macro        => "macro",
             Token::Const        => "const",
             Token::Sizeof       => "sizeof",
+            Token::Asm          => "asm!",
 
             // Basic types; TODO: add more.
             Token::IntTypeTok   => IntTypeRule,

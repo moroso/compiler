@@ -323,5 +323,6 @@ pub fn encode(inst: &InstNode) -> u32 {
             ((flushtype as u32) << 10) |
             encode_rs(&rs)
         }
+        PacketsInst(..) => panic!("Attmepting to encode Packets pseudo-instruction.")
     }
 }

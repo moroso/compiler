@@ -196,6 +196,9 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         }
                     }
                 }
+            },
+            AsmStmt(ref x) => {
+                (vec!(Op::AsmOp(x.clone())), None)
             }
         }
     }

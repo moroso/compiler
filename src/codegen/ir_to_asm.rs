@@ -1075,6 +1075,8 @@ impl IrToAsm {
                             false,
                             JumpLabel(format!("LABEL{}", label))));
                 },
+                Op::CondGoto(_, Constant(..), _, _) =>
+                    panic!("Conditional Goto is not conditional!"),
                 Op::Goto(ref label, ref vars) => {
                     result.extend(assign_vars(&regmap, global_map,
                                                      &TRUE_PRED,
@@ -1294,8 +1296,11 @@ impl IrToAsm {
                                 ));
                     }
 
-                }
-                _ => {},
+                },
+                Op::AsmOp(ref insts) => {
+                    result.push(InstNode::packets(insts.clone()));
+                },
+                Op::Nop => {},
             }
         }
 

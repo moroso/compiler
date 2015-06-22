@@ -4,6 +4,8 @@ use super::lexer::Token;
 use std::fmt;
 use std::fmt::{Debug, Formatter, Display};
 
+use mas::ast::InstNode;
+
 pub use self::PatNode::*;
 pub use self::TypeNode::*;
 pub use self::BinOpNode::*;
@@ -357,6 +359,8 @@ pub enum StmtNode {
     LetStmt(Pat, Option<Expr>),
     ExprStmt(Expr), // no trailing semicolon, must have unit type
     SemiStmt(Expr), // trailing semicolon, any type OK
+    AsmStmt(Vec<Vec<InstNode>>), // The inner Vec is to work around the fact that Rust arrays
+                                 // only impl Clone if the inner type impls Copy.
 }
 
 impl Display for StmtNode {
@@ -371,6 +375,17 @@ impl Display for StmtNode {
             },
             SemiStmt(ref e) => {
                 write!(f, "{};", e)
+            },
+            AsmStmt(ref packets) => {
+                try!(write!(f, "Asm("));
+                for packet in packets.iter() {
+                    try!(write!(f, "[ "));
+                    for inst in packet.iter() {
+                        try!(write!(f, "{}", inst));
+                    }
+                    try!(write!(f, "]"));
+                }
+                write!(f, ")\n;")
             },
         }
     }

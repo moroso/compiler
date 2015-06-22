@@ -51,6 +51,7 @@ fn pred(inst: &InstNode) -> Option<Pred> {
         FlushInst(p, _, _) => Some(p),
         NopInst |
         LongInst(..)  => None,
+        PacketsInst(..) => panic!("Attempting to determine predicate of Packets pseudo-instruction"),
     }
 }
 
@@ -127,9 +128,12 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
     }
 
     // Fence never commutes; neither does break (for now).
+    // Also treat the Packets pseudo-instruction as never commuting,
+    // because we should never commute past inline ASM.
     match *inst1 {
         BreakInst(..) |
-        FenceInst(..) => return false,
+        FenceInst(..) |
+        PacketsInst(..) => return false,
         // Never commute a load with a store, because we aren't smart enough
         // to know about aliasing.
         LoadInst(..) => match *inst2 {
@@ -148,7 +152,8 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
         // predecessor.
         LongInst(..) |
         BreakInst(..) |
-        FenceInst(..) => return false,
+        FenceInst(..) |
+        PacketsInst(..) => return false,
         _ => {},
     }
 
@@ -256,6 +261,20 @@ pub fn schedule_dummy(insts: &Vec<InstNode>,
     for i in 0 .. insts.len() {
         match insts[i] {
             LongInst(..) => continue,
+            PacketsInst(ref inline_packets) => {
+                update_labels(&jump_target_dict,
+                              &mut modified_labels,
+                              i,
+                              packets.len());
+                // TODO label support in inline asm.
+                for packet in inline_packets.iter() {
+                    packets.push([packet[0].clone(),
+                                  packet[1].clone(),
+                                  packet[2].clone(),
+                                  packet[3].clone()]);
+                }
+                continue;
+            }
             _ => {},
         }
         let is_long = match insts[i] {

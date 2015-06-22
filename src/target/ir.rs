@@ -303,8 +303,8 @@ impl IRTarget {
                             interner.name_to_str(name),
                             mapped_args.connect(", "),
                             s)
-                }
-                //_ => format!(""),
+                },
+                Op::AsmOp(..) => panic!("Inline ASM not supported in IR-C target."),
             }[..]);
         }
         s + "}\n"

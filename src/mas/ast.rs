@@ -339,7 +339,13 @@ pub enum InstNode {
     FlushInst(Pred,
               FlushType,
               Reg // Rs
-              )
+              ),
+
+    // This is special: rather that being a CPU instruction itself, this represents a stream
+    // of instruction packets. It is only used for inline ASM, which has to be passed all the
+    // way from the parser down to the instruction scheduler. The scheduler will take this
+    // "instruction" and break it into its parts.
+    PacketsInst(Vec<Vec<InstNode>>),
 }
 
 fn assert_pred(pred: Pred) {
@@ -713,34 +719,11 @@ impl InstNode {
                   flushtype,
                   rs)
     }
+    pub fn packets(packets: Vec<Vec<InstNode>>) -> InstNode {
+        PacketsInst(packets)
+    }
 }
 
 allow_string!(InstNode);
 
-//pub struct InstPacket([InstNode; 4]);
 pub type InstPacket = [InstNode; 4];
-//allow_string!(InstPacket);
-/*
-impl Index<uint> for InstPacket {
-    type Output = InstNode;
-    fn index<'a>(&'a self, i: &uint) -> &'a InstNode {
-        let InstPacket(ref packet) = *self;
-        &packet[*i]
-    }
-}
-
-impl InstPacket {
-    fn iter_mut(&mut self) -> IterMut<InstNode> {
-        let InstPacket(ref mut packet) = *self;
-        packet.iter_mut()
-    }
-}
-
-impl Display for InstPacket {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let InstPacket(ref packet) = *self;
-        write!(f, "{{ {}; {}; {}; {} }}",
-               packet[0], packet[1], packet[2], packet[3])
-    }
-}
-*/

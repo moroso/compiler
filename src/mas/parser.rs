@@ -93,6 +93,7 @@ pub fn classify_inst(inst: &InstNode) -> InstType {
         DivInst(..) |
         MultInst(..) |
         FlushInst(..) => ControlType,
+        PacketsInst(..) => panic!("Packet pseudo-instruction should not appear  here."),
     }
 }
 

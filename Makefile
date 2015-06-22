@@ -54,11 +54,13 @@ MC_FILES := \
 	util/graph.rs \
 	util/mod.rs \
 
+ASM_ONLY_TESTS = test_inline_asm_basic.mb
+
 TEST_FILES := $(patsubst test/%,%,$(wildcard test/test_*.mb))
 
-ASM_TEST_FILES := $(TEST_FILES)
+IR_TEST_FILES := $(TEST_FILES)
 
-IR_TEST_FILES := $(ASM_TEST_FILES)
+ASM_TEST_FILES := $(TEST_FILES) $(patsubst test/%,%,$(wildcard test/asm_test_*.mb))
 
 mbc mas: $(addprefix src/,$(MC_FILES))
 ifeq ($(TARGET),debug)

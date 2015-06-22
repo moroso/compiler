@@ -1,0 +1,13 @@
+fn main() {
+    print_int(2);
+    asm!(
+            "{ r1 <- 17; r2 <- 5; r30 <- 1; }"
+            "{ r0 <- r1 + r2 }"
+            "{ break 0x1f; }"
+            "{ r0 <- r0 + 6; }"
+            "{ break 0x1f; }"
+            "{ r30 <- 0 }"
+            "{ break 0x1f }"
+            );
+    print_int(3);
+}

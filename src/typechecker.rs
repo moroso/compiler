@@ -1521,6 +1521,7 @@ impl<'a> Visitor for Typechecker<'a> {
             SemiStmt(ref e) => {
                 self.expr_to_ty(e);
             }
+            AsmStmt(..) => {}
         }
     }
 

@@ -139,7 +139,9 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                     opinfo.def.insert(v.clone());
                 }
                 opinfo.succ.insert(u + 1);
-            }
+            },
+            // TODO: fill this in, when ready.
+            Op::AsmOp(..) => {},
         }
     }
 }
