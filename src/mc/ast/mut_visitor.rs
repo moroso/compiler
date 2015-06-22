@@ -152,7 +152,6 @@ pub fn walk_stmt<T: MutVisitor>(visitor: &mut T, stmt: &mut Stmt) {
         SemiStmt(ref mut e) => {
             visitor.visit_expr(e);
         }
-        AsmStmt(..) => {}
     }
 }
 
@@ -242,6 +241,7 @@ pub fn walk_expr<T: MutVisitor>(visitor: &mut T, expr: &mut Expr) {
                 visitor.visit_match_arm(arm);
             }
         }
+        AsmExpr(..) => {}
         MacroExpr(..) => {}
     }
 }

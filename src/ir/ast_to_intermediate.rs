@@ -197,9 +197,6 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     }
                 }
             },
-            AsmStmt(ref x) => {
-                (vec!(Op::AsmOp(x.clone())), None)
-            }
         }
     }
 
@@ -1440,6 +1437,9 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 }
 
                 (ops, result_var)
+            }
+            AsmExpr(ref x) => {
+                (vec!(Op::AsmOp(x.clone())), None)
             }
             MacroExpr(..) => panic!("ICE: macros should have been expanded by now"),
         }

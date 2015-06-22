@@ -27,7 +27,7 @@ use std::{io, mem, num, vec};
 use std::collections::{HashMap, BTreeMap, BTreeSet};
 use std::iter::{Peekable, FromIterator};
 
-use mas::ast::InstPacket;
+use mas::ast::{InstNode, InstPacket};
 use mas::lexer::asm_lexer_from_str;
 use mas::parser::AsmParser;
 
@@ -787,7 +787,19 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
         self.add_id_and_span(LetStmt(pat, expr), start_span.to(end_span))
     }
 
-    fn parse_asm_stmt(&mut self) -> Stmt {
+    fn parse_asm(&mut self, asm_str: &str) -> Vec<Vec<InstNode>> {
+        let asm_lexer = asm_lexer_from_str(asm_str);
+        let mut asm_parser = AsmParser::new(asm_lexer.peekable());
+        let (insts, _) = asm_parser.parse_toplevel();
+        // TODO: fix this if Rust gets
+        // impl<T> Clone for [T; 4] where T: Clone
+        insts.into_iter().map(|x: InstPacket| vec!(x[0].clone(),
+                                                   x[1].clone(),
+                                                   x[2].clone(),
+                                                   x[3].clone())).collect()
+    }
+
+    fn parse_asm_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
         self.expect(Token::Asm);
         self.expect(Token::LParen);
@@ -799,16 +811,8 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
 
         let end_span = self.cur_span();
 
-        let asm_lexer = asm_lexer_from_str(&asm_str);
-        let mut asm_parser = AsmParser::new(asm_lexer.peekable());
-        let (insts, _) = asm_parser.parse_toplevel();
-        // TODO: fix this if Rust gets
-        // impl<T> Clone for [T; 4] where T: Clone
-        let insts = insts.into_iter().map(|x: InstPacket| vec!(x[0].clone(),
-                                                               x[1].clone(),
-                                                               x[2].clone(),
-                                                               x[3].clone())).collect();
-        self.add_id_and_span(AsmStmt(insts), start_span.to(end_span))
+        let insts = self.parse_asm(&asm_str);
+        self.add_id_and_span(AsmExpr(insts), start_span.to(end_span))
     }
 
     fn parse_if_expr(&mut self) -> Expr {
@@ -1268,6 +1272,7 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
             Token::LParen                    => self.parse_paren_expr(),
             Token::ColonColon | Token::IdentTok(..) => self.parse_path_or_struct_expr(),
             Token::IdentBangTok(..)          => self.parse_macro_expr(),
+            Token::Asm                       => self.parse_asm_expr(),
             Token::NumberTok(..) | Token::StringTok(..) | Token::True | Token::False | Token::Null => {
                 let start_span = self.cur_span();
                 let node = LitExpr(self.parse_lit());
@@ -1345,7 +1350,6 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
     fn parse_stmt(&mut self) -> Stmt {
         match *self.peek() {
             Token::Let => self.parse_let_stmt(),
-            Token::Asm => self.parse_asm_stmt(),
             _ => {
                 let start_span = self.cur_span();
                 let expr = self.with_restriction(Restriction::ExprStmtRestriction, |p| p.parse_expr());

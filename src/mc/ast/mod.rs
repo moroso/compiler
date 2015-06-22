@@ -313,6 +313,8 @@ pub enum ExprNode {
     ForExpr(Box<Expr>, Box<Expr>, Box<Expr>, Box<Block>),
     MatchExpr(Box<Expr>, Vec<MatchArm>),
     MacroExpr(Name, Vec<Vec<Token>>),
+    AsmExpr(Vec<Vec<InstNode>>), // The inner Vec is to work around the fact that Rust arrays
+                                 // only impl Clone if the inner type impls Copy.
 }
 
 impl Display for ExprNode {
@@ -348,8 +350,19 @@ impl Display for ExprNode {
                     try!(write!(f, "    {},\n", item));
                 }
                 write!(f, "{}", "}")
-            }
+            },
             MacroExpr(n, ref args) => write!(f, "{}!({:?})", n, args),
+            AsmExpr(ref packets) => {
+                try!(write!(f, "Asm("));
+                for packet in packets.iter() {
+                    try!(write!(f, "[ "));
+                    for inst in packet.iter() {
+                        try!(write!(f, "{}", inst));
+                    }
+                    try!(write!(f, "]"));
+                }
+                write!(f, ")\n;")
+            },
         }
     }
 }
@@ -359,8 +372,6 @@ pub enum StmtNode {
     LetStmt(Pat, Option<Expr>),
     ExprStmt(Expr), // no trailing semicolon, must have unit type
     SemiStmt(Expr), // trailing semicolon, any type OK
-    AsmStmt(Vec<Vec<InstNode>>), // The inner Vec is to work around the fact that Rust arrays
-                                 // only impl Clone if the inner type impls Copy.
 }
 
 impl Display for StmtNode {
@@ -375,17 +386,6 @@ impl Display for StmtNode {
             },
             SemiStmt(ref e) => {
                 write!(f, "{};", e)
-            },
-            AsmStmt(ref packets) => {
-                try!(write!(f, "Asm("));
-                for packet in packets.iter() {
-                    try!(write!(f, "[ "));
-                    for inst in packet.iter() {
-                        try!(write!(f, "{}", inst));
-                    }
-                    try!(write!(f, "]"));
-                }
-                write!(f, ")\n;")
             },
         }
     }

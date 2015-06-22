@@ -266,7 +266,6 @@ impl<'a> CCrossCompiler<'a> {
             ExprStmt(ref e) | SemiStmt(ref e) => {
                 self.visit_expr_stmt(e)
             },
-            AsmStmt(..) => panic!("Inline ASM not supported in C target."),
         }
     }
 
@@ -718,6 +717,7 @@ impl<'a> CCrossCompiler<'a> {
                             overall_type_name, expr, arms)
                 }
             }
+            AsmExpr(..) => panic!("Inline ASM not supported in C target."),
             MacroExpr(..) => unreachable!(),
         }
     }

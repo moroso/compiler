@@ -1178,6 +1178,7 @@ impl<'a> Typechecker<'a> {
 
                 ArrayTy(Box::new(cur_ty), Some(elems.len() as u64))
             },
+            AsmExpr(..) => UnitTy,
             MacroExpr(..) => panic!(),
         })
     }
@@ -1521,7 +1522,6 @@ impl<'a> Visitor for Typechecker<'a> {
             SemiStmt(ref e) => {
                 self.expr_to_ty(e);
             }
-            AsmStmt(..) => {}
         }
     }
 
