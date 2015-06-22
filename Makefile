@@ -56,57 +56,9 @@ MC_FILES := \
 
 TEST_FILES := $(patsubst test/%,%,$(wildcard test/test_*.mb))
 
-ASM_TEST_FILES := \
-	test_array.mb \
-	test_array_constructor.mb \
-	test_booleans.mb \
-	test_booleans_2.mb \
-	test_break_continue.mb \
-	test_casts.mb \
-	test_call.mb \
-	test_char.mb \
-	test_conditionals.mb \
-	test_const.mb \
-	test_do_while.mb \
-	test_enums.mb \
-	test_for_loop.mb \
-	test_func_call.mb \
-	test_func_prototypes.mb \
-	test_func_ptr.mb \
-	test_globals.mb \
-	test_indexing.mb \
-	test_long.mb \
-	test_mod.mb \
-	test_modules.mb \
-	test_nested_struct.mb \
-	test_param_types.mb \
-	test_pointer_arith.mb \
-	test_printf.mb \
-	test_ptr_width.mb \
-	test_recursion.mb \
-	test_recursive_types.mb \
-	test_reg_clobber.mb \
-	test_shift.mb \
-	test_short_circuit.mb \
-	test_sign_extend.mb \
-	test_signed_ops.mb \
-	test_sizeof.mb \
-	test_string_concat.mb \
-	test_string_simple.mb \
-	test_struct.mb \
-	test_struct_func.mb \
-	test_struct_init.mb \
-	test_struct_offs.mb \
-	test_struct_topo.mb \
-	test_struct_yo_dawg.mb \
-	test_unop_on_field_access.mb \
-	test_while.mb
-
-#	test_string.mb \
-#
+ASM_TEST_FILES := $(TEST_FILES)
 
 IR_TEST_FILES := $(ASM_TEST_FILES)
-#	test_string.mb
 
 mbc mas: $(addprefix src/,$(MC_FILES))
 ifeq ($(TARGET),debug)
