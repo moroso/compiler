@@ -91,6 +91,7 @@ ASM_TEST_FILES := \
 	test_sign_extend.mb \
 	test_signed_ops.mb \
 	test_sizeof.mb \
+	test_string_concat.mb \
 	test_string_simple.mb \
 	test_struct.mb \
 	test_struct_func.mb \

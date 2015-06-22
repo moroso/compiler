@@ -552,18 +552,43 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
         }
     }
 
+    fn parse_string_lit(&mut self) -> LitNode {
+        match *self.peek() {
+            Token::StringTok(_) => {},
+            _ => panic!("Expected string token!"),
+        }
+
+        // Concatenate consecutive string tokens.
+        let mut result = "".to_string();
+        loop {
+            match *self.peek() {
+                Token::StringTok(_) => {
+                    if let Token::StringTok(s) = self.eat() {
+                        result = result + &s;
+                    } else {
+                        panic!("Peek and eat gave different tokens!")
+                    }
+                },
+                _ => break,
+            }
+        }
+        StringLit(result)
+    }
+
     pub fn parse_lit(&mut self) -> Lit {
-        let node = match self.eat() {
-            Token::True                 => BoolLit(true),
-            Token::False                => BoolLit(false),
-            Token::Null                 => NullLit,
-            Token::StringTok(s)         => StringLit(s),
-            Token::NumberTok(num, kind) => NumLit(num, kind),
-            tok                  => self.error(format!("Unexpected {} where literal expected", tok), self.last_span.get_begin())
+        let start_span = self.cur_span();
+
+        let node = match *self.peek() {
+            Token::True => { self.expect(Token::True); BoolLit(true) },
+            Token::False => { self.expect(Token::False); BoolLit(false) },
+            Token::Null => { self.expect(Token::Null); NullLit },
+            Token::StringTok(_) => { self.parse_string_lit() },
+            Token::NumberTok(num, kind) => { self.expect_number(); NumLit(num, kind) },
+            _ => { let tok = self.eat(); self.error(format!("Unexpected {} where literal expected", tok), self.last_span.get_begin()) }
         };
 
-        let span = self.last_span;
-        self.add_id_and_span(node, span)
+        let end_span = self.cur_span();
+        self.add_id_and_span(node, start_span.to(end_span))
     }
 
     fn parse_pat_common(&mut self, allow_types: bool) -> Pat {
