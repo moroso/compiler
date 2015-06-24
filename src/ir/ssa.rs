@@ -220,9 +220,17 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
     }
 
     if verbose {
-        print!("subs: {:?}\n", substitutions);
-        for x in vars_at_labels_to_clear.iter() {
-            print!("labels_to_clear: {:?}\n", x);
+        print!("subs: ");
+        for &(src, dest) in substitutions.iter() {
+            print!("{}->{}, ", src, dest);
+        }
+        print!("\n");
+        for (n, vars) in vars_at_labels_to_clear.iter() {
+            print!("labels_to_clear: {}:", n);
+            for var in vars.iter() {
+                print!("{} ,", var);
+            }
+            print!("\n");
         }
     }
 
@@ -292,7 +300,14 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
 }
 
 fn minimize(ops: &mut Vec<Op>, verbose: bool) {
-    while minimize_once(ops, verbose) {}
+    while minimize_once(ops, verbose) {
+        if verbose {
+            print!("Minimize step:\n");
+            for op in ops.iter() {
+                print!("{}", op);
+            }
+        }
+    }
 }
 
 static mut label_time: u64 = 0;
@@ -374,6 +389,13 @@ impl ToSSA {
         let end = precise_time_ns();
         unsafe {
             gen_time += end-start;
+        }
+
+        if verbose {
+            print!("Before minimizing:\n");
+            for op in ops.iter() {
+                print!("{}", op);
+            }
         }
 
         let start = precise_time_ns();

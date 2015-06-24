@@ -155,7 +155,9 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
             }
             subst(ops, &a, &b);
             if verbose {
-                print!("{:?}\n", ops);
+                for op in ops.iter() {
+                    print!("{}", op);
+                }
             }
             changed = true;
         }

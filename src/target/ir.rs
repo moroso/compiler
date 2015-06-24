@@ -429,14 +429,18 @@ impl Target for IRTarget {
             let end = precise_time_ns();
             ssa_time += end-start;
             if self.verbose {
-                write!(f, "{:?}\n", insts);
+                for inst in insts.iter() {
+                    write!(f, "{}", inst);
+                }
             }
             let start = precise_time_ns();
             ConstantFolder::fold(insts, &global_map, self.verbose);
             let end = precise_time_ns();
             fold_time += end-start;
             if self.verbose {
-                write!(f, "{:?}\n", insts);
+                for inst in insts.iter() {
+                    write!(f, "{}", inst);
+                }
                 for a in LivenessAnalyzer::analyze(insts).iter() {
                     write!(f, "{:?}\n", a);
                 }

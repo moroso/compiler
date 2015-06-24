@@ -123,6 +123,15 @@ pub enum Op {
     Nop,
 }
 
+fn write_list<T: Display, U: Iterator<Item=T>>(iter: U) -> String {
+    let mut result = "".to_string();
+    for item in iter {
+        result = result + &format!("{}, ", item);
+    }
+
+    result
+}
+
 impl Display for Op {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
@@ -140,23 +149,23 @@ impl Display for Op {
                 write!(f, "{: >12} :={} *{}\n",
                        format!("{}", lv), size, rv),
             Call(ref lv, ref fname, ref args) =>
-                write!(f, "{: >12} := {}({:?})\n",
-                       format!("{}", lv), fname, args),
+                write!(f, "{: >12} := {}({})\n",
+                       format!("{}", lv), fname, write_list(args.iter())),
             Alloca(ref v, ref size) =>
                 write!(f, "{: >12} := alloca({})\n",
                        format!("{}", v), size),
-            Label(ref l, ref vars) => write!(f, "{}({:?}):\n", l, vars),
-            Goto(ref l, ref vars) => write!(f, "goto {}({:?})\n", l, vars),
+            Label(ref l, ref vars) => write!(f, "{}({}):\n", l, write_list(vars.iter())),
+            Goto(ref l, ref vars) => write!(f, "goto {}({})\n", l, write_list(vars.iter())),
             CondGoto(ref neg, ref e, ref l, ref vars) =>
-                write!(f, "if {}{} goto {}({:?})\n",
-                       if *neg { "!" } else { "" }, e, l, vars),
+                write!(f, "if {}{} goto {}({})\n",
+                       if *neg { "!" } else { "" }, e, l, write_list(vars.iter())),
             Return(ref v) => write!(f, "return {}\n", v),
             Func(ref name, ref vars, ref abi_opt) =>
-                write!(f, "{}fn {}({:?})\n",
+                write!(f, "{}fn {}({})\n",
                        match *abi_opt {
                            Some(ref abi) => format!("extern \"{}\"", abi),
                            None => "".to_string(),
-                       }, name, vars),
+                       }, name, write_list(vars.iter())),
             Nop => write!(f, "{: >16}\n", "nop"),
             AsmOp(ref packets) => {
                 try!(write!(f, "Asm("));
