@@ -1,0 +1,15 @@
+fn f(x: bool) {
+    assert!(true);
+
+    print_uint(6);
+
+    if x || true {
+        print_uint(5)
+    }
+}
+
+fn main() -> u32 {
+    f(false);
+
+    0
+}

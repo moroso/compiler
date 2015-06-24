@@ -73,12 +73,24 @@ pub fn subst(ops: &mut Vec<Op>,
             Op::CondGoto(ref negated, ref rve, ref u, ref vars) => {
                 let new_vars = sub_vars(vars, orig_var, new_rvelem);
                 if wrapped_var == *rve {
-                    // TODO: give a warning that conditional is always
-                    // true or always false.
-                    if (*new_rvelem == Constant(BoolLit(true))) != *negated {
-                        Op::Goto(*u, new_vars)
-                    } else {
-                        Op::Nop
+                    match *new_rvelem {
+                        Constant(ref c) => {
+                            // TODO: emit a warning that condition is always false/true.
+                            match *c {
+                                BoolLit(b) =>
+                                    if b == *negated {
+                                        Op::Nop
+                                    } else {
+                                        Op::Goto(*u, new_vars)
+                                    },
+                                _ => panic!("CondGoto is conditioned on non-boolean constant."),
+                            }
+                        },
+                        _ => Op::CondGoto(
+                            *negated,
+                            new_rvelem.clone(),
+                            *u,
+                            new_vars)
                     }
                 } else {
                     Op::CondGoto(
