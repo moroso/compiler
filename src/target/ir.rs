@@ -366,7 +366,6 @@ impl Target for IRTarget {
 
         writeln!(f, "{}", "long print_int(long x) { printf(\"%d\\n\", (int)x); return x; }");
         writeln!(f, "{}", "long print_char(long x) { printf(\"%c\", (int)x); return x; }");
-        writeln!(f, "{}", "long rt_memcpy(long dest, long src, long n) { return (long)memcpy((void*)dest, (void*)src, n); }");
         writeln!(f, "{}", "extern void abort();");
         writeln!(f, "{}", "long rt_abort() { abort(); return 0; }");
         writeln!(f, "{}", "long rt_malloc(long size) { return (long)malloc(size); }");
@@ -374,6 +373,7 @@ impl Target for IRTarget {
         writeln!(f, "{}", "long print_int(long x) { return x; }");
         writeln!(f, "{}", "long print_char(long x) { return x; }");
         writeln!(f, "{}", "#endif");
+        writeln!(f, "{}", "long rt_memcpy(long dest, long src, long n) { return (long)memcpy((void*)dest, (void*)src, n); }");
 
         // Handle alloca
         writeln!(f, "{}", "#ifndef alloca");
