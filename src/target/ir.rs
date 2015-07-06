@@ -355,6 +355,7 @@ impl Target for IRTarget {
 
         // I wish that this was actually the same as the ccross one, but it differs slightly.
         // We could probably get this merged.
+        writeln!(f, "{}", "#pragma GCC diagnostic ignore \"-Wunused-but-set-variable\"");
         writeln!(f, "{}", "#include <stdint.h>");
         writeln!(f, "{}", "#include <stdlib.h>");
         writeln!(f, "{}", "typedef unsigned int uint_t;");
@@ -366,14 +367,15 @@ impl Target for IRTarget {
 
         writeln!(f, "{}", "long print_int(long x) { printf(\"%d\\n\", (int)x); return x; }");
         writeln!(f, "{}", "long print_char(long x) { printf(\"%c\", (int)x); return x; }");
+        writeln!(f, "{}", "long rt_memcpy(long dest, long src, long n) { return (long)memcpy((void*)dest, (void*)src, n); }");
         writeln!(f, "{}", "extern void abort();");
         writeln!(f, "{}", "long rt_abort() { abort(); return 0; }");
         writeln!(f, "{}", "long rt_malloc(long size) { return (long)malloc(size); }");
         writeln!(f, "{}", "#else");
         writeln!(f, "{}", "long print_int(long x) { return x; }");
         writeln!(f, "{}", "long print_char(long x) { return x; }");
+        writeln!(f, "{}", "long rt_memcpy(long dest, long src, long n) { char *pdest = (char*)dest; char *psrc = (char*)src; while (n--) *pdest++ = *psrc++; return dest; }");
         writeln!(f, "{}", "#endif");
-        writeln!(f, "{}", "long rt_memcpy(long dest, long src, long n) { return (long)memcpy((void*)dest, (void*)src, n); }");
 
         // Handle alloca
         writeln!(f, "{}", "#ifndef alloca");
@@ -451,7 +453,7 @@ impl Target for IRTarget {
             convert_time += end-start;
         }
 
-        writeln!(f, "{}", "int main() { _INIT_GLOBALS(); return (int)__main(); }");
+        writeln!(f, "{}", "int main(int argc, char **argv) { _INIT_GLOBALS(); return (int)((long (*)())__main)((long)argc, (long)argv); }");
 
         writeln!(f, "// ssa:{} fold:{} convert:{}",
                  ssa_time as f32 / 1000000000f32,
