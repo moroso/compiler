@@ -5,6 +5,7 @@ CPU_SIM ?= ../cpu/sim/cpu_sim/cpu_sim
 SIM_DURATION ?= 5
 
 MC_FILES := \
+	lib.rs \
 	package.rs \
 	span.rs \
 	typechecker.rs \
