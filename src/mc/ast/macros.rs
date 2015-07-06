@@ -95,9 +95,9 @@ fn expand_map_macro(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -
 
     let mut out = vec!();
     for toks in iter {
-        out.push_all(&prefix[..]);
+        out.extend(prefix.clone().into_iter());
         out.push(Token::LParen);
-        out.push_all(&toks[..]);
+        out.extend(toks.into_iter());
         out.push(Token::RParen);
         out.push(Token::Comma);
     }
@@ -146,7 +146,7 @@ impl Expander for WithId<MacroDef> {
         let mut vararg_toks = vec!();
         // Collect up any remaining args as a comma delimited token stream
         for arg in arg_iter {
-            vararg_toks.push_all(&arg[..]);
+            vararg_toks.extend(arg.into_iter());
             vararg_toks.push(Token::Comma);
         }
         vararg_toks.pop(); // Pop off a trailing comma if it exists
@@ -156,7 +156,7 @@ impl Expander for WithId<MacroDef> {
             let mut is_empty_varargs = false;
             match *tok {
                 MacroVar(name) => {
-                    output.push_all(&args.get(&name).unwrap()[..]);
+                    output.extend(args.get(&name).unwrap().clone().into_iter());
                 }
                 // We skip a comma that occurs after an empty ...
                 MacroTok(Token::Comma) if skip_comma => {}
@@ -164,7 +164,7 @@ impl Expander for WithId<MacroDef> {
                     output.push(tok.clone());
                 }
                 MacroVarArgs => {
-                    output.push_all(&vararg_toks[..]);
+                    output.extend(vararg_toks.clone().into_iter());
                     is_empty_varargs = vararg_toks.is_empty();
                 }
             }

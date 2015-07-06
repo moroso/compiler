@@ -106,7 +106,7 @@ pub fn main() {
         process::exit(error)
     };
 
-    let matches = match getopts(args.tail(), &opts) {
+    let matches = match getopts(&args[1..], &opts) {
         Ok(m) => m,
         Err(e) => bail(Some(&format!("{}", e)[..])),
     };

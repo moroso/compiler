@@ -172,7 +172,7 @@ impl<'a> Session<'a> {
         let lexer = new_mb_lexer(name, buffer);
         let mut temp = Parser::parse(self, lexer);
         swap(&mut module.val.items, &mut temp.val.items);
-        module.val.items.push_all(&temp.val.items[..]);
+        module.val.items.extend(temp.val.items.into_iter());
     }
 
 

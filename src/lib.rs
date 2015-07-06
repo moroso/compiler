@@ -5,6 +5,8 @@
 #![feature(rustc_private)] // do we really want to use this?
 #![feature(collections)] // hm
 #![feature(custom_derive)]
+#![feature(str_escape)]
+#![feature(vecmap)]
 #![allow(dead_code,unused_imports)]
 
 #![plugin(regex_macros)]

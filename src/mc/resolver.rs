@@ -228,7 +228,7 @@ impl<'a, 'b> ModuleResolver<'a, 'b> {
     fn try_resolve_path(&mut self, ns: NS, path: &Path) -> Option<NodeId> {
         self.try_resolve_path_split(ns,
                                     path.val.global,
-                                    path.val.elems.init(),
+                                    &path.val.elems[.. path.val.elems.len()-1],
                                     path.val.elems.last().unwrap())
     }
 
