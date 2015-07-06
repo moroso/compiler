@@ -2,7 +2,7 @@
 /// labels, and "link" them.
 
 use mas::ast::*;
-use collections::BTreeMap;
+use std::collections::BTreeMap;
 use mas::labels::resolve_labels;
 
 pub fn link(parts: Vec<(Vec<[InstNode; 4]>, BTreeMap<String, usize>)>

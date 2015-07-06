@@ -4,7 +4,7 @@ pub use rustc_data_structures::graph::NodeIndex as VertexIndex;
 use std::fmt::{Debug};
 
 
-use collections::BTreeSet;
+use std::collections::BTreeSet;
 
 pub trait GraphExt<V> {
     fn toposort(&self) -> Result<Vec<V>, V>;

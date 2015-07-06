@@ -3,8 +3,6 @@
 // Unstable libraries
 #![feature(path_ext)]
 #![feature(rustc_private)] // do we really want to use this?
-#![feature(collections)] // hm
-#![feature(custom_derive)]
 #![feature(str_escape)]
 #![feature(vecmap)]
 #![allow(dead_code,unused_imports)]
@@ -13,7 +11,6 @@
 
 extern crate num;
 
-extern crate collections;
 extern crate getopts;
 extern crate regex;
 extern crate rustc_data_structures;
