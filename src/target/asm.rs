@@ -74,7 +74,9 @@ impl Target for AsmTarget {
         let mangler = NameMangler::new(session, &module, true, true);
         let mut session = mangler.session;
 
-        print!("Mangler: {:?}\n", mangler.names);
+        if self.verbose {
+            print!("Mangler: {:?}\n", mangler.names);
+        }
 
         let (mut result, mut staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
