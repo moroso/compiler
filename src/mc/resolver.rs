@@ -237,7 +237,7 @@ impl<'a, 'b> ModuleResolver<'a, 'b> {
             path.iter().map(|e| self.session.interner.name_to_str(&e.val.name).to_string())
             .collect();
         self.session.error(id,
-                           format!("Unresolved name `{}`", elems.connect("::")));
+                           format!("Unresolved name `{}`", elems.join("::")));
     }
 
     fn resolve_path(&mut self, ns: NS, path: &Path) -> NodeId {

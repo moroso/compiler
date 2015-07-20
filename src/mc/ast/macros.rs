@@ -49,7 +49,7 @@ fn expand_paste(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Ve
         }
     }
 
-    vec!(Token::IdentTok(concat.connect("")))
+    vec!(Token::IdentTok(concat.join("")))
 }
 
 fn expand_concat(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
@@ -65,7 +65,7 @@ fn expand_concat(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> V
         }
     }
 
-    vec!(Token::StringTok(concat.connect("")))
+    vec!(Token::StringTok(concat.join("")))
 }
 
 fn expand_stringify(mut input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> Vec<Token> {
@@ -83,7 +83,7 @@ fn expand_stringify(mut input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> V
         concat.extend(ts.into_iter().map(|t| format!("{}", t)));
     }
 
-    vec!(Token::StringTok(concat.connect(" ")))
+    vec!(Token::StringTok(concat.join(" ")))
 }
 
 fn expand_map_macro(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {

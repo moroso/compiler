@@ -27,7 +27,7 @@ impl<'a> NameMangler<'a> {
         let name =
             self.session.interner.name_to_str(&id.val.name).to_string();
         self.path.push(name.clone());
-        let pre_mangled_path = self.path.connect("__");
+        let pre_mangled_path = self.path.join("__");
         // We add "__" to the beginning of everything to make it
         // really obvious if we forget to mangle something and to
         // avoid colliding with C.

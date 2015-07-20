@@ -146,7 +146,7 @@ impl<'a> CCrossCompiler<'a> {
         where F: FnMut(&CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
             .filter(|x| *x != "".to_string()).collect();
-        list.connect(&format!("{}", delimiter)[..])
+        list.join(&format!("{}", delimiter)[..])
     }
 
     fn mut_visit_list<T, F>(&mut self, list: &Vec<T>,
@@ -155,7 +155,7 @@ impl<'a> CCrossCompiler<'a> {
         where F: FnMut(&mut CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
             .filter(|x| *x != "".to_string()).collect();
-        list.connect(delimiter)
+        list.join(delimiter)
     }
 
     fn visit_binop(&self, op: &BinOp) -> String {
@@ -475,7 +475,7 @@ impl<'a> CCrossCompiler<'a> {
                     .map(|elem|
                          self.session.interner.name_to_str(&elem.val.name).to_string())
                     .collect();
-                last_component.connect("_")
+                last_component.join("_")
             },
         }
     }
@@ -916,7 +916,7 @@ impl<'a> CCrossCompiler<'a> {
             }
         });
 
-        results.connect("\n")
+        results.join("\n")
     }
 }
 

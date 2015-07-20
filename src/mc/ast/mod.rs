@@ -111,7 +111,7 @@ impl Display for PathNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let global = if self.global { "::" } else { "" };
         let elems: Vec<String> = self.elems.iter().map(|e| format!("{}", e)).collect();
-        write!(f, "{}{}", global, elems.connect("::"))
+        write!(f, "{}{}", global, elems.join("::"))
     }
 }
 

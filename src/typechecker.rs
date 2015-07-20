@@ -517,25 +517,25 @@ impl<'a> Typechecker<'a> {
             }
             TupleTy(ref ts) => {
                 let vs: Vec<String> = ts.iter().map(|t| self.ty_str_(t)).collect();
-                format!("({})", vs.connect(", "))
+                format!("({})", vs.join(", "))
             }
             FuncTy(ref ts, ref t) => {
                 let vs: Vec<String> = ts.iter().map(|t| self.ty_str_(t)).collect();
                 if t.val == UnitTy {
-                    format!("fn ({})", vs.connect(", "))
+                    format!("fn ({})", vs.join(", "))
                 } else {
-                    format!("fn ({}) -> {}", vs.connect(", "), self.ty_str_(&**t))
+                    format!("fn ({}) -> {}", vs.join(", "), self.ty_str_(&**t))
                 }
             }
             StructTy(id, ref ts) |
             EnumTy(id, ref ts) => {
                 let path = self.session.pathmap.find(&id).expect("missing id for struct/enum");
-                let s = path.connect("::");
+                let s = path.join("::");
                 let vs: Vec<String> = ts.iter().map(|t| self.ty_str_(t)).collect();
                 if vs.is_empty() {
                     s
                 } else {
-                    format!("{}<{}>", s, vs.connect(", "))
+                    format!("{}<{}>", s, vs.join(", "))
                 }
             }
             BoundTy(id) => {

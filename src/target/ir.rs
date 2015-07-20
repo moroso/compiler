@@ -223,7 +223,7 @@ impl IRTarget {
                     let list: Vec<String> = args.iter()
                         .map(|arg| print_var(interner, global_map, arg)
                              ).collect();
-                    s = s + &list.connect(", ")[..];
+                    s = s + &list.join(", ")[..];
                     s = s + ");\n";
                     s
                 },
@@ -301,7 +301,7 @@ impl IRTarget {
                     format!("{}\nlong {}({}) {{\n{}",
                             closer,
                             interner.name_to_str(name),
-                            mapped_args.connect(", "),
+                            mapped_args.join(", "),
                             s)
                 },
                 Op::AsmOp(..) => panic!("Inline ASM not supported in IR-C target."),

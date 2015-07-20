@@ -19,7 +19,7 @@ pub fn output_deps(package: &Package, target: &String) {
         Err(e) => panic!("Failed to open dependency file: {}", e),
     };
 
-    match writeln!(&mut file, "{}: {}\n{}", target, vec.connect(" "), vec.connect(":\n") + ":") {
+    match writeln!(&mut file, "{}: {}\n{}", target, vec.join(" "), vec.join(":\n") + ":") {
         Ok(()) => (), // succeeded
         Err(e) => panic!("Failed to generate dependency file: {}", e),
     }
