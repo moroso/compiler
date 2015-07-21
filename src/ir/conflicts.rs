@@ -54,8 +54,8 @@ impl ConflictAnalyzer {
                     }
                     for i in NUM_PARAM_REGS .. args.len() {
                         must_colors.insert(args[i],
-                                           StackColor((i as isize) - 1 -
-                                                      (args.len() as isize)));
+                                           StackArgColor((i as isize) -
+                                                         (args.len() as isize)));
                     }
                 }
                 _ => {}

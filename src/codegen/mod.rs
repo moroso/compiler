@@ -34,6 +34,8 @@ pub enum RegisterColor {
     RegColor(Reg),
     // Offset on the stack, in words.
     StackColor(isize),
+    // Argument on the stack. The isize is negative; -1 is the last argument.
+    StackArgColor(isize),
     // This value is in global storage.
     GlobalColor,
     // This is a structure in global storage; we access it by reference.

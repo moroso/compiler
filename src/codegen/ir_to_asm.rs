@@ -86,7 +86,8 @@ fn convert_binop<'a>(
     signed: bool,
     mut op_l: &'a RValueElem,
     mut op_r: &'a RValueElem,
-    offs: u32,
+    args_offs: i32,
+    spill_offs: i32,
     session: &mut Session,
     strings: &mut BTreeSet<Name>) -> Vec<InstNode> {
 
@@ -103,7 +104,7 @@ fn convert_binop<'a>(
         _ => panic!("Trying to apply a binary operation to two constants. Did you remember to do the constant folding pass?"),
     };
 
-    let (reg_l, before_l, _) = var_to_reg(regmap, global_map, &var_l, 1, offs);
+    let (reg_l, before_l, _) = var_to_reg(regmap, global_map, &var_l, 1, args_offs, spill_offs);
     result.extend(before_l.into_iter());
 
     // TODO: handle shifts, multiplication, division.
@@ -111,8 +112,7 @@ fn convert_binop<'a>(
     match *op_r {
         Variable(ref var) => {
             assert!(!swapped);
-            let (reg_r, before_r, _) = var_to_reg(regmap, global_map, var, 2,
-                                                  offs);
+            let (reg_r, before_r, _) = var_to_reg(regmap, global_map, var, 2, args_offs, spill_offs);
             result.extend(before_r.into_iter());
 
             // TODO: signedness needs to be part of the IR.
@@ -222,7 +222,7 @@ fn convert_binop<'a>(
 
             let longval = lit_to_longvalue(val, session, strings);
             let packed = match longval {
-                Immediate(num) => pack_int(num,10),
+                Immediate(num) => pack_int(num, 10),
                 _ => None,
             };
 
@@ -444,7 +444,8 @@ fn convert_unop<'a>(
     dest: Reg,
     op: &UnOpNode,
     rhs: &'a RValueElem,
-    offs: u32,
+    args_offs: i32,
+    spill_offs: i32,
     session: &mut Session,
     strings: &mut BTreeSet<Name>) -> Vec<InstNode> {
 
@@ -459,10 +460,18 @@ fn convert_unop<'a>(
                 match *regmap.get(v).unwrap() {
                     StackColor(n) => {
                         return vec!(InstNode::alu2short(pred,
-                                                        AddAluOp,
+                                                        SubAluOp,
                                                         dest,
                                                         STACK_POINTER,
-                                                        offs + (n * 4) as u32,
+                                                        -(spill_offs + n as i32 * 4) as u32,
+                                                        0));
+                    },
+                    StackArgColor(n) => {
+                        return vec!(InstNode::alu2short(pred,
+                                                        SubAluOp,
+                                                        dest,
+                                                        STACK_POINTER,
+                                                        -(args_offs - n as i32 * 4) as u32,
                                                         0));
                     },
                     GlobalColor => unimplemented!(),
@@ -519,7 +528,7 @@ fn convert_unop<'a>(
     match *rhs {
         Variable(ref var) => {
             let (reg_r, mut before_r, _) = var_to_reg(regmap, global_map, var,
-                                                      2, offs);
+                                                      2, args_offs, spill_offs);
             before_r.extend(reg_op(reg_r).into_iter());
             before_r
         },
@@ -572,13 +581,15 @@ fn width_to_lsuwidth(width: &Width) -> LsuWidth {
 // afterwards (for writes), for it to be valid (in the case of
 // spilling). spill_pos must be 0, 1, or 2, and should not be re-used
 // while another register with the same spill_pos is active.
-// offs is where variables on the stack start (so, after all structs
-// and such that are allocated on the stack).
+// args_offs is the index relative to r30 after arguments on the stack
+// end; spill_offs is the start of the stack region where spilled registers
+// are put.
 fn var_to_reg(regmap: &BTreeMap<Var, RegisterColor>,
               global_map: &BTreeMap<Name, StaticIRItem>,
               var: &Var,
               spill_pos: u8,
-              offs: u32) -> (Reg, Vec<InstNode>, Vec<InstNode>) {
+              args_offs: i32,
+              spill_offs: i32) -> (Reg, Vec<InstNode>, Vec<InstNode>) {
     let pred = Pred { inverted: false, reg: 3 };
     match *regmap.get(var).unwrap() {
         RegColor(reg) => {
@@ -613,17 +624,39 @@ fn var_to_reg(regmap: &BTreeMap<Var, RegisterColor>,
                                         width: LsuWidthL },
                                 reg,
                                 STACK_POINTER,
-                                (offs as isize + pos * 4) as i32)
+                                spill_offs + pos as i32 * 4)
                      ),
              vec!(
                  InstNode::store(pred,
                                  LsuOp { store: true,
                                          width: LsuWidthL },
                                  STACK_POINTER,
-                                 (offs as isize + pos * 4) as i32,
+                                 spill_offs + pos as i32 * 4,
                                  reg)
                      ),
-                 )
+             )
+        },
+        StackArgColor(pos) => {
+            // TODO: clean up these constants and document this.
+            let reg = Reg { index: SPILL_REG_BASE + spill_pos };
+            (reg,
+             vec!(
+                 InstNode::load(pred,
+                                LsuOp { store: false,
+                                        width: LsuWidthL },
+                                reg,
+                                STACK_POINTER,
+                                args_offs + pos as i32 * 4)
+                     ),
+             vec!(
+                 InstNode::store(pred,
+                                 LsuOp { store: true,
+                                         width: LsuWidthL },
+                                 STACK_POINTER,
+                                 args_offs + pos as i32 * 4,
+                                 reg)
+                     ),
+             )
         },
         GlobalColor => {
             let global_info = global_map.get(&var.name).unwrap();
@@ -676,7 +709,8 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
                pred: &Pred,
                gens: &BTreeMap<Name, usize>,
                vars: &BTreeSet<Var>,
-               offs: u32) -> Vec<InstNode> {
+               args_offs: i32,
+               spill_offs: i32) -> Vec<InstNode> {
     let mut result = vec!();
 
     let mut reg_transformations: BTreeMap<Reg, (Reg,
@@ -694,10 +728,9 @@ fn assign_vars(regmap: &BTreeMap<Var, RegisterColor>,
             name: var.name.clone(),
             generation: Some(*gens.get(&var.name).unwrap())
         };
-        let (src_reg, src_insts, _) = var_to_reg(regmap, global_map, var, 1,
-                                                 offs);
-        let (dest_reg, _, dest_insts) = var_to_reg(regmap, global_map,
-                                                   &new_var, 1, offs);
+        let (src_reg, src_insts, _) = var_to_reg(regmap, global_map, var, 1, args_offs, spill_offs);
+        let (dest_reg, _, dest_insts) = var_to_reg(regmap, global_map, &new_var, 1,
+                                                   args_offs, spill_offs);
         if src_reg != dest_reg {
             rev_map.insert(dest_reg.clone(), src_reg.clone());
             reg_transformations.insert(src_reg,
@@ -860,6 +893,36 @@ impl IrToAsm {
                      session: &mut Session,
                      strings: &mut BTreeSet<Name>
                      ) -> (Vec<InstNode>, BTreeMap<String, usize>) {
+        /*
+        Before this function will make any sense, you'll need to know how the stack is organized.
+
+        When we call a function, going into the function r30 (the stack pointer) will point to
+        an available part of the stack. Any memory on the stack at the address r30 points to or
+        higher is ours to do whatever we want with. Arguments are passed in registers:
+        r0 is the first, r1 is the second, up to NUM_PARAM_REGISTERS. All others are passed on the
+        stack, in the memory up to where r30 points.
+
+        Our own stack organization is as follows, in order:
+         - the saved return address (only if we call other functions; otherwise it stays in r31);
+         - space for structures that get allocated on the stack;
+         - callee-save registers;
+         - spilled variables.
+
+        When we make a function call, in addition to all the above, we have:
+         - caller-save registers;
+         - arguments for the function being called, if they don't all fit into registers.
+
+        It's essential that at all times, r30 is ahead of any part of the stack we're using.
+        That is, we must assume that anything at higher addresses than r30 might be written
+        to seemingly randomly (because when we're in kernel mode and we take an interrupt,
+        that's what happens!).
+
+        To make all of this easier to keep track of, we define variables storing the offsets
+        of each of these regions, *relative to the start of this function's stack*. So the
+        return address (if present) is always at offset 0, and so forth. In addition, we
+        keep track of where r30 is relative to the start of the stack. Together, these let
+        us find things on the stack!
+        */
         let opinfo = LivenessAnalyzer::analyze(ops);
         let (conflicts, counts, must_colors, mem_vars) =
             ConflictAnalyzer::conflicts(ops, &opinfo);
@@ -869,26 +932,30 @@ impl IrToAsm {
         // Does this function call any other function? If not, we can
         // avoid saving r31.
         let mut has_call = false;
-        // Figure out where objects on the stack will go.
+
+        // Figure out where objects allocated on the stack will go.
         // stack_item_map is a map from instruction index (for an alloca
-        // instruction) to a stack offset.
+        // instruction) to a stack offset, relative to the beginning
+        // of the region for stack-allocated structures.
         let mut stack_item_map: BTreeMap<usize, u32> = BTreeMap::new();
-        // Start at 4, to skip over the saved return value.
-        let mut stack_item_offs: u32 = 4;
+
+        let mut stack_items_len: u32 = 0;
         for (inst, op) in ops.iter().enumerate() {
             match *op {
                 Op::Alloca(ref var, size) => {
                     // We must be aligned on 4-byte boundaries.
                     let size_adjust = (4 - (size % 4)) % 4;
                     if !global_map.get(&var.name).is_some() {
-                        stack_item_map.insert(inst, stack_item_offs);
-                        stack_item_offs += (size + size_adjust) as u32;
+                        stack_item_map.insert(inst, stack_items_len);
+                        stack_items_len += (size + size_adjust) as u32;
                     }
                 },
                 Op::Call(..) => { has_call = true; }
                 _ => {}
             }
         }
+
+        let ret_addr_len = if has_call { 4 } else { 0 };
 
         // Find the highest index of any register we use, so we know which
         // ones we need to save.
@@ -897,12 +964,46 @@ impl IrToAsm {
                                                   RegColor(ref r) => r.index,
                                                   _ => 0,
                                               }).max().unwrap_or(0);
-        // Find the highest place on the stack we use.
-        let max_stack_index = regmap.iter().map(|(_, c)|
-                                                match *c {
-                                                    StackColor(i) => i,
-                                                    _ => 0,
-                                                }).max().unwrap_or(0);
+
+        // Find the length of the stack region for spilled variables.
+        let spilled_regs_len = regmap.iter().map(|(_, c)|
+                                                 match *c {
+                                                     StackColor(i) => i + 1,
+                                                     _ => 0,
+                                                 }).max().unwrap_or(0) * 4;
+
+        // Size of the storage for callee-save registers.
+        // TODO: avoid saving registers we don't need to save.
+        let callee_save_len =
+            if max_reg_index >= FIRST_CALLEE_SAVED_REG.index {
+                1 + max_reg_index - FIRST_CALLEE_SAVED_REG.index
+            } else {
+                0
+            } * 4;
+
+
+        // Here's where we figure out the offsets of each stack region, now that we know
+        // the length of each one!
+
+        // The offset and length of the saved return address (always 0: it's always the first
+        // thing on the stack, if it's present).
+        let ret_addr_offs = 0i32;
+
+        // The offset of stack-allocated items
+        let stack_items_offs = ret_addr_offs + ret_addr_len as i32;
+
+        // The offset of the region of saved callee-saved registers.
+        let callee_save_offs = stack_items_offs + stack_items_len as i32;
+
+        // Ofset for spilled registers
+        let spilled_regs_offs = callee_save_offs + callee_save_len as i32;
+
+        // Where the stack pointer will end up pointing while we're inside the function,
+        // and not in the process of calling another function. This is the first location
+        // beyond all of the regions we just defined.
+        let stack_ptr_offs = spilled_regs_offs + spilled_regs_len as i32;
+
+        // Done figuring out stack sizes!
 
         let mut targets: BTreeMap<String, usize> = BTreeMap::new();
 
@@ -930,7 +1031,6 @@ impl IrToAsm {
         let load32_op = LsuOp { store: false, width: LsuWidthL };
 
         let mut result = vec!();
-        let mut num_saved = 0;
         for (pos, op) in ops.iter().enumerate() {
             match *op {
                 Op::Func(ref name, _, ref abi) => {
@@ -949,30 +1049,44 @@ impl IrToAsm {
                         }
                     }
 
-                    // Save the return address, offset by one packet size.
+                    let (stack_ptr_offs_base, stack_ptr_offs_shift) =
+                        pack_int(stack_ptr_offs as u32, 10).expect(
+                            "Unable to pack literal.");
+
+                    // Before we can save anything to the stack, we must advance the
+                    // stack pointer.
+                    result.push(
+                        InstNode::alu2short(
+                            TRUE_PRED,
+                            AddAluOp,
+                            STACK_POINTER,
+                            STACK_POINTER,
+                            stack_ptr_offs_base,
+                            stack_ptr_offs_shift)
+                            );
+
+                    // Save the return address.
                     if has_call {
                         result.push(
                             InstNode::store(TRUE_PRED,
                                             store32_op,
                                             STACK_POINTER,
-                                            0,
+                                            -stack_ptr_offs + ret_addr_offs,
                                             LINK_REGISTER
                                             )
                                 );
-                        num_saved = 1;
                     }
 
-                    // Save all callee-save registers
+                    // Save all callee-save registers.
+                    // TODO: don't save registers we know we can't use.
                     for (x, i) in (FIRST_CALLEE_SAVED_REG.index .. max_reg_index+1).enumerate() {
                         result.push(
                             InstNode::store(TRUE_PRED,
                                             store32_op,
                                             STACK_POINTER,
-                                            (stack_item_offs as usize +
-                                             x * 4) as i32,
+                                            -stack_ptr_offs + callee_save_offs + x as i32 * 4,
                                             Reg { index: i })
                                 );
-                        num_saved = x + 1 + (if has_call { 1 } else { 0 });
                     }
                 },
                 Op::Return(ref rve) => {
@@ -980,7 +1094,8 @@ impl IrToAsm {
                     result.extend(
                         convert_unop(&regmap, global_map, RETURN_REG,
                                      &Identity, rve,
-                                     stack_item_offs,
+                                     -stack_ptr_offs,
+                                     -stack_ptr_offs + spilled_regs_offs,
                                      session, strings).into_iter());
 
                     // Restore all callee-save registers
@@ -990,8 +1105,7 @@ impl IrToAsm {
                                            load32_op,
                                            Reg { index: i },
                                            STACK_POINTER,
-                                           (stack_item_offs as usize +
-                                            x * 4) as i32
+                                           -stack_ptr_offs + callee_save_offs + x as i32* 4
                                            ));
                     }
 
@@ -1002,8 +1116,24 @@ impl IrToAsm {
                                            load32_op,
                                            LINK_REGISTER,
                                            STACK_POINTER,
-                                           0));
+                                           -stack_ptr_offs + ret_addr_offs));
                     }
+
+                    let (stack_ptr_offs_base, stack_ptr_offs_shift) =
+                        pack_int(stack_ptr_offs as u32, 10).expect(
+                            "Unable to pack literal.");
+
+                    // Restore stack pointer
+                    result.push(
+                        InstNode::alu2short(
+                            TRUE_PRED,
+                            SubAluOp,
+                            STACK_POINTER,
+                            STACK_POINTER,
+                            stack_ptr_offs_base,
+                            stack_ptr_offs_shift)
+                            );
+
                     // Return
                     result.push(
                         InstNode::branchreg(TRUE_PRED,
@@ -1014,20 +1144,30 @@ impl IrToAsm {
                 Op::BinOp(ref var, ref op, ref rve1, ref rve2, signed) => {
                     let (lhs_reg, _, after) = var_to_reg(&regmap, global_map,
                                                          var, 0,
-                                                         stack_item_offs);
+                                                         -stack_ptr_offs,
+                                                         -stack_ptr_offs
+                                                          + spilled_regs_offs);
                     result.extend(
                         convert_binop(&regmap, global_map, lhs_reg, op, signed,
-                                      rve1, rve2, stack_item_offs, session,
+                                      rve1, rve2,
+                                      -stack_ptr_offs,
+                                      -stack_ptr_offs + spilled_regs_offs,
+                                      session,
                                       strings).into_iter());
                     result.extend(after.into_iter());
                 },
                 Op::UnOp(ref var, ref op, ref rve1) => {
                     let (lhs_reg, _, after) = var_to_reg(&regmap, global_map,
                                                          var, 0,
-                                                         stack_item_offs);
+                                                         -stack_ptr_offs,
+                                                         -stack_ptr_offs
+                                                          + spilled_regs_offs);
                     result.extend(
                         convert_unop(&regmap, global_map, lhs_reg, op, rve1,
-                                     stack_item_offs, session, strings).into_iter());
+                                     -stack_ptr_offs,
+                                     -stack_ptr_offs + spilled_regs_offs,
+                                      session, strings
+                                     ).into_iter());
                     result.extend(after.into_iter());
                 }
                 Op::Load(ref var1, ref var2, ref width) |
@@ -1038,11 +1178,15 @@ impl IrToAsm {
                     };
                     let (reg1, before1, _) = var_to_reg(&regmap, global_map,
                                                         var1, 0,
-                                                        stack_item_offs);
+                                                        -stack_ptr_offs,
+                                                        -stack_ptr_offs
+                                                         + spilled_regs_offs);
                     result.extend(before1.into_iter());
                     let (reg2, before2, _) = var_to_reg(&regmap, global_map,
                                                         var2, 0,
-                                                        stack_item_offs);
+                                                        -stack_ptr_offs,
+                                                        -stack_ptr_offs
+                                                         + spilled_regs_offs);
                     result.extend(before2.into_iter());
 
                     let lsuop = LsuOp { store: store,
@@ -1066,7 +1210,8 @@ impl IrToAsm {
                          ref vars) => {
                     let (reg, before, _) = var_to_reg(&regmap, global_map,
                                                       var, 0,
-                                                      stack_item_offs);
+                                                      -stack_ptr_offs,
+                                                      -stack_ptr_offs + spilled_regs_offs);
                     result.extend(before.into_iter());
                     result.push(
                         InstNode::compareshort(
@@ -1078,10 +1223,12 @@ impl IrToAsm {
                             1,
                             0));
                     result.extend(assign_vars(&regmap, global_map,
-                                                     &Pred { inverted: *negated,
-                                                             reg: 0 },
-                                                     &labels[*label],
-                                                     vars, stack_item_offs).into_iter());
+                                              &Pred { inverted: *negated,
+                                                      reg: 0 },
+                                              &labels[*label],
+                                              vars,
+                                              -stack_ptr_offs,
+                                              -stack_ptr_offs + spilled_regs_offs).into_iter());
                     result.push(
                         InstNode::branchimm(
                             Pred { inverted: *negated,
@@ -1093,9 +1240,11 @@ impl IrToAsm {
                     panic!("Conditional Goto is not conditional!"),
                 Op::Goto(ref label, ref vars) => {
                     result.extend(assign_vars(&regmap, global_map,
-                                                     &TRUE_PRED,
-                                                     &labels[*label],
-                                                     vars, stack_item_offs).into_iter());
+                                              &TRUE_PRED,
+                                              &labels[*label],
+                                              vars,
+                                              -stack_ptr_offs,
+                                              -stack_ptr_offs + spilled_regs_offs).into_iter());
                     // Don't emit redundant jumps.
                     let next = &ops[pos+1];
                     match *next {
@@ -1120,15 +1269,17 @@ impl IrToAsm {
                             let (reg, _, after) = var_to_reg(&regmap,
                                                              global_map,
                                                              var, 0,
-                                                             stack_item_offs);
+                                                             -stack_ptr_offs,
+                                                             -stack_ptr_offs
+                                                              + spilled_regs_offs);
                             result.push(
                                 InstNode::alu2short(
                                     TRUE_PRED,
-                                    AddAluOp,
+                                    SubAluOp,
                                     reg,
                                     STACK_POINTER,
                                     // TODO: encode as base/shift?
-                                    offs,
+                                    (stack_ptr_offs - stack_items_offs - offs as i32) as u32,
                                     0)
                                     );
                             result.extend(after.into_iter());
@@ -1142,28 +1293,50 @@ impl IrToAsm {
                     // TODO: this is a lot messier than it should be.
                     // Clean it up!
 
-                    // The register allocator will ensure that all variables
-                    // that need to be passed on the stack actually are, and
-                    // that the return variable is assigned correctly. We need
-                    // to worry about setting up the stack frame and putting
-                    // any variables that need to be passed on the stack in
-                    // the right places.
+                    /*
+                    The register allocator will ensure that all variables
+                    that need to be passed on the stack actually are, and
+                    that the return variable is assigned correctly. We need
+                    to worry about setting up the stack frame and putting
+                    any variables that need to be passed on the stack in
+                    the right places.
+
+                    This is a good moment to remember all the extra stuff that
+                    has to go on the stack for the function call:
+
+                    - caller-save registers;
+                    - arguments for the function being called, if they don't all fit into registers.
+
+                    Note that we actually will only ever have one or the other. The only caller-save
+                    registers other than registers used for arguments are r8, r9, and r10, but
+                    we never need to save those. So if any arguments have to go on the stack,
+                    it means that all registers for arguments are used so we don't have to
+                    explicitly save any of them. If some argument registers are unused, then
+                    no arguments are passed in memory but we may have to save some of the
+                    registers.
+                    */
 
                     let total_vars = vars.len();
 
-                    let stack_arg_offs = stack_item_offs as isize +
-                                         (max_stack_index + num_saved as isize) * 4;
-
-                    // This is where the stack pointer should end up pointing.
-                    // We always reserve at least NUM_PARAM_REGS slots: either
-                    // we're using a slot for a parameter, or we're saving
-                    // the caller-save variable that goes there.
+                    // See above. One region or the other will be emtpy, so we can effectively
+                    // consider their starting address to be the same, which is wherever
+                    // r30 is currently pointing.
+                    let stack_arg_offs = stack_ptr_offs;
+                    let caller_save_offs = stack_ptr_offs;
 
                     // We want to save caller-save registers, but only if we
                     // actually use them.
                     let ref this_opinfo = opinfo[pos];
                     let ref live_vars = this_opinfo.live;
-                    let mut reg_set: BTreeSet<Reg> = BTreeSet::new();
+
+                    // regs_to_save tells us which caller-save registers we may need to save.
+                    // In particular, any register not used for any live variable at this point
+                    // does *not* need to be saved. Variables used as arguments also don't need
+                    // to be saved. Furthermore, r0 doesn't need to be saved: we already know
+                    // that it will end up with the return value, so the register allocator will
+                    // have avoided assigning any live variable to it other than the variable
+                    // that will contain the return value.
+                    let mut regs_to_save: BTreeSet<Reg> = BTreeSet::new();
                     // Make a list of the registers we actually need to save.
                     for var in live_vars.iter() {
                         match *regmap.get(var).expect(
@@ -1172,32 +1345,50 @@ impl IrToAsm {
                                 if r.index as usize >= total_vars &&
                                     r.index as usize <= NUM_PARAM_REGS &&
                                     r.index > 0 {
-                                        reg_set.insert(r.clone());
+                                        regs_to_save.insert(r.clone());
                                     }
                             },
                             _ => {}
                         }
                     }
-                    let num_regs_to_save = reg_set.len();
-                    let reg_list: Vec<Reg> =
-                        FromIterator::from_iter(reg_set.iter().map(|&x|x));
+                    // We now know how many registers we need to save, and we've made a list
+                    // that tells us which ones and in what order.
+                    let num_regs_to_save = regs_to_save.len();
+                    let regs_to_save_list: Vec<Reg> =
+                        FromIterator::from_iter(regs_to_save.iter().map(|&x|x));
 
-                    let offs =
+                    // The total amount we grow the stack for this function call, either
+                    // because we're saving caller-save registers or because we're passing
+                    // arguments on the stack.
+                    let extra_stack_len =
                         if total_vars >= NUM_PARAM_REGS {
                             // We're using all registers that we can, and
                             // possibly passing some arguments on the stack.
-                            stack_arg_offs as i32 +
-                                (total_vars as i32 - NUM_PARAM_REGS as i32) * 4
+                            (total_vars as i32 - NUM_PARAM_REGS as i32) * 4
                         } else {
                             // We're not using all the registers, for
                             // arguments, so we may have to save some
                             // caller-save registers.
-                            stack_arg_offs as i32 +
-                                num_regs_to_save as i32 * 4
+                            num_regs_to_save as i32 * 4
                         };
-                    let (offs_base, offs_shift) =
-                        pack_int(offs as u32, 10).expect(
+
+                    // Advance the stack pointer before we do any writes.
+                    let new_stack_ptr_offs = (stack_ptr_offs + extra_stack_len) as i32;
+                    let (extra_stack_len_base, extra_stack_len_shift) =
+                        pack_int(extra_stack_len as u32, 10).expect(
                             "Unable to pack literal.");
+
+                    // Before we can save anything to the stack, we must advance the
+                    // stack pointer.
+                    result.push(
+                        InstNode::alu2short(
+                            TRUE_PRED,
+                            AddAluOp,
+                            STACK_POINTER,
+                            STACK_POINTER,
+                            extra_stack_len_base,
+                            extra_stack_len_shift)
+                            );
 
                     // Save all caller-save registers that need to be saved.
                     // If we use, say, registers r0 - r3 as arguments, we
@@ -1207,14 +1398,14 @@ impl IrToAsm {
                     // saving to do.
                     // The "max" here is because we never want to save/restore
                     // r0.
-                    for i in 0 .. reg_list.len() {
+                    for i in 0 .. regs_to_save_list.len() {
                         result.push(
                             InstNode::store(
                                 TRUE_PRED,
                                 store32_op,
                                 STACK_POINTER,
-                                (stack_arg_offs + i as isize * 4) as i32,
-                                reg_list[i],
+                                -new_stack_ptr_offs + caller_save_offs + i as i32 * 4,
+                                regs_to_save_list[i],
                                 ));
                     }
 
@@ -1230,14 +1421,16 @@ impl IrToAsm {
                         let (reg, before, _) = var_to_reg(&regmap,
                                                           global_map,
                                                           &vars[arg_idx], 0,
-                                                          stack_item_offs);
+                                                          -stack_ptr_offs,
+                                                          -new_stack_ptr_offs
+                                                           + spilled_regs_offs);
                         result.extend(before.into_iter());
                         result.push(
                             InstNode::store(
                                 TRUE_PRED,
                                 store32_op,
                                 STACK_POINTER,
-                                (stack_arg_offs + i as isize * 4) as i32,
+                                -new_stack_ptr_offs + stack_arg_offs + i as i32 * 4,
                                 reg
                                 ));
                     }
@@ -1261,19 +1454,13 @@ impl IrToAsm {
                             let (reg, before, _) = var_to_reg(&regmap,
                                                               global_map,
                                                               &func_var, 0,
-                                                              stack_item_offs);
+                                                              -stack_ptr_offs,
+                                                              -new_stack_ptr_offs
+                                                               + spilled_regs_offs);
                             Some((reg, before))
                         }
                     };
 
-                    result.push(
-                        InstNode::alu2short(
-                            TRUE_PRED,
-                            AddAluOp,
-                            STACK_POINTER,
-                            STACK_POINTER,
-                            offs_base,
-                            offs_shift));
                     match reg_opt {
                         Some((reg, before)) => {
                             result.extend(before.into_iter());
@@ -1289,26 +1476,29 @@ impl IrToAsm {
                                 JumpLabel(format!("{}", func_var.name))));
                         }
                     }
+
+                    // Restore caller-save registers.
+                    for i in 0 .. regs_to_save_list.len() {
+                        result.push(
+                            InstNode::load(
+                                TRUE_PRED,
+                                load32_op,
+                                regs_to_save_list[i],
+                                STACK_POINTER,
+                                -new_stack_ptr_offs + caller_save_offs + i as i32 * 4
+                                ));
+                    }
+
+                    // Restore the stack pointer.
                     result.push(
                         InstNode::alu2short(
                             TRUE_PRED,
                             SubAluOp,
                             STACK_POINTER,
                             STACK_POINTER,
-                            offs_base,
-                            offs_shift)
-                        );
-
-                    for i in 0 .. reg_list.len() {
-                        result.push(
-                            InstNode::load(
-                                TRUE_PRED,
-                                load32_op,
-                                reg_list[i],
-                                STACK_POINTER,
-                                (stack_arg_offs + i as isize * 4) as i32
-                                ));
-                    }
+                            extra_stack_len_base,
+                            extra_stack_len_shift)
+                            );
 
                 },
                 Op::AsmOp(ref insts) => {
