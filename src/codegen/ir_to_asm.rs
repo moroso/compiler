@@ -1271,16 +1271,19 @@ impl IrToAsm {
                                                              var, 0,
                                                              -stack_ptr_offs,
                                                              -stack_ptr_offs
-                                                              + spilled_regs_offs);
+                                                               + spilled_regs_offs);
+                            let (offs_base, offs_shift) =
+                                pack_int((stack_ptr_offs - stack_items_offs - offs as i32) as u32,
+                                         10).expect("Unable to pack literal.");
+
                             result.push(
                                 InstNode::alu2short(
                                     TRUE_PRED,
                                     SubAluOp,
                                     reg,
                                     STACK_POINTER,
-                                    // TODO: encode as base/shift?
-                                    (stack_ptr_offs - stack_items_offs - offs as i32) as u32,
-                                    0)
+                                    offs_base,
+                                    offs_shift)
                                     );
                             result.extend(after.into_iter());
                         },
