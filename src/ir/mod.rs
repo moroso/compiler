@@ -7,10 +7,11 @@ use std::collections::BTreeSet;
 use util::{Name, Width};
 
 use mas::ast::InstNode;
+use mc::ast::WithId;
 
 pub use self::LValue::*;
 pub use self::RValueElem::*;
-use self::Op::*;
+use self::OpNode::*;
 
 pub mod ast_to_intermediate;
 pub mod liveness;
@@ -93,8 +94,10 @@ impl Display for RValueElem {
     }
 }
 
+pub type Op = WithId<OpNode>;
+
 #[derive(Clone, Debug)]
-pub enum Op {
+pub enum OpNode {
     // Apply a unary operator
     UnOp(Var, UnOpNode, RValueElem),
     // Apply a binary operator. We store whether it's signed
@@ -132,7 +135,7 @@ fn write_list<T: Display, U: Iterator<Item=T>>(iter: U) -> String {
     result
 }
 
-impl Display for Op {
+impl Display for OpNode {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
             UnOp(ref lv, ref op, ref rve) =>

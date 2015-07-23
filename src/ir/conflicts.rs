@@ -28,14 +28,14 @@ impl ConflictAnalyzer {
         let mut must_colors = BTreeMap::new();
 
         for op in ops.iter() {
-            match *op {
-                Op::UnOp(_, AddrOf, ref rve) => {
+            match op.val {
+                OpNode::UnOp(_, AddrOf, ref rve) => {
                     match *rve {
                         Variable(ref v) => { referenced_vars.insert(v.name); },
                         _ => panic!("Should have a variable here."),
                     }
                 },
-                Op::Call(ref v, _, ref args) => {
+                OpNode::Call(ref v, _, ref args) => {
                     for (i, arg) in args.iter().enumerate()
                         .take(NUM_PARAM_REGS)
                     {
@@ -44,7 +44,7 @@ impl ConflictAnalyzer {
                     }
                     must_colors.insert(*v, RegColor(Reg { index: 0 as u8 }));
                 },
-                Op::Func(_, ref args, ref abi) => {
+                OpNode::Func(_, ref args, ref abi) => {
                     if abi.is_some() { break; }
                     for (i, arg) in args.iter().enumerate()
                         .take(NUM_PARAM_REGS)

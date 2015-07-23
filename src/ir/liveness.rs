@@ -26,8 +26,8 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
 
     for u in 0..len {
         let opinfo = opinfo.get_mut(u).unwrap();
-        match ops[u] {
-            Op::BinOp(ref lv, _, ref rve1, ref rve2, _) => {
+        match ops[u].val {
+            OpNode::BinOp(ref lv, _, ref rve1, ref rve2, _) => {
                 opinfo.def.insert(lv.clone());
                 seed_rve(opinfo, rve1);
                 seed_rve(opinfo, rve2);
@@ -36,7 +36,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                     opinfo.succ.insert(u + 1);
                 }
             },
-            Op::UnOp(ref lv, _, ref rve) => {
+            OpNode::UnOp(ref lv, _, ref rve) => {
                 opinfo.def.insert(lv.clone());
                 seed_rve(opinfo, rve);
 
@@ -44,7 +44,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                     opinfo.succ.insert(u + 1);
                 }
             },
-            Op::Load(ref lv, ref rv, _) => {
+            OpNode::Load(ref lv, ref rv, _) => {
                 opinfo.def.insert(lv.clone());
                 opinfo.used.insert(rv.clone());
 
@@ -52,7 +52,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                     opinfo.succ.insert(u + 1);
                 }
             },
-            Op::Store(ref v1, ref v2, _) => {
+            OpNode::Store(ref v1, ref v2, _) => {
                 opinfo.used.insert(v1.clone());
                 opinfo.used.insert(v2.clone());
 
@@ -60,7 +60,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                     opinfo.succ.insert(u + 1);
                 }
             },
-            Op::Call(ref lv, ref f, ref args) => {
+            OpNode::Call(ref lv, ref f, ref args) => {
                 opinfo.def.insert(lv.clone());
                 seed_rve(opinfo, f);
                 for arg in args.iter() {
@@ -71,19 +71,19 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                     opinfo.succ.insert(u + 1);
                 }
             },
-            Op::Alloca(lv, _) => {
+            OpNode::Alloca(lv, _) => {
                 opinfo.def.insert(lv.clone());
 
                 if u + 1 < len {
                     opinfo.succ.insert(u + 1);
                 }
             },
-            Op::Nop => {
+            OpNode::Nop => {
                 if u + 1 < len {
                     opinfo.succ.insert(u + 1);
                 }
             }
-            Op::Label(_, ref vars) => {
+            OpNode::Label(_, ref vars) => {
                 if u + 1 < len {
                     opinfo.succ.insert(u + 1);
                 }
@@ -91,10 +91,10 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                     opinfo.def.insert(var.clone());
                 }
             },
-            Op::Goto(ref l, ref vars) => {
+            OpNode::Goto(ref l, ref vars) => {
                 for u2 in 0..len {
-                    match ops[u2] {
-                        Op::Label(l2, _) if *l == l2 => {
+                    match ops[u2].val {
+                        OpNode::Label(l2, _) if *l == l2 => {
                             opinfo.succ.insert(u2);
                             break;
                         },
@@ -106,10 +106,10 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                 }
             },
             // TODO: get rid of redundant code.
-            Op::CondGoto(_, ref rve, ref l, ref vars) => {
+            OpNode::CondGoto(_, ref rve, ref l, ref vars) => {
                 for u2 in 0..len {
-                    match ops[u2] {
-                        Op::Label(l2, _) if *l == l2 => {
+                    match ops[u2].val {
+                        OpNode::Label(l2, _) if *l == l2 => {
                             opinfo.succ.insert(u2);
                             break;
                         },
@@ -127,13 +127,13 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                     _ => {},
                 }
             },
-            Op::Return(ref v) => {
+            OpNode::Return(ref v) => {
                 match *v {
                     Variable(ref w1) => { opinfo.used.insert(w1.clone()); },
                     _ => {},
                 }
             },
-            Op::Func(_, ref vars, ref abi) => {
+            OpNode::Func(_, ref vars, ref abi) => {
                 if abi.is_some() { return; }
                 for v in vars.iter() {
                     opinfo.def.insert(v.clone());
@@ -141,7 +141,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                 opinfo.succ.insert(u + 1);
             },
             // TODO: fill this in, when ready.
-            Op::AsmOp(..) => {},
+            OpNode::AsmOp(..) => {},
         }
     }
 }

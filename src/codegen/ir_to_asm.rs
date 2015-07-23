@@ -941,8 +941,8 @@ impl IrToAsm {
 
         let mut stack_items_len: u32 = 0;
         for (inst, op) in ops.iter().enumerate() {
-            match *op {
-                Op::Alloca(ref var, size) => {
+            match op.val {
+                OpNode::Alloca(ref var, size) => {
                     // We must be aligned on 4-byte boundaries.
                     let size_adjust = (4 - (size % 4)) % 4;
                     if !global_map.get(&var.name).is_some() {
@@ -950,7 +950,7 @@ impl IrToAsm {
                         stack_items_len += (size + size_adjust) as u32;
                     }
                 },
-                Op::Call(..) => { has_call = true; }
+                OpNode::Call(..) => { has_call = true; }
                 _ => {}
             }
         }
@@ -1012,8 +1012,8 @@ impl IrToAsm {
         // TODO: merge this in with the loop above, so we don't iterate over
         // the instruction list as many times?
         for op in ops.iter() {
-            match *op {
-                Op::Label(ref idx, ref vars) => {
+            match op.val {
+                OpNode::Label(ref idx, ref vars) => {
                     let mut varmap: BTreeMap<Name, usize> = BTreeMap::new();
                     for var in vars.iter() {
                         varmap.insert(var.name.clone(),
@@ -1032,8 +1032,8 @@ impl IrToAsm {
 
         let mut result = vec!();
         for (pos, op) in ops.iter().enumerate() {
-            match *op {
-                Op::Func(ref name, _, ref abi) => {
+            match op.val {
+                OpNode::Func(ref name, _, ref abi) => {
                     if let Some(ref abi) = *abi {
                         if abi.to_string() == "C" {
                             // If the ABI is "C", we do nothing at all here!
@@ -1089,7 +1089,7 @@ impl IrToAsm {
                                 );
                     }
                 },
-                Op::Return(ref rve) => {
+                OpNode::Return(ref rve) => {
                     // Store the result in r0.
                     result.extend(
                         convert_unop(&regmap, global_map, RETURN_REG,
@@ -1141,7 +1141,7 @@ impl IrToAsm {
                                             LINK_REGISTER,
                                             1));
                 },
-                Op::BinOp(ref var, ref op, ref rve1, ref rve2, signed) => {
+                OpNode::BinOp(ref var, ref op, ref rve1, ref rve2, signed) => {
                     let (lhs_reg, _, after) = var_to_reg(&regmap, global_map,
                                                          var, 0,
                                                          -stack_ptr_offs,
@@ -1156,7 +1156,7 @@ impl IrToAsm {
                                       strings).into_iter());
                     result.extend(after.into_iter());
                 },
-                Op::UnOp(ref var, ref op, ref rve1) => {
+                OpNode::UnOp(ref var, ref op, ref rve1) => {
                     let (lhs_reg, _, after) = var_to_reg(&regmap, global_map,
                                                          var, 0,
                                                          -stack_ptr_offs,
@@ -1170,10 +1170,10 @@ impl IrToAsm {
                                      ).into_iter());
                     result.extend(after.into_iter());
                 }
-                Op::Load(ref var1, ref var2, ref width) |
-                Op::Store(ref var1, ref var2, ref width) => {
-                    let store = match *op {
-                        Op::Load(..) => false,
+                OpNode::Load(ref var1, ref var2, ref width) |
+                OpNode::Store(ref var1, ref var2, ref width) => {
+                    let store = match op.val {
+                        OpNode::Load(..) => false,
                         _ => true,
                     };
                     let (reg1, before1, _) = var_to_reg(&regmap, global_map,
@@ -1206,7 +1206,7 @@ impl IrToAsm {
                                            0)
                         });
                 },
-                Op::CondGoto(ref negated, Variable(ref var), ref label,
+                OpNode::CondGoto(ref negated, Variable(ref var), ref label,
                          ref vars) => {
                     let (reg, before, _) = var_to_reg(&regmap, global_map,
                                                       var, 0,
@@ -1236,9 +1236,9 @@ impl IrToAsm {
                             false,
                             JumpLabel(format!("LABEL{}", label))));
                 },
-                Op::CondGoto(_, Constant(..), _, _) =>
+                OpNode::CondGoto(_, Constant(..), _, _) =>
                     panic!("Conditional Goto is not conditional!"),
-                Op::Goto(ref label, ref vars) => {
+                OpNode::Goto(ref label, ref vars) => {
                     result.extend(assign_vars(&regmap, global_map,
                                               &TRUE_PRED,
                                               &labels[*label],
@@ -1247,8 +1247,8 @@ impl IrToAsm {
                                               -stack_ptr_offs + spilled_regs_offs).into_iter());
                     // Don't emit redundant jumps.
                     let next = &ops[pos+1];
-                    match *next {
-                        Op::Label(label2, _) if *label == label2 => {},
+                    match next.val {
+                        OpNode::Label(label2, _) if *label == label2 => {},
                         _ =>
                             result.push(
                                 InstNode::branchimm(
@@ -1257,10 +1257,10 @@ impl IrToAsm {
                                     JumpLabel(format!("LABEL{}", label))))
                     }
                 },
-                Op::Label(ref label, _) => {
+                OpNode::Label(ref label, _) => {
                     targets.insert(format!("LABEL{}", label), result.len());
                 },
-                Op::Alloca(ref var, _) => {
+                OpNode::Alloca(ref var, _) => {
                     let offs_opt = stack_item_map.get(&pos);
                     match offs_opt {
                         // This is a "true" alloca, and we put things on the
@@ -1292,7 +1292,7 @@ impl IrToAsm {
                         None => {}
                     }
                 },
-                Op::Call(_, ref f, ref vars) => {
+                OpNode::Call(_, ref f, ref vars) => {
                     // TODO: this is a lot messier than it should be.
                     // Clean it up!
 
@@ -1504,10 +1504,10 @@ impl IrToAsm {
                             );
 
                 },
-                Op::AsmOp(ref insts) => {
+                OpNode::AsmOp(ref insts) => {
                     result.push(InstNode::packets(insts.clone()));
                 },
-                Op::Nop => {},
+                OpNode::Nop => {},
             }
         }
 

@@ -62,14 +62,14 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
     let mut immediate_changes = vec!();
 
     for (pos, op) in ops.iter().enumerate() {
-        match *op {
-            Op::BinOp(ref v, ref op, ref v1, ref v2, signed) => {
+        match op.val {
+            OpNode::BinOp(ref v, ref op, ref v1, ref v2, signed) => {
                 match fold(op, v1, v2, signed) {
                     Some(c) => {
                         changes.push((v.clone(),
                                       Constant(c.clone())));
                         immediate_changes.push((pos,
-                                                Op::UnOp(v.clone(),
+                                                OpNode::UnOp(v.clone(),
                                                      Identity,
                                                      Constant(c))));
                     },
@@ -99,7 +99,7 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
                             Constant(NumLit(x, _)) if Some(x) == ident => {
                                 immediate_changes.push(
                                     (pos,
-                                     Op::UnOp(v.clone(),
+                                     OpNode::UnOp(v.clone(),
                                           Identity,
                                           v2.clone())));
                             },
@@ -111,7 +111,7 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
                                                        ) => {
                                 immediate_changes.push(
                                     (pos,
-                                     Op::UnOp(v.clone(),
+                                     OpNode::UnOp(v.clone(),
                                           Identity,
                                           v1.clone())));
                             }
@@ -120,14 +120,14 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
                     }
                 }
             },
-            Op::UnOp(ref v, ref op, ref rv) => {
+            OpNode::UnOp(ref v, ref op, ref rv) => {
                 match fold_unary(op, rv) {
                     Some(c) => {
                         changes.push((v.clone(),
                                       Constant(c.clone())));
                         if *op != Identity {
                             immediate_changes.push((pos,
-                                                    Op::UnOp(v.clone(),
+                                                    OpNode::UnOp(v.clone(),
                                                          Identity,
                                                          Constant(c))));
                         }
@@ -144,7 +144,7 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
 
     // These are changes we can do unconditionally.
     for (a, b) in immediate_changes.into_iter() {
-        *ops.get_mut(a).unwrap() = b;
+        ops.get_mut(a).unwrap().val = b;
         changed = true;
     }
 
@@ -176,32 +176,32 @@ impl ConstantFolder {
         // that is dereferenced as part of the left hand side of an assignment.
         let mut vars_to_avoid = BTreeSet::<Var>::new();
         for op in ops.iter() {
-            match *op {
-                Op::Label(_, ref vars) |
-                Op::Goto(_, ref vars) |
-                Op::CondGoto(_, _, _, ref vars) => {
+            match op.val {
+                OpNode::Label(_, ref vars) |
+                OpNode::Goto(_, ref vars) |
+                OpNode::CondGoto(_, _, _, ref vars) => {
                     for var in vars.iter() {
                         vars_to_avoid.insert(var.clone());
                     }
                 },
                 // We can't fold anything we take the address of.
-                Op::UnOp(_, AddrOf, ref rv) => {
+                OpNode::UnOp(_, AddrOf, ref rv) => {
                     match *rv {
                         Variable(ref v) => { vars_to_avoid.insert(v.clone()); },
                         _ => {},
                     }
                 },
-                Op::Store(ref v1, ref v2, _) |
-                Op::Load(ref v1, ref v2, _) => {
+                OpNode::Store(ref v1, ref v2, _) |
+                OpNode::Load(ref v1, ref v2, _) => {
                     vars_to_avoid.insert(v1.clone());
                     vars_to_avoid.insert(v2.clone());
                 },
-                Op::Call(_, _, ref vars) => {
+                OpNode::Call(_, _, ref vars) => {
                     for var in vars.iter() {
                         vars_to_avoid.insert(var.clone());
                     }
                 },
-                Op::Func(_, ref vars, ref abi) => {
+                OpNode::Func(_, ref vars, ref abi) => {
                     if abi.is_some() { return; }
                     for var in vars.iter() {
                         vars_to_avoid.insert(var.clone());

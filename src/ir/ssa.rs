@@ -71,7 +71,7 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
     let len = ops.len();
     for i in 0 .. len {
         match ops.get_mut(i) {
-            Some(&mut Op::Label(ref label, ref mut vars)) => {
+            Some(&mut Op { id: _, val: OpNode::Label(ref label, ref mut vars)}) => {
                 let ref live_vars = opinfo[i].live;
                 label_vars.insert(*label,
                                   live_vars.clone());
@@ -87,9 +87,9 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
 
     let start = precise_time_ns();
     for op in ops.iter_mut() {
-        match *op {
-            Op::Goto(i, ref mut vars) |
-            Op::CondGoto(_, _, i, ref mut vars) => {
+        match op.val {
+            OpNode::Goto(i, ref mut vars) |
+            OpNode::CondGoto(_, _, i, ref mut vars) => {
                 let ref live_vars = label_vars[i];
                 vars.extend(live_vars.iter().map(|x| (*x).clone()));
             },
@@ -115,9 +115,9 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
     let mut jump_table = VecMap::<Vec<BTreeMap<Name, usize>>>::new();
     let mut label_table = VecMap::<BTreeSet<Var>>::new();
     for op in ops.iter() {
-        match *op {
-            Op::Goto(ref label, ref vars) |
-            Op::CondGoto(_, _, ref label, ref vars) => {
+        match op.val {
+            OpNode::Goto(ref label, ref vars) |
+            OpNode::CondGoto(_, _, ref label, ref vars) => {
                 let mut map = BTreeMap::new();
                 for var in vars.iter() {
                     map.insert(var.name, var.generation.unwrap());
@@ -132,7 +132,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
                     jump_table.insert(*label, vec!(map));
                 }
             },
-            Op::Label(ref label, ref vars) => {
+            OpNode::Label(ref label, ref vars) => {
                 label_table.insert(*label, vars.clone());
             }
             _ => {}
@@ -260,23 +260,23 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
     // Remove any useless labels
     for op in ops.iter_mut() {
         // We do this in two steps, to avoid annoying the move checker.
-        let new_op = match *op {
-            Op::Label(ref label, _) if labels_to_remove.contains(label) =>
-                Some(Op::Nop),
+        let new_op = match op.val {
+            OpNode::Label(ref label, _) if labels_to_remove.contains(label) =>
+                Some(OpNode::Nop),
             _ => None
         };
         match new_op {
-            Some(n) => {*op = n; }
+            Some(n) => { op.val = n; }
             _ => {}
         }
     }
 
     // And, finally, clear any variables that need to be cleared.
     for op in ops.iter_mut() {
-        match *op {
-            Op::Goto(ref label, ref mut vars) |
-            Op::CondGoto(_, _, ref label, ref mut vars) |
-            Op::Label(ref label, ref mut vars) => {
+        match op.val {
+            OpNode::Goto(ref label, ref mut vars) |
+            OpNode::CondGoto(_, _, ref label, ref mut vars) |
+            OpNode::Label(ref label, ref mut vars) => {
                 let vars_to_clear_opt = vars_at_labels_to_clear.get(label);
                 match vars_to_clear_opt {
                     Some(ref vars_to_clear) =>
@@ -333,45 +333,45 @@ impl ToSSA {
 
         let start = precise_time_ns();
         for op in ops.iter_mut() {
-            match *op {
-                Op::UnOp(ref mut v, _, ref mut rve) => {
+            match op.val {
+                OpNode::UnOp(ref mut v, _, ref mut rve) => {
                     ssa_rvalelem(gens, rve);
                     v.generation = next_gen(gens, v.name);
                 },
-                Op::BinOp(ref mut v, _, ref mut rve1, ref mut rve2, _) => {
+                OpNode::BinOp(ref mut v, _, ref mut rve1, ref mut rve2, _) => {
                     ssa_rvalelem(gens, rve1);
                     ssa_rvalelem(gens, rve2);
                     v.generation = next_gen(gens, v.name);
                 },
-                Op::Call(ref mut v, ref mut f, ref mut args) => {
+                OpNode::Call(ref mut v, ref mut f, ref mut args) => {
                     ssa_rvalelem(gens, f);
                     for arg in args.iter_mut() {
                         arg.generation = gen_of(gens, arg.name);
                     }
                     v.generation = next_gen(gens, v.name);
                 },
-                Op::Store(ref mut v, ref mut other_v, _) => {
+                OpNode::Store(ref mut v, ref mut other_v, _) => {
                     other_v.generation = gen_of(gens, other_v.name);
                     v.generation = gen_of(gens, v.name);
                 },
-                Op::Load(ref mut v, ref mut other_v, _) => {
+                OpNode::Load(ref mut v, ref mut other_v, _) => {
                     other_v.generation = gen_of(gens, other_v.name);
                     v.generation = next_gen(gens, v.name);
                 },
-                Op::Label(_, ref mut vars) => {
+                OpNode::Label(_, ref mut vars) => {
                     ssa_vars(gens, vars, |x, y| next_gen(x, y));
                 }
-                Op::CondGoto(_, ref mut rv, _, ref mut vars) => {
+                OpNode::CondGoto(_, ref mut rv, _, ref mut vars) => {
                     ssa_rvalelem(gens, rv);
                     ssa_vars(gens, vars, |x, y| gen_of(x, y));
                 },
-                Op::Goto(_, ref mut vars) => {
+                OpNode::Goto(_, ref mut vars) => {
                     ssa_vars(gens, vars, |x, y| gen_of(x, y));
                 },
-                Op::Return(ref mut rv) => {
+                OpNode::Return(ref mut rv) => {
                     ssa_rvalelem(gens, rv);
                 },
-                Op::Func(_, ref mut vars, ref abi) => {
+                OpNode::Func(_, ref mut vars, ref abi) => {
                     if abi.is_some() { return; }
                     for var in vars.iter_mut() {
                         *var = Var {
@@ -380,7 +380,7 @@ impl ToSSA {
                         }
                     }
                 }
-                Op::Alloca(ref mut v, _) => {
+                OpNode::Alloca(ref mut v, _) => {
                     v.generation = next_gen(gens, v.name);;
                 }
                 _ => {}
