@@ -293,7 +293,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         Token::RBrace     => "}",
         Token::Semi       => ";",
         Token::Gets       => "<-",
-        Token::Predicates => "->",
+        Token::Predicates => "?",
         Token::Plus       => "+",
         Token::Dash       => "-",
         Token::Sub        => matcher!(r"(?i:sub)"),
