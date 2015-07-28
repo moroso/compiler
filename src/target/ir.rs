@@ -334,11 +334,13 @@ impl Target for IRTarget {
 
         let mangler = NameMangler::new(session, &module, true, false);
         let mut session = mangler.session;
+        let mut sourcemap = BTreeMap::<NodeId, NodeId>::new();
 
         let (mut result, staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,
-                                                       &mangler.names);
+                                                       &mangler.names,
+                                                       &mut sourcemap);
 
             if self.verbose {
                 print!("{:?}\n", module);
@@ -386,7 +388,8 @@ impl Target for IRTarget {
         let global_initializer = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,
-                                                       &mangler.names);
+                                                       &mangler.names,
+                                                       &mut sourcemap);
 
             converter.convert_globals(&global_map)
         };

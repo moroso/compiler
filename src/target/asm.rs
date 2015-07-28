@@ -3,6 +3,7 @@ use package::Package;
 use mc::lexer::Lexer;
 use mc::parser::Parser;
 use mc::session::Interner;
+use mc::ast::NodeId;
 
 use super::{MkTarget,Target};
 
@@ -32,7 +33,7 @@ use util::Name;
 use std::io::{Write, BufReader};
 use std::fs::File;
 use std::path::Path;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, BTreeMap};
 
 pub struct AsmTarget {
     verbose: bool,
@@ -72,6 +73,7 @@ impl Target for AsmTarget {
         } = p;
 
         let mangler = NameMangler::new(session, &module, true, true);
+        let mut sourcemap = BTreeMap::<NodeId, NodeId>::new();
         let mut session = mangler.session;
 
         if self.verbose {
@@ -81,7 +83,8 @@ impl Target for AsmTarget {
         let (mut result, mut staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,
-                                                       &mangler.names);
+                                                       &mangler.names,
+                                                       &mut sourcemap);
 
             converter.convert_module(&module)
         };
@@ -112,7 +115,8 @@ impl Target for AsmTarget {
         let global_initializer = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,
-                                                       &mangler.names);
+                                                       &mangler.names,
+                                                       &mut sourcemap);
 
             converter.convert_globals(&global_map)
         };

@@ -25,6 +25,7 @@ pub struct ASTToIntermediate<'a, 'b: 'a> {
     manglemap: &'a BTreeMap<NodeId, String>,
     continue_labels: Vec<usize>,
     break_labels: Vec<usize>,
+    sourcemap: &'a mut BTreeMap<NodeId, NodeId>,
 }
 
 fn ty_is_reference(ty: &Ty) -> bool {
@@ -72,7 +73,8 @@ fn adjust_constant(c: &LitNode) -> LitNode {
 impl<'a, 'b> ASTToIntermediate<'a, 'b> {
     pub fn new<'c,'d>(session: &'c mut Session<'d>,
                       typemap: &'c mut Typemap,
-                      manglemap: &'c BTreeMap<NodeId, String>
+                      manglemap: &'c BTreeMap<NodeId, String>,
+                      sourcemap: &'c mut BTreeMap<NodeId, NodeId>,
                       ) -> ASTToIntermediate<'c,'d> {
         ASTToIntermediate { var_count: 0,
                             label_count: 0,
@@ -80,6 +82,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                             session: session,
                             typemap: typemap,
                             manglemap: manglemap,
+                            sourcemap: sourcemap,
                             continue_labels: vec!(),
                             break_labels: vec!(),
         }
@@ -94,6 +97,14 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
     fn add_id<U>(&mut self, val: U) -> WithId<U> {
         let id = self.new_id();
         WithId { val: val, id: id }
+    }
+
+    fn add_source(&mut self, ops: &Vec<Op>, source_node_id: NodeId) {
+        for op in ops.iter() {
+            if !self.sourcemap.contains_key(&op.id) {
+                self.sourcemap.insert(op.id, source_node_id);
+            }
+        }
     }
 
     /// Does whatever needs to be done to a variable so that it has a correct
@@ -155,7 +166,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
     }
 
     pub fn convert_stmt(&mut self, stmt: &Stmt) -> (Vec<Op>, Option<Var>) {
-        match stmt.val {
+        let (ops, var) = match stmt.val {
             ExprStmt(ref e) => self.convert_expr(e),
             SemiStmt(ref e) => self.convert_expr(e),
             LetStmt(ref pat, ref e_opt) => {
@@ -211,7 +222,10 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     }
                 }
             },
-        }
+        };
+        self.add_source(&ops, stmt.id);
+
+        (ops, var)
     }
 
     pub fn convert_block(&mut self, block: &Block) -> (Vec<Op>, Option<Var>) {
