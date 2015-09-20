@@ -3,7 +3,7 @@ use mc::session::Session;
 use util::Name;
 use util;
 
-use std::collections::{VecMap, BTreeMap};
+use std::collections::BTreeMap;
 use std::slice;
 
 use mc::ast::*;
@@ -26,13 +26,13 @@ enum ModuleScope {
 }
 
 struct Subscope {
-    names: VecMap<BTreeMap<usize, NodeId>>,
+    names: BTreeMap<usize, BTreeMap<usize, NodeId>>,
 }
 
 impl Subscope {
     fn new() -> Subscope {
         Subscope {
-            names: VecMap::new()
+            names: BTreeMap::new()
         }
     }
 
@@ -279,7 +279,7 @@ impl<'a, 'b> ModuleResolver<'a, 'b> {
                     for nid in map.get(&(*ns as usize)).iter() {
                         let ident = IdentNode {
                             tps: None,
-                            name: Name(name),
+                            name: Name(*name),
                         };
 
                         pairs.push((*ns, WithId { id: **nid, val: ident }));
@@ -338,7 +338,7 @@ impl<'a, 'b> ModuleResolver<'a, 'b> {
         for (name, map) in scope.iter() {
             for ns in [TypeAndModNS, ValNS, StructNS].iter() {
                 for id in map.get(&(*ns as usize)).iter() {
-                    self.add_to_scope(*ns, Name(name), **id);
+                    self.add_to_scope(*ns, Name(*name), **id);
                 }
             }
         }

@@ -22,7 +22,7 @@ use target::util::NameMangler;
 use mc::ast::*;
 use ir::*;
 
-use std::collections::{BTreeMap, VecMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::iter::FromIterator;
 use std::io::Write;
 
@@ -121,7 +121,7 @@ impl IRTarget {
         let opinfo = LivenessAnalyzer::unanalyzed_opinfo(ops);
         let mut s = "".to_string();
         let mut vars = BTreeSet::new();
-        let mut labels: VecMap<BTreeMap<Name, usize>> = VecMap::new();
+        let mut labels: BTreeMap<usize, BTreeMap<Name, usize>> = BTreeMap::new();
         // Find all variables we need to declare. This is all variables
         // that are defined anywhere, except in the very first instruction
         // (which must be a function definition instruction).

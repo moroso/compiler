@@ -9,7 +9,7 @@ use mc::ast::*;
 use mc::session::Session;
 use util::{Width, Name};
 use std::mem::swap;
-use std::collections::{BTreeMap, BTreeSet, VecMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::iter::FromIterator;
 use std::cmp::max;
 
@@ -1007,7 +1007,7 @@ impl IrToAsm {
 
         let mut targets: BTreeMap<String, usize> = BTreeMap::new();
 
-        let mut labels: VecMap<BTreeMap<Name, usize>> = VecMap::new();
+        let mut labels: BTreeMap<usize, BTreeMap<Name, usize>> = BTreeMap::new();
         // Find out which variables are used at each label.
         // TODO: merge this in with the loop above, so we don't iterate over
         // the instruction list as many times?
@@ -1225,7 +1225,7 @@ impl IrToAsm {
                     result.extend(assign_vars(&regmap, global_map,
                                               &Pred { inverted: *negated,
                                                       reg: 0 },
-                                              &labels[*label],
+                                              &labels[label],
                                               vars,
                                               -stack_ptr_offs,
                                               -stack_ptr_offs + spilled_regs_offs).into_iter());
@@ -1241,7 +1241,7 @@ impl IrToAsm {
                 OpNode::Goto(ref label, ref vars) => {
                     result.extend(assign_vars(&regmap, global_map,
                                               &TRUE_PRED,
-                                              &labels[*label],
+                                              &labels[label],
                                               vars,
                                               -stack_ptr_offs,
                                               -stack_ptr_offs + spilled_regs_offs).into_iter());

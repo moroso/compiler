@@ -256,7 +256,7 @@ impl<'a> CCrossCompiler<'a> {
                         Some(ref expr) =>
                             self.visit_name_and_ty(
                                 i.val.name,
-                                &self.typemap.types[expr.id.to_uint()]),
+                                &self.typemap.types[&expr.id]),
                         None => panic!("Must specify a type."),
                     }
                 };
@@ -440,7 +440,7 @@ impl<'a> CCrossCompiler<'a> {
                 format!("{}*", self.visit_ty(&t.val))
             },
             BoundTy(ref bound_id) => {
-                match self.typemap.bounds[bound_id.to_uint()] {
+                match self.typemap.bounds[bound_id] {
                     Concrete(ref ty) => self.visit_ty(ty),
                     ref bounds => panic!("Type is not fully constrained: {}", bounds),
                 }
@@ -563,7 +563,7 @@ impl<'a> CCrossCompiler<'a> {
                 let lhs = self.visit_expr(&**lhs);
                 let op = self.visit_binop(op);
                 let rhs = self.visit_expr(&**rhs);
-                let typename = self.visit_ty(&self.typemap.types[expr.id.to_uint()]);
+                let typename = self.visit_ty(&self.typemap.types[&expr.id]);
                 format!("({})(({}) {} ({}))", typename, lhs, op, rhs)
             }
             UnOpExpr(ref op, ref expr) => {
@@ -600,7 +600,7 @@ impl<'a> CCrossCompiler<'a> {
                             ", "))
             }
             CallExpr(ref f, ref args) => {
-                let res_type = self.visit_ty(&self.typemap.types[expr.id.to_uint()]);
+                let res_type = self.visit_ty(&self.typemap.types[&expr.id]);
                 match f.val {
                     PathExpr(ref path) => {
                         let name = self.visit_mangled_path(path);
@@ -670,7 +670,7 @@ impl<'a> CCrossCompiler<'a> {
             MatchExpr(ref e, ref arms) => {
                 // TODO: allow types other than ints.
                 let (is_void, overall_type_name) = {
-                    let ref overall_type = self.typemap.types[expr.id.to_uint()];
+                    let ref overall_type = self.typemap.types[&expr.id];
                     (*overall_type == UnitTy, self.visit_ty(overall_type))
                 };
 
@@ -755,7 +755,7 @@ impl<'a> CCrossCompiler<'a> {
             match item.val {
                 StructItem(_, ref fields, _) => {
                     for field in fields.iter() {
-                        let ty = &self.typemap.types[field.fldtype.id.to_uint()];
+                        let ty = &self.typemap.types[&field.fldtype.id];
                         add_type_edge(&mut graph, &nodes, srcidx, ty);
                     }
 
@@ -763,7 +763,7 @@ impl<'a> CCrossCompiler<'a> {
                 EnumItem(_, ref variants, _) => {
                     for variant in variants.iter() {
                         for arg in variant.args.iter() {
-                            let ty = &self.typemap.types[arg.id.to_uint()];
+                            let ty = &self.typemap.types[&arg.id];
                             add_type_edge(&mut graph, &nodes, srcidx, ty);
                         }
                     }

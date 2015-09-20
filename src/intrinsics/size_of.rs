@@ -23,7 +23,7 @@ fn struct_field_sizes(session: &Session,
     fields.iter()
         .map(|&(n, ref t)| (n, size_of_ty(session,
                                           typemap,
-                                          &typemap.types[t.id.to_uint()])))
+                                          &typemap.types[&t.id])))
         .collect()
 }
 
@@ -73,7 +73,7 @@ pub fn size_of_def(session: &Session, typemap: &Typemap, node: &NodeId) -> u64 {
             let sizes = types.iter()
                 .map(|t| size_of_ty(session,
                                     typemap,
-                                    &typemap.types[t.id.to_uint()]))
+                                    &typemap.types[&t.id]))
                 .collect();
             packed_size(&sizes)
         }
@@ -179,7 +179,7 @@ mod tests {
 
         let typemap = typeck.get_typemap();
 
-        let ty = &typemap.types[ast.id.to_uint()];
+        let ty = &typemap.types[&ast.id];
         assert_eq!(size_of_ty(&session, &typemap, ty), expected_size);
     }
 

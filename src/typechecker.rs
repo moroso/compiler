@@ -3,7 +3,7 @@ use mc::session::Session;
 use util::{IntKind, Width};
 use span::Span;
 
-use std::collections::{VecMap, BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -25,8 +25,8 @@ pub use self::TyBounds::*;
 use self::Kind::*;
 use self::ErrorCause::*;
 
-#[derive(Eq, PartialEq, Debug, Clone, Copy)]
-struct BoundsId(usize);
+#[derive(Eq, PartialEq, Debug, Clone, Copy, Ord, PartialOrd)]
+pub struct BoundsId(usize);
 
 allow_string!(BoundsId);
 
@@ -424,8 +424,8 @@ impl fmt::Display for TyBounds {
 }
 
 pub struct Typemap {
-    pub types: VecMap<Ty>,
-    pub bounds: VecMap<TyBounds>,
+    pub types: BTreeMap<NodeId, Ty>,
+    pub bounds: BTreeMap<BoundsId, TyBounds>,
     pub consts: ConstantMap,
 }
 
@@ -450,7 +450,7 @@ fn intkind_to_ty(ik: IntKind) -> Ty {
 }
 
 macro_rules! save_ty {
-    ($s:expr, $n:expr, $t:expr) => ({ let ty = $t; $s.typemap.types.insert($n.id.to_uint(), ty.clone()); ty.with_id_of($n) })
+    ($s:expr, $n:expr, $t:expr) => ({ let ty = $t; $s.typemap.types.insert($n.id, ty.clone()); ty.with_id_of($n) })
 }
 
 macro_rules! enumset {
@@ -492,8 +492,8 @@ impl<'a> Typechecker<'a> {
             next_bounds_id: 0,
             exits: vec!(),
             typemap: Typemap {
-                types: VecMap::new(),
-                bounds: VecMap::new(),
+                types: BTreeMap::new(),
+                bounds: BTreeMap::new(),
                 consts: BTreeMap::new(),
             },
             current_cause: None,
@@ -641,16 +641,16 @@ impl<'a> Typechecker<'a> {
 
     fn add_bounds(&mut self) -> BoundsId {
         let bid = self.new_bounds_id();
-        self.typemap.bounds.insert(bid.to_uint(), Unconstrained);
+        self.typemap.bounds.insert(bid, Unconstrained);
         bid
     }
 
     fn get_bounds(&self, bid: BoundsId) -> TyBounds {
-        self.typemap.bounds.get(&bid.to_uint()).take().unwrap().clone()
+        self.typemap.bounds[&bid].clone()
     }
 
     fn update_bounds(&mut self, bid: BoundsId, bounds: TyBounds) {
-        *self.typemap.bounds.get_mut(&bid.to_uint()).unwrap() = bounds;
+        *self.typemap.bounds.get_mut(&bid).unwrap() = bounds;
     }
 
     fn add_bound_ty(&mut self, nid: NodeId) -> Ty {

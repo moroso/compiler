@@ -4,7 +4,7 @@ use ir::*;
 use ir::util::subst;
 use ir::liveness::LivenessAnalyzer;
 use util::Name;
-use std::collections::{BTreeMap, VecMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub struct ToSSA;
 
@@ -67,7 +67,7 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
     }
 
     let start = precise_time_ns();
-    let mut label_vars = VecMap::new();
+    let mut label_vars = BTreeMap::new();
     let len = ops.len();
     for i in 0 .. len {
         match ops.get_mut(i) {
@@ -90,7 +90,7 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
         match op.val {
             OpNode::Goto(i, ref mut vars) |
             OpNode::CondGoto(_, _, i, ref mut vars) => {
-                let ref live_vars = label_vars[i];
+                let ref live_vars = label_vars[&i];
                 vars.extend(live_vars.iter().map(|x| (*x).clone()));
             },
             _ => {}
@@ -112,8 +112,8 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
     // then the map will have a single entry, taking
     // 1 to the vector of maps
     // <{Name(1):1, Name(2):1},  {Name(1):3, Name(2):1}>.
-    let mut jump_table = VecMap::<Vec<BTreeMap<Name, usize>>>::new();
-    let mut label_table = VecMap::<BTreeSet<Var>>::new();
+    let mut jump_table = BTreeMap::<usize, Vec<BTreeMap<Name, usize>>>::new();
+    let mut label_table = BTreeMap::<usize, BTreeSet<Var>>::new();
     for op in ops.iter() {
         match op.val {
             OpNode::Goto(ref label, ref vars) |
@@ -140,7 +140,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
     }
 
     let mut substitutions = BTreeSet::<(Var, Var)>::new();
-    let mut vars_at_labels_to_clear = VecMap::<BTreeSet<Var>>::new();
+    let mut vars_at_labels_to_clear = BTreeMap::<usize, BTreeSet<Var>>::new();
     let mut labels_to_remove = BTreeSet::<usize>::new();
     let mut changed = false;
 
@@ -151,7 +151,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
         if item.len() == 0 {
             // This label is not jumped to at all. We can entirely
             // remove it.
-            labels_to_remove.insert(idx);
+            labels_to_remove.insert(*idx);
             changed = true;
         } else if item.len() == 1 {
             // If we're here, we only jump to this label from one place.
@@ -165,7 +165,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
                 changed = true;
             }
             if label_vars.len() > 0 {
-                vars_at_labels_to_clear.insert(idx, label_vars.clone());
+                vars_at_labels_to_clear.insert(*idx, label_vars.clone());
                 changed = true;
             }
         } else {
@@ -210,7 +210,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
             }
 
             if vars_to_clear.len() > 0 {
-                vars_at_labels_to_clear.insert(idx, vars_to_clear.clone());
+                vars_at_labels_to_clear.insert(*idx, vars_to_clear.clone());
             }
 
         }

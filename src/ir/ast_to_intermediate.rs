@@ -510,10 +510,10 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
     }
 
     pub fn lookup_ty(&self, id: NodeId) -> &Ty {
-        let ref this_ty = self.typemap.types[id.to_uint()];
+        let ref this_ty = self.typemap.types[&id];
         match *this_ty {
             BoundTy(ref bid) => {
-                match self.typemap.bounds[bid.to_uint()] {
+                match self.typemap.bounds[bid] {
                     Concrete(ref ty) => ty,
                     _ => panic!("Should have a concrete type."),
                 }
