@@ -106,12 +106,12 @@ pub fn size_of_ty(session: &Session, typemap: &Typemap, ty: &Ty) -> u64 {
                                                &t.val)).collect()),
         BoundTy(..) |
         BottomTy => panic!("Type {} should not be appearing here.", ty),
+        EnumTy(ref id, _) |
         StructTy(ref id, _) => {
             size_of_def(session,
                         typemap,
                         id)
         }
-        _ => panic!("Unimplemented: {}", ty),
     }
 }
 
