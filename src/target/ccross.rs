@@ -676,36 +676,44 @@ impl<'a> CCrossCompiler<'a> {
 
                 let expr = self.visit_expr(&**e);
                 let arms = self.mut_visit_list(arms, |me, arm| {
-                    let (path, vars): (&Path, &Vec<Pat>) = match arm.pat.val {
-                        VariantPat(ref path, ref args) => (path, args),
-                        _ => panic!("Only VariantPats are supported in match arms for now")
-                    };
-
                     let body = me.visit_expr(&arm.body);
+                    match arm.pat.val {
+                        VariantPat(ref path, ref vars) => {
 
-                    let &(_, ref variants, idx) = me.enumitemnames.get(&path.val.elems.last().unwrap().val.name).unwrap();
-                    let this_variant = &variants[idx as usize];
+                            let &(_, ref variants, idx) = me.enumitemnames.get(
+                                &path.val.elems.last().unwrap().val.name).unwrap();
+                            let this_variant = &variants[idx as usize];
 
-                    let name = me.visit_path_in_enum_access(path);
+                            let name = me.visit_path_in_enum_access(path);
 
-                    let mut n = 0;
-                    let vars = me.visit_list(vars, |me, var| {
-                        n += 1;
-                        let ty = me.visit_type(&this_variant.args[n - 1]);
-                        let varname = match var.val {
-                            IdentPat(ref id, _) => me.session.interner.name_to_str(&id.val.name),
-                            _ => panic!("Only IdentPats are supported in the arguments of a VariantPat in a match arm for now"),
-                        };
-                        format!("{} {} = {}.val.{}.field{};",
-                                ty, varname, &expr[..], name, n - 1)
-                    }, "; ");
+                            let mut n = 0;
+                            let vars = me.visit_list(vars, |me, var| {
+                                n += 1;
+                                let ty = me.visit_type(&this_variant.args[n - 1]);
+                                let varname = match var.val {
+                                    IdentPat(ref id, _) => me.session.interner.name_to_str(&id.val.name),
+                                    _ => panic!("Only IdentPats are supported in the arguments of a VariantPat in a match arm for now"),
+                                };
+                                format!("{} {} = {}.val.{}.field{};",
+                                        ty, varname, &expr[..], name, n - 1)
+                            }, "; ");
 
-                    if is_void {
-                        format!("case {}: {{\n {}; ({}); break;}}\n",
-                                idx, vars, body)
-                    } else {
-                        format!("case {}: {{\n {} _ = ({}); break;}}\n",
-                                idx, vars, body)
+                            if is_void {
+                                format!("case {}: {{\n {}; ({}); break;}}\n",
+                                        idx, vars, body)
+                            } else {
+                                format!("case {}: {{\n {} _ = ({}); break;}}\n",
+                                        idx, vars, body)
+                            }
+                        },
+                        DiscardPat(_) => {
+                            if is_void {
+                                format!("default: {{({}); break;}}\n", body)
+                            } else {
+                                format!("default: {{ _ = ({}); break;}}\n", body)
+                            }
+                        },
+                        _ => panic!("Only VariantPats and DiscardPats are supported in match arms")
                     }
                 }, "\n");
 

@@ -1409,68 +1409,79 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
                 for (pos, arm) in arms.iter().enumerate() {
                     // arm.pat, arm.body
-                    let (path, pats) = match arm.pat.val {
-                        VariantPat(ref path, ref pats) => (path, pats),
-                        _ => panic!(),
+                    let path_pats = match arm.pat.val {
+                        VariantPat(ref path, ref pats) => Some((path, pats)),
+                        DiscardPat(_) => None,
+                        _ => { print!("{:?}\n", arm.pat.val); panic!() },
                     };
 
-                    let patid = self.session.resolver.def_from_path(path);
-                    let def =
-                        (*self.session.defmap.find(&patid).expect(
-                            &format!("Cannot find defid {}", patid)[..]
-                                )).clone();
-                    let (parent_id, types) = match def {
-                        VariantDef(_, ref parent_id, ref types) =>
-                            (parent_id, types),
-                        _ => panic!(),
-                    };
+                    match path_pats {
+                        // We only need to emit the code for the condition if there's a condition at all.
+                        // If it's just being discarded, we can skip over all that!
+                        Some((path, pats)) => {
+                            let patid = self.session.resolver.def_from_path(path);
+                            let def =
+                                (*self.session.defmap.find(&patid).expect(
+                                    &format!("Cannot find defid {}", patid)[..]
+                                        )).clone();
+                            let (parent_id, types) = match def {
+                                VariantDef(_, ref parent_id, ref types) =>
+                                    (parent_id, types),
+                                _ => panic!(),
+                            };
 
-                    let (variant_ops, vars, widths) =
-                        self.variant_helper(types, &base_var);
-                    let index = self.variant_index(&patid, parent_id);
+                            let (variant_ops, vars, widths) =
+                                self.variant_helper(types, &base_var);
+                            let index = self.variant_index(&patid, parent_id);
 
-                    let compare_var = self.gen_temp();
-                    // Check if the variant is the right one.
-                    // With one exception: if this is the last arm, we can
-                    // assume it matches, because at least one arm is
-                    // *required* to match.
-                    if pos != arms.len() - 1 {
-                        ops.push(self.add_id(OpNode::BinOp(compare_var, EqualsOp,
-                                       Variable(variant_var),
-                                       Constant(NumLit(index,
-                                                       UnsignedInt(Width32))),
-                                       false)));
-                        // If not, jump to the next one.
-                        ops.push(self.add_id(OpNode::CondGoto(true,
-                                          Variable(compare_var),
-                                          begin_labels[pos],
-                                          BTreeSet::new())));
-                    }
-                    // It is! Generate the code for this particular variant.
-                    ops.extend(variant_ops.into_iter());
-                    // Assign all the variables.
-                    for (((var, pat), this_type), width) in
-                        vars.iter().zip(pats.iter()).zip(types.iter())
-                        .zip(widths.iter())
-                    {
-                        let this_ty_is_reference = ty_is_reference(self.lookup_ty(this_type.id));
-                        match pat.val {
-                            IdentPat(ref ident, _) => {
-                                // TODO: a move or a load, depending.
-                                let this_var = Var { name: ident.val.name,
-                                                     generation: None };
-                                if this_ty_is_reference {
-                                    ops.push(
-                                        self.add_id(OpNode::UnOp(this_var,
-                                             Identity,
-                                             Variable(*var))));
-                                } else {
-                                    ops.push(
-                                        self.add_id(OpNode::Load(this_var, *var, *width)));
+                            let compare_var = self.gen_temp();
+                            // Check if the variant is the right one.
+                            // With one exception: if this is the last arm, we can
+                            // assume it matches, because at least one arm is
+                            // *required* to match.
+                            if pos != arms.len() - 1 {
+                                ops.push(self.add_id(OpNode::BinOp(compare_var, EqualsOp,
+                                                                   Variable(variant_var),
+                                                                   Constant(NumLit(index,
+                                                                                   UnsignedInt(Width32))),
+                                                                   false)));
+                                // If not, jump to the next one.
+                                ops.push(self.add_id(OpNode::CondGoto(true,
+                                                                      Variable(compare_var),
+                                                                      begin_labels[pos],
+                                                                      BTreeSet::new())));
+                            }
+
+                            // It is! Generate the code for this particular variant.
+                            ops.extend(variant_ops.into_iter());
+                            // Assign all the variables.
+                            for (((var, pat), this_type), width) in
+                                vars.iter().zip(pats.iter()).zip(types.iter())
+                                .zip(widths.iter())
+                            {
+                                let this_ty_is_reference = ty_is_reference(self.lookup_ty(this_type.id));
+                                match pat.val {
+                                    IdentPat(ref ident, _) => {
+                                        // TODO: a move or a load, depending.
+                                        let this_var = Var { name: ident.val.name,
+                                                             generation: None };
+                                        if this_ty_is_reference {
+                                            ops.push(
+                                                self.add_id(OpNode::UnOp(this_var,
+                                                                         Identity,
+                                                                         Variable(*var))));
+                                        } else {
+                                            ops.push(
+                                                self.add_id(OpNode::Load(this_var, *var, *width)));
+                                        }
+                                    },
+                                    _ => panic!("Only ident patterns are supported right now.")
                                 }
-                            },
-                            _ => panic!("Only ident patterns are supported right now.")
-                        }
+                            }
+                        },
+                        //TODO: We really should check in an earlier stage of the compiler that a DiscardPat can
+                        // only appear as the last pattern, but I don't think we do right now.
+                        None => { assert!(pos == arms.len() - 1); },
                     }
                     // Emit the body of the arm.
                     let (arm_insts, arm_var) = self.convert_expr(&arm.body);
