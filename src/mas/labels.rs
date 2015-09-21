@@ -8,7 +8,7 @@ fn subst_label(target: &mut JumpTarget, idx: usize,
         JumpLabel(ref name) => {
             let label_idx = match labels.get(name) {
                 Some(pos) => *pos,
-                _ => panic!("Unresolved label {}", name),
+                _ => 0,//panic!("Unresolved label {}", name),
             };
             JumpOffs((label_idx as i32) - (idx as i32))
         }
@@ -24,7 +24,7 @@ fn subst_label_long(target: &mut LongValue,
         LabelOffs(ref name) => {
             let label_idx = match labels.get(name) {
                 Some(pos) => *pos,
-                _ => panic!("Unresolved label {}", name),
+                _ => 0,//panic!("Unresolved label {}", name),
             };
             // The offset here is in bytes, not packets, so we multiply by 16.
             Immediate((label_idx * 16) as u32)

@@ -632,7 +632,11 @@ impl<'a> CCrossCompiler<'a> {
             CastExpr(ref e, ref t) => {
                 let ty = self.visit_type(t);
                 let expr = self.visit_expr(&**e);
-                format!("({})({})", ty, expr)
+                match self.typemap.types[&e.id] {
+                    // If the typechecker succeeded, we know the enum is c-like.
+                    EnumTy(..) => format!("({})({}.tag)", ty, expr),
+                    _ => format!("({})({})", ty, expr),
+                }
             }
             IfExpr(ref e, ref b1, ref b2) => {
                 let cond = self.visit_expr(&**e);
@@ -855,6 +859,26 @@ impl<'a> CCrossCompiler<'a> {
             }
         });
 
+        // Structs and enums.
+        // First we collect all of the structs in a map which we then
+        // toposort by struct inclusion so that C can handle them.
+        let mut struct_map = BTreeMap::new();
+        self.visit_module_worker(&mut results, module, &mut |_, _, module| {
+            for item in module.val.items.iter() {
+                match item.val {
+                    StructItem(ref id, _, _) | EnumItem(ref id, _, _) => {
+                        struct_map.insert(id.id, item.clone());
+                    }
+                    _ => {}
+                }
+            }
+        });
+        let structs = self.sort_structs(struct_map);
+        results.push(self.mut_visit_list(&structs, |me, item| {
+            me.visit_item(item)
+        }, "\n\n"));
+
+
         // Now print function prototypes.
         self.visit_module_worker(&mut results, module, &mut |me, results, module| {
 
@@ -884,25 +908,6 @@ impl<'a> CCrossCompiler<'a> {
                 }
             }
         });
-
-        // Structs and enums.
-        // First we collect all of the structs in a map which we then
-        // toposort by struct inclusion so that C can handle them.
-        let mut struct_map = BTreeMap::new();
-        self.visit_module_worker(&mut results, module, &mut |_, _, module| {
-            for item in module.val.items.iter() {
-                match item.val {
-                    StructItem(ref id, _, _) | EnumItem(ref id, _, _) => {
-                        struct_map.insert(id.id, item.clone());
-                    }
-                    _ => {}
-                }
-            }
-        });
-        let structs = self.sort_structs(struct_map);
-        results.push(self.mut_visit_list(&structs, |me, item| {
-            me.visit_item(item)
-        }, "\n\n"));
 
         // Now globals
         self.visit_module_worker(&mut results, module, &mut |me, results, module| {

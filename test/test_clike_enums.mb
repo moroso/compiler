@@ -1,0 +1,27 @@
+enum TestEnum {
+    FOO,
+    BAR,
+    BAZ,
+    QUUX,
+}
+
+fn bar(x: TestEnum) {
+    let result = match x {
+        FOO => 0,
+        BAR => 1,
+        BAZ => 2,
+        QUUX => 3,
+    };
+
+    print_uint(result);
+    print_uint(x as u32);
+}
+
+fn main() -> u32 {
+    let x: TestEnum = BAZ;
+    let y: TestEnum = BAR;
+    bar(x);
+    bar(y);
+
+    0
+}

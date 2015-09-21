@@ -17,6 +17,8 @@ use mc::ast::*;
 use mc::ast::defmap::*;
 use mc::ast::visitor::*;
 
+use intrinsics::size_of::{ENUM_TAG_SIZE, size_of_def};
+
 use values;
 
 pub use self::Ty::*;
@@ -74,6 +76,10 @@ struct ConstGraphBuilder<'a> {
 type Constant = LitNode;
 type ConstantResult = Result<Constant, (NodeId, &'static str)>;
 pub type ConstantMap = BTreeMap<NodeId, ConstantResult>;
+
+pub fn enum_is_c_like(session: &Session, typemap: &Typemap, id: &NodeId) -> bool {
+    size_of_def(session, typemap, id) == ENUM_TAG_SIZE
+}
 
 fn constant_fold(session: &Session, map: &ConstantMap, expr: &Expr)
                   -> ConstantResult {
@@ -1009,11 +1015,13 @@ impl<'a> Typechecker<'a> {
 
                 match e_ty.val {
                     GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) | FuncTy(..) => {}
+                    EnumTy(ref id, _) if enum_is_c_like(self.session, &self.typemap, id) => {}
                     _ => self.error(expr.id, "Cannot cast expression of non-integral/pointer type"),
                 }
 
                 match t_ty.val {
                     GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) | FuncTy(..) => {},
+                    EnumTy(ref id, _) if enum_is_c_like(self.session, &self.typemap, id) => {}
                     _ => self.error(expr.id, "Cannot cast to non-integral/pointer type"),
                 }
 
