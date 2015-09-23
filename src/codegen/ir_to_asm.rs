@@ -474,7 +474,18 @@ fn convert_unop<'a>(
                                                         -(args_offs - n as i32 * 4) as u32,
                                                         0));
                     },
-                    GlobalColor => unimplemented!(),
+                    GlobalColor => {
+                        let global_info = global_map.get(&v.name).unwrap();
+                        if !global_info.is_extern { unimplemented!() }
+                        return vec!(
+                            InstNode::alu1long(
+                                Pred { inverted: false,
+                                       reg: 3 },
+                                MovAluOp,
+                                dest),
+                            InstNode::long_label(format!("{}", v.name)),
+                            );
+                    },
                     GlobalReferenceColor => unimplemented!(),
                     RegColor(ref reg) => {
                         // If we're taking the address of something with a

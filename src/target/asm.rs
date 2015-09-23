@@ -72,7 +72,7 @@ impl Target for AsmTarget {
             mut typemap,
         } = p;
 
-        let mangler = NameMangler::new(session, &module, true, true);
+        let mangler = NameMangler::new(session, &module, true, false);
         let mut sourcemap = BTreeMap::<NodeId, NodeId>::new();
         let mut session = mangler.session;
 
@@ -185,7 +185,7 @@ impl Target for AsmTarget {
 
         items.push(IrToAsm::strings_to_asm(&session, &strings));
 
-        let (mut all_packets, all_labels) = link(items);
+        let (mut all_packets, mut all_labels) = link(items);
 
         if self.verbose {
             for (pos, packet) in all_packets.iter().enumerate() {
@@ -208,6 +208,9 @@ impl Target for AsmTarget {
                 }
             }
         }
+
+        // Add a special end label.
+        all_labels.insert("__END__".to_string(), all_packets.len());
 
         labels::resolve_labels(&mut all_packets, &all_labels);
         if self.verbose {

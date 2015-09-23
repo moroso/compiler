@@ -4,13 +4,13 @@ _start:
         { r30 <- 0; }
         { break 0x1f; }
 
-__prelude__print_int:
+print_int:
         { r1 <- r30; }
         { r30 <- 1; }
         { break 0x1f; }
         { b r31 + 1; r30 <- r1; }
 
-__prelude__print_char:
+print_char:
         { r1 <- r30; }
         { r30 <- 2; }
         { break 0x1f; }
