@@ -279,7 +279,8 @@ impl Ty {
             IntTy(..) => true,
             UintTy(..) |
             PtrTy(..) |
-            BoolTy => false,
+            BoolTy |
+            EnumTy(..) => false,
             _ => panic!("Non-integer type {}", self),
         }
     }

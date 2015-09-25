@@ -23,5 +23,11 @@ fn main() -> u32 {
     bar(x);
     bar(y);
 
+    if x == y {
+        print_uint(1);
+    } else {
+        print_uint(2);
+    }
+
     0
 }

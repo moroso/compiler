@@ -560,11 +560,16 @@ impl<'a> CCrossCompiler<'a> {
                         args)
             }
             BinOpExpr(ref op, ref lhs, ref rhs) => {
+                let orig_lhs = lhs;
                 let lhs = self.visit_expr(&**lhs);
                 let op = self.visit_binop(op);
                 let rhs = self.visit_expr(&**rhs);
                 let typename = self.visit_ty(&self.typemap.types[&expr.id]);
-                format!("({})(({}) {} ({}))", typename, lhs, op, rhs)
+                match self.typemap.types[&orig_lhs.id] {
+                    // If the typechecker succeeded, we know the enum is c-like.
+                    EnumTy(..) => format!("({})(({}).tag {} ({}).tag)", typename, lhs, op, rhs),
+                    _ => format!("({})(({}) {} ({}))", typename, lhs, op, rhs)
+                }
             }
             UnOpExpr(ref op, ref expr) => {
                 let op = self.visit_unop(op);
