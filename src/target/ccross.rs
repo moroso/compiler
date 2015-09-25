@@ -445,7 +445,7 @@ impl<'a> CCrossCompiler<'a> {
                     ref bounds => panic!("Type is not fully constrained: {}", bounds),
                 }
             }
-            EnumTy(did, _) |
+            EnumTy(did, _, _) |
             StructTy(did, _) => {
                 format!("struct {}", self.mangle_map.get(&did).unwrap())
             }
@@ -743,7 +743,7 @@ impl<'a> CCrossCompiler<'a> {
         fn add_type_edge(graph: &mut Graph<NodeId, ()>, nodes: &BTreeMap<NodeId, VertexIndex>,
                          srcidx: &VertexIndex, ty: &Ty) {
             match *ty {
-                StructTy(included_id, _) | EnumTy(included_id, _) => {
+                StructTy(included_id, _) | EnumTy(included_id, _, _) => {
                     // The structural type given by "included_id" is part of
                     // id, so we need an edge from id to included_id
                     let destidx = nodes.get(&included_id)

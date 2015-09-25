@@ -51,7 +51,7 @@ pub enum Ty {
     TupleTy(Vec<WithId<Ty>>),
     FuncTy(Vec<WithId<Ty>>, Box<WithId<Ty>>),
     StructTy(NodeId, Vec<WithId<Ty>>),
-    EnumTy(NodeId, Vec<WithId<Ty>>),
+    EnumTy(NodeId, Vec<WithId<Ty>>, /*c_like:*/ bool),
     BoundTy(BoundsId),
     BottomTy,
 }
@@ -242,7 +242,7 @@ impl Ty {
                 set.insert(AddKind);
                 set.insert(SubKind);
             }
-            GenericIntTy | IntTy(..) | UintTy(..) => {
+            GenericIntTy | IntTy(..) | UintTy(..) | EnumTy(_, _, true) => {
                 set.insert(EqKind);
                 set.insert(CmpKind);
                 set.insert(AddKind);
@@ -534,7 +534,7 @@ impl<'a> Typechecker<'a> {
                 }
             }
             StructTy(id, ref ts) |
-            EnumTy(id, ref ts) => {
+            EnumTy(id, ref ts, _) => {
                 let path = self.session.pathmap.find(&id).expect("missing id for struct/enum");
                 let s = path.join("::");
                 let vs: Vec<String> = ts.iter().map(|t| self.ty_str_(t)).collect();
@@ -705,7 +705,8 @@ impl<'a> Typechecker<'a> {
                     Def::EnumDef(_, _, ref tps) => {
                         let tys = self.tps_to_tys(
                             t.id, tps, &path.val.elems.last().unwrap().val.tps, false);
-                        EnumTy(nid, tys)
+                        let c_like = enum_is_c_like(self.session, &self.typemap, &nid);
+                        EnumTy(nid, tys, c_like)
                     }
                     Def::GenericDef => self.generic_to_ty(nid).val,
                     Def::TypeDef(ref t) => self.type_to_ty(t).val,
@@ -784,7 +785,8 @@ impl<'a> Typechecker<'a> {
                             }
                         });
 
-                        EnumTy(*enum_nid, tp_tys)
+                        let c_like = enum_is_c_like(self.session, &self.typemap, enum_nid);
+                        EnumTy(*enum_nid, tp_tys, c_like)
                     }
                     _ => self.session.error_fatal(pat.id, "Not an enum variant"),
                 }
@@ -876,7 +878,9 @@ impl<'a> Typechecker<'a> {
                         let tp_tys = self.tps_to_tys(
                             expr.id, tps, &path.val.elems.last().unwrap().val.tps, true);
 
-                        let ctor = |tp_tys| EnumTy(*enum_nid, tp_tys);
+                        let c_like = enum_is_c_like(self.session, &self.typemap, enum_nid);
+
+                        let ctor = |tp_tys| EnumTy(*enum_nid, tp_tys, c_like);
                         if args.len() == 0 {
                             ctor(tp_tys)
                         } else {
@@ -1014,14 +1018,12 @@ impl<'a> Typechecker<'a> {
                 let t_ty = self.type_to_ty(t);
 
                 match e_ty.val {
-                    GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) | FuncTy(..) => {}
-                    EnumTy(ref id, _) if enum_is_c_like(self.session, &self.typemap, id) => {}
+                    GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) | FuncTy(..) | EnumTy(_, _, true) => {},
                     _ => self.error(expr.id, "Cannot cast expression of non-integral/pointer type"),
                 }
 
                 match t_ty.val {
-                    GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) | FuncTy(..) => {},
-                    EnumTy(ref id, _) if enum_is_c_like(self.session, &self.typemap, id) => {}
+                    GenericIntTy | UintTy(..) | IntTy(..) | PtrTy(..) | FuncTy(..) | EnumTy(_, _, true) => {},
                     _ => self.error(expr.id, "Cannot cast to non-integral/pointer type"),
                 }
 
@@ -1136,7 +1138,7 @@ impl<'a> Typechecker<'a> {
                 }
 
                 let eid = match e_ty {
-                    EnumTy(eid, _) => eid,
+                    EnumTy(eid, _, _) => eid,
                     _ => self.session.error_fatal(e.id, "Match expressions are only valid on enum types"),
                 };
 
@@ -1446,9 +1448,9 @@ impl<'a> Typechecker<'a> {
                     StructTy(d1, ts)
                 }
             },
-            (EnumTy(d1, ts1), EnumTy(d2, ts2)) => {
+            (EnumTy(d1, ts1, cl1), EnumTy(d2, ts2, cl2)) => {
                 if d1 != d2 {
-                    self.mismatch(&EnumTy(d1, ts1).with_id(id1), &EnumTy(d2, ts2).with_id(id2));
+                    self.mismatch(&EnumTy(d1, ts1, cl1).with_id(id1), &EnumTy(d2, ts2, cl2).with_id(id2));
                 } else {
                     if ts1.len() != ts2.len() {
                         self.type_error(format!("Inconsistent number of type parameters for enum {}", d1));
@@ -1456,7 +1458,7 @@ impl<'a> Typechecker<'a> {
 
                     // XXX might have the wrong id here
                     let ts = ts1.into_iter().zip(ts2.into_iter()).map(|(t1, t2)| { let id = t1.id; self.unify(t1, t2).with_id(id) }).collect();
-                    EnumTy(d1, ts)
+                    EnumTy(d1, ts, cl1)
                 }
             },
             (t1, t2) => if t1 == t2 { t1 } else { self.mismatch(&t1.with_id(id1), &t2.with_id(id2)) }

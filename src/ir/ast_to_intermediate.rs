@@ -39,7 +39,7 @@ fn ty_is_reference(session: &Session, typemap: &Typemap, ty: &Ty) -> bool {
         // so taking the address once is a no-op in the IR.
         StructTy(..) |
         ArrayTy(..) => true,
-        EnumTy(ref id, _) => {
+        EnumTy(ref id, _, _) => {
             !enum_is_c_like(session, typemap, id)
         }
         _ => false,
