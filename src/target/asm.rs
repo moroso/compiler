@@ -37,6 +37,7 @@ use std::collections::{BTreeSet, BTreeMap};
 
 pub struct AsmTarget {
     verbose: bool,
+    list_file: Option<String>,
 }
 
 // TODO: move this somewhere common.
@@ -51,15 +52,19 @@ fn print_bin(n: u32, stream: &mut Write) {
 }
 
 impl MkTarget for AsmTarget {
-    fn new(args: Vec<String>) -> Box<AsmTarget> {
+    fn new(args: &Vec<(String, Option<String>)>) -> Box<AsmTarget> {
         let mut verbose = false;
+        let mut list_file = None;
+
         for arg in args.iter() {
-            if *arg == "verbose".to_string() {
+            if arg.0 == "verbose".to_string() {
                 print!("Enabling verbose mode.\n");
                 verbose = true;
+            } else if arg.0 == "list" {
+                list_file = arg.1.clone();
             }
         }
-        Box::new(AsmTarget { verbose: verbose })
+        Box::new(AsmTarget { verbose: verbose, list_file: list_file })
     }
 }
 
@@ -177,8 +182,8 @@ impl Target for AsmTarget {
             }
 
             let (packets, new_labels) = schedule_dummy(&asm_insts,
-                                                 &labels,
-                                                 self.verbose);
+                                                       &labels,
+                                                       self.verbose);
 
             items.push((packets, new_labels));
         }
@@ -187,26 +192,34 @@ impl Target for AsmTarget {
 
         let (mut all_packets, mut all_labels) = link(items);
 
-        if self.verbose {
-            for (pos, packet) in all_packets.iter().enumerate() {
+        let mut list_file = self.list_file.clone().map(|ref name| {
+            let path = Path::new(name);
+            File::create(&path).unwrap_or_else(|e| panic!("{}", e))
+        });
+
+        match list_file {
+            Some(ref mut f) => {
+                for (pos, packet) in all_packets.iter().enumerate() {
+                    for (k, v) in all_labels.iter() {
+                        if *v == pos {
+                            write!(f, "    {}:\n", k);
+                        }
+                    }
+
+                    write!(f, "{:04x}        {}, {}, {}, {},\n",
+                           pos * 16,
+                           packet[0],
+                           packet[1],
+                           packet[2],
+                           packet[3]);
+                }
                 for (k, v) in all_labels.iter() {
-                    if *v == pos {
-                        print!("    {}:\n", k);
+                    if *v == all_packets.len() {
+                        write!(f, "{}:\n", k);
                     }
                 }
-
-                print!("{:04x}        {}, {}, {}, {},\n",
-                       pos * 16,
-                       packet[0],
-                       packet[1],
-                       packet[2],
-                       packet[3])
-            }
-            for (k, v) in all_labels.iter() {
-                if *v == all_packets.len() {
-                    print!("{}:\n", k);
-                }
-            }
+            },
+            None => {}
         }
 
         // Add a special end label.

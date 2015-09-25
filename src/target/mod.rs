@@ -16,5 +16,5 @@ pub trait Target {
     fn compile(&self, p: Package, f: &mut Write);
 }
 pub trait MkTarget: Target {
-    fn new(args: Vec<String>) -> Box<Self>;
+    fn new<'a>(args: &Vec<(String, Option<String>)>) -> Box<Self>;
 }

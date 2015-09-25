@@ -25,7 +25,7 @@ pub mod deps;
 
 struct NullTarget;
 impl MkTarget for NullTarget {
-    fn new(_: Vec<String>) -> Box<NullTarget> { Box::new(NullTarget) }
+    fn new(_: &Vec<(String, Option<String>)>) -> Box<NullTarget> { Box::new(NullTarget) }
 }
 impl Target for NullTarget {
     fn compile(&self, _: Package, _: &mut Write) { }
@@ -35,13 +35,15 @@ fn package_from_stdin<'a>(opts: Options) -> Package<'a> {
     Package::from_buffer(opts, "<stdin>", BufReader::new(io::stdin()))
 }
 
-fn new_target<T: MkTarget>(args: Vec<String>) -> Box<T> {
+fn new_target<T: MkTarget>(args: &Vec<(String, Option<String>)>) -> Box<T> {
     MkTarget::new(args)
 }
 
 macro_rules! targets {
     ($($n:expr => $t:ty),*) => (
-        vec!($(($n, Box::new(|args| { new_target::<$t>(args) as Box<Target> }) as Box<Fn(Vec<String>) -> Box<Target>> )),*)
+        vec!($(($n, Box::new(|args: &Vec<(String, Option<String>)>| {
+            new_target::<$t>(args) as Box<Target>
+        }) as Box<Fn(&Vec<(String, Option<String>)>) -> Box<Target>> )),*)
     );
     ($($n:expr => $t:ty),+,) => (targets!($($n => $t),+))
 }
@@ -86,6 +88,7 @@ pub fn main() {
     let opts = [
         optopt("", "target", "Set the output target format.", "[c|null|asm|ir]"),
         optopt("o", "output", "Output file", "<filename>"),
+        optopt("", "list", "List file", "<filename>"),
         optflag("d", "dep-files", "Generate dependency files"),
         optflag("v", "verbose", "Enable verbose output."),
         optflag("h", "help", "Show this help message."),
@@ -122,17 +125,22 @@ pub fn main() {
         "asm" => AsmTarget,
     };
 
+    let mut opts = vec!();
+
     let verbose = matches.opt_present("verbose");
+    if verbose {
+        opts.push(("verbose".to_string(), None));
+    }
+
+    let list = matches.opt_str("list");
+    if list.is_some() {
+        opts.push(("list".to_string(), list));
+    }
 
     let target_arg = matches.opt_str("target").unwrap_or("null".to_string());
     let target = match targets.into_iter()
                         .filter(|&(ref t, _)| t.eq_ignore_ascii_case(&target_arg[..]))
-                        .map(|(_, ctor)| ctor(
-                            if verbose {
-                                vec!("verbose".to_string())
-                            } else {
-                                vec!()
-                            }))
+                        .map(|(_, ctor)| ctor(&opts))
                         .next()
     {
         Some(t) => t,

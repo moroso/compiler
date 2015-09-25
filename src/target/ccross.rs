@@ -938,7 +938,7 @@ pub struct CTarget {
 }
 
 impl MkTarget for CTarget {
-    fn new(_args: Vec<String>) -> Box<CTarget> {
+    fn new(_args: &Vec<(String, Option<String>)>) -> Box<CTarget> {
         Box::new(CTarget { opts: () })
     }
 }

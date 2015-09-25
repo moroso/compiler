@@ -312,10 +312,10 @@ impl IRTarget {
 }
 
 impl MkTarget for IRTarget {
-    fn new(args: Vec<String>) -> Box<IRTarget> {
+    fn new(args: &Vec<(String, Option<String>)>) -> Box<IRTarget> {
         let mut verbose = false;
         for arg in args.iter() {
-            if *arg == "verbose".to_string() {
+            if arg.0 == "verbose".to_string() {
                 print!("Enabling verbose mode.\n");
                 verbose = true;
             }
