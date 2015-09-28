@@ -181,9 +181,9 @@ impl Target for AsmTarget {
                 }
             }
 
-            let (packets, new_labels) = schedule_dummy(&asm_insts,
-                                                       &labels,
-                                                       self.verbose);
+            let (packets, new_labels) = schedule(&asm_insts,
+                                                 &labels,
+                                                 self.verbose);
 
             items.push((packets, new_labels));
         }

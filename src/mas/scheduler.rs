@@ -136,11 +136,15 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
         PacketsInst(..) => return false,
         // Never commute a load with a store, because we aren't smart enough
         // to know about aliasing.
+        // Also, for now, never commute load with load/store with store.
+        // TODO: these rules can be relaxed a bit.
         LoadInst(..) => match *inst2 {
+            LoadInst(..) |
             StoreInst(..) => return false,
             _ => {},
         },
         StoreInst(..) => match *inst2 {
+            StoreInst(..) |
             LoadInst(..) => return false,
             _ => {},
         },
@@ -378,6 +382,38 @@ pub fn schedule(insts: &Vec<InstNode>,
             let mut added = false;
             for leaf in leaves.iter() {
                 let inst = &insts[*leaf];
+                match *inst {
+                    PacketsInst(ref inline_packets) => {
+                        // Flush the current packet.
+                        if packet_added {
+                            packets.push(this_packet);
+                            this_packet = [NopInst, NopInst, NopInst, NopInst];
+                            packet_added = false;
+                            added = false;
+                        }
+
+                        update_labels(&jump_target_dict,
+                                      &mut modified_labels,
+                                      *leaf,
+                                      packets.len());
+                        // TODO label support in inline asm.
+                        for packet in inline_packets.iter() {
+                            packets.push([packet[0].clone(),
+                                          packet[1].clone(),
+                                          packet[2].clone(),
+                                          packet[3].clone()]);
+                        }
+                        // The packet being built at this point should be empty.
+                        assert!(this_packet.iter().all(|x| *x == NopInst));
+                        edges = FromIterator::from_iter(
+                            edges.iter().map(|&x|x)
+                                .filter(|&(x, _)| x!=*leaf));
+                        all.remove(leaf);
+                        break;
+                    },
+                    _ => {}
+                }
+
                 if compatible(&this_packet, inst) {
                     for idx in (
                         0 ..
