@@ -1,19 +1,27 @@
+fn rol(n: u32, amt: u8) -> u32 {
+    if amt == 0 {
+        // this is to prevent overflow in this case.
+        n
+    } else {
+        (n << (amt as usize)) | (n >> ((32 - amt) as usize))
+    }
+}
+
+pub fn ror(n: u32, amt: u8) -> u32 {
+    if amt == 0 {
+        n
+    } else {
+        rol(n, 32 - amt)
+    }
+}
+
 /// Several instructions are encoded with a value and an even shift amount.
 /// Given a number `n` and amount `width` in which it must fit, this function
 /// will either return the value (fitting into `width`) bits together with
 /// the corresponding shift amount divided by 2, or None if it cannot be done.
+// We do this by trying all rotations and seeing if any of them works.
+// Yeah, we could be more clever about it, but there's really no need.
 pub fn pack_int(n: u32, width: u8) -> Option<(u32, u8)> {
-    // We do this by trying all rotations and seeing if any of them works.
-    // Yeah, we could be more clever about it, but there's really no need.
-    fn rol(n: u32, amt: u8) -> u32 {
-        if amt == 0 {
-            // this is to prevent overflow in this case.
-            n
-        } else {
-            (n << (amt as usize)) | (n >> ((32 - amt) as usize))
-        }
-    }
-
     for i in 0u8 .. 16u8 {
         let new_n = rol(n, 2*i);
         let mut max_bit: u8 = 0;

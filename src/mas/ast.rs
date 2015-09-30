@@ -6,7 +6,7 @@
 
 use std::fmt;
 use std::fmt::{Formatter, Display, Debug};
-use mas::util::fits_in_bits;
+use mas::util::{fits_in_bits, ror};
 use std::ops::Index;
 use std::option::IterMut;
 use num::FromPrimitive;
@@ -77,6 +77,12 @@ pub enum CoReg {
     SP3,
 }
 
+impl Display for CoReg {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{:?}", *self)
+    }
+}
+
 // Opcodes for the ALU.
 #[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd, Copy)]
 pub enum AluOp {
@@ -93,6 +99,26 @@ pub enum AluOp {
     SxbAluOp,
     SxhAluOp,
     // The rest are reserved.
+}
+
+impl Display for AluOp {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}",
+               match *self {
+                   AddAluOp => "+",
+                   AndAluOp => "&",
+                   NorAluOp => "~|",
+                   OrAluOp => "|",
+                   SubAluOp => "-",
+                   RsbAluOp => "-:",
+                   XorAluOp => "^",
+                   CompareAluOp => "[CMP]",
+                   MovAluOp => "",
+                   MvnAluOp => "~",
+                   SxbAluOp => "SXB ",
+                   SxhAluOp => "SXH ",
+               })
+    }
 }
 
 impl AluOp {
@@ -137,6 +163,22 @@ pub enum CompareType {
     CmpBC,
 }
 
+impl Display for CompareType {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}",
+               match *self {
+                   CmpLTU => "<",
+                   CmpLEU => "<=",
+                   CmpEQ => "==",
+                   CmpRESERVED => "[RESV]",
+                   CmpLTS => "<s",
+                   CmpLES => "<=s",
+                   CmpBS => "&",
+                   CmpBC => "BC",
+               })
+    }
+}
+
 // Shift types.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
 pub enum ShiftType {
@@ -163,31 +205,6 @@ impl FromPrimitive for ShiftType {
 
 }
 
-
-// Load/Store types.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
-pub enum LsuWidth {
-    LsuWidthB,
-    LsuWidthH,
-    LsuWidthL,
-    LsuLLSC, // Not really a width, but...
-}
-
-// Flush types
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
-pub enum FlushType {
-    DataFlush,
-    InstFlush,
-    DtlbFlush,
-    ItlbFlush,
-}
-
-#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd, Copy)]
-pub struct LsuOp {
-    pub store: bool,
-    pub width: LsuWidth,
-}
-
 impl Display for ShiftType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}",
@@ -201,6 +218,60 @@ impl Display for ShiftType {
     }
 }
 
+// Load/Store types.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
+pub enum LsuWidth {
+    LsuWidthB,
+    LsuWidthH,
+    LsuWidthL,
+    LsuLLSC, // Not really a width, but...
+}
+
+impl Display for LsuWidth {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}",
+               match *self {
+                   LsuWidthB => "b",
+                   LsuWidthH => "h",
+                   LsuWidthL => "l",
+                   LsuLLSC => "llsc",
+               })
+    }
+}
+
+// Flush types
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
+pub enum FlushType {
+    DataFlush,
+    InstFlush,
+    DtlbFlush,
+    ItlbFlush,
+}
+
+impl Display for FlushType {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}",
+               match *self {
+                   DataFlush => "data",
+                   InstFlush => "inst",
+                   DtlbFlush => "dtlb",
+                   ItlbFlush => "itlb",
+               })
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd, Copy)]
+pub struct LsuOp {
+    pub store: bool,
+    pub width: LsuWidth,
+}
+
+impl Display for LsuOp {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.width)
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd)]
 pub enum JumpTarget {
     JumpOffs(i32),
@@ -208,10 +279,28 @@ pub enum JumpTarget {
     JumpLabel(String),
 }
 
+impl Display for JumpTarget {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match *self {
+            JumpOffs(val) => write!(f, "{}", val),
+            JumpLabel(ref label) => write!(f, "{}", label),
+        }
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd)]
 pub enum LongValue {
     Immediate(u32),
     LabelOffs(String),
+}
+
+impl Display for LongValue {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match *self {
+            Immediate(val) => write!(f, "{}", val),
+            LabelOffs(ref label) => write!(f, "{}", label),
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd)]
@@ -364,6 +453,284 @@ fn assert_offs(offs: i32, width: u8) {
     // No sign bit means none of the high bits should be set.
     assert_eq!((mask & (offs as u32) == 0),
                ((offs as u32) & (1<<((width-1) as usize))) == 0);
+}
+
+fn format_pred(pred: Pred) -> String {
+    if pred == TRUE_PRED {
+        format!("")
+    } else {
+        format!("{}? ", pred)
+    }
+}
+
+fn format_shifted_reg(reg: Reg, shifttype: ShiftType, shiftamt: u8) -> String {
+    if shiftamt == 0 {
+        format!("{}", reg)
+    } else {
+        format!("({} {} {})", reg, shifttype, shiftamt)
+    }
+}
+
+fn format_reg_offs(reg: Reg, offs: i32) -> String {
+    if offs == 0 {
+        format!("{}", reg)
+    } else if offs > 0 {
+        format!("{} + {}", reg, offs)
+    } else {
+        format!("{} - {}", reg, -offs)
+    }
+}
+
+
+impl Display for InstNode {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match *self {
+            ALU1ShortInst(pred,
+                          op,
+                          rd,
+                          val,
+                          rot
+                          ) => {
+                write!(f, "{}{} <- {}{}",
+                       format_pred(pred),
+                       rd, op, ror(val, rot))
+            }
+            ALU2ShortInst(pred,
+                          op,
+                          rd,
+                          rs,
+                          val,
+                          rot
+                          ) => {
+                write!(f, "{}{} <- {} {} {}",
+                       format_pred(pred),
+                       rd, rs, op, ror(val, rot))
+            }
+            ALU1RegInst(pred,
+                        op,
+                        rd,
+                        rt,
+                        shifttype,
+                        shiftamt
+                        ) => {
+                write!(f, "{}{} <- {}{}",
+                       format_pred(pred),
+                       rd, op, format_shifted_reg(rt, shifttype, shiftamt))
+            }
+            ALU2RegInst(pred,
+                        op,
+                        rd,
+                        rs,
+                        rt,
+                        shifttype,
+                        shiftamt
+                        ) => {
+                write!(f, "{}{} <- {} {} {}",
+                       format_pred(pred),
+                       rd, rs, op,
+                       format_shifted_reg(rt, shifttype, shiftamt))
+            }
+            ALU2LongInst(pred,
+                         op,
+                         rd,
+                         rs,
+                         ) => {
+                write!(f, "{}{} <- {} {} long",
+                       format_pred(pred),
+                       rd, rs, op)
+            }
+            ALU1LongInst(pred,
+                         op,
+                         rd
+                         ) => {
+                write!(f, "{}{} <- {}long",
+                       format_pred(pred),
+                       rd, op)
+            }
+            ALU1RegShInst(pred,
+                          rd,
+                          op,
+                          rt,
+                          shifttype,
+                          rs
+                          ) => {
+                write!(f, "{}{} <- {}({} {} {})",
+                       format_pred(pred),
+                       rd, op, rt, shifttype, rs)
+            }
+            LongInst(ref longval) => {
+                write!(f, "long {}",
+                       longval)
+            }
+            NopInst => {
+                write!(f, "nop")
+            }
+            LoadInst(pred,
+                     op,
+                     rd,
+                     rs,
+                     offs
+                     ) => {
+                write!(f, "{}{} <- *{}({})",
+                       format_pred(pred),
+                       rd, op, format_reg_offs(rs, offs))
+            }
+            StoreInst(pred,
+                      op,
+                      rs,
+                      offs,
+                      rt
+                      ) => {
+                write!(f, "{}*{}({}) <- {}",
+                       format_pred(pred),
+                       op,
+                       format_reg_offs(rs, offs),
+                       rt)
+            }
+            CompareShortInst(pred,
+                             destpred,
+                             rs,
+                             comparetype,
+                             val,
+                             rot
+                             ) => {
+                write!(f, "{}p{} <- {} {} {}",
+                       format_pred(pred),
+                       destpred.reg,
+                       rs, comparetype, ror(val, rot))
+            }
+            CompareRegInst(pred,
+                           destpred,
+                           rs,
+                           comparetype,
+                           rt,
+                           shifttype,
+                           shiftamt
+                           ) => {
+                write!(f, "{}p{} <- {} {} {}",
+                       format_pred(pred),
+                       destpred.reg,
+                       rs, comparetype,
+                       format_shifted_reg(rt, shifttype, shiftamt))
+            }
+            CompareLongInst(pred,
+                            destpred,
+                            rs,
+                            comparetype
+                            ) => {
+                write!(f, "{}p{} <- {} {} long",
+                       format_pred(pred),
+                       destpred.reg,
+                       rs, comparetype)
+            }
+            BranchImmInst(pred,
+                          linked,
+                          ref target) => {
+                write!(f, "{}{} {}",
+                       format_pred(pred),
+                       if linked { "bl" } else { "b" },
+                       target)
+            }
+            BranchRegInst(pred,
+                          linked,
+                          rs,
+                          offs
+                          ) => {
+                write!(f, "{}{} {}",
+                       format_pred(pred),
+                       if linked { "bl" } else { "b" },
+                       format_reg_offs(rs, offs))
+            }
+            BreakInst(pred,
+                      val
+                      ) => {
+                if val == 0 {
+                    write!(f, "{}break", format_pred(pred))
+                } else {
+                    write!(f, "{}break {}", format_pred(pred), val)
+                }
+            }
+            SyscallInst(pred,
+                        val
+                        ) => {
+                if val == 0 {
+                    write!(f, "{}syscall", format_pred(pred))
+                } else {
+                    write!(f, "{}syscall {}", format_pred(pred), val)
+                }
+            }
+            MtcInst(pred,
+                    coreg,
+                    rs
+                    ) => {
+                write!(f, "{}{} <- {}",
+                       format_pred(pred),
+                       coreg, rs)
+            }
+            MfcInst(pred,
+                    rd,
+                    coreg
+                    ) => {
+                write!(f, "{}{} <- {}",
+                       format_pred(pred),
+                       rd, coreg)
+            }
+            EretInst(pred) => {
+                write!(f, "{}eret",
+                       format_pred(pred))
+            }
+            FenceInst(pred) => {
+                write!(f, "{}fence",
+                       format_pred(pred))
+            }
+            MthiInst(pred,
+                     rs
+                     ) => {
+                write!(f, "{}{} <- ovf",
+                       format_pred(pred),
+                       rs)
+            }
+            MfhiInst(pred,
+                     rd
+                     ) => {
+                write!(f, "{}ovf <- {}",
+                       format_pred(pred),
+                       rd)
+            }
+            MultInst(pred,
+                     signed,
+                     rd,
+                     rs,
+                     rt
+                     ) => {
+                write!(f, "{}{} <- {} {} {}",
+                       format_pred(pred),
+                       rd, rs, if signed { "*s" } else { "*" }, rt)
+            }
+            DivInst(pred,
+                    signed,
+                    rd,
+                    rs,
+                    rt
+                    ) => {
+                write!(f, "{}{} <- {} {} {}",
+                       format_pred(pred),
+                       rd, rs, if signed { "/s" } else { "/" }, rt)
+            }
+            FlushInst(pred,
+                      flushtype,
+                      rs
+                      ) => {
+                write!(f, "{}flush.{} {}",
+                       format_pred(pred),
+                       flushtype,
+                       rs)
+            }
+            PacketsInst(..) => {
+                write!(f, "[INLINE ASM]")
+            }
+        }
+    }
 }
 
 // Helper functions that will make instruction representations, and also
@@ -723,7 +1090,5 @@ impl InstNode {
         PacketsInst(packets)
     }
 }
-
-allow_string!(InstNode);
 
 pub type InstPacket = [InstNode; 4];

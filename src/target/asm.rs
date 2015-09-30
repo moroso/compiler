@@ -206,7 +206,7 @@ impl Target for AsmTarget {
                         }
                     }
 
-                    write!(f, "{:04x}        {}, {}, {}, {},\n",
+                    write!(f, "{:04x}        {{ {}; {}; {}; {} }}\n",
                            pos * 16,
                            packet[0],
                            packet[1],
