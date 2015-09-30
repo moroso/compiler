@@ -136,10 +136,9 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
         PacketsInst(..) => return false,
         // Never commute a load with a store, because we aren't smart enough
         // to know about aliasing.
-        // Also, for now, never commute load with load/store with store.
+        // Also, for now, never commute store with store.
         // TODO: these rules can be relaxed a bit.
         LoadInst(..) => match *inst2 {
-            LoadInst(..) |
             StoreInst(..) => return false,
             _ => {},
         },
