@@ -1539,7 +1539,8 @@ impl<'a> Visitor for Typechecker<'a> {
     fn visit_item(&mut self, item: &Item) {
         match item.val {
             UseItem(..) => {}
-            FuncItem(_, _, ref t, LocalFn(ref b), ref tps) => {
+            FuncItem(_, _, ref t, LocalFn(ref b), ref tps) |
+            FuncItem(_, _, ref t, ExternFn(_, Some(ref b)), ref tps) => {
                 let tp_ids = tps.iter().map(|tp| tp.id).collect();
                 let tp_tys = self.tps_to_tys(item.id, &tp_ids, &None, true);
                 let mut gs = BTreeMap::new();
@@ -1554,13 +1555,17 @@ impl<'a> Visitor for Typechecker<'a> {
 
                     let mut ty = me.type_to_ty(t).val;
                     let diverges = ty == BottomTy;
-                    for i in (0 .. me.exits.len()).rev() {
-                        let exit_ty = me.exits.swap_remove(i);
-                        ty = me.unify_with_cause(item.id, InvalidReturn, ty.with_id_of(item), exit_ty);
-                    }
+                    // Extern functions get no return type checking, because
+                    // we have no idea how returns are actually handled.
+                    if let FuncItem(_, _, _, LocalFn(_), _) = item.val {
+                        for i in (0 .. me.exits.len()).rev() {
+                            let exit_ty = me.exits.swap_remove(i);
+                            ty = me.unify_with_cause(item.id, InvalidReturn, ty.with_id_of(item), exit_ty);
+                        }
 
-                    if diverges && ty != BottomTy {
-                        me.error(item.id, "diverging function may return");
+                        if diverges && ty != BottomTy {
+                            me.error(item.id, "diverging function may return");
+                        }
                     }
                 });
             }

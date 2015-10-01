@@ -464,8 +464,9 @@ impl<'a, 'b> Visitor for ModuleResolver<'a, 'b> {
                         me.add_ident_to_scope(ValNS, &arg.ident);
                     }
                     match *def {
-                        LocalFn(ref block) => me.visit_block(block),
-                        ExternFn(..) => {}
+                        LocalFn(ref block) |
+                        ExternFn(_, Some(ref block)) => me.visit_block(block),
+                        _ => {}
                     }
                 });
             }

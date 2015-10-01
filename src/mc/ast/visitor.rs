@@ -25,8 +25,9 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
             for arg in args.iter() { visitor.visit_func_arg(arg); }
             visitor.visit_type(t);
             match *def {
-                LocalFn(ref block) => visitor.visit_block(block),
-                ExternFn(..) => {}
+                LocalFn(ref block) |
+                ExternFn(_, Some(ref block)) => visitor.visit_block(block),
+                _ => {}
             }
             for id in tps.iter() { visitor.visit_ident(id); }
         },

@@ -25,8 +25,9 @@ pub fn walk_item<T: MutVisitor>(visitor: &mut T, item: &mut Item) {
             for arg in args.iter_mut() { visitor.visit_func_arg(arg); }
             visitor.visit_type(t);
             match *def {
-                LocalFn(ref mut block) => visitor.visit_block(block),
-                ExternFn(..) => {}
+                LocalFn(ref mut block) |
+                ExternFn(_, Some(ref mut block)) => visitor.visit_block(block),
+                _ => {}
             }
             for id in tps.iter_mut() { visitor.visit_ident(id); }
         },
