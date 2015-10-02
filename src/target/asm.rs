@@ -142,6 +142,10 @@ impl Target for AsmTarget {
         let mut strings: BTreeSet<Name> = BTreeSet::new();
 
         for insts in result.iter_mut() {
+            if self.verbose {
+                print!("Start conversion!\n");
+                print!("{:?}\n", insts);
+            }
             ToSSA::to_ssa(insts, self.verbose);
             ConstantFolder::fold(insts, &global_map, self.verbose);
             let opinfo = LivenessAnalyzer::analyze(insts);

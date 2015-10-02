@@ -23,6 +23,8 @@ fn seed_rve(opinfo: &mut OpInfo, rve: &RValueElem) {
 
 fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
     let len = ops.len();
+    if len == 1 { return; } // No instructions; probably extern.
+                            // TODO: this is somewhat fragile...
 
     for u in 0..len {
         let opinfo = opinfo.get_mut(u).unwrap();
@@ -133,8 +135,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                     _ => {},
                 }
             },
-            OpNode::Func(_, ref vars, ref abi) => {
-                if abi.is_some() { return; }
+            OpNode::Func(_, ref vars, _) => {
                 for v in vars.iter() {
                     opinfo.def.insert(v.clone());
                 }

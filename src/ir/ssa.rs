@@ -322,6 +322,8 @@ pub fn get_times() -> (u64, u64, u64) {
 
 impl ToSSA {
     pub fn to_ssa(ops: &mut Vec<Op>, verbose: bool) {
+        if ops.len() == 1 { return; } // No instructions; probably extern.
+                                      // TODO: this is somewhat fragile...
         let start = precise_time_ns();
         parameterize_labels(ops);
         let end = precise_time_ns();
@@ -371,8 +373,7 @@ impl ToSSA {
                 OpNode::Return(ref mut rv) => {
                     ssa_rvalelem(gens, rv);
                 },
-                OpNode::Func(_, ref mut vars, ref abi) => {
-                    if abi.is_some() { return; }
+                OpNode::Func(_, ref mut vars, _) => {
                     for var in vars.iter_mut() {
                         *var = Var {
                             name: var.name.clone(),
