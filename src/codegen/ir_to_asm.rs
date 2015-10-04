@@ -459,7 +459,7 @@ fn convert_unop<'a>(
             Variable(ref v) => {
                 match *regmap.get(v).unwrap() {
                     StackColor(n) => {
-                        return vec!(InstNode::alu2short(pred,
+                        return vec!(InstNode::alu2short(TRUE_PRED,
                                                         SubAluOp,
                                                         dest,
                                                         STACK_POINTER,
@@ -467,7 +467,7 @@ fn convert_unop<'a>(
                                                         0));
                     },
                     StackArgColor(n) => {
-                        return vec!(InstNode::alu2short(pred,
+                        return vec!(InstNode::alu2short(TRUE_PRED,
                                                         SubAluOp,
                                                         dest,
                                                         STACK_POINTER,
@@ -476,15 +476,24 @@ fn convert_unop<'a>(
                     },
                     GlobalColor => {
                         let global_info = global_map.get(&v.name).unwrap();
-                        if !global_info.is_extern { unimplemented!() }
-                        return vec!(
-                            InstNode::alu1long(
-                                Pred { inverted: false,
-                                       reg: 3 },
-                                MovAluOp,
-                                dest),
-                            InstNode::long_label(format!("{}", v.name)),
-                            );
+                        if global_info.is_extern {
+                            return vec!(
+                                InstNode::alu1long(
+                                    TRUE_PRED,
+                                    MovAluOp,
+                                    dest),
+                                InstNode::long_label(format!("{}", v.name)),
+                                );
+                        } else {
+                            let offset: u32 = GLOBAL_MEM_START
+                                + (global_info.offset.unwrap() as u32);
+                            return vec!(
+                                InstNode::alu1long(
+                                    TRUE_PRED,
+                                    MovAluOp,
+                                    dest),
+                                InstNode::long(offset));
+                        }
                     },
                     GlobalReferenceColor => unimplemented!(),
                     RegColor(ref reg) => {
