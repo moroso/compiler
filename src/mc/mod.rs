@@ -88,7 +88,14 @@ pub fn main() {
     let opts = [
         optopt("", "target", "Set the output target format.", "[c|null|asm|ir]"),
         optopt("o", "output", "Output file", "<filename>"),
-        optopt("", "list", "List file", "<filename>"),
+        optopt("", "list", "List file (asm target only)", "<filename>"),
+        optopt("f", "format", "Output file format (asm target only)", "[flat|bsld]"),
+        optopt("", "stack_start", "Address in hex of the start of the stack (asm target only)",
+               "<hex value, no 0x>"),
+        optopt("", "global_start", "Address in hex of the start of global vars (asm target only)",
+               "<hex value, no 0x>"),
+        optopt("", "code_start", "Address in hex of the start of the code (asm target only)",
+               "<hex value, no 0x>"),
         optflag("d", "dep-files", "Generate dependency files"),
         optflag("v", "verbose", "Enable verbose output."),
         optflag("h", "help", "Show this help message."),
@@ -132,9 +139,11 @@ pub fn main() {
         opts.push(("verbose".to_string(), None));
     }
 
-    let list = matches.opt_str("list");
-    if list.is_some() {
-        opts.push(("list".to_string(), list));
+    for opt in vec!("list", "format", "code_start", "stack_start", "global_start").into_iter() {
+        let val = matches.opt_str(opt);
+        if val.is_some() {
+            opts.push((opt.to_string(), val));
+        }
     }
 
     let target_arg = matches.opt_str("target").unwrap_or("null".to_string());

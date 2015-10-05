@@ -17,7 +17,7 @@ use ir::StaticIRItem;
 use target::NameMangler;
 
 use codegen::register_color::RegisterColorer;
-use codegen::NUM_USABLE_VARS;
+use codegen::{NUM_USABLE_VARS, GLOBAL_MEM_START, STACK_START};
 use codegen::IrToAsm;
 use codegen::combine::link;
 
@@ -35,9 +35,18 @@ use std::fs::File;
 use std::path::Path;
 use std::collections::{BTreeSet, BTreeMap};
 
+enum BinaryFormat {
+    FlatFormat,
+    BSLDFormat,
+}
+
 pub struct AsmTarget {
     verbose: bool,
     list_file: Option<String>,
+    format: BinaryFormat,
+    code_start: u32,
+    global_start: u32,
+    stack_start: u32,
 }
 
 // TODO: move this somewhere common.
@@ -55,16 +64,45 @@ impl MkTarget for AsmTarget {
     fn new(args: &Vec<(String, Option<String>)>) -> Box<AsmTarget> {
         let mut verbose = false;
         let mut list_file = None;
+        let mut format = BinaryFormat::FlatFormat;
+        let mut code_start = 0;
+        let mut stack_start = STACK_START;
+        let mut global_start = GLOBAL_MEM_START;
 
+        // TODO: get rid of the unnecessary clones in this function.
         for arg in args.iter() {
             if arg.0 == "verbose".to_string() {
                 print!("Enabling verbose mode.\n");
                 verbose = true;
             } else if arg.0 == "list" {
                 list_file = arg.1.clone();
+            } else if arg.0 == "format" {
+                if arg.1 == Some("flat".to_string()) {
+                    format = BinaryFormat::FlatFormat;
+                } else if arg.1 == Some("bsld".to_string()) {
+                    format = BinaryFormat::BSLDFormat;
+                } else {
+                    panic!("Invalid format! Consider specifying a valid one instead.")
+                }
+            } else if arg.0 == "code_start" {
+                code_start = u32::from_str_radix(&arg.1.clone().unwrap()[..], 16).unwrap();
+                if code_start & 0xf != 0 {
+                    panic!("Code start is not aligned");
+                }
+            } else if arg.0 == "stack_start" {
+                stack_start = u32::from_str_radix(&arg.1.clone().unwrap()[..], 16).unwrap();
+            } else if arg.0 == "global_start" {
+                global_start = u32::from_str_radix(&arg.1.clone().unwrap()[..], 16).unwrap();
             }
         }
-        Box::new(AsmTarget { verbose: verbose, list_file: list_file })
+        Box::new(AsmTarget {
+            verbose: verbose,
+            list_file: list_file,
+            format: format,
+            code_start: code_start,
+            stack_start: stack_start,
+            global_start: global_start,
+        })
     }
 }
 
@@ -139,7 +177,12 @@ impl Target for AsmTarget {
 
         let mut items = vec!((insts, labels));
 
-        let mut strings: BTreeSet<Name> = BTreeSet::new();
+        let strings: BTreeSet<Name> = BTreeSet::new();
+
+        let mut irtoasm = IrToAsm::new(&global_map,
+                                       session,
+                                       strings,
+                                       self.global_start);
 
         for insts in result.iter_mut() {
             if self.verbose {
@@ -164,10 +207,7 @@ impl Target for AsmTarget {
                                               &global_map,
                                               NUM_USABLE_VARS as usize));
             }
-            let (asm_insts, labels) = IrToAsm::ir_to_asm(insts,
-                                                         &global_map,
-                                                         &mut session,
-                                                         &mut strings);
+            let (asm_insts, labels) = irtoasm.ir_to_asm(insts);
 
             if self.verbose {
                 for (pos, inst) in asm_insts.iter().enumerate() {
@@ -192,7 +232,7 @@ impl Target for AsmTarget {
             items.push((packets, new_labels));
         }
 
-        items.push(IrToAsm::strings_to_asm(&session, &strings));
+        items.push(irtoasm.strings_to_asm());
 
         let (mut all_packets, mut all_labels) = link(items);
 
@@ -228,6 +268,9 @@ impl Target for AsmTarget {
 
         // Add a special end label.
         all_labels.insert("__END__".to_string(), all_packets.len());
+
+        // Add a label for the start of the stack.
+        all_labels.insert("__STACK_START__".to_string(), (self.stack_start / 0x10) as usize);
 
         labels::resolve_labels(&mut all_packets, &all_labels);
         if self.verbose {

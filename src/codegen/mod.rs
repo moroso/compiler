@@ -29,6 +29,8 @@ pub static SPILL_REG_BASE: u8 = 8;
 
 pub static GLOBAL_MEM_START: u32 = 0xa0000;
 
+pub static STACK_START: u32 = 0x100000;
+
 #[derive(Ord, PartialOrd, PartialEq, Eq, Debug, Clone, Copy)]
 pub enum RegisterColor {
     RegColor(Reg),
