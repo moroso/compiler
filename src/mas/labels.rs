@@ -28,7 +28,7 @@ fn subst_label_long(target: &mut LongValue,
                 _ => panic!("Unresolved label {}", name),
             };
             // The offset here is in bytes, not packets, so we multiply by 16.
-            if *name == "__END__".to_string() {
+            if *name == "__STACK_START__".to_string() {
                 // This label doesn't move with the code, so we (hackily)
                 // treat it differently.
                 // TODO: we may later want more references outside the code

@@ -286,16 +286,20 @@ impl Target for AsmTarget {
         }
 
         if self.format == BinaryFormat::BSLDFormat {
+            // Determine size of globals.
+            let global_size = 1 + global_map.iter()
+                .map(|(_, x)| x.offset.unwrap_or(0) + x.size).max().unwrap_or(0) as u32;
+
             // Print the bs-ld header, if necessary.
             write!(f, "MROE");
             // Binary size
             print_bin(all_packets.len() as u32 * 0x10, f);
             // Image size
-            print_bin(all_packets.len() as u32 * 0x10, f);
+            print_bin(self.global_start + global_size - self.code_start, f);
             // Binary start
             print_bin(self.code_start, f);
             // First writable
-            print_bin(0, f);
+            print_bin(self.global_start, f);
             // Entry
             print_bin(self.code_start, f);
         }
