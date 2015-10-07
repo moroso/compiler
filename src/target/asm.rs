@@ -35,6 +35,7 @@ use std::fs::File;
 use std::path::Path;
 use std::collections::{BTreeSet, BTreeMap};
 
+#[derive(Eq, PartialEq)]
 enum BinaryFormat {
     FlatFormat,
     BSLDFormat,
@@ -251,7 +252,7 @@ impl Target for AsmTarget {
                     }
 
                     write!(f, "{:04x}        {{ {}; {}; {}; {} }}\n",
-                           pos * 16,
+                           pos * 16 + self.code_start as usize,
                            packet[0],
                            packet[1],
                            packet[2],
@@ -272,7 +273,8 @@ impl Target for AsmTarget {
         // Add a label for the start of the stack.
         all_labels.insert("__STACK_START__".to_string(), (self.stack_start / 0x10) as usize);
 
-        labels::resolve_labels(&mut all_packets, &all_labels);
+        labels::resolve_labels(&mut all_packets, &all_labels, self.code_start as usize);
+
         if self.verbose {
             for packet in all_packets.iter() {
                 print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",
@@ -281,6 +283,21 @@ impl Target for AsmTarget {
                        encode(&packet[2]),
                        encode(&packet[3]))
             }
+        }
+
+        if self.format == BinaryFormat::BSLDFormat {
+            // Print the bs-ld header, if necessary.
+            write!(f, "MROE");
+            // Binary size
+            print_bin(all_packets.len() as u32 * 0x10, f);
+            // Image size
+            print_bin(all_packets.len() as u32 * 0x10, f);
+            // Binary start
+            print_bin(self.code_start, f);
+            // First writable
+            print_bin(0, f);
+            // Entry
+            print_bin(self.code_start, f);
         }
 
         for packet in all_packets.iter() {

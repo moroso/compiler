@@ -101,7 +101,7 @@ pub fn main() {
         parser.parse_toplevel()
     };
 
-    labels::resolve_labels(&mut insts, &labels);
+    labels::resolve_labels(&mut insts, &labels, 0);
 
     for packet in insts.iter() {
         match &format_arg[..] {
