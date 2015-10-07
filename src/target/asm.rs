@@ -166,12 +166,15 @@ impl Target for AsmTarget {
         };
         result.push(global_initializer);
 
-        let fname = "src/mc/prelude.ma";
-        let path = Path::new(fname);
-        let file = File::open(&path).unwrap_or_else(|e| panic!("{}", e));
+        let prelude_fname = match self.format {
+            BinaryFormat::BSLDFormat => "src/mc/prelude_bsld.ma",
+            BinaryFormat::FlatFormat => "src/mc/prelude.ma",
+        };
+        let prelude_path = Path::new(prelude_fname);
+        let prelude_file = File::open(&prelude_path).unwrap_or_else(|e| panic!("{}", e));
 
-        let reader = BufReader::new(file);
-        let asm_lexer = new_asm_lexer(fname, reader);
+        let prelude_reader = BufReader::new(prelude_file);
+        let asm_lexer = new_asm_lexer(prelude_fname, prelude_reader);
         let asm_peekable = asm_lexer.peekable();
         let mut asm_parser = AsmParser::new(asm_peekable);
         let (insts, labels) = asm_parser.parse_toplevel();
@@ -295,7 +298,7 @@ impl Target for AsmTarget {
             // Binary size
             print_bin(all_packets.len() as u32 * 0x10, f);
             // Image size
-            print_bin(self.global_start + global_size - self.code_start, f);
+            print_bin(self.global_start - self.code_start + global_size, f);
             // Binary start
             print_bin(self.code_start, f);
             // First writable
