@@ -43,6 +43,7 @@ enum BinaryFormat {
 
 pub struct AsmTarget {
     verbose: bool,
+    disable_scheduler: bool,
     list_file: Option<String>,
     format: BinaryFormat,
     code_start: u32,
@@ -64,6 +65,7 @@ fn print_bin(n: u32, stream: &mut Write) {
 impl MkTarget for AsmTarget {
     fn new(args: &Vec<(String, Option<String>)>) -> Box<AsmTarget> {
         let mut verbose = false;
+        let mut disable_scheduler = false;
         let mut list_file = None;
         let mut format = BinaryFormat::FlatFormat;
         let mut code_start = 0;
@@ -94,6 +96,8 @@ impl MkTarget for AsmTarget {
                 stack_start = u32::from_str_radix(&arg.1.clone().unwrap()[..], 16).unwrap();
             } else if arg.0 == "global_start" {
                 global_start = u32::from_str_radix(&arg.1.clone().unwrap()[..], 16).unwrap();
+            } else if arg.0 == "disable_scheduler" {
+                disable_scheduler = true;
             }
         }
         Box::new(AsmTarget {
@@ -103,6 +107,7 @@ impl MkTarget for AsmTarget {
             code_start: code_start,
             stack_start: stack_start,
             global_start: global_start,
+            disable_scheduler: disable_scheduler,
         })
     }
 }
@@ -229,10 +234,11 @@ impl Target for AsmTarget {
                 }
             }
 
-            let (packets, new_labels) = schedule_dummy(&asm_insts,
-                                                 &labels,
-                                                 self.verbose);
-
+            let (packets, new_labels) = if self.disable_scheduler {
+                schedule_dummy(&asm_insts, &labels, self.verbose)
+            } else {
+                schedule(&asm_insts, &labels, self.verbose)
+            };
             items.push((packets, new_labels));
         }
 

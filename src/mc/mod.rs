@@ -98,6 +98,7 @@ pub fn main() {
                "<hex value, no 0x>"),
         optflag("d", "dep-files", "Generate dependency files"),
         optflag("v", "verbose", "Enable verbose output."),
+        optflag("", "disable_scheduler", "Disable instruction scheduler (asm target only)"),
         optflag("h", "help", "Show this help message."),
         optmulti("l", "lib", "Specify a library location", "<foo:/path/to/foo.mb>"),
     ];
@@ -134,9 +135,11 @@ pub fn main() {
 
     let mut opts = vec!();
 
-    let verbose = matches.opt_present("verbose");
-    if verbose {
-        opts.push(("verbose".to_string(), None));
+    for opt in vec!("verbose", "disable_scheduler").into_iter() {
+        let val = matches.opt_present(opt);
+        if val {
+            opts.push((opt.to_string(), None));
+        }
     }
 
     for opt in vec!("list", "format", "code_start", "stack_start", "global_start").into_iter() {
