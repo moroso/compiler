@@ -292,8 +292,22 @@ impl<'a, 'b> MacroExpanderVisitor<'a, 'b> {
             };
 
             if is_macro_call {
+                // We need to pass a the iterator by ref (since we
+                // need to keep it), but for reasons that elude me we
+                // get a borrow error when we do that directly.
+                // Calling .peekable() on that gives us back something
+                // that /doesn't/ cause a borrow error and should
+                // behave the same. Calling .skip(0) or .fuse() or any
+                // of the other handful I tried, weirdly, does not
+                // work. Substituting the call for r also does not
+                // work.
+                // The borrow check error showed up when updating from
+                // from nightly 6e5a32547 to nightly d0cae14f6, and
+                // this code has been present for a while.
+                // XXX: Something fishy is going on.
+                let r = stream.by_ref().peekable();
                 let (name, args) =
-                    Parser::parse_stream(self.session, filename, stream.by_ref(),
+                    Parser::parse_stream(self.session, filename, r,
                                          |p| p.parse_macro_call());
                 let mut expanded = self.expand_macro(id, name, args);
                 expanded.pop(); // Remove the EOF
