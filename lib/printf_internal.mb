@@ -155,9 +155,9 @@ macro do_printf!(fmt, args, out) { {
         } else if _c == 's' {
             // TODO: width
             let _sp = _arg as *u8;
-            let _i: u32;
-            for (_i = 0; _sp[_i] != 0 && _i < _precision; _i += 1) {
-                $out(_sp[_i]);
+            let _j: u32;
+            for (_j = 0; _sp[_j] != 0 && _j < _precision; _j += 1) {
+                $out(_sp[_j]);
             }
             continue;
         }
