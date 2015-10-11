@@ -171,15 +171,17 @@ impl Target for AsmTarget {
         };
         result.push(global_initializer);
 
-        let prelude_fname = match self.format {
-            BinaryFormat::BSLDFormat => "src/mc/prelude_bsld.ma",
-            BinaryFormat::FlatFormat => "src/mc/prelude.ma",
+        let prelude_name = match self.format {
+            BinaryFormat::BSLDFormat => "prelude_bsld.ma",
+            BinaryFormat::FlatFormat => "prelude.ma",
         };
-        let prelude_path = Path::new(prelude_fname);
-        let prelude_file = File::open(&prelude_path).unwrap_or_else(|e| panic!("{}", e));
+        let prelude_file = {
+            let prelude_path = session.options.search_paths.get(&prelude_name.to_string()).unwrap();
+            File::open(&prelude_path).unwrap_or_else(|e| panic!("{}", e))
+        };
 
         let prelude_reader = BufReader::new(prelude_file);
-        let asm_lexer = new_asm_lexer(prelude_fname, prelude_reader);
+        let asm_lexer = new_asm_lexer(prelude_name, prelude_reader);
         let asm_peekable = asm_lexer.peekable();
         let mut asm_parser = AsmParser::new(asm_peekable);
         let (insts, labels) = asm_parser.parse_toplevel();

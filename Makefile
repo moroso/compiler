@@ -41,7 +41,6 @@ MC_FILES := \
 	mc/deps.rs \
 	mc/lexer.rs \
 	mc/parser.rs \
-	mc/prelude.ma \
 	mc/prelude.mb \
 	mc/std.mb \
 	mc/resolver.rs \
@@ -55,6 +54,11 @@ MC_FILES := \
 	util/graph.rs \
 	util/mod.rs \
 
+LIBS := \
+	prelude.ma \
+	prelude_bsld.ma \
+	prelude.mb
+
 ASM_ONLY_TESTS = test_inline_asm_basic.mb
 
 TEST_FILES := $(patsubst test/%,%,$(wildcard test/test_*.mb))
@@ -63,7 +67,7 @@ IR_TEST_FILES := $(TEST_FILES)
 
 ASM_TEST_FILES := $(TEST_FILES) $(patsubst test/%,%,$(wildcard test/asm_test_*.mb))
 
-mbc mas: $(addprefix src/,$(MC_FILES))
+mbc mas: $(addprefix src/,$(MC_FILES)) $(addprefix lib/,$(LIBS))
 ifeq ($(TARGET),debug)
 	cargo build
 else

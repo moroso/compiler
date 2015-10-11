@@ -65,6 +65,10 @@ pub fn setup_builtin_search_paths(opts: &mut Options) {
             }
             let prelude_location = install_path.join(Path::new("lib/prelude.mb"));
             opts.search_paths.insert("prelude".to_string(), prelude_location);
+            let prelude_ma_location = install_path.join(Path::new("lib/prelude.ma"));
+            opts.search_paths.insert("prelude.ma".to_string(), prelude_ma_location);
+            let prelude_bsld_ma_location = install_path.join(Path::new("lib/prelude_bsld.ma"));
+            opts.search_paths.insert("prelude_bsld.ma".to_string(), prelude_bsld_ma_location);
         }
     }
 }
