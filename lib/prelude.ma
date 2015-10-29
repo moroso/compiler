@@ -16,6 +16,10 @@ print_char:
         { break 0x1f; }
         { b r31 + 1; r30 <- r1; }
 
+debug_break:
+        { r1 <- r30; r30 <- 3; }
+        { break 0x1f; }
+        { b r31 + 1; r30 <- r1; }
 
 // TODO: there's room for optimization here.
 rt_memcpy: { p1 <- r2 == 0 }

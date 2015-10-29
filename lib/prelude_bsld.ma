@@ -1,8 +1,10 @@
 // Entry for bsld-format binaries.
 // The kernel initializes the stack pointer so we shouldn't.
-// Otherwise, this is identical to bsld.ma.
+// We also need to save r0 and r1 across _INIT_GLOBALS.
 _start:
+        { *l(r30) <- r0; *l(r30 + 4) <- r1; r30 <- r30 + 8; }
         { bl _INIT_GLOBALS; }
+        { r0 <- *l(r30 - 8); r1 <- *l(r30 - 4); r30 <- r30 - 8; }
         { bl __main; }
         { r30 <- 0; }
         { break 0x1f; }
@@ -19,6 +21,10 @@ print_char:
         { break 0x1f; }
         { b r31 + 1; r30 <- r1; }
 
+debug_break:
+        { r1 <- r30; r30 <- 3; }
+        { break 0x1f; }
+        { b r31 + 1; r30 <- r1; }
 
 // TODO: there's room for optimization here.
 rt_memcpy: { p1 <- r2 == 0 }

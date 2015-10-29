@@ -3,6 +3,7 @@ mod printf;
 
 extern fn print_int(x: i32) -> i32;
 extern fn print_char(x: i32) -> i32;
+extern fn debug_break();
 extern fn rt_malloc<T>(i: u32) -> *T;
 extern fn rt_abort() -> !;
 fn print_uint(x: u32) { print_int(x as i32); }
