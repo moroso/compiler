@@ -33,7 +33,7 @@ use util::Name;
 use std::io::{Write, BufReader};
 use std::fs::File;
 use std::path::Path;
-use std::collections::{BTreeSet, BTreeMap};
+use std::collections::{BTreeSet, BTreeMap, BinaryHeap};
 
 #[derive(Eq, PartialEq)]
 enum BinaryFormat {
@@ -45,6 +45,7 @@ pub struct AsmTarget {
     verbose: bool,
     disable_scheduler: bool,
     list_file: Option<String>,
+    debug_file: Option<String>,
     format: BinaryFormat,
     code_start: u32,
     global_start: u32,
@@ -71,6 +72,7 @@ impl MkTarget for AsmTarget {
         let mut code_start = 0;
         let mut stack_start = STACK_START;
         let mut global_start = GLOBAL_MEM_START;
+        let mut debug_file = None;
 
         // TODO: get rid of the unnecessary clones in this function.
         for arg in args.iter() {
@@ -79,6 +81,8 @@ impl MkTarget for AsmTarget {
                 verbose = true;
             } else if arg.0 == "list" {
                 list_file = arg.1.clone();
+            } else if arg.0 == "debug" {
+                debug_file = arg.1.clone();
             } else if arg.0 == "format" {
                 if arg.1 == Some("flat".to_string()) {
                     format = BinaryFormat::FlatFormat;
@@ -108,6 +112,7 @@ impl MkTarget for AsmTarget {
             stack_start: stack_start,
             global_start: global_start,
             disable_scheduler: disable_scheduler,
+            debug_file: debug_file,
         })
     }
 }
@@ -252,6 +257,38 @@ impl Target for AsmTarget {
             let path = Path::new(name);
             File::create(&path).unwrap_or_else(|e| panic!("{}", e))
         });
+
+        let mut debug_file = self.debug_file.clone().map(|ref name| {
+            let path = Path::new(name);
+            File::create(&path).unwrap_or_else(|e| panic!("{}", e))
+        });
+
+        match debug_file {
+            Some(ref mut f) => {
+                let mut func_labels = BinaryHeap::<(isize, String, usize)>::new();
+                for (name, &pos) in all_labels.iter() {
+                    // TODO: this is a hacky way of checking for internal labels.
+                    if !name.starts_with("LABEL") {
+                        func_labels.push((-(pos as isize), name.clone(), pos));
+                    }
+                }
+                // Magic
+                write!(f, "MROD");
+
+                // Label section
+                write!(f, "LBEL");
+                // Number of entries
+                print_bin(func_labels.len() as u32, f);
+                while !func_labels.is_empty() {
+                    let (_, name, pos) = func_labels.pop().unwrap();
+                    print_bin(pos as u32, f);
+                    print_bin(name.len() as u32 + 1, f);
+                    write!(f, "{}", name);
+                    f.write(&[0]);
+                }
+            },
+            None => {}
+        }
 
         match list_file {
             Some(ref mut f) => {
