@@ -39,7 +39,6 @@ use values::*;
 
 use std::path::PathBuf;
 use std::path::Path as FilePath;
-use std::fs::PathExt;
 
 type FuncProto = (Ident, Vec<FuncArg>, ast::Type, Vec<Ident>);
 type StaticDecl = (Ident, ast::Type);
