@@ -1,0 +1,12 @@
+struct x {
+    a: u32
+}
+
+static padding: u8 = 0;
+static the_x: x = x { a: 1 };
+
+fn main() -> u32 {
+    print_uint(the_x.a);
+
+    0
+}

@@ -372,11 +372,19 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         let mut offs: usize = 0;
         let mut result = BTreeMap::new();
 
+        // For now, align everything to 4 bytes.
+        // TODO: smarter alignment/packing of globals.
         for mut global in globals.into_iter() {
-            let size = global.size;
+            let mut size = global.size;
             global.offset = Some(offs);
             result.insert(global.name, global);
+            // Ensure we end of a 4-byte boundary.
+            if size % 4 > 0 {
+                size += 4 - (size % 4);
+            }
+            assert!(size % 4 == 0);
             offs += size;
+            assert!(offs % 4 == 0);
         }
 
         result
