@@ -326,6 +326,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             StaticItem(ref id, ref t, ref exp, is_extern) => {
                 self.static_item_helper(id, t, exp, is_extern)
             }
+            TypeItem(..) => { (vec!(), vec!()) } // Nothing to do for typedefs.
             _ => panic!("{}", item)
         }
     }
