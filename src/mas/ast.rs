@@ -421,6 +421,7 @@ pub enum InstNode {
              ),
     DivInst(Pred,
             bool, // signed?
+            bool, // wide?
             Reg, // Rd
             Reg, // Rs
             Reg // Rt
@@ -709,13 +710,16 @@ impl Display for InstNode {
             }
             DivInst(pred,
                     signed,
+                    wide,
                     rd,
                     rs,
                     rt
                     ) => {
-                write!(f, "{}{} <- {} {} {}",
+                write!(f, "{}{} <- {} {}{} {}",
                        format_pred(pred),
-                       rd, rs, if signed { "/s" } else { "/" }, rt)
+                       rd, rs, if signed { "/s" } else { "/" },
+                       if wide { "w" } else { "s" },
+                       rt)
             }
             FlushInst(pred,
                       flushtype,
@@ -1062,6 +1066,7 @@ impl InstNode {
     }
     pub fn div(pred: Pred,
                signed: bool, // signed?
+               wide: bool, // wide?
                rd: Reg, // Rd
                rs: Reg, // Rs
                rt: Reg // Rt
@@ -1072,6 +1077,7 @@ impl InstNode {
         assert_reg(rt);
         DivInst(pred,
                 signed,
+                wide,
                 rd,
                 rs,
                 rt)

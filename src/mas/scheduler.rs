@@ -17,7 +17,7 @@ fn destreg(inst: &InstNode) -> Option<Reg> {
         MfcInst(_, r, _) |
         MfhiInst(_, r) |
         MultInst(_, _, r, _, _) |
-        DivInst(_, _, r, _, _) => Some(r),
+        DivInst(_, _, _, r, _, _) => Some(r),
         _ => None,
     }
 }
@@ -35,7 +35,7 @@ fn pred(inst: &InstNode) -> Option<Pred> {
         MfcInst(p, _, _) |
         MfhiInst(p, _) |
         MultInst(p, _, _, _, _) |
-        DivInst(p, _, _, _, _) |
+        DivInst(p, _, _, _, _, _) |
         StoreInst(p, _, _, _, _) |
         CompareShortInst(p, _, _, _, _, _) |
         CompareRegInst(p, _, _, _, _, _, _) |
@@ -80,7 +80,7 @@ fn srcreg1(inst: &InstNode) -> Option<Reg> {
         MtcInst(_, _, r) |
         MthiInst(_, r) |
         MultInst(_, _, _, r, _) |
-        DivInst(_, _, _, r, _) |
+        DivInst(_, _, _, _, r, _) |
         FlushInst(_, _, r) => Some(r),
         _ => None
     }
@@ -95,7 +95,7 @@ fn srcreg2(inst: &InstNode) -> Option<Reg> {
         StoreInst(_, _, _, _, r) |
         CompareRegInst(_, _, _, _, r, _, _) |
         MultInst(_, _, _, _, r) |
-        DivInst(_, _, _, _, r) => Some(r),
+        DivInst(_, _, _, _, _, r) => Some(r),
         _ => None
     }
 }

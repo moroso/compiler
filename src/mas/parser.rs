@@ -218,21 +218,31 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
     }
 
     fn parse_mul_or_div(&mut self, pred: Pred, rd: Reg, rs: Reg) -> InstNode {
-        let cons: fn(Pred, bool, Reg, Reg, Reg) -> InstNode;
         let is_signed;
+        let mut is_wide = false;
+        let is_mul;
 
         match self.eat() {
             Token::Star |
-            Token::StarU => { cons = InstNode::mult; is_signed = false; }
-            Token::StarS => { cons = InstNode::mult; is_signed = true; }
+            Token::StarU => { is_mul = true; is_signed = false; }
+            Token::StarS => { is_mul = true; is_signed = true; }
             Token::Slash |
-            Token::SlashU => { cons = InstNode::div; is_signed = false; }
-            Token::SlashS => { cons = InstNode::div; is_signed = true; }
+            Token::SlashU => { is_mul = false; is_signed = false; is_wide = false; }
+            Token::SlashW |
+            Token::SlashUW => { is_mul = false; is_signed = false; is_wide = true; }
+            Token::SlashS => { is_mul = false; is_signed = true; is_wide = false; }
+            Token::SlashSW => { is_mul = false; is_signed = true; is_wide = true; }
             _ => self.error("ICE: should have a mult/div here.")
         }
 
         match self.eat() {
-            Token::Reg(rt) => cons(pred, is_signed, rd, rs, rt),
+            Token::Reg(rt) => {
+                if is_mul {
+                    InstNode::mult(pred, is_signed, rd, rs, rt)
+                } else {
+                    InstNode::div(pred, is_signed, is_wide, rd, rs, rt)
+                }
+            }
             _ => self.error("Expected register.")
         }
     }
@@ -334,8 +344,11 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
                             Token::StarS |
                             Token::StarU |
                             Token::Slash |
+                            Token::SlashW |
                             Token::SlashS |
-                            Token::SlashU => {
+                            Token::SlashSW |
+                            Token::SlashU |
+                            Token::SlashUW => {
                                 self.parse_mul_or_div(pred, rd, reg)
                             }
                             _ => {

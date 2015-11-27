@@ -1118,6 +1118,7 @@ impl<'a> IrToAsm<'a> {
                                         Pred { inverted: false,
                                                reg: 3 },
                                         signed,
+                                        false,
                                         dest,
                                         reg_l,
                                         reg_r)),
@@ -1127,6 +1128,7 @@ impl<'a> IrToAsm<'a> {
                                         Pred { inverted: false,
                                                reg: 3 },
                                         signed,
+                                        false,
                                         dest,
                                         reg_l,
                                         reg_r));
@@ -1262,6 +1264,7 @@ impl<'a> IrToAsm<'a> {
                                             Pred { inverted: false,
                                                    reg: 3 },
                                             signed,
+                                            false,
                                             dest,
                                             GLOBAL_REG,
                                             reg_l)
@@ -1270,6 +1273,7 @@ impl<'a> IrToAsm<'a> {
                                             Pred { inverted: false,
                                                    reg: 3 },
                                             signed,
+                                            false,
                                             dest,
                                             reg_l,
                                             GLOBAL_REG)
@@ -1290,6 +1294,7 @@ impl<'a> IrToAsm<'a> {
                                             Pred { inverted: false,
                                                    reg: 3 },
                                             signed,
+                                            false,
                                             dest,
                                             GLOBAL_REG,
                                             reg_l)
@@ -1298,6 +1303,7 @@ impl<'a> IrToAsm<'a> {
                                             Pred { inverted: false,
                                                    reg: 3 },
                                             signed,
+                                            false,
                                             dest,
                                             reg_l,
                                             GLOBAL_REG)

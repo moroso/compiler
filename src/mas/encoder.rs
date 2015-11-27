@@ -3,7 +3,7 @@ use mas::ast::*;
 // TODO: add asserts all over the place here.
 
 pub fn encode_pred(pred: &Pred) -> u32 {
-    (if pred.inverted { 1<<29 } else { 0 }) | 
+    (if pred.inverted { 1<<29 } else { 0 }) |
     ((pred.reg as u32) << 30)
 }
 
@@ -305,12 +305,14 @@ pub fn encode(inst: &InstNode) -> u32 {
         }
         DivInst(pred,
                 signed,
+                wide,
                 rd,
                 rs,
                 rt) => {
             (0b100011001 << 20) |
             encode_pred(&pred) |
             (if signed { 1<<19 } else { 0 }) |
+            (if wide { 1<<13 } else { 0 }) |
             encode_rd(&rd) |
             encode_rs(&rs) |
             encode_rt(&rt)
