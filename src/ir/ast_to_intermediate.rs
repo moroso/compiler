@@ -11,7 +11,9 @@ use mc::ast::*;
 
 use intrinsics::size_of::*;
 use ir::*;
-use typechecker::*;
+use typechecker::{Typemap, Ty, enum_is_c_like};
+use typechecker::Ty::*;
+use typechecker::TyBounds::*;
 
 use std::mem::swap;
 use std::cmp::max;
@@ -117,7 +119,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         match *ty {
             IntTy(..) |
             UintTy(..) |
-            GenericIntTy(..) => {},
+            GenericIntTy => {},
             _ => return (vec!(), Some(v))
         }
         let width = ty_width(ty);
@@ -1394,14 +1396,14 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     (ops, Some(result_var))
                 }
             }
-            BreakExpr(..) => {
+            BreakExpr => {
                 let op = OpNode::Goto(*self.break_labels.last().expect(
                     "Break with no label to break to"),
                                       BTreeSet::new());
                 (vec!(self.add_id(op)),
                  None)
             }
-            ContinueExpr(..) => {
+            ContinueExpr => {
                 let op = OpNode::Goto(*self.continue_labels.last().expect(
                     "Continue with no label to continue to"),
                                       BTreeSet::new());

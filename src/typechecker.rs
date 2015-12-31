@@ -73,8 +73,8 @@ struct ConstGraphBuilder<'a> {
     session: &'a Session<'a>,
 }
 
-type Constant = LitNode;
-type ConstantResult = Result<Constant, (NodeId, &'static str)>;
+pub type Constant = LitNode;
+pub type ConstantResult = Result<Constant, (NodeId, &'static str)>;
 pub type ConstantMap = BTreeMap<NodeId, ConstantResult>;
 
 pub fn enum_is_c_like(session: &Session, typemap: &Typemap, id: &NodeId) -> bool {
@@ -294,7 +294,7 @@ impl Ty {
 }
 
 #[derive(Eq, PartialEq, Clone, Ord, PartialOrd, Debug)]
-enum Kind {
+pub enum Kind {
     EqKind,
     CmpKind,
     AndKind,

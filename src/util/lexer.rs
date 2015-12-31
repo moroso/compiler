@@ -244,7 +244,7 @@ impl<T: MaybeArg> RuleMatcher<T> for Regex {
 
 // Utility trait to optionally grab the match as an argument
 // (useful to avoid unnecessary string copies when we will just throw the result away anyway)
-trait MaybeArg {
+pub trait MaybeArg {
     fn maybe_arg<T: ?Sized + ToString>(arg: &T) -> Self;
 }
 
