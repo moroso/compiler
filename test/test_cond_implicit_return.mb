@@ -1,0 +1,23 @@
+static x: bool = false;
+static z: u32 = 100;
+
+fn y() {}
+
+fn test_fn() -> *u8 {
+    if x {
+        y();
+
+        100 as *u8
+    } else {
+        x = true;
+        y();
+
+        z as *u8
+    }
+}
+
+fn main() -> u32 {
+    print_uint(test_fn() as u32);
+
+    0
+}
