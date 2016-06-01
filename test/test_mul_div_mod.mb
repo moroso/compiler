@@ -1,0 +1,15 @@
+fn z() -> u32 { 16 }
+fn w() -> i32 { 32 }
+fn d() -> u32 { 25 }
+
+fn main() -> u32 {
+    let x: u32 = z();
+    let y = w();
+    let a = x / 8 + x * 32;
+    let b = y / 4 + y * 64;
+    let c = d() % 8u32;
+
+    print_uint((a as u32) + (b as u32) + (c as u32));
+
+    0
+}

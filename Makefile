@@ -21,6 +21,7 @@ MC_FILES := \
 	ir/constant_fold.rs \
 	ir/liveness.rs \
 	ir/mod.rs \
+	ir/multiply_optimizer.rs \
 	ir/ssa.rs \
 	ir/util.rs \
 	mas/ast.rs \

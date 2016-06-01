@@ -685,18 +685,18 @@ impl Display for InstNode {
                        format_pred(pred))
             }
             MthiInst(pred,
-                     rs
-                     ) => {
-                write!(f, "{}{} <- ovf",
-                       format_pred(pred),
-                       rs)
-            }
-            MfhiInst(pred,
                      rd
                      ) => {
                 write!(f, "{}ovf <- {}",
                        format_pred(pred),
                        rd)
+            }
+            MfhiInst(pred,
+                     rs
+                     ) => {
+                write!(f, "{}{} <- ovf",
+                       format_pred(pred),
+                       rs)
             }
             MultInst(pred,
                      signed,

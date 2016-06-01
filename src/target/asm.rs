@@ -10,6 +10,7 @@ use super::{MkTarget,Target};
 use ir::liveness::LivenessAnalyzer;
 use ir::ast_to_intermediate::ASTToIntermediate;
 use ir::constant_fold::ConstantFolder;
+use ir::multiply_optimizer::MultiplyOptimizer;
 use ir::ssa::ToSSA;
 use ir::conflicts::ConflictAnalyzer;
 use ir::StaticIRItem;
@@ -50,6 +51,10 @@ pub struct AsmTarget {
     code_start: u32,
     global_start: u32,
     stack_start: u32,
+    mul_func: Option<String>,
+    div_func: Option<String>,
+    mod_func: Option<String>,
+    const_mul_bit_limit: u8,
 }
 
 // TODO: move this somewhere common.
@@ -73,6 +78,10 @@ impl MkTarget for AsmTarget {
         let mut stack_start = STACK_START;
         let mut global_start = GLOBAL_MEM_START;
         let mut debug_file = None;
+        let mut mul_func = None;
+        let mut div_func = None;
+        let mut mod_func = None;
+        let mut const_mul_bit_limit = 1;
 
         // TODO: get rid of the unnecessary clones in this function.
         for arg in args.iter() {
@@ -102,6 +111,15 @@ impl MkTarget for AsmTarget {
                 global_start = u32::from_str_radix(&arg.1.clone().unwrap()[..], 16).unwrap();
             } else if arg.0 == "disable_scheduler" {
                 disable_scheduler = true;
+            } else if arg.0 == "mul_func" {
+                mul_func = arg.1.clone();
+            } else if arg.0 == "div_func" {
+                div_func = arg.1.clone();
+            } else if arg.0 == "mod_func" {
+                mod_func = arg.1.clone();
+            } else if arg.0 == "const_mul_bit_limit" {
+                // TODO: actually implement this functionality.
+                const_mul_bit_limit = u8::from_str_radix(&arg.1.clone().unwrap()[..], 10).unwrap();
             }
         }
         Box::new(AsmTarget {
@@ -113,6 +131,10 @@ impl MkTarget for AsmTarget {
             global_start: global_start,
             disable_scheduler: disable_scheduler,
             debug_file: debug_file,
+            mul_func: mul_func,
+            div_func: div_func,
+            mod_func: mod_func,
+            const_mul_bit_limit: const_mul_bit_limit,
         })
     }
 }
@@ -200,6 +222,11 @@ impl Target for AsmTarget {
                                        strings,
                                        self.global_start);
 
+        // TODO: better ownership of "session".
+        let mul_func_name = self.mul_func.clone().map(|x| irtoasm.session.interner.intern(x));
+        let div_func_name = self.div_func.clone().map(|x| irtoasm.session.interner.intern(x));
+        let mod_func_name = self.mod_func.clone().map(|x| irtoasm.session.interner.intern(x));
+
         for insts in result.iter_mut() {
             if self.verbose {
                 print!("Start conversion!\n");
@@ -207,6 +234,15 @@ impl Target for AsmTarget {
             }
             ToSSA::to_ssa(insts, self.verbose);
             ConstantFolder::fold(insts, &global_map, self.verbose);
+            MultiplyOptimizer::process(insts, self.verbose, &mut irtoasm.session,
+                                       mul_func_name, div_func_name, mod_func_name,
+                                       self.const_mul_bit_limit);
+            if self.verbose {
+                print!("Post-optimization:\n");
+                for op in insts.iter() {
+                    print!("{}", op);
+                }
+            }
             let opinfo = LivenessAnalyzer::analyze(insts);
             if self.verbose {
                 for a in opinfo.iter() {

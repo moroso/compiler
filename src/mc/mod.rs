@@ -101,6 +101,12 @@ pub fn main() {
                "<hex value, no 0x>"),
         optopt("", "code_start", "Address in hex of the start of the code (asm target only)",
                "<hex value, no 0x>"),
+        optopt("", "mul_func", "Name of function to use for software multiplication (asm target only)",
+               "<mangled function name>"),
+        optopt("", "div_func", "Name of function to use for software division (asm target only)",
+               "<mangled function name>"),
+        optopt("", "mod_func", "Name of function to use for software modulo (asm target only)",
+               "<mangled function name>"),
         optflag("d", "dep-files", "Generate dependency files"),
         optflag("v", "verbose", "Enable verbose output."),
         optflag("", "disable_scheduler", "Disable instruction scheduler (asm target only)"),
@@ -148,7 +154,7 @@ pub fn main() {
     }
 
     for opt in vec!("list", "format", "code_start", "stack_start", "global_start",
-                    "debug").into_iter() {
+                    "debug", "mul_func", "div_func", "mod_func").into_iter() {
         let val = matches.opt_str(opt);
         if val.is_some() {
             opts.push((opt.to_string(), val));
