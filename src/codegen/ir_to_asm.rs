@@ -87,19 +87,16 @@ fn width_to_lsuwidth(width: &Width) -> LsuWidth {
 pub struct IrToAsm<'a> {
     global_mem_start: u32,
     global_map: &'a BTreeMap<Name, StaticIRItem>,
-    pub session: Session<'a>,
     pub strings: BTreeSet<Name>,
 }
 
 impl<'a> IrToAsm<'a> {
     pub fn new(global_map: &'a BTreeMap<Name, StaticIRItem>,
-               session: Session<'a>,
                strings: BTreeSet<Name>,
                global_mem_start: u32) -> IrToAsm<'a> {
         IrToAsm::<'a> {
             global_mem_start: global_mem_start,
             global_map: global_map,
-            session: session,
             strings: strings,
         }
     }
@@ -111,8 +108,9 @@ impl<'a> IrToAsm<'a> {
          InstNode::long(0)]
     }
 
-    pub fn strings_to_asm(&mut self) -> (Vec<[InstNode; 4]>,
-                                         BTreeMap<String, usize>) {
+    pub fn strings_to_asm(&mut self,
+                          session: &mut Session) -> (Vec<[InstNode; 4]>,
+                                                     BTreeMap<String, usize>) {
         let mut labels = BTreeMap::new();
         let mut insts: Vec<[InstNode; 4]> = vec!();
         for &Name(s) in self.strings.iter() {
@@ -121,7 +119,7 @@ impl<'a> IrToAsm<'a> {
             let mut cur = 0u32;
             let mut cur_packet: [InstNode; 4] = IrToAsm::empty_packet();
             labels.insert(format!("__INTERNED_STRING{}", s), insts.len());
-            for b in self.session.interner.name_to_str(&Name(s)).bytes()
+            for b in session.interner.name_to_str(&Name(s)).bytes()
                 .chain(vec!(0u8).into_iter()) {
                 cur |= (b as u32) << (bytepos * 8);
                 bytepos += 1;
@@ -153,6 +151,7 @@ impl<'a> IrToAsm<'a> {
 
     pub fn ir_to_asm(&mut self,
                      ops: &Vec<Op>,
+                     session: &mut Session,
     ) -> (Vec<InstNode>, BTreeMap<String, usize>,
           BTreeMap<Var, RegisterColor>, // Register allocator output
           Vec<OpInfo>, // Liveness analyzer output
@@ -364,7 +363,8 @@ impl<'a> IrToAsm<'a> {
                         self.convert_unop(&regmap, RETURN_REG,
                                           &Identity, rve,
                                           -stack_ptr_offs,
-                                          -stack_ptr_offs + spilled_regs_offs).into_iter());
+                                          -stack_ptr_offs + spilled_regs_offs,
+                                          session).into_iter());
 
                     // Restore all callee-save registers
                     for (x, i) in (FIRST_CALLEE_SAVED_REG.index .. max_reg_index+1).enumerate() {
@@ -420,6 +420,7 @@ impl<'a> IrToAsm<'a> {
                                            rve1, rve2,
                                            -stack_ptr_offs,
                                            -stack_ptr_offs + spilled_regs_offs,
+                                           session,
                                            ).into_iter());
                     result.extend(after.into_iter());
                 },
@@ -433,6 +434,7 @@ impl<'a> IrToAsm<'a> {
                         self.convert_unop(&regmap, lhs_reg, op, rve1,
                                           -stack_ptr_offs,
                                           -stack_ptr_offs + spilled_regs_offs,
+                                          session,
                                           ).into_iter());
                     result.extend(after.into_iter());
                 }
@@ -1050,7 +1052,8 @@ impl<'a> IrToAsm<'a> {
         mut op_l: &'b RValueElem,
         mut op_r: &'b RValueElem,
         args_offs: i32,
-        spill_offs: i32) -> Vec<InstNode> {
+        spill_offs: i32,
+        session: &mut Session) -> Vec<InstNode> {
 
         let mut result = vec!();
         let mut swapped = false;
@@ -1183,7 +1186,7 @@ impl<'a> IrToAsm<'a> {
             Constant(ref val) => {
                 // In this case, we may have swapped the order of the operands.
 
-                let longval = lit_to_longvalue(val, &mut self.session, &mut self.strings);
+                let longval = lit_to_longvalue(val, session, &mut self.strings);
                 let packed = match longval {
                     Immediate(num) => pack_int(num, 10),
                     _ => None,
@@ -1412,7 +1415,8 @@ impl<'a> IrToAsm<'a> {
         op: &UnOpNode,
         rhs: &'b RValueElem,
         args_offs: i32,
-        spill_offs: i32) -> Vec<InstNode> {
+        spill_offs: i32,
+        session: &mut Session) -> Vec<InstNode> {
 
         let pred = Pred {
             inverted: false,
@@ -1522,7 +1526,7 @@ impl<'a> IrToAsm<'a> {
                                             op) };
 
                 let mut result = vec!();
-                let longval = lit_to_longvalue(val, &mut self.session, &mut self.strings);
+                let longval = lit_to_longvalue(val, session, &mut self.strings);
                 let packed = match longval {
                     Immediate(num) => pack_int(num, 15),
                     _ => None,

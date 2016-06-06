@@ -139,22 +139,21 @@ impl Target for AsmTarget {
     fn compile(&self, p: Package, f: &mut Write) {
         let Package {
             module,
-            session,
+            mut session,
             mut typemap,
         } = p;
 
-        let mangler = NameMangler::new(session, &module, true, false);
+        let mangle_map = NameMangler::get_mangle_map(&mut session, &module, true, false);
         let mut sourcemap = BTreeMap::<IrNodeId, NodeId>::new();
-        let mut session = mangler.session;
 
         if self.verbose {
-            print!("Mangler: {:?}\n", mangler.names);
+            print!("Mangler: {:?}\n", mangle_map);
         }
 
         let (mut result, mut staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,
-                                                       &mangler.names,
+                                                       &mangle_map,
                                                        &mut sourcemap);
 
             converter.convert_module(&module)
@@ -186,7 +185,7 @@ impl Target for AsmTarget {
         let global_initializer = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,
-                                                       &mangler.names,
+                                                       &mangle_map,
                                                        &mut sourcemap);
 
             converter.convert_globals(&global_map)
@@ -213,14 +212,12 @@ impl Target for AsmTarget {
         let strings: BTreeSet<Name> = BTreeSet::new();
 
         let mut irtoasm = IrToAsm::new(&global_map,
-                                       session,
                                        strings,
                                        self.global_start);
 
-        // TODO: better ownership of "session".
-        let mul_func_name = self.mul_func.clone().map(|x| irtoasm.session.interner.intern(x));
-        let div_func_name = self.div_func.clone().map(|x| irtoasm.session.interner.intern(x));
-        let mod_func_name = self.mod_func.clone().map(|x| irtoasm.session.interner.intern(x));
+        let mul_func_name = self.mul_func.clone().map(|x| session.interner.intern(x));
+        let div_func_name = self.div_func.clone().map(|x| session.interner.intern(x));
+        let mod_func_name = self.mod_func.clone().map(|x| session.interner.intern(x));
 
         let mut debug_info: BTreeMap<Name,
                                      (BTreeMap<Var, RegisterColor>,
@@ -240,7 +237,7 @@ impl Target for AsmTarget {
             };
             ToSSA::to_ssa(&mut insts, self.verbose);
             ConstantFolder::fold(&mut insts, &global_map, self.verbose);
-            MultiplyOptimizer::process(&mut insts, self.verbose, &mut irtoasm.session,
+            MultiplyOptimizer::process(&mut insts, self.verbose, &mut session,
                                        mul_func_name, div_func_name, mod_func_name,
                                        self.const_mul_bit_limit);
             if self.verbose {
@@ -250,8 +247,8 @@ impl Target for AsmTarget {
                     match new_id {
                         Some(id) =>
                             print!("{:?} {:?}\n",
-                                   irtoasm.session.parser.spanmap.get(&id),
-                                   irtoasm.session.parser.filemap.get(&id)),
+                                   session.parser.spanmap.get(&id),
+                                   session.parser.filemap.get(&id)),
                         _ => {}
                     }
                     print!("{}", op.id);
@@ -274,7 +271,8 @@ impl Target for AsmTarget {
                                               &global_map,
                                               NUM_USABLE_VARS as usize));
             }
-            let (asm_insts, labels, coloring, opinfo, correspondence) = irtoasm.ir_to_asm(&mut insts);
+            let (asm_insts, labels, coloring, opinfo, correspondence) = irtoasm.ir_to_asm(
+                &mut insts, &mut session);
 
             if self.verbose {
                 for (pos, inst) in asm_insts.iter().enumerate() {
@@ -304,7 +302,7 @@ impl Target for AsmTarget {
                               ));
         }
 
-        items.push(irtoasm.strings_to_asm());
+        items.push(irtoasm.strings_to_asm(&mut session));
 
         let (mut all_packets, mut all_labels) = link(items);
 
@@ -322,8 +320,8 @@ impl Target for AsmTarget {
             Some(ref mut f) => {
                 write_debug_file(f,
                                  &all_labels,
-                                 &irtoasm.session.parser.spanmap,
-                                 &irtoasm.session.parser.filemap,
+                                 &session.parser.spanmap,
+                                 &session.parser.filemap,
                                  &sourcemap,
                                  &debug_info);
             },

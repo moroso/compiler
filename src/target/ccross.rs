@@ -952,19 +952,19 @@ impl Target for CTarget {
     fn compile(&self, p: Package, f: &mut Write) {
         let Package {
             module,
-            session,
+            mut session,
             typemap,
         } = p;
 
-        let mangler = NameMangler::new(session, &module, false, false);
+        let mangle_map = NameMangler::get_mangle_map(&mut session, &module, false, false);
 
         let mut cc = CCrossCompiler {
             structnames: find_structs(&module),
             enumitemnames: find_enum_item_names(&module),
             enumnames: find_enum_names(&module),
-            session: mangler.session,
+            session: session,
             typemap: typemap,
-            mangle_map: mangler.names,
+            mangle_map: mangle_map,
             indent: 0,
         };
 

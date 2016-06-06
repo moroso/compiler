@@ -328,18 +328,17 @@ impl Target for IRTarget {
     fn compile(&self, p: Package, f: &mut Write) {
         let Package {
             module,
-            session,
+            mut session,
             mut typemap,
         } = p;
 
-        let mangler = NameMangler::new(session, &module, true, false);
-        let mut session = mangler.session;
         let mut sourcemap = BTreeMap::<IrNodeId, NodeId>::new();
 
+        let mangle_map = NameMangler::get_mangle_map(&mut session, &module, true, false);
         let (mut result, staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,
-                                                       &mangler.names,
+                                                       &mangle_map,
                                                        &mut sourcemap);
 
             if self.verbose {
@@ -388,7 +387,7 @@ impl Target for IRTarget {
         let global_initializer = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,
-                                                       &mangler.names,
+                                                       &mangle_map,
                                                        &mut sourcemap);
 
             converter.convert_globals(&global_map)

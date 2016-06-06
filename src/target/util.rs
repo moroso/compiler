@@ -4,24 +4,25 @@ use mc::session::Session;
 use std::collections::BTreeMap;
 use std::io::Write;
 
-pub struct NameMangler<'a> {
+pub struct NameMangler<'a: 'b, 'b> {
     pub names: BTreeMap<NodeId, String>,
-    pub session: Session<'a>,
+    pub session: &'b mut Session<'a>,
     path: Vec<String>,
     mangle_main: bool,
     mangle_externs: bool,
 }
 
-impl<'a> NameMangler<'a> {
-    pub fn new(session: Session<'a>, module: &Module,
-               mangle_main: bool, mangle_externs: bool) -> NameMangler<'a> {
+impl<'a, 'b> NameMangler<'a, 'b> {
+    pub fn get_mangle_map(session: &'b mut Session<'a>, module: &Module,
+                          mangle_main: bool, mangle_externs: bool) -> BTreeMap<NodeId, String> {
         let mut mangler = NameMangler { names: BTreeMap::new(),
                                         path: vec!(),
                                         session: session,
                                         mangle_main: mangle_main,
                                         mangle_externs: mangle_externs };
         mangler.visit_module(module);
-        mangler
+
+        mangler.names
     }
 
     fn mangle_id(&mut self, id: &Ident, item: &Item) {
@@ -46,7 +47,7 @@ impl<'a> NameMangler<'a> {
     }
 }
 
-impl<'a> Visitor for NameMangler<'a> {
+impl<'a, 'b> Visitor for NameMangler<'a, 'b> {
     fn visit_item(&mut self, item: &Item) {
         match item.val {
             ModItem(ref id, ref body) => {
