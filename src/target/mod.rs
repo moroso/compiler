@@ -11,6 +11,7 @@ mod ccross;
 mod ir;
 mod asm;
 mod util;
+mod debug_info;
 
 pub trait Target {
     fn compile(&self, p: Package, f: &mut Write);

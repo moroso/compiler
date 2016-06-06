@@ -153,7 +153,11 @@ impl<'a> IrToAsm<'a> {
 
     pub fn ir_to_asm(&mut self,
                      ops: &Vec<Op>,
-                     ) -> (Vec<InstNode>, BTreeMap<String, usize>) {
+    ) -> (Vec<InstNode>, BTreeMap<String, usize>,
+          BTreeMap<Var, RegisterColor>, // Register allocator output
+          Vec<OpInfo>, // Liveness analyzer output
+          Vec<usize> // IR -> ASM map.
+    ) {
         /*
         Before this function will make any sense, you'll need to know how the stack is organized.
 
@@ -291,8 +295,12 @@ impl<'a> IrToAsm<'a> {
         let store32_op = LsuOp { store: true, width: LsuWidthL };
         let load32_op = LsuOp { store: false, width: LsuWidthL };
 
+        // Map from IR locations to ASM locations.
+        let mut correspondence = vec!();
+
         let mut result = vec!();
         for (pos, op) in ops.iter().enumerate() {
+            correspondence.push(result.len());
             match op.val {
                 OpNode::Func(ref name, _, ref abi) => {
                     if let Some(ref abi) = *abi {
@@ -766,7 +774,8 @@ impl<'a> IrToAsm<'a> {
             }
         }
 
-        (result, targets)
+        correspondence.push(result.len());
+        (result, targets, regmap, opinfo, correspondence)
     }
 
     // Given a variable, return the register corresponding to it.  Also

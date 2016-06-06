@@ -2,6 +2,7 @@ use mc::ast::visitor::{Visitor, walk_ident, walk_item, walk_path, walk_expr};
 use mc::ast::*;
 use mc::session::Session;
 use std::collections::BTreeMap;
+use std::io::Write;
 
 pub struct NameMangler<'a> {
     pub names: BTreeMap<NodeId, String>,
@@ -75,4 +76,14 @@ impl<'a> Visitor for NameMangler<'a> {
             _ => walk_item(self, item),
         }
     }
+}
+
+pub fn print_bin(n: u32, stream: &mut Write) {
+    // Write in little-endian format.
+    (stream.write(vec!(
+        (n >>  0) as u8,
+        (n >>  8) as u8,
+        (n >> 16) as u8,
+        (n >> 24) as u8,
+        ).as_ref())).ok();
 }

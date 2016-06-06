@@ -48,6 +48,7 @@ MC_FILES := \
 	mc/session.rs \
 	target/asm.rs \
 	target/ccross.rs \
+	target/debug_info.rs \
 	target/ir.rs \
 	target/mod.rs \
 	target/util.rs \

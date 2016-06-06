@@ -24,25 +24,27 @@ pub mod defmap;
 pub mod macros;
 pub mod pathmap;
 
+pub type WithId<T> = WithIdT<NodeId, T>;
+
 #[derive(Clone, Eq, Copy)]
-pub struct WithId<T> {
-    pub id: NodeId,
+pub struct WithIdT<I, T> {
+    pub id: I,
     pub val: T,
 }
 
-impl<T: PartialEq> PartialEq for WithId<T> {
-    fn eq(&self, other: &WithId<T>) -> bool {
+impl<I, T: PartialEq> PartialEq for WithIdT<I, T> {
+    fn eq(&self, other: &WithIdT<I, T>) -> bool {
         self.val.eq(&other.val)
     }
 }
 
-impl<T: Debug> Debug for WithId<T> {
+impl<I, T: Debug> Debug for WithIdT<I, T> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.val.fmt(f)
     }
 }
 
-impl<T: Display> Display for WithId<T> {
+impl<I, T: Display> Display for WithIdT<I, T> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.val.fmt(f)
     }

@@ -334,7 +334,7 @@ impl Target for IRTarget {
 
         let mangler = NameMangler::new(session, &module, true, false);
         let mut session = mangler.session;
-        let mut sourcemap = BTreeMap::<NodeId, NodeId>::new();
+        let mut sourcemap = BTreeMap::<IrNodeId, NodeId>::new();
 
         let (mut result, staticitems) = {
             let mut converter = ASTToIntermediate::new(&mut session,

@@ -13,10 +13,13 @@ use ir::constant_fold::ConstantFolder;
 use ir::multiply_optimizer::MultiplyOptimizer;
 use ir::ssa::ToSSA;
 use ir::conflicts::ConflictAnalyzer;
-use ir::StaticIRItem;
+use ir::{IrNodeId, Op, OpInfo, OpNode, StaticIRItem, Var};
 
 use target::NameMangler;
+use target::debug_info::write_debug_file;
+use target::util::print_bin;
 
+use codegen::RegisterColor;
 use codegen::register_color::RegisterColorer;
 use codegen::{NUM_USABLE_VARS, GLOBAL_MEM_START, STACK_START};
 use codegen::IrToAsm;
@@ -35,6 +38,9 @@ use std::io::{Write, BufReader};
 use std::fs::File;
 use std::path::Path;
 use std::collections::{BTreeSet, BTreeMap, BinaryHeap};
+
+// TODO: remove this; we won't need it later.
+use mas::ast::InstNode;
 
 #[derive(Eq, PartialEq)]
 enum BinaryFormat {
@@ -55,17 +61,6 @@ pub struct AsmTarget {
     div_func: Option<String>,
     mod_func: Option<String>,
     const_mul_bit_limit: u8,
-}
-
-// TODO: move this somewhere common.
-fn print_bin(n: u32, stream: &mut Write) {
-    // Write in little-endian format.
-    (stream.write(vec!(
-        (n >>  0) as u8,
-        (n >>  8) as u8,
-        (n >> 16) as u8,
-        (n >> 24) as u8,
-        ).as_ref())).ok();
 }
 
 impl MkTarget for AsmTarget {
@@ -149,7 +144,7 @@ impl Target for AsmTarget {
         } = p;
 
         let mangler = NameMangler::new(session, &module, true, false);
-        let mut sourcemap = BTreeMap::<NodeId, NodeId>::new();
+        let mut sourcemap = BTreeMap::<IrNodeId, NodeId>::new();
         let mut session = mangler.session;
 
         if self.verbose {
@@ -227,30 +222,50 @@ impl Target for AsmTarget {
         let div_func_name = self.div_func.clone().map(|x| irtoasm.session.interner.intern(x));
         let mod_func_name = self.mod_func.clone().map(|x| irtoasm.session.interner.intern(x));
 
-        for insts in result.iter_mut() {
+        let mut debug_info: BTreeMap<Name,
+                                     (BTreeMap<Var, RegisterColor>,
+                                      Vec<Op>,
+                                      Vec<OpInfo>,
+                                      Vec<usize>,
+                                      Vec<InstNode>)> = BTreeMap::new();
+
+        for mut insts in result.into_iter() {
             if self.verbose {
                 print!("Start conversion!\n");
                 print!("{:?}\n", insts);
             }
-            ToSSA::to_ssa(insts, self.verbose);
-            ConstantFolder::fold(insts, &global_map, self.verbose);
-            MultiplyOptimizer::process(insts, self.verbose, &mut irtoasm.session,
+            let func_name = match insts[0].val {
+                OpNode::Func(funcname, _, _) => funcname,
+                _ => panic!("Function doesn't start with a 'Func' op!")
+            };
+            ToSSA::to_ssa(&mut insts, self.verbose);
+            ConstantFolder::fold(&mut insts, &global_map, self.verbose);
+            MultiplyOptimizer::process(&mut insts, self.verbose, &mut irtoasm.session,
                                        mul_func_name, div_func_name, mod_func_name,
                                        self.const_mul_bit_limit);
             if self.verbose {
                 print!("Post-optimization:\n");
                 for op in insts.iter() {
+                    let new_id = sourcemap.get(&op.id);
+                    match new_id {
+                        Some(id) =>
+                            print!("{:?} {:?}\n",
+                                   irtoasm.session.parser.spanmap.get(&id),
+                                   irtoasm.session.parser.filemap.get(&id)),
+                        _ => {}
+                    }
+                    print!("{}", op.id);
                     print!("{}", op);
                 }
             }
-            let opinfo = LivenessAnalyzer::analyze(insts);
+            let opinfo = LivenessAnalyzer::analyze(&mut insts);
             if self.verbose {
                 for a in opinfo.iter() {
                     print!("{:?}\n", a);
                 }
                 print!("{:?}\n", insts);
                 let (conflict_map, counts, must_colors, mem_vars) =
-                    ConflictAnalyzer::conflicts(insts, &opinfo);
+                    ConflictAnalyzer::conflicts(&mut insts, &opinfo);
                 print!("conflicts: {:?}\ncounts: {:?}\nmust: {:?}\nin mem: {:?}\n",
                        conflict_map, counts, must_colors, mem_vars);
                 print!("{:?}\n",
@@ -259,7 +274,7 @@ impl Target for AsmTarget {
                                               &global_map,
                                               NUM_USABLE_VARS as usize));
             }
-            let (asm_insts, labels) = irtoasm.ir_to_asm(insts);
+            let (asm_insts, labels, coloring, opinfo, correspondence) = irtoasm.ir_to_asm(&mut insts);
 
             if self.verbose {
                 for (pos, inst) in asm_insts.iter().enumerate() {
@@ -283,6 +298,10 @@ impl Target for AsmTarget {
                 schedule(&asm_insts, &labels, self.verbose)
             };
             items.push((packets, new_labels));
+            debug_info.insert(func_name,
+                              (coloring, insts, opinfo, correspondence,
+                               asm_insts.clone() // TODO: remove this when we're confident stuff works
+                              ));
         }
 
         items.push(irtoasm.strings_to_asm());
@@ -301,27 +320,12 @@ impl Target for AsmTarget {
 
         match debug_file {
             Some(ref mut f) => {
-                let mut func_labels = BinaryHeap::<(isize, String, usize)>::new();
-                for (name, &pos) in all_labels.iter() {
-                    // TODO: this is a hacky way of checking for internal labels.
-                    if !name.starts_with("LABEL") {
-                        func_labels.push((-(pos as isize), name.clone(), pos));
-                    }
-                }
-                // Magic
-                write!(f, "MROD");
-
-                // Label section
-                write!(f, "LBEL");
-                // Number of entries
-                print_bin(func_labels.len() as u32, f);
-                while !func_labels.is_empty() {
-                    let (_, name, pos) = func_labels.pop().unwrap();
-                    print_bin(pos as u32, f);
-                    print_bin(name.len() as u32 + 1, f);
-                    write!(f, "{}", name);
-                    f.write(&[0]);
-                }
+                write_debug_file(f,
+                                 &all_labels,
+                                 &irtoasm.session.parser.spanmap,
+                                 &irtoasm.session.parser.filemap,
+                                 &sourcemap,
+                                 &debug_info);
             },
             None => {}
         }

@@ -27,7 +27,8 @@ pub struct ASTToIntermediate<'a, 'b: 'a> {
     manglemap: &'a BTreeMap<NodeId, String>,
     continue_labels: Vec<usize>,
     break_labels: Vec<usize>,
-    sourcemap: &'a mut BTreeMap<NodeId, NodeId>,
+    // TODO: IrNodeId here.
+    sourcemap: &'a mut BTreeMap<IrNodeId, NodeId>,
 }
 
 fn ty_is_reference(session: &Session, typemap: &Typemap, ty: &Ty) -> bool {
@@ -78,7 +79,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
     pub fn new<'c,'d>(session: &'c mut Session<'d>,
                       typemap: &'c mut Typemap,
                       manglemap: &'c BTreeMap<NodeId, String>,
-                      sourcemap: &'c mut BTreeMap<NodeId, NodeId>,
+                      sourcemap: &'c mut BTreeMap<IrNodeId, NodeId>,
                       ) -> ASTToIntermediate<'c,'d> {
         ASTToIntermediate { var_count: 0,
                             label_count: 0,
@@ -92,15 +93,15 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         }
     }
 
-    fn new_id(&mut self) -> NodeId {
+    fn new_id(&mut self) -> IrNodeId {
         let id = self.next_id;
         self.next_id += 1;
-        NodeId(id)
+        IrNodeId(id)
     }
 
-    fn add_id<U>(&mut self, val: U) -> WithId<U> {
+    fn add_id<U>(&mut self, val: U) -> WithIdT<IrNodeId, U> {
         let id = self.new_id();
-        WithId { val: val, id: id }
+        WithIdT { val: val, id: id }
     }
 
     fn add_source(&mut self, ops: &Vec<Op>, source_node_id: NodeId) {

@@ -50,7 +50,8 @@ impl MultiplyOptimizer {
             res
         }
 
-        fn variable_for(rve: RValueElem, temp_count: &mut u32, session: &mut Session, node_id: NodeId
+        fn variable_for(rve: RValueElem, temp_count: &mut u32, session: &mut Session,
+                        node_id: IrNodeId
         ) -> (Vec<Op>, Var) {
             match rve {
                 Variable(v) => {

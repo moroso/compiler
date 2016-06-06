@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 use util::{Name, Width};
 
 use mas::ast::InstNode;
-use mc::ast::WithId;
+use mc::ast::WithIdT;
 
 pub use self::LValue::*;
 pub use self::RValueElem::*;
@@ -95,7 +95,19 @@ impl Display for RValueElem {
     }
 }
 
-pub type Op = WithId<OpNode>;
+#[derive(Eq, PartialEq, Clone, Ord, PartialOrd, Debug, Copy)]
+pub struct IrNodeId(pub usize);
+
+allow_string!(IrNodeId);
+
+impl IrNodeId {
+    pub fn to_uint(&self) -> usize {
+        let IrNodeId(did) = *self;
+        did
+    }
+}
+
+pub type Op = WithIdT<IrNodeId, OpNode>;
 
 #[derive(Clone, Debug)]
 pub enum OpNode {

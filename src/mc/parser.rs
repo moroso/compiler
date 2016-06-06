@@ -49,9 +49,9 @@ pub struct Parser {
     /// next number to assign to an identifier.
     next_id: usize,
     /// Tracks the corresponding source position of each AST node.
-    spanmap: BTreeMap<NodeId, Span>,
+    pub spanmap: BTreeMap<NodeId, Span>,
     /// Tracks the corresponding file name of each AST node.
-    filemap: BTreeMap<NodeId, Name>,
+    pub filemap: BTreeMap<NodeId, Name>,
 }
 
 /// The state for parsing a stream of tokens into an AST node

@@ -218,7 +218,7 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
 }
 
 // Returns whether inst1 and inst2 (appearing in that order in the original
-// instruction list) can commute.
+// instruction list) can be placed in the same packet.
 fn compatible_insts(inst1: &InstNode, inst2: &InstNode) -> bool {
     commutes_(inst1, inst2)
 }
