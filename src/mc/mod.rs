@@ -110,6 +110,7 @@ pub fn main() {
         optflag("d", "dep-files", "Generate dependency files"),
         optflag("v", "verbose", "Enable verbose output."),
         optflag("", "disable_scheduler", "Disable instruction scheduler (asm target only)"),
+        optflag("", "no_prelude", "Omit the prelude."),
         optflag("h", "help", "Show this help message."),
         optmulti("l", "lib", "Specify a library location", "<foo:/path/to/foo.mb>"),
     ];
@@ -179,6 +180,9 @@ pub fn main() {
     setup_builtin_search_paths(&mut options);
     if !parse_search_paths(&mut options, &matches) {
         bail(Some("Bogus library specification"));
+    }
+    if matches.opt_present("no_prelude") {
+        options.include_prelude = false;
     }
 
     let name = if matches.free.len() == 0 {

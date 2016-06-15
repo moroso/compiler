@@ -41,12 +41,16 @@ pub fn get_cur_rel_path() -> PathBuf {
 
 pub struct Options {
     pub search_paths: HashMap<String, PathBuf>,
+    pub include_prelude: bool,
 }
 
 
 impl Options {
     pub fn new() -> Options {
-        Options { search_paths: HashMap::new() }
+        Options {
+            search_paths: HashMap::new(),
+            include_prelude: true,
+        }
     }
 }
 
@@ -177,13 +181,17 @@ impl<'a> Session<'a> {
 
 
     fn inject_std(&mut self, module: &mut Module) {
-        let s = include_str!("std.mb");
-        self.inject(s, "<stdlib>", module);
+        if self.options.include_prelude {
+            let s = include_str!("std.mb");
+            self.inject(s, "<stdlib>", module);
+        }
     }
 
     fn inject_prelude(&mut self, module: &mut Module) {
-        let s = include_str!("prelude.mb");
-        self.inject(s, "<prelude>", module);
+        if self.options.include_prelude {
+            let s = include_str!("prelude.mb");
+            self.inject(s, "<prelude>", module);
+        }
     }
 
     fn parse_buffer<S: ?Sized + ToString, T: BufReader>(&mut self, name: &S, buffer: T) -> Module {
