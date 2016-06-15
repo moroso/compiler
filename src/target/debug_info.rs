@@ -58,6 +58,8 @@ pub fn write_debug_file(
         print!("{}\n", name);
 
         let &(ref color_map, ref ops, ref opinfo, ref ir_to_asm_map, ref asm_insts) = vals;
+        print!("{:?}\n", color_map);
+        print!("{:?}\n", opinfo);
 
         let mut asm_pos = 0;
         let mut old_row = 0;
