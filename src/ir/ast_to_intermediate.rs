@@ -312,8 +312,9 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 (vec!(ops), vec!(
                     StaticIRItem {
                         name: self.mangled_ident(id),
+                        label: None, // Will be filled in later
                         size: 0,
-                        offset: None,
+                        offset: None, // Will be filled in later
                         is_ref: false,
                         is_func: true,
                         is_extern: block.is_extern(),
@@ -349,6 +350,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         (vec!(),
          vec!(StaticIRItem {
              name: name,
+             label: None,
              size: size as usize,
              offset: None,
              is_ref: ty_is_reference(&self.session, &self.typemap, ty),
@@ -371,7 +373,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         (res, static_res)
     }
 
-    pub fn allocate_globals(globals: Vec<StaticIRItem>
+    pub fn allocate_globals(session: &mut Session, globals: Vec<StaticIRItem>
                             ) -> BTreeMap<Name, StaticIRItem> {
         let mut offs: usize = 0;
         let mut result = BTreeMap::new();
@@ -381,6 +383,11 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         for mut global in globals.into_iter() {
             let mut size = global.size;
             global.offset = Some(offs);
+            // TODO: this is a hack; this should be refactored (in the same
+            // way that variable names should be).
+            let label_name = session.interner.intern(
+                format!("GLOBAL_LABEL_{}", global.name));
+            global.label = Some(label_name);
             result.insert(global.name, global);
             // Ensure we end of a 4-byte boundary.
             if size % 4 > 0 {
@@ -399,8 +406,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
     /// the object file, but for now we just generate code on startup to
     /// initalize all of the items.
     pub fn convert_globals(&mut self,
-                           global_map: &BTreeMap<Name,
-                           StaticIRItem>) -> Vec<Op> {
+                           global_map: &BTreeMap<Name, StaticIRItem>) -> Vec<Op> {
         let op = OpNode::Func(self.session.interner.intern("_INIT_GLOBALS".to_string()),
                               vec!(),
                               None);

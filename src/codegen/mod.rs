@@ -45,3 +45,4 @@ pub enum RegisterColor {
 }
 
 allow_string!(RegisterColor);
+

@@ -9,6 +9,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::prelude::*;
 use target::util::print_bin;
+use mas::labels::LabelInfo;
 
 // TODO: remove this; we won't need it later.
 use mas::ast::InstNode;
@@ -16,7 +17,7 @@ use mas::ast::InstNode;
 #[allow(unused_must_use)]
 pub fn write_debug_file(
     f: &mut File,
-    all_labels: &BTreeMap<String, usize>,
+    all_labels: &BTreeMap<String, LabelInfo>,
     spanmap: &BTreeMap<NodeId, Span>, // Maps *AST* node IDs to spans in Mb source
     filemap: &BTreeMap<NodeId, Name>, // Maps *AST* node IDs to Mb source files
     sourcemap: &BTreeMap<IrNodeId, NodeId>, // Maps IR node IDs to the AST node ID they came from
@@ -29,10 +30,13 @@ pub fn write_debug_file(
                                )>
 ) {
     let mut func_labels = BinaryHeap::<(isize, String, usize)>::new();
-    for (name, &pos) in all_labels.iter() {
+    for (name, label) in all_labels.iter() {
         // TODO: this is a hacky way of checking for internal labels.
         if !name.starts_with("LABEL") {
-            func_labels.push((-(pos as isize), name.clone(), pos));
+            match *label {
+                LabelInfo::InstLabel(pos) => func_labels.push((-(pos as isize), name.clone(), pos)),
+                _ => {}
+            }
         }
     }
 

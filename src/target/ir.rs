@@ -383,7 +383,7 @@ impl Target for IRTarget {
         writeln!(f, "{}", "#define alloca(size) __builtin_alloca(size)");
         writeln!(f, "{}", "#endif");
 
-        let global_map = ASTToIntermediate::allocate_globals(staticitems);
+        let global_map = ASTToIntermediate::allocate_globals(&mut session, staticitems);
         let global_initializer = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,

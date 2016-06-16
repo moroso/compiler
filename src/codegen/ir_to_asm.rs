@@ -85,17 +85,14 @@ fn width_to_lsuwidth(width: &Width) -> LsuWidth {
 }
 
 pub struct IrToAsm<'a> {
-    global_mem_start: u32,
     global_map: &'a BTreeMap<Name, StaticIRItem>,
     pub strings: BTreeSet<Name>,
 }
 
 impl<'a> IrToAsm<'a> {
     pub fn new(global_map: &'a BTreeMap<Name, StaticIRItem>,
-               strings: BTreeSet<Name>,
-               global_mem_start: u32) -> IrToAsm<'a> {
+               strings: BTreeSet<Name>) -> IrToAsm<'a> {
         IrToAsm::<'a> {
-            global_mem_start: global_mem_start,
             global_map: global_map,
             strings: strings,
         }
@@ -864,7 +861,7 @@ impl<'a> IrToAsm<'a> {
             },
             GlobalColor => {
                 let global_info = self.global_map.get(&var.name).unwrap();
-                let offs = global_info.offset.expect("No offset for global item");
+                let label = format!("{}", global_info.label.expect("No label for global item"));
                 let reg = Reg { index: SPILL_REG_BASE + spill_pos };
                 if global_info.is_ref {
                     (reg,
@@ -872,7 +869,7 @@ impl<'a> IrToAsm<'a> {
                          pred,
                          MovAluOp,
                          reg),
-                          InstNode::long(self.global_mem_start + offs as u32)
+                          InstNode::long_label(label.clone())
                           ),
                      vec!())
                 } else {
@@ -881,7 +878,7 @@ impl<'a> IrToAsm<'a> {
                          pred,
                          MovAluOp,
                          GLOBAL_REG),
-                          InstNode::long(self.global_mem_start + offs as u32),
+                          InstNode::long_label(label.clone()),
                           InstNode::load(pred,
                                          LsuOp { store: false,
                                                  width: LsuWidthL },
@@ -893,7 +890,7 @@ impl<'a> IrToAsm<'a> {
                          pred,
                          MovAluOp,
                          GLOBAL_REG),
-                          InstNode::long(self.global_mem_start + offs as u32),
+                          InstNode::long_label(label.clone()),
                           InstNode::store(pred,
                                           LsuOp { store: true,
                                                   width: LsuWidthL },
@@ -1454,14 +1451,13 @@ impl<'a> IrToAsm<'a> {
                                     InstNode::long_label(format!("{}", v.name)),
                                     );
                             } else {
-                                let offset: u32 = self.global_mem_start
-                                    + (global_info.offset.unwrap() as u32);
+                                let label = format!("{}", global_info.label.expect("No label for global item"));
                                 return vec!(
                                     InstNode::alu1long(
                                         TRUE_PRED,
                                         MovAluOp,
                                         dest),
-                                    InstNode::long(offset));
+                                    InstNode::long_label(label));
                             }
                         },
                         GlobalReferenceColor => unimplemented!(),

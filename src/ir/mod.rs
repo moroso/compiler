@@ -24,6 +24,7 @@ pub mod multiply_optimizer;
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct StaticIRItem {
     pub name: Name,
+    pub label: Option<Name>,
     pub size: usize,
     pub offset: Option<usize>,
     pub is_extern: bool,

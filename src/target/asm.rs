@@ -25,7 +25,7 @@ use codegen::{NUM_USABLE_VARS, GLOBAL_MEM_START, STACK_START};
 use codegen::IrToAsm;
 use codegen::combine::link;
 
-use mas::labels;
+use mas::labels::{LabelInfo, resolve_labels};
 use mas::encoder::encode;
 use mas::ast::NopInst;
 use mas::scheduler::{schedule, schedule_dummy};
@@ -55,7 +55,7 @@ pub struct AsmTarget {
     debug_file: Option<String>,
     format: BinaryFormat,
     code_start: u32,
-    global_start: u32,
+    global_start: Option<u32>,
     stack_start: u32,
     mul_func: Option<String>,
     div_func: Option<String>,
@@ -71,7 +71,7 @@ impl MkTarget for AsmTarget {
         let mut format = BinaryFormat::FlatFormat;
         let mut code_start = 0;
         let mut stack_start = STACK_START;
-        let mut global_start = GLOBAL_MEM_START;
+        let mut global_start = None;
         let mut debug_file = None;
         let mut mul_func = None;
         let mut div_func = None;
@@ -103,7 +103,7 @@ impl MkTarget for AsmTarget {
             } else if arg.0 == "stack_start" {
                 stack_start = u32::from_str_radix(&arg.1.clone().unwrap()[..], 16).unwrap();
             } else if arg.0 == "global_start" {
-                global_start = u32::from_str_radix(&arg.1.clone().unwrap()[..], 16).unwrap();
+                global_start = Some(u32::from_str_radix(&arg.1.clone().unwrap()[..], 16).unwrap());
             } else if arg.0 == "disable_scheduler" {
                 disable_scheduler = true;
             } else if arg.0 == "mul_func" {
@@ -169,6 +169,7 @@ impl Target for AsmTarget {
                  StaticIRItem {
                      name: session.interner.intern(
                          x.to_string()),
+                     label: None,
                      size: 0,
                      offset: None,
                      is_ref: false,
@@ -178,7 +179,7 @@ impl Target for AsmTarget {
                  }).collect();
         staticitems.extend(asm_staticitems.into_iter());
 
-        let global_map = ASTToIntermediate::allocate_globals(staticitems);
+        let global_map = ASTToIntermediate::allocate_globals(&mut session, staticitems);
         if self.verbose {
             print!("Global map: {:?}\n", global_map);
         }
@@ -212,8 +213,7 @@ impl Target for AsmTarget {
         let strings: BTreeSet<Name> = BTreeSet::new();
 
         let mut irtoasm = IrToAsm::new(&global_map,
-                                       strings,
-                                       self.global_start);
+                                       strings);
 
         let mul_func_name = self.mul_func.clone().map(|x| session.interner.intern(x));
         let div_func_name = self.div_func.clone().map(|x| session.interner.intern(x));
@@ -332,7 +332,7 @@ impl Target for AsmTarget {
             Some(ref mut f) => {
                 for (pos, packet) in all_packets.iter().enumerate() {
                     for (k, v) in all_labels.iter() {
-                        if *v == pos {
+                        if *v == LabelInfo::InstLabel(pos) {
                             write!(f, "    {}:\n", k);
                         }
                     }
@@ -345,7 +345,7 @@ impl Target for AsmTarget {
                            packet[3]);
                 }
                 for (k, v) in all_labels.iter() {
-                    if *v == all_packets.len() {
+                    if *v == LabelInfo::InstLabel(all_packets.len()) {
                         write!(f, "{}:\n", k);
                     }
                 }
@@ -353,13 +353,27 @@ impl Target for AsmTarget {
             None => {}
         }
 
+        // Determine size of globals.
+        let global_size = 1 + global_map.iter()
+            .map(|(_, x)| x.offset.unwrap_or(0) + x.size).max().unwrap_or(0) as u32;
+
         // Add a special end label.
-        all_labels.insert("__END__".to_string(), all_packets.len());
+        all_labels.insert("__END__".to_string(), LabelInfo::InstLabel(all_packets.len()));
 
         // Add a label for the start of the stack.
-        all_labels.insert("__STACK_START__".to_string(), (self.stack_start / 0x10) as usize);
+        all_labels.insert("__STACK_START__".to_string(), LabelInfo::ByteLabel(self.stack_start as usize));
 
-        labels::resolve_labels(&mut all_packets, &all_labels, self.code_start as usize);
+        // Add labels for globals. By default, put them at the end of the code.
+        let global_start = self.global_start.unwrap_or((all_packets.len() * 0x10) as u32);
+        // TODO: once Rust has lexical scoping, use into_iter() here.
+        for global_info in global_map.values() {
+            all_labels.insert(
+                format!("{}", global_info.label.expect("Global has no label.")),
+                LabelInfo::ByteLabel(global_info.offset.expect("Global has no offset.") + global_start as usize)
+            );
+        }
+
+        resolve_labels(&mut all_packets, &all_labels, self.code_start as usize);
 
         if self.verbose {
             for packet in all_packets.iter() {
@@ -372,20 +386,16 @@ impl Target for AsmTarget {
         }
 
         if self.format == BinaryFormat::BSLDFormat {
-            // Determine size of globals.
-            let global_size = 1 + global_map.iter()
-                .map(|(_, x)| x.offset.unwrap_or(0) + x.size).max().unwrap_or(0) as u32;
-
             // Print the bs-ld header, if necessary.
             write!(f, "MROE");
             // Binary size
             print_bin(all_packets.len() as u32 * 0x10, f);
             // Image size
-            print_bin(self.global_start - self.code_start + global_size, f);
+            print_bin(global_start - self.code_start + global_size, f);
             // Binary start
             print_bin(self.code_start, f);
             // First writable
-            print_bin(self.global_start, f);
+            print_bin(global_start, f);
             // Entry
             print_bin(self.code_start, f);
         }

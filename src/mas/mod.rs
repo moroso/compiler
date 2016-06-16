@@ -1,6 +1,10 @@
 use std::{process, io, env};
 use std::path::Path;
 use std::fs::File;
+use std::collections::BTreeMap;
+use std::iter::FromIterator;
+
+use mas::labels::LabelInfo;
 
 use util::lexer::Lexer;
 use self::lexer::{Token, new_asm_lexer};
@@ -101,7 +105,10 @@ pub fn main() {
         parser.parse_toplevel()
     };
 
-    labels::resolve_labels(&mut insts, &labels, 0);
+    let new_labels: BTreeMap<String, LabelInfo> = FromIterator::from_iter(
+        labels.into_iter().map(|(k, v)| (k, LabelInfo::InstLabel(v))));
+
+    labels::resolve_labels(&mut insts, &new_labels, 0);
 
     for packet in insts.iter() {
         match &format_arg[..] {
