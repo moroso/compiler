@@ -309,14 +309,14 @@ pub enum InstNode {
                   AluOp, // Actual op
                   Reg, // Rd
                   u32, // Constant value
-                  u8 // Rotate amount
+                  u8 // Rotate amount (multiply by 2 for actual amount!)
                   ),
     ALU2ShortInst(Pred, // Instruction predicate
                   AluOp, // Actual op
                   Reg, // Rd
                   Reg, // Rs
                   u32, // Constant value
-                  u8 // Rotate amount
+                  u8 // Rotate amount (multiply by 2 for actual amount!)
                   ),
     ALU1RegInst(Pred,
                 AluOp,
@@ -368,7 +368,7 @@ pub enum InstNode {
                      Reg, // Rs
                      CompareType,
                      u32, // Constant value
-                     u8 // Rotate amount
+                     u8 // Rotate amount (multiply by 2 for actual amount!)
                      ),
     CompareRegInst(Pred,
                    Pred, // Destination pred register
@@ -494,7 +494,7 @@ impl Display for InstNode {
                           ) => {
                 write!(f, "{}{} <- {}{}",
                        format_pred(pred),
-                       rd, op, ror(val, rot))
+                       rd, op, ror(val, rot * 2))
             }
             ALU2ShortInst(pred,
                           op,
@@ -505,7 +505,7 @@ impl Display for InstNode {
                           ) => {
                 write!(f, "{}{} <- {} {} {}",
                        format_pred(pred),
-                       rd, rs, op, ror(val, rot))
+                       rd, rs, op, ror(val, rot * 2))
             }
             ALU1RegInst(pred,
                         op,
@@ -598,7 +598,7 @@ impl Display for InstNode {
                 write!(f, "{}p{} <- {} {} {}",
                        format_pred(pred),
                        destpred.reg,
-                       rs, comparetype, ror(val, rot))
+                       rs, comparetype, ror(val, rot * 2))
             }
             CompareRegInst(pred,
                            destpred,
@@ -744,7 +744,7 @@ impl InstNode {
                      aluop: AluOp, // Actual op
                      rd: Reg, // Rd
                      val: u32, // Constant value
-                     rot: u8 // Rotate amount
+                     rot: u8 // Rotate amount (multiply by 2 for actual amount!)
                      ) -> InstNode {
         assert_pred(pred);
         assert!(aluop.is_unary());
@@ -762,7 +762,7 @@ impl InstNode {
                      rd: Reg, // Rd
                      rs: Reg, // Rs
                      val: u32, // Constant value
-                     rot: u8 // Rotate amount
+                     rot: u8 // Rotate amount (multiply by 2 for actual amount!)
                      ) -> InstNode {
         assert_pred(pred);
         assert!(aluop.is_binary());
@@ -911,7 +911,7 @@ impl InstNode {
                         rs: Reg, // Rs
                         comparetype: CompareType,
                         val: u32, // Constant value
-                        rot: u8 // Rotate amount
+                        rot: u8 // Rotate amount (multiply by 2 for actual amount!)
                         ) -> InstNode {
         assert_pred(pred);
         assert_pred(pred2);
