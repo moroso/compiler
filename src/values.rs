@@ -136,14 +136,14 @@ pub fn eval_unop(op: UnOpNode, lit: LitNode) -> Option<LitNode> {
 impl Add<LitNode> for LitNode {
     type Output = LitNode;
     fn add(self, rhs: LitNode) -> LitNode {
-        generic_op(&self, &rhs, |x, y| x+y, |x, y| x+y, |_,_| panic!())
+        generic_op(&self, &rhs, |x, y| x.wrapping_add(y), |x, y| x.wrapping_add(y), |_,_| panic!())
     }
 }
 
 impl Mul<LitNode> for LitNode {
     type Output = LitNode;
     fn mul(self, rhs: LitNode) -> LitNode {
-        generic_op(&self, &rhs, |x, y| x*y, |x, y| x*y, |_,_| panic!())
+        generic_op(&self, &rhs, |x, y| x.wrapping_mul(y), |x, y| x.wrapping_mul(y), |_,_| panic!())
     }
 }
 
