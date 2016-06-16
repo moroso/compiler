@@ -956,7 +956,8 @@ impl<'a> Typechecker<'a> {
                     AddrOf => PtrTy(Box::new(ty)),
                     Deref => match ty.val {
                         PtrTy(p_ty) => p_ty.val,
-                        _ => unreachable!(),
+                        _ => self.error_fatal(expr.id,
+                                              format!("Cannot dereference a {}", self.ty_str(&ty.val))),
                     },
                     Identity => ty.val,
                     _ => panic!("Operator {} should not appear here.",
