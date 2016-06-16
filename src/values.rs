@@ -150,7 +150,7 @@ impl Mul<LitNode> for LitNode {
 impl Sub<LitNode> for LitNode {
     type Output = LitNode;
     fn sub(self, rhs: LitNode) -> LitNode {
-        generic_op(&self, &rhs, |x, y| x-y, |x, y| x-y, |_,_| panic!())
+        generic_op(&self, &rhs, |x, y| x.wrapping_sub(y), |x, y| x.wrapping_sub(y), |_,_| panic!())
     }
 }
 

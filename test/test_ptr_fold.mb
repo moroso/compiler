@@ -1,0 +1,29 @@
+fn a() -> u32 {
+    let z = (0 as *u32) - 1i32;
+
+    z as u32
+}
+
+fn b() -> u32 {
+    let x: *u32 = 0 as *u32;
+    *(x + 1) = 0;
+
+    0
+}
+
+fn c() -> u32 {
+    let x: *u32 = 0 as *u32;
+    *(x + 1i32) = 0;
+
+    0
+}
+
+fn d() -> u32 {
+    let z = (0 as *u32) - 1u32;
+
+    z as u32
+}
+
+fn main() -> u32 {
+	  0
+}

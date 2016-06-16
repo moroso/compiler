@@ -612,14 +612,15 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                                1);
                                 let total_size = packed_size(&vec!(size));
                                 let new_var2 = self.gen_temp();
+                                let signed = e2ty.is_signed();
+                                let intkind = if signed { SignedInt(Width32) } else { UnsignedInt(Width32) };
                                 insts.push(
                                     self.add_id(OpNode::BinOp(new_var2,
                                                               TimesOp,
                                                               Variable(var2),
                                                               Constant(NumLit(total_size,
-                                                                              UnsignedInt(
-                                                                                  Width32))),
-                                                              false)));
+                                                                              intkind)),
+                                                              signed)));
                                 var2 = new_var2;
                             },
                             _ => {}
