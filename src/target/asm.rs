@@ -21,7 +21,7 @@ use target::util::print_bin;
 
 use codegen::RegisterColor;
 use codegen::register_color::RegisterColorer;
-use codegen::{NUM_USABLE_VARS, GLOBAL_MEM_START, STACK_START};
+use codegen::NUM_USABLE_VARS;
 use codegen::IrToAsm;
 use codegen::combine::link;
 
@@ -32,7 +32,7 @@ use mas::scheduler::{schedule, schedule_dummy};
 use mas::lexer::new_asm_lexer;
 use mas::parser::AsmParser;
 
-use util::Name;
+use util::{Name, align};
 
 use std::io::{Write, BufReader};
 use std::fs::File;
@@ -56,7 +56,7 @@ pub struct AsmTarget {
     format: BinaryFormat,
     code_start: u32,
     global_start: Option<u32>,
-    stack_start: u32,
+    stack_start: Option<u32>,
     mul_func: Option<String>,
     div_func: Option<String>,
     mod_func: Option<String>,
@@ -70,7 +70,7 @@ impl MkTarget for AsmTarget {
         let mut list_file = None;
         let mut format = BinaryFormat::FlatFormat;
         let mut code_start = 0;
-        let mut stack_start = STACK_START;
+        let mut stack_start = None;
         let mut global_start = None;
         let mut debug_file = None;
         let mut mul_func = None;
@@ -101,7 +101,7 @@ impl MkTarget for AsmTarget {
                     panic!("Code start is not aligned");
                 }
             } else if arg.0 == "stack_start" {
-                stack_start = u32::from_str_radix(&arg.1.clone().unwrap()[..], 16).unwrap();
+                stack_start = Some(u32::from_str_radix(&arg.1.clone().unwrap()[..], 16).unwrap());
             } else if arg.0 == "global_start" {
                 global_start = Some(u32::from_str_radix(&arg.1.clone().unwrap()[..], 16).unwrap());
             } else if arg.0 == "disable_scheduler" {
@@ -357,14 +357,18 @@ impl Target for AsmTarget {
         let global_size = 1 + global_map.iter()
             .map(|(_, x)| x.offset.unwrap_or(0) + x.size).max().unwrap_or(0) as u32;
 
+        // Determine position of globals. By default, put them at the end of the code.
+        let global_start = self.global_start.unwrap_or((all_packets.len() * 0x10) as u32);
+
+        // Determine position of the stack. By default, put it right after the globals.
+        let stack_start = self.stack_start.unwrap_or(align(global_start + global_size, 4));
+
         // Add a special end label.
         all_labels.insert("__END__".to_string(), LabelInfo::InstLabel(all_packets.len()));
 
         // Add a label for the start of the stack.
-        all_labels.insert("__STACK_START__".to_string(), LabelInfo::ByteLabel(self.stack_start as usize));
+        all_labels.insert("__STACK_START__".to_string(), LabelInfo::ByteLabel(stack_start as usize));
 
-        // Add labels for globals. By default, put them at the end of the code.
-        let global_start = self.global_start.unwrap_or((all_packets.len() * 0x10) as u32);
         // TODO: once Rust has lexical scoping, use into_iter() here.
         for global_info in global_map.values() {
             all_labels.insert(

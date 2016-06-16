@@ -1,3 +1,4 @@
+use util::align;
 use util::{IntKind, Name, Width};
 use util::Width::{AnyWidth, Width32, Width16, Width8};
 use util::IntKind::{GenericInt, SignedInt, UnsignedInt};
@@ -390,9 +391,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             global.label = Some(label_name);
             result.insert(global.name, global);
             // Ensure we end of a 4-byte boundary.
-            if size % 4 > 0 {
-                size += 4 - (size % 4);
-            }
+            size = align(size, 4);
             assert!(size % 4 == 0);
             offs += size;
             assert!(offs % 4 == 0);

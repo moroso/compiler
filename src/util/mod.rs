@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter, Debug};
+use std::ops::{Div, Rem, Sub, Add};
 
 use std::fmt;
 
@@ -126,4 +127,8 @@ impl Display for IntKind {
             IntKind::UnsignedInt(w) => write!(f, "u{}", w),
         }
     }
+}
+
+pub fn align<T: Div<Output=T> + Sub<Output=T> + Rem<Output=T> + Add<Output=T> + Copy>(num: T, size: T) -> T {
+    num + (size - (num % size)) % size
 }

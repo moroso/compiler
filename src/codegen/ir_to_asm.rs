@@ -7,7 +7,7 @@ use mas::ast::*;
 use mas::util::pack_int;
 use mc::ast::*;
 use mc::session::Session;
-use util::{Width, Name};
+use util::{Width, Name, align};
 use std::mem::swap;
 use std::collections::{BTreeMap, BTreeSet};
 use std::iter::FromIterator;
@@ -205,10 +205,10 @@ impl<'a> IrToAsm<'a> {
             match op.val {
                 OpNode::Alloca(ref var, size) => {
                     // We must be aligned on 4-byte boundaries.
-                    let size_adjust = (4 - (size % 4)) % 4;
+                    let adjusted_size = align(size as usize, 4);
                     if !self.global_map.get(&var.name).is_some() {
                         stack_item_map.insert(inst, stack_items_len);
-                        stack_items_len += (size + size_adjust) as u32;
+                        stack_items_len += (adjusted_size) as u32;
                     }
                 },
                 OpNode::Call(..) => { has_call = true; }
