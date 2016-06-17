@@ -9,7 +9,7 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::iter::FromIterator;
 
-use values::eval_binop;
+use values::{eval_binop, static_cast};
 
 use util::graph::{Graph, VertexIndex};
 
@@ -60,11 +60,11 @@ allow_string!(Ty);
 
 type ConstGraph = Graph<NodeId, ()>;
 
-struct ConstCollector<'a> {
+struct ConstCollector<'a, 'b: 'a> {
     graph: ConstGraph,
     nodes: BTreeMap<NodeId, VertexIndex>,
     consts: BTreeMap<NodeId, &'a Expr>,
-    session: &'a Session<'a>,
+    typechecker: &'a mut Typechecker<'b>,
 }
 
 struct ConstGraphBuilder<'a> {
@@ -81,7 +81,7 @@ pub fn enum_is_c_like(session: &Session, typemap: &Typemap, id: &NodeId) -> bool
     size_of_def(session, typemap, id) == ENUM_TAG_SIZE
 }
 
-fn constant_fold(session: &Session, map: &ConstantMap, expr: &Expr)
+fn constant_fold(typechecker: &mut Typechecker, expr: &Expr)
                   -> ConstantResult {
     match expr.val {
         LitExpr(ref lit) => {
@@ -91,22 +91,22 @@ fn constant_fold(session: &Session, map: &ConstantMap, expr: &Expr)
                 ref val                 => Ok(val.clone())
             }
         }
-        GroupExpr(ref e) => constant_fold(session, map, &**e),
+        GroupExpr(ref e) => constant_fold(typechecker, &**e),
         PathExpr(ref path) => {
-            let nid = session.resolver.def_from_path(path);
-            match map.get(&nid) {
+            let nid = typechecker.session.resolver.def_from_path(path);
+            match typechecker.typemap.consts.get(&nid) {
                 Some(c) => c.clone(),
                 None => Err((path.id, "Non-constant name where constant expected")),
             }
         }
         BinOpExpr(op, ref e1, ref e2) => {
-            let r1 = try!(constant_fold(session, map, &**e1));
-            let r2 = try!(constant_fold(session, map, &**e2));
+            let r1 = try!(constant_fold(typechecker, &**e1));
+            let r2 = try!(constant_fold(typechecker, &**e2));
 
             Ok(values::eval_binop(op.val, r1, r2))
         }
         UnOpExpr(op, ref e) => {
-            let r = try!(constant_fold(session, map, &**e));
+            let r = try!(constant_fold(typechecker, &**e));
 
             // Unlike binops, some unops can't be folded
             match values::eval_unop(op.val, r) {
@@ -114,18 +114,23 @@ fn constant_fold(session: &Session, map: &ConstantMap, expr: &Expr)
                 None => Err((expr.id, "Non-constant expression where constant expected")),
             }
         }
+        CastExpr(ref e, ref t) => {
+            let ty = typechecker.type_to_ty(t);
+            let r = try!(constant_fold(typechecker, &**e));
+            static_cast(&r, &ty.val).ok_or((e.id, "Cannot perform cast"))
+        }
         _ => Err((expr.id, "Non-constant expression where constant expected")),
     }
 }
 
-impl<'a> Visitor for ConstCollector<'a> {
+impl<'a, 'b> Visitor for ConstCollector<'a, 'b> {
     fn visit_item(&mut self, item: &Item) {
         match item.val {
             ConstItem(ref ident, _, ref e) => {
                 use util::copy_lifetime;
                 let vid = self.graph.add_node(ident.id);
                 self.nodes.insert(ident.id, vid);
-                let expr = unsafe { copy_lifetime(self.session, e) };
+                let expr = unsafe { copy_lifetime(self.typechecker.session, e) };
                 self.consts.insert(ident.id, expr);
             }
             _ => walk_item(self, item)
@@ -133,13 +138,13 @@ impl<'a> Visitor for ConstCollector<'a> {
     }
 }
 
-impl<'a> ConstCollector<'a> {
-    fn new(session: &'a Session<'a>) -> ConstCollector<'a> {
+impl<'a, 'b> ConstCollector<'a, 'b> {
+    fn new(typechecker: &'a mut Typechecker<'b>) -> ConstCollector<'a, 'b> {
         ConstCollector {
             nodes: BTreeMap::new(),
             consts: BTreeMap::new(),
             graph: Graph::new(),
-            session: session,
+            typechecker: typechecker,
         }
     }
 
@@ -150,24 +155,24 @@ impl<'a> ConstCollector<'a> {
             ref nodes,
             consts: _,
             ref mut graph,
-            ref session,
+            ref typechecker,
         } = *self;
 
-        ConstGraphBuilder::build_graph(graph, nodes, *session, module);
+        ConstGraphBuilder::build_graph(graph, nodes, typechecker.session, module);
 
         match (&*graph as &GraphExt<NodeId>).toposort() {
             Ok(order) => order,
-            Err(nid)  => session.error_fatal(nid, "Recursive constant"),
+            Err(nid)  => typechecker.session.error_fatal(nid, "Recursive constant"),
         }
     }
 
-    fn map_constants(mut self, map: &mut ConstantMap, module: &'a Module) {
+    fn map_constants(mut self, module: &'a Module) {
         self.visit_module(module);
         let order = self.get_order(module);
         for nid in order.iter() {
             let e = *self.consts.get(nid).unwrap();
-            let c = constant_fold(self.session, map, e);
-            map.insert(*nid, c);
+            let c = constant_fold(self.typechecker, e);
+            self.typechecker.typemap.consts.insert(*nid, c);
         }
     }
 }
@@ -561,8 +566,8 @@ impl<'a> Typechecker<'a> {
         }
     }
 
-    fn expr_to_const(&self, e: &Expr) -> Constant {
-        let c = constant_fold(self.session, &self.typemap.consts, e);
+    fn expr_to_const(&mut self, e: &Expr) -> Constant {
+        let c = constant_fold(self, e);
         self.unwrap_const(c)
     }
 
@@ -574,8 +579,10 @@ impl<'a> Typechecker<'a> {
     }
 
     pub fn typecheck(&mut self, module: &'a Module) {
-        let cc = ConstCollector::new(self.session);
-        cc.map_constants(&mut self.typemap.consts, module);
+        {
+            let cc = ConstCollector::new(self);
+            cc.map_constants(module);
+        }
         self.visit_module(module);
         for c in self.typemap.consts.iter() {
             self.unwrap_const(c.1.clone());

@@ -72,7 +72,7 @@ fn print_rvalelem(interner: &Interner,
         Variable(ref v) => print_var(interner, global_map, v),
         Constant(ref l) => {
             match *l {
-                NumLit(n, ik) => ik.num_to_string(n),
+                NumLit(n, _) => format!("{}", n as u32),
                 NullLit => format!("NULL"),
                 BoolLit(true) => format!("1"),
                 BoolLit(false) => format!("0"),

@@ -1,0 +1,15 @@
+const a: u8 = 0x1008;
+const b: *u32 = (58 as *u32);
+const c: i8 = -1;
+const d: i32 = ((-1 as i8) as u8) as i32;
+const e: i32 = ((0xff as u8) as i8) as i32;
+
+fn main() -> u32 {
+    print_uint(a as u32);
+    print_uint(b as u32);
+    print_uint(c as u32 & 0x7fffffff);
+    print_uint(d as u32);
+    print_uint(e as u32 & 0x7fffffff);
+
+    0
+}

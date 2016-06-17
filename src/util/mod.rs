@@ -81,6 +81,26 @@ impl Display for Width {
     }
 }
 
+impl Width {
+    pub fn as_int(&self) -> u32 {
+        match *self {
+            Width::AnyWidth |
+            Width::Width32 => 32,
+            Width::Width16 => 16,
+            Width::Width8 => 8,
+        }
+    }
+
+    pub fn mask(&self) -> u64 {
+        match self.as_int() {
+            8 => 0xff,
+            16 => 0xffff,
+            32 => 0xffffffff,
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Eq, Clone, PartialEq, Debug, Copy)]
 pub enum IntKind {
     GenericInt,
@@ -117,6 +137,24 @@ impl IntKind {
             IntKind::UnsignedInt(Width::Width32)  => format!("{}", n as u32),
         }
     }
+
+    pub fn width(&self) -> u32 {
+        match *self {
+            IntKind::GenericInt => 32,
+            IntKind::SignedInt(w) |
+            IntKind::UnsignedInt(w) => w.as_int(),
+        }
+    }
+
+    pub fn mask(&self) -> u64 {
+        match self.width() {
+            8 => 0xff,
+            16 => 0xffff,
+            32 => 0xffffffff,
+            _ => unreachable!(),
+        }
+    }
+
 }
 
 impl Display for IntKind {

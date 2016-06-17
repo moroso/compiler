@@ -4,6 +4,7 @@ use util::Width::{AnyWidth, Width32, Width16, Width8};
 use util::IntKind::{GenericInt, SignedInt, UnsignedInt};
 use mc::ast::defmap::Def::{StructDef, EnumDef, VariantDef, ConstDef};
 use mc::session::Session;
+use values::static_cast;
 
 use std::collections::{BTreeSet, BTreeMap};
 
@@ -141,11 +142,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 } else {
                     (vec!(self.add_id(OpNode::BinOp(res, BitAndOp, Variable(v),
                                                     Constant(NumLit(
-                                                        if width == Width8 {
-                                                            0xff
-                                                        } else {
-                                                            0xffff
-                                                        },
+                                                        width.mask(),
                                                         UnsignedInt(Width32))),
                                                     false,
                                                     ))), Some(res))
@@ -773,9 +770,11 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         let constval = self.typemap.consts.get(
                             &defid).expect("No folded constant found").clone()
                             .ok().unwrap();
+                        let cast_constval = static_cast(&constval, self.lookup_ty(expr.id))
+                            .expect("Invalid cast of constant value");
                         let ret_var = self.gen_temp();
                         return (vec!(self.add_id(OpNode::UnOp(ret_var, Identity,
-                                                              Constant(constval)))),
+                                                              Constant(cast_constval)))),
                                 Some(ret_var));
                     },
                     _ => {},

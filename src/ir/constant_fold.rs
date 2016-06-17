@@ -1,5 +1,5 @@
 // Constant folding.
-use util::Name;
+use util::{Name, IntKind, Width};
 use ir::util::subst;
 use std::collections::{BTreeSet, BTreeMap};
 use mc::ast::*;
@@ -8,13 +8,15 @@ use values::{eval_binop, eval_unop};
 
 pub struct ConstantFolder;
 
-fn assert_signedness(l: &LitNode, signed: bool) {
+fn set_signedness(l: &LitNode, signed: bool) -> LitNode {
     match *l {
-        NumLit(_, ref kind) =>
-            if !kind.is_generic() {
-                assert_eq!(signed, kind.is_signed())
+        NumLit(v, kind) =>
+            match kind {
+                IntKind::SignedInt(w) if !signed => NumLit(v, IntKind::UnsignedInt(w)),
+                IntKind::UnsignedInt(w) if signed => NumLit(v, IntKind::SignedInt(w)),
+                _ => l.clone(),
             },
-        _ => {}
+        _ => l.clone()
     }
 }
 
@@ -22,15 +24,13 @@ fn fold(op: &BinOpNode, e1: &RValueElem, e2: &RValueElem, signed: bool) ->
     Option<LitNode> {
     let lit1 = match *e1 {
         Constant(ref l) => {
-            assert_signedness(l, signed);
-            l.clone()
+            set_signedness(l, signed)
         },
         _ => return None,
     };
     let lit2 = match *e2 {
         Constant(ref l) => {
-            assert_signedness(l, signed);
-            l.clone()
+            set_signedness(l, signed)
         }
         _ => return None,
     };

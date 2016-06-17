@@ -49,7 +49,7 @@ pub fn subst(ops: &mut Vec<Op>,
                          }.clone())
 
                 },
-            OpNode::BinOp(ref v, ref op, ref rv1, ref rv2, signed) =>
+            OpNode::BinOp(ref v, ref op, ref rv1, ref rv2, signed) => {
                 if v == orig_var {
                     OpNode::Nop
                 } else {
@@ -66,7 +66,8 @@ pub fn subst(ops: &mut Vec<Op>,
                               rv2
                           }.clone(),
                           signed)
-                },
+                }
+            },
             OpNode::Goto(ref u, ref vars) => {
                 OpNode::Goto(u.clone(), sub_vars(vars, orig_var, new_rvelem))
             }

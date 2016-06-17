@@ -1,6 +1,41 @@
 use mc::ast::*;
+use typechecker::Ty;
 use util::{IntKind, Width};
 use std::ops::{Add, Sub, Shl, Shr, BitXor, BitOr, BitAnd, Div, Rem, Mul};
+
+pub fn static_cast(lit: &LitNode, ty: &Ty) -> Option<LitNode> {
+    match *lit {
+        NumLit(val, _) => {
+            match *ty {
+                Ty::GenericIntTy => Some(lit.clone()),
+                Ty::UintTy(w) => Some(NumLit(val & w.mask(), IntKind::UnsignedInt(w))),
+                Ty::IntTy(w) => {
+                    let intermediate = val & w.mask();
+                    let extended = if intermediate & (1 << (w.as_int() - 1)) != 0 {
+                        // Sign extend
+                        intermediate | !w.mask()
+                    } else {
+                        intermediate
+                    };
+                    Some(NumLit(extended, IntKind::SignedInt(w)))
+                },
+                Ty::BoolTy => Some(BoolLit(val != 0)),
+                Ty::PtrTy(_) => Some(NumLit(val, IntKind::UnsignedInt(Width::Width32))),
+                _ => None,
+            }
+        },
+        BoolLit(val) => {
+            match *ty {
+                Ty::GenericIntTy |
+                Ty::UintTy(_) |
+                Ty::IntTy(_) => Some(NumLit(1u64, IntKind::UnsignedInt(Width::AnyWidth))),
+                Ty::BoolTy => Some(BoolLit(val)),
+                _ => None,
+            }
+        },
+        _ => None
+    }
+}
 
 fn num_op_helper<U, S>(kind1: &IntKind, rhs: &LitNode,
                        u: U,

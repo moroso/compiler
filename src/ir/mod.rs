@@ -75,6 +75,9 @@ impl Display for LValue {
 // An "element" of an RValue: either a variable or a constant.
 pub enum RValueElem {
     Variable(Var),
+    // TODO: this should probably just be a u32 or something.
+    // The IR doesn't need to carry type information in constants
+    // (it carries signedness in binops, which is all we need).
     Constant(LitNode),
 }
 
