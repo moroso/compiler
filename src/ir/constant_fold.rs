@@ -1,5 +1,5 @@
 // Constant folding.
-use util::{Name, IntKind, Width};
+use util::{IntKind, Width};
 use ir::util::subst;
 use std::collections::{BTreeSet, BTreeMap};
 use mc::ast::*;
@@ -55,7 +55,7 @@ fn fold_unary(op: &UnOpNode, e: &RValueElem) -> Option<LitNode> {
 }
 
 fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
-                         globals: &BTreeMap<Name, T>,
+                         globals: &BTreeMap<VarName, T>,
                          verbose: bool) -> bool {
     // Variables to replace with constants.
     let mut changes = vec!();
@@ -169,7 +169,7 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
 
 impl ConstantFolder {
 
-    pub fn fold<T>(ops: &mut Vec<Op>, globals: &BTreeMap<Name, T>,
+    pub fn fold<T>(ops: &mut Vec<Op>, globals: &BTreeMap<VarName, T>,
                    verbose: bool) {
         // There are certain variables we are prohibited from substituting.
         // Those include any that appear in labels/gotos, as well as any

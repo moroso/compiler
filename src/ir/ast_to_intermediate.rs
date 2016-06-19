@@ -154,8 +154,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
     fn gen_temp(&mut self) -> Var {
         let res = Var {
-            name: self.session.interner.intern(
-                format!("TEMP{}", self.var_count)),
+            name: VarName::IRTempVariable(self.var_count),
             generation: None,
         };
         self.var_count += 1;
@@ -175,7 +174,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             LetStmt(ref pat, ref e_opt) => {
                 let (v, ty) = match pat.val {
                     IdentPat(ref ident, ref ty_opt) => {
-                        (Var { name: ident.val.name,
+                        (Var { name: VarName::NamedVariable(ident.val.name, ident.id),
                                generation: None },
                          ty_opt.clone())
                     },
@@ -276,7 +275,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     .iter()
                     .map(
                         |arg| Var {
-                            name: arg.ident.val.name,
+                            name: VarName::NamedVariable(arg.ident.val.name, arg.ident.id),
                             generation: None
                         })
                     .collect();
@@ -372,7 +371,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
     }
 
     pub fn allocate_globals(session: &mut Session, globals: Vec<StaticIRItem>
-                            ) -> BTreeMap<Name, StaticIRItem> {
+                            ) -> BTreeMap<VarName, StaticIRItem> {
         let mut offs: usize = 0;
         let mut result = BTreeMap::new();
 
@@ -384,7 +383,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             // TODO: this is a hack; this should be refactored (in the same
             // way that variable names should be).
             let label_name = session.interner.intern(
-                format!("GLOBAL_LABEL_{}", global.name));
+                format!("GLOBAL_LABEL_{}", global.name.canonical_name()));
             global.label = Some(label_name);
             result.insert(global.name, global);
             // Ensure we end of a 4-byte boundary.
@@ -402,10 +401,12 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
     /// the object file, but for now we just generate code on startup to
     /// initalize all of the items.
     pub fn convert_globals(&mut self,
-                           global_map: &BTreeMap<Name, StaticIRItem>) -> Vec<Op> {
-        let op = OpNode::Func(self.session.interner.intern("_INIT_GLOBALS".to_string()),
-                              vec!(),
-                              None);
+                           global_map: &BTreeMap<VarName, StaticIRItem>) -> Vec<Op> {
+        let op = OpNode::Func(
+            VarName::MangledVariable(
+                self.session.interner.intern("_INIT_GLOBALS".to_string())),
+            vec!(),
+            None);
         let mut res = vec!(self.add_id(op));
         for (name, global_item) in global_map.iter() {
             let is_ref = global_item.is_ref;
@@ -517,12 +518,15 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         }
     }
 
-    fn mangled_ident(&mut self, ident: &Ident) -> Name {
+    fn mangled_ident(&mut self, ident: &Ident) -> VarName {
         let name_opt = self.manglemap.get(&ident.id);
-        match name_opt {
-            Some(ref n) => self.session.interner.intern((*n).clone()),
-            None => ident.val.name
-        }
+        VarName::NamedVariable(
+            match name_opt {
+                Some(ref n) => self.session.interner.intern((*n).clone()),
+                None => ident.val.name
+            },
+            ident.id,
+        )
     }
 
     pub fn lookup_ty(&self, id: NodeId) -> &Ty {
@@ -558,8 +562,8 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                                           UnsignedInt(Width32))))));
         let op = OpNode::Call(self.gen_temp(),
                               Variable(
-                                  Var { name: self.session.interner.intern(
-                                      "rt_memcpy".to_string()),
+                                  Var { name: VarName::MangledVariable(self.session.interner.intern(
+                                      "rt_memcpy".to_string())),
                                         generation: None }),
                               vec!(new_result_var,
                                    new_src_var.clone(),
@@ -780,7 +784,8 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     _ => {},
                 }
                 (vec!(), Some(
-                    Var { name: self.mangled_path(path),
+                    Var { name: VarName::NamedVariable(self.mangled_path(path),
+                                                       self.session.resolver.def_from_path(path)),
                           generation: None }))
             },
             AssignExpr(ref op, ref e1, ref e2) => {
@@ -806,8 +811,9 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                      finalize): (Var, Vec<OpNode>, Var, Width,
                                  Box<Fn(Var, Var, Width) -> OpNode>) = match unwrapped.val {
                     PathExpr(ref path) => {
+                        let defid = self.session.resolver.def_from_path(path);
                         let lhs_var = Var {
-                            name: self.mangled_path(path),
+                            name: VarName::NamedVariable(self.mangled_path(path), defid),
                             generation: None
                         };
                         (lhs_var.clone(),
@@ -1497,8 +1503,9 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                 match pat.val {
                                     IdentPat(ref ident, _) => {
                                         // TODO: a move or a load, depending.
-                                        let this_var = Var { name: ident.val.name,
-                                                             generation: None };
+                                        let this_var = Var {
+                                            name: VarName::NamedVariable(ident.val.name, ident.id),
+                                            generation: None };
                                         if this_ty_is_reference {
                                             ops.push(
                                                 self.add_id(OpNode::UnOp(this_var,

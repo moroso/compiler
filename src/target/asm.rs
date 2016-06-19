@@ -13,7 +13,7 @@ use ir::constant_fold::ConstantFolder;
 use ir::multiply_optimizer::MultiplyOptimizer;
 use ir::ssa::ToSSA;
 use ir::conflicts::ConflictAnalyzer;
-use ir::{IrNodeId, Op, OpInfo, OpNode, StaticIRItem, Var};
+use ir::{IrNodeId, Op, OpInfo, OpNode, StaticIRItem, Var, VarName};
 
 use target::NameMangler;
 use target::debug_info::write_debug_file;
@@ -167,8 +167,8 @@ impl Target for AsmTarget {
             .iter()
             .map(|x|
                  StaticIRItem {
-                     name: session.interner.intern(
-                         x.to_string()),
+                     name: VarName::MangledVariable(session.interner.intern(
+                         x.to_string())),
                      label: None,
                      size: 0,
                      offset: None,
@@ -215,11 +215,11 @@ impl Target for AsmTarget {
         let mut irtoasm = IrToAsm::new(&global_map,
                                        strings);
 
-        let mul_func_name = self.mul_func.clone().map(|x| session.interner.intern(x));
-        let div_func_name = self.div_func.clone().map(|x| session.interner.intern(x));
-        let mod_func_name = self.mod_func.clone().map(|x| session.interner.intern(x));
+        let mul_func_name = self.mul_func.clone().map(|x| VarName::MangledVariable(session.interner.intern(x)));
+        let div_func_name = self.div_func.clone().map(|x| VarName::MangledVariable(session.interner.intern(x)));
+        let mod_func_name = self.mod_func.clone().map(|x| VarName::MangledVariable(session.interner.intern(x)));
 
-        let mut debug_info: BTreeMap<Name,
+        let mut debug_info: BTreeMap<VarName,
                                      (BTreeMap<Var, RegisterColor>,
                                       Vec<Op>,
                                       Vec<OpInfo>,
@@ -237,7 +237,7 @@ impl Target for AsmTarget {
             };
             ToSSA::to_ssa(&mut insts, self.verbose);
             ConstantFolder::fold(&mut insts, &global_map, self.verbose);
-            MultiplyOptimizer::process(&mut insts, self.verbose, &mut session,
+            MultiplyOptimizer::process(&mut insts, self.verbose,
                                        mul_func_name, div_func_name, mod_func_name,
                                        self.const_mul_bit_limit);
             if self.verbose {
@@ -377,6 +377,11 @@ impl Target for AsmTarget {
             );
         }
 
+        if self.verbose {
+            for (ref label, _) in all_labels.iter() {
+                print!("Label: {}\n", label);
+            }
+        }
         resolve_labels(&mut all_packets, &all_labels, self.code_start as usize);
 
         if self.verbose {

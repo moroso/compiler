@@ -1,0 +1,17 @@
+fn main() -> u32 {
+    let x: u32 = 5;
+    let y: u32 = 6;
+    {
+        let x: u32 = 7;
+        let y: u32;
+
+        y = 8;
+
+        print_uint(x);
+        print_uint(y);
+    }
+    print_uint(x);
+    print_uint(y);
+
+    0
+}

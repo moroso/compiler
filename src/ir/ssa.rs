@@ -9,19 +9,19 @@ use std::collections::{BTreeMap, BTreeSet};
 pub struct ToSSA;
 
 // Get the generation of a variable and increment it.
-fn next_gen(generations: &mut BTreeMap<Name, usize>, name: Name) -> Option<usize> {
+fn next_gen(generations: &mut BTreeMap<VarName, usize>, name: VarName) -> Option<usize> {
     let gen = *generations.get(&name).unwrap_or(&0);
     generations.insert(name, gen+1);
     Some(gen+1)
 }
 
 // Get the generation of a variable.
-fn gen_of(generations: &mut BTreeMap<Name, usize>, name: Name) -> Option<usize> {
+fn gen_of(generations: &mut BTreeMap<VarName, usize>, name: VarName) -> Option<usize> {
     Some(*generations.get(&name).unwrap_or(&0))
 }
 
 // Fill in the generation of an RValElem.
-fn ssa_rvalelem(generations: &mut BTreeMap<Name, usize>,
+fn ssa_rvalelem(generations: &mut BTreeMap<VarName, usize>,
                 rv_elem: &mut RValueElem) {
     match *rv_elem {
         Variable(ref mut var) =>
@@ -32,9 +32,9 @@ fn ssa_rvalelem(generations: &mut BTreeMap<Name, usize>,
 
 // Fill in the generations of variables in the given BTreeSet, using the given
 // gen_of function.
-fn ssa_vars<F>(generations: &mut BTreeMap<Name, usize>, vars: &mut BTreeSet<Var>,
+fn ssa_vars<F>(generations: &mut BTreeMap<VarName, usize>, vars: &mut BTreeSet<Var>,
                gen_of: F)
-    where F: Fn(&mut BTreeMap<Name, usize>, Name) -> Option<usize>
+    where F: Fn(&mut BTreeMap<VarName, usize>, VarName) -> Option<usize>
 {
     let mut new_vars = BTreeSet::new();
     for var in vars.iter() {
@@ -112,7 +112,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
     // then the map will have a single entry, taking
     // 1 to the vector of maps
     // <{Name(1):1, Name(2):1},  {Name(1):3, Name(2):1}>.
-    let mut jump_table = BTreeMap::<usize, Vec<BTreeMap<Name, usize>>>::new();
+    let mut jump_table = BTreeMap::<usize, Vec<BTreeMap<VarName, usize>>>::new();
     let mut label_table = BTreeMap::<usize, BTreeSet<Var>>::new();
     for op in ops.iter() {
         match op.val {
@@ -331,7 +331,7 @@ impl ToSSA {
             label_time += end-start;
         }
 
-        let ref mut gens = BTreeMap::<Name, usize>::new();
+        let ref mut gens = BTreeMap::<VarName, usize>::new();
 
         let start = precise_time_ns();
         for op in ops.iter_mut() {

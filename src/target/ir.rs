@@ -4,7 +4,6 @@ use package::Package;
 
 use mc::lexer::Lexer;
 use mc::parser::Parser;
-use mc::session::Interner;
 
 use util::{IntKind, Name};
 use util::IntKind::{GenericInt, SignedInt, UnsignedInt};
@@ -30,7 +29,7 @@ pub struct IRTarget {
     verbose: bool,
 }
 
-fn is_function(global_map: &BTreeMap<Name, StaticIRItem>,
+fn is_function(global_map: &BTreeMap<VarName, StaticIRItem>,
                v: &Var) -> bool {
     match global_map.get(&v.name) {
         Some(ref i) => i.is_func,
@@ -38,38 +37,38 @@ fn is_function(global_map: &BTreeMap<Name, StaticIRItem>,
     }
 }
 
-fn print_var(interner: &Interner,
-             global_map: &BTreeMap<Name, StaticIRItem>,
+fn print_var(global_map: &BTreeMap<VarName, StaticIRItem>,
              v: &Var) -> String {
-    format!("{}{}",
-            interner.name_to_str(&v.name),
-            match v.generation {
-                Some(ref g) if *g > 0 =>
-                    if global_map.get(&v.name).is_none() {
-                        format!("_{}", g)
-                    } else {
-                        format!("")
-                    },
-                _ => format!(""),
-            }
-            )
-}
-
-fn print_lvalue(interner: &Interner,
-                global_map: &BTreeMap<Name, StaticIRItem>,
-                lv: &LValue) -> String {
-    match *lv {
-        VarLValue(ref v) => print_var(interner, global_map, v),
-        PtrLValue(ref v) => format!("*(int*){}", print_var(interner,
-                                                           global_map, v)),
+    if is_function(global_map, v) {
+        format!("{}", v.name.base_name())
+    } else {
+        format!("{}{}",
+                v.name.canonical_name(),
+                match v.generation {
+                    Some(ref g) if *g > 0 =>
+                        if global_map.get(&v.name).is_none() {
+                            format!("_{}", g)
+                        } else {
+                            format!("")
+                        },
+                    _ => format!(""),
+                }
+        )
     }
 }
 
-fn print_rvalelem(interner: &Interner,
-                  global_map: &BTreeMap<Name, StaticIRItem>,
+fn print_lvalue(global_map: &BTreeMap<VarName, StaticIRItem>,
+                lv: &LValue) -> String {
+    match *lv {
+        VarLValue(ref v) => print_var(global_map, v),
+        PtrLValue(ref v) => format!("*(int*){}", print_var(global_map, v)),
+    }
+}
+
+fn print_rvalelem(global_map: &BTreeMap<VarName, StaticIRItem>,
                   rve: &RValueElem) -> String {
     match *rve {
-        Variable(ref v) => print_var(interner, global_map, v),
+        Variable(ref v) => print_var(global_map, v),
         Constant(ref l) => {
             match *l {
                 NumLit(n, _) => format!("{}", n as u32),
@@ -87,9 +86,8 @@ fn print_rvalelem(interner: &Interner,
     }
 }
 
-fn assign_vars(interner: &Interner,
-               global_map: &BTreeMap<Name, StaticIRItem>,
-               label: &BTreeMap<Name, usize>,
+fn assign_vars(global_map: &BTreeMap<VarName, StaticIRItem>,
+               label: &BTreeMap<VarName, usize>,
                vars: &BTreeSet<Var>) -> String {
     let mut s = "".to_string();
     for var in vars.iter() {
@@ -104,24 +102,24 @@ fn assign_vars(interner: &Interner,
             _ =>
                 s = s +
                     &format!("  {} = {};\n",
-                            print_var(interner, global_map, &new_var),
-                            print_var(interner, global_map, var))[..],
+                            print_var(global_map, &new_var),
+                            print_var(global_map, var))[..],
         }
     }
     s
 }
 
 impl IRTarget {
-    fn convert_function(&self, interner: &Interner,
+    fn convert_function(&self,
                         ops: &Vec<Op>,
-                        global_map: &BTreeMap<Name, StaticIRItem>) -> String {
+                        global_map: &BTreeMap<VarName, StaticIRItem>) -> String {
         // If this is the case, it's an extern. We don't want to emit it.
         if ops.len() <= 1 { return "".to_string() }
 
         let opinfo = LivenessAnalyzer::unanalyzed_opinfo(ops);
         let mut s = "".to_string();
         let mut vars = BTreeSet::new();
-        let mut labels: BTreeMap<usize, BTreeMap<Name, usize>> = BTreeMap::new();
+        let mut labels: BTreeMap<usize, BTreeMap<VarName, usize>> = BTreeMap::new();
         // Find all variables we need to declare. This is all variables
         // that are defined anywhere, except in the very first instruction
         // (which must be a function definition instruction).
@@ -142,7 +140,7 @@ impl IRTarget {
         for op in ops.iter() {
             match op.val {
                 OpNode::Label(ref idx, ref vars) => {
-                    let mut varmap: BTreeMap<Name, usize> = BTreeMap::new();
+                    let mut varmap: BTreeMap<VarName, usize> = BTreeMap::new();
                     for var in vars.iter() {
                         varmap.insert(var.name.clone(),
                                       var.generation.unwrap());
@@ -169,59 +167,59 @@ impl IRTarget {
                         "(unsigned long)"
                     };
                     format!("  {} = (long)(({}{}) {} ({}{}));\n",
-                            print_var(interner, global_map, v),
+                            print_var(global_map, v),
                             cast,
-                            print_rvalelem(interner, global_map, rv1),
+                            print_rvalelem(global_map, rv1),
                             op,
                             cast,
-                            print_rvalelem(interner, global_map, rv2))
+                            print_rvalelem(global_map, rv2))
                 },
                 OpNode::UnOp(ref v, ref op, ref rv) => {
                     match *op {
                         Deref =>
                             format!("  {} = (long)({} (long*)({}));\n",
-                                    print_var(interner, global_map, v),
+                                    print_var(global_map, v),
                                     op,
-                                    print_rvalelem(interner, global_map, rv)),
+                                    print_rvalelem(global_map, rv)),
                         SxbOp |
                         SxhOp =>
                             format!("  {} = (long)({} ({}));\n",
-                                    print_var(interner, global_map, v),
+                                    print_var(global_map, v),
                                     if *op == SxbOp {
                                         "(int8_t)"
                                     } else {
                                         "(int16_t)"
                                     },
-                                    print_rvalelem(interner, global_map, rv)),
+                                    print_rvalelem(global_map, rv)),
                         _ =>
                             format!("  {} = (long)({} ({}));\n",
-                                    print_var(interner, global_map, v),
+                                    print_var(global_map, v),
                                     op,
-                                    print_rvalelem(interner, global_map, rv))
+                                    print_rvalelem(global_map, rv))
                     }
                 },
                 OpNode::Alloca(ref v, ref size) => {
                     format!("  {} = (long)(alloca({}));\n",
-                            print_var(interner, global_map, v), size)
+                            print_var(global_map, v), size)
                 },
                 OpNode::Call(ref v, ref fname, ref args) => {
                     let mut s = match *fname {
                         Variable(ref fnv) =>
                             if is_function(global_map, fnv) {
                                 format!("  {} = (long){}(",
-                                    print_var(interner, global_map, v),
-                                    print_var(interner, global_map, fnv),
+                                        print_var(global_map, v),
+                                        fnv.name.base_name(),
                                     )
                             } else {
                                 format!("  {} = ((long (*)()){})(",
-                                        print_var(interner, global_map, v),
-                                        print_var(interner, global_map, fnv),
+                                        print_var(global_map, v),
+                                        print_var(global_map, fnv),
                                         )
                             },
                         _=> unimplemented!(),
                     };
                     let list: Vec<String> = args.iter()
-                        .map(|arg| print_var(interner, global_map, arg)
+                        .map(|arg| print_var(global_map, arg)
                              ).collect();
                     s = s + &list.join(", ")[..];
                     s = s + ");\n";
@@ -229,14 +227,14 @@ impl IRTarget {
                 },
                 OpNode::Load(ref l, ref r, ref size) => {
                     format!("  {} = (long)*({}*)({});\n",
-                            print_var(interner, global_map, l),
+                            print_var(global_map, l),
                             match *size {
                                 AnyWidth |
                                 Width32 => "uint32_t",
                                 Width16 => "uint16_t",
                                 Width8 => "uint8_t",
                             },
-                            print_var(interner, global_map, r))
+                            print_var(global_map, r))
                 },
                 OpNode::Store(ref l, ref r, ref size) => {
                     format!("  *({}*)({}) = {};\n",
@@ -246,8 +244,8 @@ impl IRTarget {
                                 Width16 => "uint16_t",
                                 Width8 => "uint8_t",
                             },
-                            print_var(interner, global_map, l),
-                            print_var(interner, global_map, r))
+                            print_var(global_map, l),
+                            print_var(global_map, r))
                 },
                 OpNode::Nop => format!(""),
                 OpNode::Label(ref l, _) => {
@@ -257,8 +255,7 @@ impl IRTarget {
                 },
                 OpNode::Goto(ref l, ref vars) => {
                     format!("{}  goto LABEL{};\n",
-                            assign_vars(interner,
-                                        global_map,
+                            assign_vars(global_map,
                                         labels.get(l).unwrap(),
                                         vars),
                             l)
@@ -266,30 +263,26 @@ impl IRTarget {
                 OpNode::CondGoto(ref negated, ref rve, ref l, ref vars) => {
                     format!("  if ({}({})) {{\n  {}\n  goto LABEL{}; }}\n",
                             if *negated { "!" } else { "" },
-                            print_rvalelem(interner, global_map, rve),
-                            assign_vars(interner,
-                                        global_map,
+                            print_rvalelem(global_map, rve),
+                            assign_vars(global_map,
                                         labels.get(l).unwrap(),
                                         vars),
                             l)
                 },
                 OpNode::Return(ref rve) => {
-                    format!("  return {};\n", print_rvalelem(interner,
-                                                             global_map,
+                    format!("  return {};\n", print_rvalelem(global_map,
                                                              rve))
                 },
                 OpNode::Func(ref name, ref args, _) => {
                     let mapped_args: Vec<String> = args.iter()
-                        .map(|arg| format!("long {}", print_var(interner,
-                                                                global_map,
+                        .map(|arg| format!("long {}", print_var(global_map,
                                                                 arg)))
                         .collect();
                     let mut s = format!("");
                     for var in vars.iter() {
                         if global_map.get(&var.name).is_none() {
                             s = s + &format!("  long {};\n",
-                                         print_var(interner,
-                                                   global_map,
+                                         print_var(global_map,
                                                    *var))[..];
                         }
                     }
@@ -300,7 +293,7 @@ impl IRTarget {
 
                     format!("{}\nlong {}({}) {{\n{}",
                             closer,
-                            interner.name_to_str(name),
+                            name.base_name(),
                             mapped_args.join(", "),
                             s)
                 },
@@ -404,7 +397,7 @@ impl Target for IRTarget {
                                    Some(_) => format!("extern "),
                                    _ => "".to_string()
                                },
-                               session.interner.name_to_str(name));
+                               name.base_name());
                     },
                     _ => {}
                 }
@@ -416,9 +409,9 @@ impl Target for IRTarget {
         for (_, item) in global_map.iter() {
             if !item.is_func {
                 if item.is_ref {
-                    writeln!(f, "char {}[{}];", item.name, item.size);
+                    writeln!(f, "char {}[{}];", item.name.canonical_name(), item.size);
                 } else {
-                    writeln!(f, "long {};", item.name);
+                    writeln!(f, "long {};", item.name.canonical_name());
                 }
             }
         }
@@ -450,7 +443,7 @@ impl Target for IRTarget {
                 }
             }
             let start = precise_time_ns();
-            write!(f, "{}\n", self.convert_function(&*session.interner, insts, &global_map));
+            write!(f, "{}\n", self.convert_function(insts, &global_map));
             let end = precise_time_ns();
             convert_time += end-start;
         }

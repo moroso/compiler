@@ -4,7 +4,7 @@ use mc::ast::NodeId;
 use std::collections::{BTreeSet, BTreeMap, BinaryHeap};
 use std::collections::btree_map;
 use codegen::RegisterColor;
-use ir::{IrNodeId, Op, OpInfo, Var};
+use ir::{IrNodeId, Op, OpInfo, Var, VarName};
 use std::fs::File;
 use std::io::BufReader;
 use std::io::prelude::*;
@@ -21,7 +21,7 @@ pub fn write_debug_file(
     spanmap: &BTreeMap<NodeId, Span>, // Maps *AST* node IDs to spans in Mb source
     filemap: &BTreeMap<NodeId, Name>, // Maps *AST* node IDs to Mb source files
     sourcemap: &BTreeMap<IrNodeId, NodeId>, // Maps IR node IDs to the AST node ID they came from
-    func_debug_info: &BTreeMap<Name, // Maps function names to:
+    func_debug_info: &BTreeMap<VarName, // Maps function names to:
                                (BTreeMap<Var, RegisterColor>, // Variable -> register correspondence
                                 Vec<Op>, // The entire IR of the function
                                 Vec<OpInfo>, // Liveness information for each IR instruction

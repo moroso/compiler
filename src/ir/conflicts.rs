@@ -21,10 +21,10 @@ impl ConflictAnalyzer {
                            // This is a set of Names, because
                            // we spill *every* generation of
                            // the variable.
-                           BTreeSet<Name>) {
+                           BTreeSet<VarName>) {
         let mut conflict_map = BTreeMap::<Var, BTreeSet<Var>>::new();
         let mut counts = BTreeMap::<Var, u32>::new();
-        let mut referenced_vars = BTreeSet::<Name>::new();
+        let mut referenced_vars = BTreeSet::<VarName>::new();
         let mut must_colors = BTreeMap::new();
 
         for op in ops.iter() {

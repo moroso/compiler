@@ -85,12 +85,12 @@ fn width_to_lsuwidth(width: &Width) -> LsuWidth {
 }
 
 pub struct IrToAsm<'a> {
-    global_map: &'a BTreeMap<Name, StaticIRItem>,
+    global_map: &'a BTreeMap<VarName, StaticIRItem>,
     pub strings: BTreeSet<Name>,
 }
 
 impl<'a> IrToAsm<'a> {
-    pub fn new(global_map: &'a BTreeMap<Name, StaticIRItem>,
+    pub fn new(global_map: &'a BTreeMap<VarName, StaticIRItem>,
                strings: BTreeSet<Name>) -> IrToAsm<'a> {
         IrToAsm::<'a> {
             global_map: global_map,
@@ -268,14 +268,14 @@ impl<'a> IrToAsm<'a> {
 
         let mut targets: BTreeMap<String, usize> = BTreeMap::new();
 
-        let mut labels: BTreeMap<usize, BTreeMap<Name, usize>> = BTreeMap::new();
+        let mut labels: BTreeMap<usize, BTreeMap<VarName, usize>> = BTreeMap::new();
         // Find out which variables are used at each label.
         // TODO: merge this in with the loop above, so we don't iterate over
         // the instruction list as many times?
         for op in ops.iter() {
             match op.val {
                 OpNode::Label(ref idx, ref vars) => {
-                    let mut varmap: BTreeMap<Name, usize> = BTreeMap::new();
+                    let mut varmap: BTreeMap<VarName, usize> = BTreeMap::new();
                     for var in vars.iter() {
                         varmap.insert(var.name.clone(),
                                       var.generation.expect(
@@ -305,7 +305,9 @@ impl<'a> IrToAsm<'a> {
                             continue;
                         }
                     }
-                    targets.insert(format!("{}", name), result.len());
+                    // Functions are represented by their base names, for compatibility
+                    // with asm.
+                    targets.insert(format!("{}", name.base_name()), result.len());
                     if let Some(ref abi) = *abi {
                         if abi.to_string() == "bare" {
                             // For the bare API, we include the label, but we omit all of
@@ -738,7 +740,7 @@ impl<'a> IrToAsm<'a> {
                             result.push(InstNode::branchimm(
                                 TRUE_PRED,
                                 true,
-                                JumpLabel(format!("{}", func_var.name))));
+                                JumpLabel(format!("{}", func_var.name.base_name()))));
                         }
                     }
 
@@ -809,7 +811,9 @@ impl<'a> IrToAsm<'a> {
                              pred,
                              MovAluOp,
                              reg),
-                              InstNode::long_label(format!("{}", var.name))
+                              // Functions are represented by their base names, for compatibility
+                              // with asm.
+                              InstNode::long_label(format!("{}", var.name.base_name()))
                               ),
                          vec!())
                     }
@@ -908,7 +912,7 @@ impl<'a> IrToAsm<'a> {
     fn assign_vars(&mut self,
                    regmap: &BTreeMap<Var, RegisterColor>,
                    pred: &Pred,
-                   gens: &BTreeMap<Name, usize>,
+                   gens: &BTreeMap<VarName, usize>,
                    vars: &BTreeSet<Var>,
                    args_offs: i32,
                    spill_offs: i32) -> Vec<InstNode> {

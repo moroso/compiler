@@ -1,6 +1,5 @@
 use ir::*;
 use mc::ast::*;
-use mc::session::Session;
 use util::IntKind::UnsignedInt;
 use util::Name;
 use util::Width::{AnyWidth, Width32};
@@ -32,30 +31,28 @@ fn popcount(n: u64) -> u8 {
 }
 
 impl MultiplyOptimizer {
-    fn convert_to_software_ops(ops: &mut Vec<Op>, verbose: bool, session: &mut Session,
-                               mul_func: Option<Name>, div_func: Option<Name>,
-                               mod_func: Option<Name>) {
+    fn convert_to_software_ops(ops: &mut Vec<Op>, verbose: bool,
+                               mul_func: Option<VarName>, div_func: Option<VarName>,
+                               mod_func: Option<VarName>) {
         if verbose {
             print!("Using software ops\n");
         }
-        let mut temp_count: u32 = 0;
-        fn gen_temp(temp_count: &mut u32, session: &mut Session) -> Var {
+        // TODO: these can collide, right?
+        let mut temp_count: usize = 0;
+        fn gen_temp(temp_count: &mut usize) -> Var {
             let res = Var {
-                name: session.interner.intern(
-                    // TODO: refactor how we do temp vars, because this is silly.
-                    format!("MULT_TEMP{}", *temp_count)),
+                name: VarName::OptTempVariable(*temp_count),
                 generation: None,
             };
             *temp_count += 1;
             res
         }
 
-        fn variable_for(rve: RValueElem, temp_count: &mut u32, session: &mut Session,
-                        node_id: IrNodeId
+        fn variable_for(rve: RValueElem, temp_count: &mut usize, node_id: IrNodeId
         ) -> (Vec<Op>, Var) {
             match rve {
                 Variable(v) => {
-                    let new_temp = gen_temp(temp_count, session);
+                    let new_temp = gen_temp(temp_count);
 
                     (vec!(
                         Op {
@@ -67,7 +64,7 @@ impl MultiplyOptimizer {
                     ), new_temp)
                 },
                 Constant(c) => {
-                    let new_temp = gen_temp(temp_count, session);
+                    let new_temp = gen_temp(temp_count);
 
                     (vec!(
                         Op {
@@ -103,9 +100,9 @@ impl MultiplyOptimizer {
 
                     let (extra_ops, mut vars): (Vec<Vec<Op>>, Vec<Var>) =
                         vec!(op1.clone(), op2.clone()).into_iter()
-                        .map(|x| variable_for(x, &mut temp_count, session, op.id)).unzip();
+                        .map(|x| variable_for(x, &mut temp_count, op.id)).unzip();
 
-                    let signedness_var = gen_temp(&mut temp_count, session);
+                    let signedness_var = gen_temp(&mut temp_count);
                     vars.push(signedness_var);
                     let nv = Op {
                         id: op.id,
@@ -140,9 +137,9 @@ impl MultiplyOptimizer {
         }
     }
 
-    pub fn process(ops: &mut Vec<Op>, verbose: bool, session: &mut Session,
-                   mul_func: Option<Name>, div_func: Option<Name>,
-                   mod_func: Option<Name>, const_mul_bit_limit: u8) {
+    pub fn process(ops: &mut Vec<Op>, verbose: bool,
+                   mul_func: Option<VarName>, div_func: Option<VarName>,
+                   mod_func: Option<VarName>, const_mul_bit_limit: u8) {
         for op in ops.iter_mut() {
             match op.val {
                 OpNode::BinOp(_, ref mut opnode, ref mut op1, ref mut op2, signed) => {
@@ -201,7 +198,7 @@ impl MultiplyOptimizer {
             print!("{:?} {:?} {:?}\n", mul_func, div_func, mod_func);
         }
         if mul_func.is_some() || div_func.is_some() || mod_func.is_some() {
-            MultiplyOptimizer::convert_to_software_ops(ops, verbose, session,
+            MultiplyOptimizer::convert_to_software_ops(ops, verbose,
                                                        mul_func, div_func, mod_func);
         }
     }

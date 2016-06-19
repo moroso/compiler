@@ -14,8 +14,8 @@ impl RegisterColorer {
     pub fn color(conflicts: BTreeMap<Var, BTreeSet<Var>>,
                  frequencies: BTreeMap<Var, u32>,
                  must_colors: BTreeMap<Var, RegisterColor>,
-                 mem_vars: BTreeSet<Name>,
-                 global_map: &BTreeMap<Name, StaticIRItem>,
+                 mem_vars: BTreeSet<VarName>,
+                 global_map: &BTreeMap<VarName, StaticIRItem>,
                  num_colors: usize
                  ) -> BTreeMap<Var, RegisterColor> {
         let mut coloring: BTreeMap<Var, RegisterColor> =
@@ -25,7 +25,7 @@ impl RegisterColorer {
         // but some of these are global).
         let new_mem_vars = mem_vars.into_iter().filter(
             |name| global_map.get(name).is_none());
-        let mem_locs: BTreeMap<Name, usize> = FromIterator::from_iter(
+        let mem_locs: BTreeMap<VarName, usize> = FromIterator::from_iter(
             new_mem_vars.enumerate().map(|(x,y)| (y,x)));
 
         let mut freq_vec: Vec<(&Var, &u32)> = frequencies.iter().collect();

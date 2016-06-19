@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 use util::{Name, Width};
 
 use mas::ast::InstNode;
-use mc::ast::WithIdT;
+use mc::ast::{NodeId, WithIdT};
 
 pub use self::LValue::*;
 pub use self::RValueElem::*;
@@ -23,7 +23,7 @@ pub mod multiply_optimizer;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct StaticIRItem {
-    pub name: Name,
+    pub name: VarName,
     pub label: Option<Name>,
     pub size: usize,
     pub offset: Option<usize>,
@@ -38,8 +38,52 @@ pub struct StaticIRItem {
 allow_string!(StaticIRItem);
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
+pub enum VarName {
+    // Named variable that was present in the source
+    NamedVariable(Name, NodeId),
+    // Variable referencing a symbol that's builtin/external and has no defid.
+    MangledVariable(Name),
+    // Temp variable created during conversion to IR
+    IRTempVariable(usize),
+    // Temp variable created during optimization passes
+    OptTempVariable(usize),
+}
+
+impl Display for VarName {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            VarName::NamedVariable(name, id) => write!(f, "{}[{}]", name, id),
+            VarName::MangledVariable(name) => write!(f, "<BUILTIN {}>", name),
+            VarName::IRTempVariable(idx) => write!(f, "<TEMP {}>", idx),
+            VarName::OptTempVariable(idx) => write!(f, "<OPT_TEMP {}>", idx)
+        }
+    }
+}
+
+impl VarName {
+    pub fn canonical_name(&self) -> String {
+        match *self {
+            VarName::NamedVariable(name, nodeid) => format!("VAR_{}_{}", name, nodeid.to_uint()),
+            VarName::MangledVariable(name) => format!("{}", name),
+            VarName::IRTempVariable(idx) => format!("TEMP{}", idx),
+            VarName::OptTempVariable(idx) => format!("OPT_TEMP{}", idx),
+        }
+    }
+
+    pub fn base_name(&self) -> String {
+        match *self {
+            VarName::NamedVariable(name, _) => format!("{}", name),
+            VarName::MangledVariable(name) => format!("{}", name),
+            VarName::IRTempVariable(idx) => format!("TEMP{}", idx),
+            VarName::OptTempVariable(idx) => format!("OPT_TEMP{}", idx),
+        }
+    }
+
+}
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
 pub struct Var {
-    pub name: Name,
+    pub name: VarName,
     // If set, stores the generation of the variable. This will be None
     // if we're not yet in SSA form, and must be non-None for SSA.
     pub generation: Option<usize>,
@@ -50,6 +94,15 @@ impl Display for Var {
         match self.generation {
             Some(g) => write!(f, "{}<{}>", self.name, g),
             None => write!(f, "{}", self.name),
+        }
+    }
+}
+
+impl Var {
+    pub fn canonical_name(&self) -> String {
+        match self.generation {
+            Some(gen) => format!("{}_{}", self.name.canonical_name(), gen),
+            None => format!("{}", self.name.canonical_name()),
         }
     }
 }
@@ -137,7 +190,7 @@ pub enum OpNode {
     // Function definition. A special op, that can only appear once, at
     // the beginning of a function. The name option gives the ABI name in
     // the case of externs; None specifies a local function.
-    Func(Name, Vec<Var>, Option<Name>),
+    Func(VarName, Vec<Var>, Option<Name>),
     // Inline asm.
     AsmOp(Vec<Vec<InstNode>>),
     Nop,
