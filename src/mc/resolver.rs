@@ -434,10 +434,10 @@ impl<'a, 'b> Visitor for ModuleResolver<'a, 'b> {
     fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt.val {
             LetStmt(ref pat, ref e) => {
-                self.visit_pat(pat);
                 for e in e.iter() {
                     self.visit_expr(e);
                 }
+                self.visit_pat(pat);
             }
             _ => walk_stmt(self, stmt)
         }

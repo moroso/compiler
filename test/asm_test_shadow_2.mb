@@ -1,0 +1,11 @@
+fn main() -> u32 {
+    let z: u32 = 10;
+    {
+        let z: u32 = z + 1;
+
+        print_uint(z);
+    }
+    print_uint(z);
+
+    0
+}
