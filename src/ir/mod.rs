@@ -20,6 +20,7 @@ pub mod ssa;
 pub mod util;
 pub mod conflicts;
 pub mod multiply_optimizer;
+pub mod dead_code;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct StaticIRItem {

@@ -14,6 +14,7 @@ use ir::multiply_optimizer::MultiplyOptimizer;
 use ir::ssa::ToSSA;
 use ir::conflicts::ConflictAnalyzer;
 use ir::{IrNodeId, Op, OpInfo, OpNode, StaticIRItem, Var, VarName};
+use ir::dead_code::DeadCodeEliminator;
 
 use target::NameMangler;
 use target::debug_info::write_debug_file;
@@ -238,6 +239,7 @@ impl Target for AsmTarget {
             MultiplyOptimizer::process(&mut insts, self.verbose,
                                        mul_func_name, div_func_name, mod_func_name,
                                        self.const_mul_bit_limit);
+            DeadCodeEliminator::eliminate(&mut insts, self.verbose);
             if self.verbose {
                 print!("Post-optimization:\n");
                 for op in insts.iter() {

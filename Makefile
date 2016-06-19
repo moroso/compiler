@@ -19,6 +19,7 @@ MC_FILES := \
 	ir/ast_to_intermediate.rs \
 	ir/conflicts.rs \
 	ir/constant_fold.rs \
+	ir/dead_code.rs \
 	ir/liveness.rs \
 	ir/mod.rs \
 	ir/multiply_optimizer.rs \

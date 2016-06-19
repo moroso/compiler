@@ -517,15 +517,25 @@ impl<'a> IrToAsm<'a> {
                                                    -stack_ptr_offs,
                                                    -stack_ptr_offs + spilled_regs_offs).into_iter());
                     // Don't emit redundant jumps.
-                    let next = &ops[pos+1];
-                    match next.val {
-                        OpNode::Label(label2, _) if *label == label2 => {},
-                        _ =>
-                            result.push(
-                                InstNode::branchimm(
-                                    TRUE_PRED,
-                                    false,
-                                    JumpLabel(format!("LABEL{}", label))))
+                    // Find the next non-nop instruction.
+                    'outer: for later_op in ops.iter().skip(pos+1) {
+                        match later_op.val {
+                            // We've reached a matching label; no need to emit the jump.
+                            OpNode::Label(label2, _) if *label == label2 => { break 'outer; },
+                            // Nops, as well as other labels, don't count; skip them.
+                            OpNode::Label(_, _) |
+                            OpNode::Nop => { },
+                            _ => {
+                                // We've hit a non-label, non-nop before hitting the jump target, so we
+                                // have to emit the jump.
+                                result.push(
+                                    InstNode::branchimm(
+                                        TRUE_PRED,
+                                        false,
+                                        JumpLabel(format!("LABEL{}", label))));
+                                break 'outer;
+                            }
+                        }
                     }
                 },
                 OpNode::Label(ref label, _) => {
