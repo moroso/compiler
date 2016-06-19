@@ -1452,7 +1452,7 @@ impl<'a> IrToAsm<'a> {
                                         TRUE_PRED,
                                         MovAluOp,
                                         dest),
-                                    InstNode::long_label(format!("{}", v.name)),
+                                    InstNode::long_label(format!("{}", v.name.base_name())),
                                     );
                             } else {
                                 let label = format!("{}", global_info.label.expect("No label for global item"));

@@ -161,9 +161,7 @@ impl Target for AsmTarget {
 
         // TODO: this is a hack. Eventually we should extract names from labels
         // in any included asm files.
-        let asm_staticitems: Vec<StaticIRItem> = vec!("MANGLEDprelude_print_uint",
-                                                      "MANGLEDprelude_print_int",
-                                                      "rt_memcpy")
+        let asm_staticitems: Vec<StaticIRItem> = vec!("rt_memcpy")
             .iter()
             .map(|x|
                  StaticIRItem {
@@ -371,10 +369,13 @@ impl Target for AsmTarget {
 
         // TODO: once Rust has lexical scoping, use into_iter() here.
         for global_info in global_map.values() {
-            all_labels.insert(
-                format!("{}", global_info.label.expect("Global has no label.")),
-                LabelInfo::ByteLabel(global_info.offset.expect("Global has no offset.") + global_start as usize)
-            );
+            if !global_info.is_extern {
+                all_labels.insert(
+                    format!("{}", global_info.label.expect("Global has no label.")),
+                    LabelInfo::ByteLabel(global_info.offset.expect("Global has no offset.")
+                                         + global_start as usize)
+                );
+            }
         }
 
         if self.verbose {

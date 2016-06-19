@@ -382,8 +382,14 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             global.offset = Some(offs);
             // TODO: this is a hack; this should be refactored (in the same
             // way that variable names should be).
-            let label_name = session.interner.intern(
-                format!("GLOBAL_LABEL_{}", global.name.canonical_name()));
+            let label_name = if global.is_extern {
+                // For externs, it's essential that the name match the actual name.
+                session.interner.intern(
+                    format!("{}", global.name.base_name()))
+            } else {
+                session.interner.intern(
+                    format!("GLOBAL_LABEL_{}", global.name.canonical_name()))
+            };
             global.label = Some(label_name);
             result.insert(global.name, global);
             // Ensure we end of a 4-byte boundary.
