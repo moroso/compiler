@@ -322,15 +322,17 @@ impl<'a> IrToAsm<'a> {
 
                     // Before we can save anything to the stack, we must advance the
                     // stack pointer.
-                    result.push(
-                        InstNode::alu2short(
-                            TRUE_PRED,
-                            AddAluOp,
-                            STACK_POINTER,
-                            STACK_POINTER,
-                            stack_ptr_offs_base,
-                            stack_ptr_offs_shift)
-                            );
+                    if stack_ptr_offs > 0 {
+                        result.push(
+                            InstNode::alu2short(
+                                TRUE_PRED,
+                                AddAluOp,
+                                STACK_POINTER,
+                                STACK_POINTER,
+                                stack_ptr_offs_base,
+                                stack_ptr_offs_shift)
+                        );
+                    }
 
                     // Save the return address.
                     if has_call {
@@ -391,15 +393,17 @@ impl<'a> IrToAsm<'a> {
                             "Unable to pack literal.");
 
                     // Restore stack pointer
-                    result.push(
-                        InstNode::alu2short(
-                            TRUE_PRED,
-                            SubAluOp,
-                            STACK_POINTER,
-                            STACK_POINTER,
-                            stack_ptr_offs_base,
-                            stack_ptr_offs_shift)
-                            );
+                    if stack_ptr_offs > 0 {
+                        result.push(
+                            InstNode::alu2short(
+                                TRUE_PRED,
+                                SubAluOp,
+                                STACK_POINTER,
+                                STACK_POINTER,
+                                stack_ptr_offs_base,
+                                stack_ptr_offs_shift)
+                        );
+                    }
 
                     // Return
                     result.push(
@@ -649,15 +653,17 @@ impl<'a> IrToAsm<'a> {
 
                     // Before we can save anything to the stack, we must advance the
                     // stack pointer.
-                    result.push(
-                        InstNode::alu2short(
-                            TRUE_PRED,
-                            AddAluOp,
-                            STACK_POINTER,
-                            STACK_POINTER,
-                            extra_stack_len_base,
-                            extra_stack_len_shift)
-                            );
+                    if extra_stack_len > 0 {
+                        result.push(
+                            InstNode::alu2short(
+                                TRUE_PRED,
+                                AddAluOp,
+                                STACK_POINTER,
+                                STACK_POINTER,
+                                extra_stack_len_base,
+                                extra_stack_len_shift)
+                        );
+                    }
 
                     // Save all caller-save registers that need to be saved.
                     // If we use, say, registers r0 - r3 as arguments, we
@@ -757,15 +763,17 @@ impl<'a> IrToAsm<'a> {
                     }
 
                     // Restore the stack pointer.
-                    result.push(
-                        InstNode::alu2short(
-                            TRUE_PRED,
-                            SubAluOp,
-                            STACK_POINTER,
-                            STACK_POINTER,
-                            extra_stack_len_base,
-                            extra_stack_len_shift)
-                            );
+                    if extra_stack_len > 0 {
+                        result.push(
+                            InstNode::alu2short(
+                                TRUE_PRED,
+                                SubAluOp,
+                                STACK_POINTER,
+                                STACK_POINTER,
+                                extra_stack_len_base,
+                                extra_stack_len_shift)
+                        );
+                    }
 
                 },
                 OpNode::AsmOp(ref insts) => {
