@@ -15,6 +15,7 @@ use ir::ssa::ToSSA;
 use ir::conflicts::ConflictAnalyzer;
 use ir::{IrNodeId, Op, OpInfo, OpNode, StaticIRItem, Var, VarName};
 use ir::dead_code::DeadCodeEliminator;
+use ir::inliner::Inliner;
 
 use target::NameMangler;
 use target::debug_info::write_debug_file;
@@ -52,6 +53,7 @@ enum BinaryFormat {
 pub struct AsmTarget {
     verbose: bool,
     disable_scheduler: bool,
+    disable_inliner: bool,
     list_file: Option<String>,
     debug_file: Option<String>,
     format: BinaryFormat,
@@ -68,6 +70,7 @@ impl MkTarget for AsmTarget {
     fn new(args: &Vec<(String, Option<String>)>) -> Box<AsmTarget> {
         let mut verbose = false;
         let mut disable_scheduler = false;
+        let mut disable_inliner = false;
         let mut list_file = None;
         let mut format = BinaryFormat::FlatFormat;
         let mut code_start = 0;
@@ -107,6 +110,8 @@ impl MkTarget for AsmTarget {
                 global_start = Some(u32::from_str_radix(&arg.1.clone().unwrap()[..], 16).unwrap());
             } else if arg.0 == "disable_scheduler" {
                 disable_scheduler = true;
+            } else if arg.0 == "disable_inliner" {
+                disable_inliner = true;
             } else if arg.0 == "mul_func" {
                 mul_func = arg.1.clone();
             } else if arg.0 == "div_func" {
@@ -126,6 +131,7 @@ impl MkTarget for AsmTarget {
             stack_start: stack_start,
             global_start: global_start,
             disable_scheduler: disable_scheduler,
+            disable_inliner: disable_inliner,
             debug_file: debug_file,
             mul_func: mul_func,
             div_func: div_func,
@@ -151,13 +157,13 @@ impl Target for AsmTarget {
             print!("Mangler: {:?}\n", mangle_map);
         }
 
-        let (mut result, mut staticitems) = {
+        let ((mut result, mut staticitems), max_label) = {
             let mut converter = ASTToIntermediate::new(&mut session,
                                                        &mut typemap,
                                                        &mangle_map,
                                                        &mut sourcemap);
 
-            converter.convert_module(&module)
+            (converter.convert_module(&module), converter.next_label())
         };
 
         // TODO: this is a hack. Eventually we should extract names from labels
@@ -224,6 +230,10 @@ impl Target for AsmTarget {
                                       Vec<OpInfo>,
                                       Vec<usize>,
                                       Vec<InstNode>)> = BTreeMap::new();
+
+        if !self.disable_inliner {
+            Inliner::inline(&mut result, max_label, self.verbose);
+        }
 
         for mut insts in result.into_iter() {
             if self.verbose {

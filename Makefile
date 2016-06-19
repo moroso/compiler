@@ -20,6 +20,7 @@ MC_FILES := \
 	ir/conflicts.rs \
 	ir/constant_fold.rs \
 	ir/dead_code.rs \
+	ir/inliner.rs \
 	ir/liveness.rs \
 	ir/mod.rs \
 	ir/multiply_optimizer.rs \

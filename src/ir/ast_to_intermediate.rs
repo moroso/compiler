@@ -167,6 +167,10 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         res
     }
 
+    pub fn next_label(&self) -> usize {
+        self.label_count
+    }
+
     pub fn convert_stmt(&mut self, stmt: &Stmt) -> (Vec<Op>, Option<Var>) {
         let (ops, var) = match stmt.val {
             ExprStmt(ref e) => self.convert_expr(e),

@@ -1,4 +1,4 @@
-use mc::ast::{LitNode, BinOpNode, UnOpNode, Expr};
+use mc::ast::{LitNode, BinOpNode, UnOpNode, Expr, CanHaveId};
 
 use std::fmt;
 use std::fmt::{Formatter, Result, Display, Debug};
@@ -21,6 +21,7 @@ pub mod util;
 pub mod conflicts;
 pub mod multiply_optimizer;
 pub mod dead_code;
+pub mod inliner;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct StaticIRItem {
@@ -166,6 +167,7 @@ impl IrNodeId {
 }
 
 pub type Op = WithIdT<IrNodeId, OpNode>;
+impl CanHaveId<IrNodeId> for OpNode {}
 
 #[derive(Clone, Debug)]
 pub enum OpNode {

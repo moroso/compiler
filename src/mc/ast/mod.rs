@@ -32,6 +32,16 @@ pub struct WithIdT<I, T> {
     pub val: T,
 }
 
+pub trait CanHaveId<I>
+where Self: Sized {
+    fn with_id(self: Self, id: I) -> WithIdT<I, Self> {
+        WithIdT {
+            val: self,
+            id: id,
+        }
+    }
+}
+
 impl<I, T: PartialEq> PartialEq for WithIdT<I, T> {
     fn eq(&self, other: &WithIdT<I, T>) -> bool {
         self.val.eq(&other.val)

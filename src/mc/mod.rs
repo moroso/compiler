@@ -110,6 +110,7 @@ pub fn main() {
         optflag("d", "dep-files", "Generate dependency files"),
         optflag("v", "verbose", "Enable verbose output."),
         optflag("", "disable_scheduler", "Disable instruction scheduler (asm target only)"),
+        optflag("", "disable_inliner", "Disable function inlining (asm target only)"),
         optflag("", "no_prelude", "Omit the prelude."),
         optflag("h", "help", "Show this help message."),
         optmulti("l", "lib", "Specify a library location", "<foo:/path/to/foo.mb>"),
@@ -147,7 +148,7 @@ pub fn main() {
 
     let mut opts = vec!();
 
-    for opt in vec!("verbose", "disable_scheduler").into_iter() {
+    for opt in vec!("verbose", "disable_scheduler", "disable_inliner").into_iter() {
         let val = matches.opt_present(opt);
         if val {
             opts.push((opt.to_string(), None));
