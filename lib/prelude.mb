@@ -7,3 +7,69 @@ extern fn debug_break();
 extern fn rt_malloc<T>(i: u32) -> *T;
 extern fn rt_abort() -> !;
 fn print_uint(x: u32) { print_int(x as i32); }
+
+fn sw_mul(x: u32, y: u32, signed: bool) -> u32 {
+	let abs_x: u32 = x;
+	let abs_y: u32 = y;
+	let invert = false;
+	if(signed){
+		abs_x = if((x as i32) < 0){ ~x + 1 } else{ x };
+		abs_y = if((y as i32) < 0){ ~y + 1 } else{ y };
+		invert = ((x as i32) < 0) != ((y as i32) < 0);
+	}
+	let product: u32 = 0;
+	while(y != 0){
+		if((abs_y & 1) != 0){
+			abs_y = abs_y - 1;
+			product = product + abs_x;
+		}
+		else{
+			abs_y = abs_y >> 1;
+			product = product << 1;
+		}
+	}
+	if(invert){
+		product = ~product + 1;
+	}
+	product
+}
+
+// compute x / y
+fn sw_div(x: u32, y: u32, signed: bool) -> u32 {
+	let abs_x: u32 = x;
+	let abs_y: u32 = y;
+	let invert = false;
+	if(signed){
+		abs_x = if((x as i32) < 0){ ~x + 1 } else{ x };
+		abs_y = if((y as i32) < 0){ ~y + 1 } else{ y };
+		invert = ((x as i32) < 0) != ((y as i32) < 0);
+	}
+	let quotient = 0;
+	while(x >= y){
+		quotient += 1;
+		x = x - y;
+	}
+	if(invert){
+		quotient = ~quotient + 1;
+	}
+	quotient
+}
+
+// compute x % y
+fn sw_mod(x: u32, y:u32, signed: bool) -> u32 {
+	let abs_x: u32 = x;
+	let abs_y: u32 = y;
+	let invert = false;
+	if(signed){
+		abs_x = if((x as i32) < 0){ ~x + 1 } else{ x };
+		abs_y = if((y as i32) < 0){ ~y + 1 } else{ y };
+		invert = ((x as i32) < 0);
+	}
+	while(x >= y){
+		x = x - y;
+	}
+	if(invert){
+		x = ~x + 1;
+	}
+	x
+}
