@@ -239,7 +239,9 @@ impl Target for AsmTarget {
             MultiplyOptimizer::process(&mut insts, self.verbose,
                                        mul_func_name, div_func_name, mod_func_name,
                                        self.const_mul_bit_limit);
-            DeadCodeEliminator::eliminate(&mut insts, self.verbose);
+            // Set the last argument to true for debugging issues with the DCE.
+            // See the "eliminate" function for details.
+            DeadCodeEliminator::eliminate(&mut insts, self.verbose, false);
             if self.verbose {
                 print!("Post-optimization:\n");
                 for op in insts.iter() {

@@ -518,10 +518,11 @@ impl<'a> IrToAsm<'a> {
                                                    -stack_ptr_offs + spilled_regs_offs).into_iter());
                     // Don't emit redundant jumps.
                     // Find the next non-nop instruction.
+                    let mut found = false;
                     'outer: for later_op in ops.iter().skip(pos+1) {
                         match later_op.val {
                             // We've reached a matching label; no need to emit the jump.
-                            OpNode::Label(label2, _) if *label == label2 => { break 'outer; },
+                            OpNode::Label(label2, _) if *label == label2 => { found = true; break 'outer; },
                             // Nops, as well as other labels, don't count; skip them.
                             OpNode::Label(_, _) |
                             OpNode::Nop => { },
@@ -533,9 +534,19 @@ impl<'a> IrToAsm<'a> {
                                         TRUE_PRED,
                                         false,
                                         JumpLabel(format!("LABEL{}", label))));
+                                found = true;
                                 break 'outer;
                             }
                         }
+                    }
+                    if !found {
+                        // We hit the end. This can happen in a function with no return
+                        // (infinite loop).
+                        result.push(
+                            InstNode::branchimm(
+                                TRUE_PRED,
+                                false,
+                                JumpLabel(format!("LABEL{}", label))));
                     }
                 },
                 OpNode::Label(ref label, _) => {
