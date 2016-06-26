@@ -1,0 +1,7 @@
+const x: *u8 = "Hello World!";
+
+fn main() -> u32 {
+    printf!("%s\n", x);
+
+    0
+}

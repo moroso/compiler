@@ -33,6 +33,12 @@ pub fn static_cast(lit: &LitNode, ty: &Ty) -> Option<LitNode> {
                 _ => None,
             }
         },
+        StringLit(ref val) => {
+            match *ty {
+                Ty::PtrTy(_) => Some(StringLit(val.clone())),
+                _ => None
+            }
+        }
         _ => None
     }
 }
