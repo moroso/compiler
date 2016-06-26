@@ -176,7 +176,7 @@ pub enum OpNode {
     // Apply a binary operator. We store whether it's signed
     BinOp(Var, BinOpNode, RValueElem, RValueElem, bool),
     Alloca(Var, u64),
-    Call(Var, RValueElem, Vec<Var>),
+    Call(Option<Var>, RValueElem, Vec<Var>),
     // Store to memory address pointed to by first Var.
     Store(Var, Var, Width),
     // Load from the address pointed to by the second Var.
@@ -189,7 +189,7 @@ pub enum OpNode {
     // Conditional goto. Optionally negated.
     CondGoto(bool, RValueElem, usize, BTreeSet<Var>),
     // Return statement.
-    Return(RValueElem),
+    Return(Option<RValueElem>),
     // Function definition. A special op, that can only appear once, at
     // the beginning of a function. The name option gives the ABI name in
     // the case of externs; None specifies a local function.
@@ -224,9 +224,12 @@ impl Display for OpNode {
             Load(ref lv, ref rv, ref size) =>
                 write!(f, "{: >12} :={} *{}\n",
                        format!("{}", lv), size, rv),
-            Call(ref lv, ref fname, ref args) =>
+            Call(Some(ref lv), ref fname, ref args) =>
                 write!(f, "{: >12} := {}({})\n",
                        format!("{}", lv), fname, write_list(args.iter())),
+            Call(None, ref fname, ref args) =>
+                write!(f, "{: >12}    {}({})\n",
+                       "", fname, write_list(args.iter())),
             Alloca(ref v, ref size) =>
                 write!(f, "{: >12} := alloca({})\n",
                        format!("{}", v), size),
@@ -235,7 +238,8 @@ impl Display for OpNode {
             CondGoto(ref neg, ref e, ref l, ref vars) =>
                 write!(f, "if {}{} goto {}({})\n",
                        if *neg { "!" } else { "" }, e, l, write_list(vars.iter())),
-            Return(ref v) => write!(f, "return {}\n", v),
+            Return(Some(ref v)) => write!(f, "return {}\n", v),
+            Return(None) => write!(f, "return\n"),
             Func(ref name, ref vars, ref abi_opt) =>
                 write!(f, "{}fn {}({})\n",
                        match *abi_opt {

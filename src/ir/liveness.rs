@@ -62,8 +62,11 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                     opinfo.succ.insert(u + 1);
                 }
             },
-            OpNode::Call(ref lv, ref f, ref args) => {
-                opinfo.def.insert(lv.clone());
+            OpNode::Call(ref lv_opt, ref f, ref args) => {
+                match *lv_opt {
+                    Some(ref lv) => { opinfo.def.insert(lv.clone()); },
+                    None => {},
+                }
                 seed_rve(opinfo, f);
                 for arg in args.iter() {
                     opinfo.used.insert(arg.clone());
@@ -131,7 +134,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
             },
             OpNode::Return(ref v) => {
                 match *v {
-                    Variable(ref w1) => { opinfo.used.insert(w1.clone()); },
+                    Some(Variable(ref w1)) => { opinfo.used.insert(w1.clone()); },
                     _ => {},
                 }
             },

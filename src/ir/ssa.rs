@@ -345,12 +345,15 @@ impl ToSSA {
                     ssa_rvalelem(gens, rve2);
                     v.generation = next_gen(gens, v.name);
                 },
-                OpNode::Call(ref mut v, ref mut f, ref mut args) => {
+                OpNode::Call(ref mut v_opt, ref mut f, ref mut args) => {
                     ssa_rvalelem(gens, f);
                     for arg in args.iter_mut() {
                         arg.generation = gen_of(gens, arg.name);
                     }
-                    v.generation = next_gen(gens, v.name);
+                    match *v_opt {
+                        Some(ref mut v) => v.generation = next_gen(gens, v.name),
+                        None => {},
+                    }
                 },
                 OpNode::Store(ref mut v, ref mut other_v, _) => {
                     other_v.generation = gen_of(gens, other_v.name);
@@ -370,7 +373,7 @@ impl ToSSA {
                 OpNode::Goto(_, ref mut vars) => {
                     ssa_vars(gens, vars, |x, y| gen_of(x, y));
                 },
-                OpNode::Return(ref mut rv) => {
+                OpNode::Return(Some(ref mut rv)) => {
                     ssa_rvalelem(gens, rv);
                 },
                 OpNode::Func(_, ref mut vars, _) => {

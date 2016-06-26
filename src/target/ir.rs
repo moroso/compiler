@@ -131,7 +131,7 @@ impl IRTarget {
         // TODO: This is a hack, until "return" takes an option.
         for op in ops.iter() {
             match op.val {
-                OpNode::Return(Variable(ref v)) => { vars.insert(v); },
+                OpNode::Return(Some(Variable(ref v))) => { vars.insert(v); },
                 _ => {}
             }
         }
@@ -202,19 +202,29 @@ impl IRTarget {
                     format!("  {} = (long)(alloca({}));\n",
                             print_var(global_map, v), size)
                 },
-                OpNode::Call(ref v, ref fname, ref args) => {
+                OpNode::Call(ref v_opt, ref fname, ref args) => {
                     let mut s = match *fname {
                         Variable(ref fnv) =>
                             if is_function(global_map, fnv) {
-                                format!("  {} = (long){}(",
-                                        print_var(global_map, v),
-                                        fnv.name.base_name(),
-                                    )
+                                match *v_opt {
+                                    Some (ref v) => format!("  {} = (long){}(",
+                                                            print_var(global_map, v),
+                                                            fnv.name.base_name(),
+                                    ),
+                                    None => format!("       {}(", fnv.name.base_name()),
+                                }
                             } else {
-                                format!("  {} = ((long (*)()){})(",
-                                        print_var(global_map, v),
-                                        print_var(global_map, fnv),
-                                        )
+                                match *v_opt {
+                                    Some(ref v) =>
+                                        format!("  {} = ((long (*)()){})(",
+                                                print_var(global_map, v),
+                                                print_var(global_map, fnv),
+                                        ),
+                                    None =>
+                                        format!("       ((long (*)()){})(",
+                                                print_var(global_map, fnv),
+                                        ),
+                                }
                             },
                         _=> unimplemented!(),
                     };
@@ -269,10 +279,13 @@ impl IRTarget {
                                         vars),
                             l)
                 },
-                OpNode::Return(ref rve) => {
+                OpNode::Return(Some(ref rve)) => {
                     format!("  return {};\n", print_rvalelem(global_map,
                                                              rve))
                 },
+                OpNode::Return(None) => {
+                    format!("  return;\n")
+                }
                 OpNode::Func(ref name, ref args, _) => {
                     let mapped_args: Vec<String> = args.iter()
                         .map(|arg| format!("long {}", print_var(global_map,

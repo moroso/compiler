@@ -35,14 +35,17 @@ impl ConflictAnalyzer {
                         _ => panic!("Should have a variable here."),
                     }
                 },
-                OpNode::Call(ref v, _, ref args) => {
+                OpNode::Call(ref v_opt, _, ref args) => {
                     for (i, arg) in args.iter().enumerate()
                         .take(NUM_PARAM_REGS)
                     {
                         must_colors.insert(*arg,
                                            RegColor(Reg { index: i as u8 }));
                     }
-                    must_colors.insert(*v, RegColor(Reg { index: 0 as u8 }));
+                    match *v_opt {
+                        Some(ref v) => { must_colors.insert(*v, RegColor(Reg { index: 0 as u8 })); }
+                        _ => {},
+                    }
                 },
                 OpNode::Func(_, ref args, ref abi) => {
                     if abi.is_some() { break; }

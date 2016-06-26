@@ -298,15 +298,9 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
                 if block.is_local() {
                     match v {
-                        Some(v) => ops.push(self.add_id(OpNode::Return(Variable(v)))),
-                        // TODO: Return should take an Option.
+                        Some(v) => ops.push(self.add_id(OpNode::Return(Some(Variable(v))))),
                         None => {
-                            let v = self.gen_temp();
-                            ops.push(self.add_id(OpNode::UnOp(v, Identity,
-                                                              Constant(NumLit(
-                                                                  5,
-                                                                  UnsignedInt(Width32))))));
-                            ops.push(self.add_id(OpNode::Return(Variable(v))));
+                            ops.push(self.add_id(OpNode::Return(None)));
                         },
                     }
                 }
@@ -451,7 +445,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 _ => {},
             }
         }
-        let op = OpNode::Return(Variable(self.gen_temp()));
+        let op = OpNode::Return(None);
         res.push(self.add_id(op));
 
         res
@@ -570,7 +564,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         ops.push(self.add_id(OpNode::UnOp(len_var, Identity,
                                           Constant(NumLit(size as u64,
                                                           UnsignedInt(Width32))))));
-        let op = OpNode::Call(self.gen_temp(),
+        let op = OpNode::Call(None,
                               Variable(
                                   Var { name: VarName::MangledVariable(self.session.interner.intern(
                                       "rt_memcpy".to_string())),
@@ -1158,29 +1152,37 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     }
                 }
                 ops.extend(move_ops.into_iter());
-                ops.push(self.add_id(OpNode::Call(result_var.clone(),
-                                                  Variable(new_var),
-                                                  new_vars.into_iter().collect())));
                 let this_ty = self.lookup_ty(expr.id).clone();
-                // We add one more dummy assignment, for the result, or a
-                // copy in the case of something in memory.
-                ops.push(self.add_id(OpNode::UnOp(result_var.clone(), Identity,
-                              Variable(result_var.clone()))));
-
-                if ty_is_reference(&self.session, &self.typemap, &this_ty) {
-                    let len = size_of_ty(self.session,
-                                         self.typemap,
-                                         &this_ty);
-                    let new_result_var = self.gen_temp();
-                    ops.push(self.add_id(OpNode::Alloca(new_result_var.clone(), len)));
-                    ops.extend(self.gen_copy(&new_result_var,
-                                             &result_var,
-                                             &this_ty).into_iter());
-                    result_var = new_result_var;
-                }
                 match this_ty {
-                    UnitTy => (ops, None),
-                    _ => (ops, Some(result_var))
+                    UnitTy => {
+                        ops.push(self.add_id(OpNode::Call(None,
+                                                          Variable(new_var),
+                                                          new_vars.into_iter().collect())));
+                        (ops, None)
+                    },
+                    _ => {
+                        ops.push(self.add_id(OpNode::Call(Some(result_var.clone()),
+                                                          Variable(new_var),
+                                                          new_vars.into_iter().collect())));
+                        // We add one more dummy assignment, for the result, or a
+                        // copy in the case of something in memory.
+                        ops.push(self.add_id(OpNode::UnOp(result_var.clone(), Identity,
+                                                          Variable(result_var.clone()))));
+
+                        if ty_is_reference(&self.session, &self.typemap, &this_ty) {
+                            let len = size_of_ty(self.session,
+                                                 self.typemap,
+                                                 &this_ty);
+                            let new_result_var = self.gen_temp();
+                            ops.push(self.add_id(OpNode::Alloca(new_result_var.clone(), len)));
+                            ops.extend(self.gen_copy(&new_result_var,
+                                                     &result_var,
+                                                     &this_ty).into_iter());
+                            result_var = new_result_var;
+                        }
+
+                        (ops, Some(result_var))
+                    }
                 }
             },
             DotExpr(ref e, ref name) |
@@ -1295,8 +1297,8 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             },
             ReturnExpr(ref e) => {
                 let (mut insts, v) = self.convert_expr(&**e);
-                let v = v.unwrap_or(self.gen_temp());
-                insts.push(self.add_id(OpNode::Return(Variable(v))));
+                let v = v.map(|x| Variable(x));
+                insts.push(self.add_id(OpNode::Return(v)));
                 (insts, None)
             }
             TupleExpr(..) => unimplemented!(),

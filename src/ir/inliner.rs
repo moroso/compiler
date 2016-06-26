@@ -118,7 +118,7 @@ fn inline_func(parent: &mut Vec<Op>, child: &Vec<Op>, label_id: &mut usize,
 
     for op in parent.into_iter() {
         match op.val {
-            OpNode::Call(ref v, RValueElem::Variable(ref funcname), ref vars)
+            OpNode::Call(ref v_opt, RValueElem::Variable(ref funcname), ref vars)
                 if funcname.name == *child_name => {
                     // We found a callsite!
 
@@ -140,14 +140,22 @@ fn inline_func(parent: &mut Vec<Op>, child: &Vec<Op>, label_id: &mut usize,
 
                     for child_op in child.iter().skip(1) {
                         match child_op.val {
-                            OpNode::Return(ref rve) => {
-                                result.push(OpNode::UnOp(v.clone(),
-                                                         UnOpNode::Identity,
-                                                         rve.clone())
-                                            .with_id(child_op.id));
+                            OpNode::Return(Some(ref rve)) => {
+                                match *v_opt {
+                                    Some(ref v) =>
+                                        result.push(OpNode::UnOp(v.clone(),
+                                                                 UnOpNode::Identity,
+                                                                 rve.clone())
+                                                    .with_id(child_op.id)),
+                                    None => {},
+                                }
                                 result.push(OpNode::Goto(end_label, BTreeSet::new())
                                             .with_id(child_op.id));
                             },
+                            OpNode::Return(None) => {
+                                result.push(OpNode::Goto(end_label, BTreeSet::new())
+                                            .with_id(child_op.id));
+                            }
                             OpNode::Label(label, ref vars) =>
                                 result.push(
                                     OpNode::Label(

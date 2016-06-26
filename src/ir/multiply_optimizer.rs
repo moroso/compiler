@@ -106,7 +106,7 @@ impl MultiplyOptimizer {
                     vars.push(signedness_var);
                     let nv = Op {
                         id: op.id,
-                        val: OpNode::Call(var, func, vars)
+                        val: OpNode::Call(Some(var), func, vars)
                     };
                     for oplist in extra_ops.into_iter() {
                         ops.extend(oplist);

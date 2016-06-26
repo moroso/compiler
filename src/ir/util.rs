@@ -102,16 +102,23 @@ pub fn subst(ops: &mut Vec<Op>,
                     )
                 }
             },
-            OpNode::Return(ref rve) => {
-                match *rve {
-                    Variable(ref v) => {
-                        if v == orig_var {
-                            OpNode::Return(new_rvelem.clone())
-                        } else {
-                            OpNode::Return(Variable(*v))
+            OpNode::Return(ref rve_opt) => {
+                match *rve_opt {
+                    Some(ref rve) => {
+                        match *rve {
+                            Variable(ref v) => {
+                                if v == orig_var {
+                                    OpNode::Return(Some(new_rvelem.clone()))
+                                } else {
+                                    OpNode::Return(Some(Variable(*v)))
+                                }
+                            },
+                            Constant(ref c) => OpNode::Return(Some(Constant(c.clone()))),
                         }
                     },
-                    Constant(ref c) => OpNode::Return(Constant(c.clone())),
+                    None => {
+                        OpNode::Return(None)
+                    }
                 }
             },
             OpNode::Call(ref lv, ref x, ref params) => {

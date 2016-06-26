@@ -358,14 +358,18 @@ impl<'a> IrToAsm<'a> {
                                 );
                     }
                 },
-                OpNode::Return(ref rve) => {
-                    // Store the result in r0.
-                    result.extend(
-                        self.convert_unop(&regmap, RETURN_REG,
-                                          &Identity, rve,
-                                          -stack_ptr_offs,
-                                          -stack_ptr_offs + spilled_regs_offs,
-                                          session).into_iter());
+                OpNode::Return(ref rve_opt) => {
+                    match *rve_opt {
+                        Some(ref rve) =>
+                            // Store the result in r0.
+                            result.extend(
+                                self.convert_unop(&regmap, RETURN_REG,
+                                                  &Identity, rve,
+                                                  -stack_ptr_offs,
+                                                  -stack_ptr_offs + spilled_regs_offs,
+                                                  session).into_iter()),
+                        None => {}
+                    }
 
                     // Restore all callee-save registers
                     for (x, i) in (FIRST_CALLEE_SAVED_REG.index .. max_reg_index+1).enumerate() {
