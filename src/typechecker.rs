@@ -521,11 +521,11 @@ impl<'a> Typechecker<'a> {
             IntTy(w) => format!("i{}", w),
             UintTy(w) => format!("u{}", w),
             UnitTy => format!("()"),
-            PtrTy(ref t) => format!("*{}", self.ty_str_(&**t)),
+            PtrTy(ref t) => format!("*({})", self.ty_str_(&**t)),
             // This is probably kind of wrong
             ArrayTy(ref t, size) => {
                 let s = size.map_or(format!(""), |n| format!("{}", n));
-                format!("{}[{}]", self.ty_str_(&**t), s)
+                format!("({})[{}]", self.ty_str_(&**t), s)
             }
             TupleTy(ref ts) => {
                 let vs: Vec<String> = ts.iter().map(|t| self.ty_str_(t)).collect();
