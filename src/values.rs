@@ -8,7 +8,7 @@ pub fn static_cast(lit: &LitNode, ty: &Ty) -> Option<LitNode> {
         NumLit(val, _) => {
             match *ty {
                 Ty::GenericIntTy => Some(lit.clone()),
-                Ty::UintTy(w) => Some(NumLit(val & w.mask(), IntKind::UnsignedInt(w))),
+                Ty::UintTy(w) => Some(NumLit(val & w.mask(), IntKind::UnsignedInt(Width::Width32))),
                 Ty::IntTy(w) => {
                     let intermediate = val & w.mask();
                     let extended = if intermediate & (1 << (w.as_int() - 1)) != 0 {
@@ -17,7 +17,7 @@ pub fn static_cast(lit: &LitNode, ty: &Ty) -> Option<LitNode> {
                     } else {
                         intermediate
                     };
-                    Some(NumLit(extended, IntKind::SignedInt(w)))
+                    Some(NumLit(extended, IntKind::UnsignedInt(Width::Width32)))
                 },
                 Ty::BoolTy => Some(BoolLit(val != 0)),
                 Ty::PtrTy(_) => Some(NumLit(val, IntKind::UnsignedInt(Width::Width32))),
@@ -28,7 +28,7 @@ pub fn static_cast(lit: &LitNode, ty: &Ty) -> Option<LitNode> {
             match *ty {
                 Ty::GenericIntTy |
                 Ty::UintTy(_) |
-                Ty::IntTy(_) => Some(NumLit(1u64, IntKind::UnsignedInt(Width::AnyWidth))),
+                Ty::IntTy(_) => Some(NumLit(1u64, IntKind::UnsignedInt(Width::Width32))),
                 Ty::BoolTy => Some(BoolLit(val)),
                 _ => None,
             }

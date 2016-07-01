@@ -62,15 +62,18 @@ fn ty_width(ty: &Ty) -> Width {
 
 /// Do whatever sign extending we need to do to our constants.
 fn adjust_constant(c: &LitNode) -> LitNode {
+    // We're using LitNodes for convenience, but we never actually
+    // use the type. So we'll make them all u32.
+    let target_type = UnsignedInt(Width32);
     match *c {
         NumLit(n, ref k) => {
             match *k {
-                UnsignedInt(..) => NumLit(n, k.clone()),
+                UnsignedInt(..) => NumLit(n, target_type),
                 GenericInt |
                 SignedInt(AnyWidth) |
-                SignedInt(Width32) => NumLit(n as i32 as u64, k.clone()),
-                SignedInt(Width16) => NumLit(n as i16 as u64, k.clone()),
-                SignedInt(Width8)  => NumLit(n as i8 as u64, k.clone()),
+                SignedInt(Width32) => NumLit(n as i32 as u64, target_type),
+                SignedInt(Width16) => NumLit(n as i16 as u64, target_type),
+                SignedInt(Width8)  => NumLit(n as i8 as u64, target_type),
             }
         }
         _ => c.clone()

@@ -23,42 +23,18 @@ fn set_signedness(l: &LitNode, signed: bool) -> LitNode {
 fn fold(op: &BinOpNode, e1: &RValueElem, e2: &RValueElem, signed: bool) ->
     Option<LitNode>
 {
-    let mut lit1 = match *e1 {
+    let lit1 = match *e1 {
         Constant(ref l) => {
             set_signedness(l, signed)
         },
         _ => return None,
     };
-    let mut lit2 = match *e2 {
+    let lit2 = match *e2 {
         Constant(ref l) => {
             set_signedness(l, signed)
         }
         _ => return None,
     };
-    match lit1 {
-        NumLit(_, ref mut kind1) => {
-            match lit2 {
-                NumLit(_, ref mut kind2) => {
-                    if kind1.is_generic() && kind2.is_generic() {
-                        let kind = if signed {
-                            IntKind::SignedInt(Width::Width32)
-                        } else {
-                            IntKind::UnsignedInt(Width::Width32)
-                        };
-                        *kind1 = kind;
-                        *kind2 = kind;
-                    }
-                    if kind1.is_generic() {
-                        *kind1 = *kind2;
-                    } else if kind2.is_generic() {
-                        *kind2 = *kind1;
-                    }
-                },
-                _ => {}
-            }
-        },
-        _ => {}
-    }
 
     Some(eval_binop(*op, lit1, lit2))
 }
