@@ -376,25 +376,32 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         // For now, align everything to 4 bytes.
         // TODO: smarter alignment/packing of globals.
         for mut global in globals.into_iter() {
-            let mut size = global.size;
-            global.offset = Some(offs);
-            // TODO: this is a hack; this should be refactored (in the same
-            // way that variable names should be).
-            let label_name = if global.is_extern {
-                // For externs, it's essential that the name match the actual name.
-                session.interner.intern(
-                    format!("{}", global.name.base_name()))
+            // Nothing to do for functions.
+            if global.is_func {
+                global.label = Some(session.interner.intern(
+                    format!("{}", global.name.base_name())))
             } else {
-                session.interner.intern(
-                    format!("GLOBAL_LABEL_{}", global.name.canonical_name()))
-            };
-            global.label = Some(label_name);
+                let mut size = global.size;
+                global.offset = Some(offs);
+                // TODO: this is a hack; this should be refactored (in the same
+                // way that variable names should be).
+                let label_name = if global.is_extern {
+                    // For externs, it's essential that the name match the actual name.
+                    session.interner.intern(
+                        format!("{}", global.name.base_name()))
+                } else {
+                    session.interner.intern(
+                        format!("GLOBAL_LABEL_{}", global.name.canonical_name()))
+                };
+                global.label = Some(label_name);
+
+                // Ensure we end of a 4-byte boundary.
+                size = align(size, 4);
+                assert!(size % 4 == 0);
+                offs += size;
+                assert!(offs % 4 == 0);
+            }
             result.insert(global.name, global);
-            // Ensure we end of a 4-byte boundary.
-            size = align(size, 4);
-            assert!(size % 4 == 0);
-            offs += size;
-            assert!(offs % 4 == 0);
         }
 
         result

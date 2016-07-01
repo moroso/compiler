@@ -827,69 +827,33 @@ impl<'a> IrToAsm<'a> {
                   args_offs: i32,
                   spill_offs: i32) -> (Reg, Vec<InstNode>, Vec<InstNode>) {
         let pred = Pred { inverted: false, reg: 3 };
-        let global_info = self.global_map.get(&var.name);
         match *regmap.get(var).unwrap() {
             RegColor(reg) => {
-                match global_info {
-                    None =>
-                        // It's an ordinary variable!
-                        (reg,
-                         vec!(), vec!()),
-                    Some(ref info) => {
-                        // It's a function address. We need to load it into
-                        // the register.
-                        assert!(info.is_func);
-                        (reg,
-                         vec!(InstNode::alu1long(
-                             pred,
-                             MovAluOp,
-                             reg),
-                              // Functions are represented by their base names, for compatibility
-                              // with asm.
-                              InstNode::long_label(format!("{}", var.name.base_name()))
-                              ),
-                         vec!())
-                    }
-                }
+                // It's an ordinary variable!
+                (reg,
+                 vec!(), vec!())
             },
             StackColor(pos) => {
                 // TODO: clean up these constants and document this.
                 let reg = Reg { index: SPILL_REG_BASE + spill_pos };
-                match global_info {
-                    None => {
-                        (reg,
-                         vec!(
-                             InstNode::load(pred,
-                                            LsuOp { store: false,
-                                                    width: LsuWidthL },
-                                            reg,
-                                            STACK_POINTER,
-                                            spill_offs + pos as i32 * 4)
-                                 ),
-                         vec!(
-                             InstNode::store(pred,
-                                             LsuOp { store: true,
-                                                     width: LsuWidthL },
-                                             STACK_POINTER,
-                                             spill_offs + pos as i32 * 4,
-                                             reg)
-                                 ),
-                        )
-                    },
-                    Some(ref info) => {
-                        assert!(info.is_func);
-                        (reg,
-                         vec!(InstNode::alu1long(
-                             pred,
-                             MovAluOp,
-                             reg),
-                              // Functions are represented by their base names, for compatibility
-                              // with asm.
-                              InstNode::long_label(format!("{}", var.name.base_name()))
-                              ),
-                         vec!())
-                    }
-                }
+                (reg,
+                 vec!(
+                     InstNode::load(pred,
+                                    LsuOp { store: false,
+                                            width: LsuWidthL },
+                                    reg,
+                                    STACK_POINTER,
+                                    spill_offs + pos as i32 * 4)
+                 ),
+                 vec!(
+                     InstNode::store(pred,
+                                     LsuOp { store: true,
+                                             width: LsuWidthL },
+                                     STACK_POINTER,
+                                     spill_offs + pos as i32 * 4,
+                                     reg)
+                 ),
+                )
             },
             StackArgColor(pos) => {
                 // TODO: clean up these constants and document this.
@@ -917,7 +881,20 @@ impl<'a> IrToAsm<'a> {
                 let global_info = self.global_map.get(&var.name).unwrap();
                 let label = format!("{}", global_info.label.expect("No label for global item"));
                 let reg = Reg { index: SPILL_REG_BASE + spill_pos };
-                if global_info.is_ref {
+                if global_info.is_func {
+                    // It's a function address. We need to load it into
+                    // the register.
+                    (reg,
+                     vec!(InstNode::alu1long(
+                          pred,
+                          MovAluOp,
+                          reg),
+                          // Functions are represented by their base names, for compatibility
+                          // with asm.
+                          InstNode::long_label(format!("{}", var.name.base_name()))
+                     ),
+                     vec!())
+                } else if global_info.is_ref {
                     (reg,
                      vec!(InstNode::alu1long(
                          pred,

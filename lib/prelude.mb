@@ -8,11 +8,11 @@ extern fn rt_malloc<T>(i: u32) -> *T;
 extern fn rt_abort() -> !;
 fn print_uint(x: u32) { print_int(x as i32); }
 
-fn sw_mul(x: u32, y: u32, signed: bool) -> u32 {
+fn sw_mul(x: u32, y: u32, is_signed: bool) -> u32 {
 	let abs_x: u32 = x;
 	let abs_y: u32 = y;
 	let invert = false;
-	if(signed){
+	if(is_signed){
 		abs_x = if((x as i32) < 0){ ~x + 1 } else{ x };
 		abs_y = if((y as i32) < 0){ ~y + 1 } else{ y };
 		invert = ((x as i32) < 0) != ((y as i32) < 0);
@@ -35,11 +35,11 @@ fn sw_mul(x: u32, y: u32, signed: bool) -> u32 {
 }
 
 // compute x / y
-fn sw_div(x: u32, y: u32, signed: bool) -> u32 {
+fn sw_div(x: u32, y: u32, is_signed: bool) -> u32 {
 	let abs_x: u32 = x;
 	let abs_y: u32 = y;
 	let invert = false;
-	if(signed){
+	if(is_signed){
 		abs_x = if((x as i32) < 0){ ~x + 1 } else{ x };
 		abs_y = if((y as i32) < 0){ ~y + 1 } else{ y };
 		invert = ((x as i32) < 0) != ((y as i32) < 0);
@@ -56,11 +56,11 @@ fn sw_div(x: u32, y: u32, signed: bool) -> u32 {
 }
 
 // compute x % y
-fn sw_mod(x: u32, y:u32, signed: bool) -> u32 {
+fn sw_mod(x: u32, y: u32, is_signed: bool) -> u32 {
 	let abs_x: u32 = x;
 	let abs_y: u32 = y;
 	let invert = false;
-	if(signed){
+	if(is_signed){
 		abs_x = if((x as i32) < 0){ ~x + 1 } else{ x };
 		abs_y = if((y as i32) < 0){ ~y + 1 } else{ y };
 		invert = ((x as i32) < 0);

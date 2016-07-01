@@ -46,18 +46,14 @@ impl RegisterColorer {
         for (var, _) in freq_vec.into_iter() {
             let global_info = global_map.get(&var.name);
             match global_info {
-                Some(ref info) => {
+                Some(..) => {
                     // It's a global variable. No work to do!
                     assert!(
                         coloring.get(var).is_none(),
                         format!("Already colored a global variable {} as {}",
                                 var, coloring.get(var).unwrap()));
-                    // Global functions get registers.
-                    if !info.is_func {
-                        // Anything else gets the global color.
-                        coloring.insert(*var, GlobalColor);
-                        continue;
-                    }
+                    coloring.insert(*var, GlobalColor);
+                    continue;
                 },
                 _ => {},
             }

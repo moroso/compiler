@@ -1,10 +1,34 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, BTreeMap};
 use std::iter::Map;
 
 use mc::ast::*;
 
 use ir::*;
 use values::*;
+
+use mc::session::Session;
+
+pub fn add_to_globals(name: &Option<VarName>,
+                      global_map: &mut BTreeMap<VarName, StaticIRItem>,
+                      session: &mut Session) {
+    match *name {
+        Some(ref n) => {
+            global_map.insert(n.clone(),
+                              StaticIRItem {
+                                  name: n.clone(),
+                                  label: Some(session.interner.intern(
+                                      format!("{}", n.base_name()))),
+                                  size: 0,
+                                  offset: None,
+                                  is_extern: false,
+                                  is_ref: false,
+                                  is_func: true,
+                                  expr: None,
+                              });
+        },
+        _ => {},
+    }
+}
 
 fn sub_vars(vars: &BTreeSet<Var>, orig_var: &Var,
             new_rvelem: &RValueElem) -> BTreeSet<Var> {

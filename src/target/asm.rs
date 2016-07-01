@@ -16,6 +16,7 @@ use ir::conflicts::ConflictAnalyzer;
 use ir::{IrNodeId, Op, OpInfo, OpNode, StaticIRItem, Var, VarName};
 use ir::dead_code::DeadCodeEliminator;
 use ir::inliner::Inliner;
+use ir::util::add_to_globals;
 
 use target::NameMangler;
 use target::debug_info::write_debug_file;
@@ -184,7 +185,7 @@ impl Target for AsmTarget {
                  }).collect();
         staticitems.extend(asm_staticitems.into_iter());
 
-        let global_map = ASTToIntermediate::allocate_globals(&mut session, staticitems);
+        let mut global_map = ASTToIntermediate::allocate_globals(&mut session, staticitems);
         if self.verbose {
             print!("Global map: {:?}\n", global_map);
         }
@@ -217,12 +218,17 @@ impl Target for AsmTarget {
 
         let strings: BTreeSet<Name> = BTreeSet::new();
 
-        let mut irtoasm = IrToAsm::new(&global_map,
-                                       strings);
-
         let mul_func_name = self.mul_func.clone().map(|x| VarName::MangledVariable(session.interner.intern(x)));
         let div_func_name = self.div_func.clone().map(|x| VarName::MangledVariable(session.interner.intern(x)));
         let mod_func_name = self.mod_func.clone().map(|x| VarName::MangledVariable(session.interner.intern(x)));
+
+        add_to_globals(&mul_func_name, &mut global_map, &mut session);
+        add_to_globals(&div_func_name, &mut global_map, &mut session);
+        add_to_globals(&mod_func_name, &mut global_map, &mut session);
+
+        let mut irtoasm = IrToAsm::new(&global_map,
+                                       strings);
+
 
         let mut debug_info: BTreeMap<VarName,
                                      (BTreeMap<Var, RegisterColor>,
@@ -246,12 +252,30 @@ impl Target for AsmTarget {
             };
             ToSSA::to_ssa(&mut insts, self.verbose);
             ConstantFolder::fold(&mut insts, &global_map, self.verbose);
+            if self.verbose {
+                print!("After fold:\n");
+                for op in insts.iter() {
+                    print!("{}", op);
+                }
+            }
             MultiplyOptimizer::process(&mut insts, self.verbose,
                                        mul_func_name, div_func_name, mod_func_name,
                                        self.const_mul_bit_limit);
+            if self.verbose {
+                print!("After mult opt:\n");
+                for op in insts.iter() {
+                    print!("{}", op);
+                }
+            }
             // Set the last argument to true for debugging issues with the DCE.
             // See the "eliminate" function for details.
             DeadCodeEliminator::eliminate(&mut insts, self.verbose, false);
+            if self.verbose {
+                print!("After dce:\n");
+                for op in insts.iter() {
+                    print!("{}", op);
+                }
+            }
             if self.verbose {
                 print!("Post-optimization:\n");
                 for op in insts.iter() {
@@ -383,7 +407,7 @@ impl Target for AsmTarget {
 
         // TODO: once Rust has lexical scoping, use into_iter() here.
         for global_info in global_map.values() {
-            if !global_info.is_extern {
+            if !global_info.is_extern && !global_info.is_func {
                 all_labels.insert(
                     format!("{}", global_info.label.expect("Global has no label.")),
                     LabelInfo::ByteLabel(global_info.offset.expect("Global has no offset.")
