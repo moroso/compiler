@@ -5,6 +5,7 @@ use ir::conflicts::ConflictAnalyzer;
 use ir::liveness::LivenessAnalyzer;
 use mas::ast::*;
 use mas::util::pack_int;
+use mas::parser::pack_1op_immediate;
 use mc::ast::*;
 use mc::session::Session;
 use util::{Width, Name, align};
@@ -1555,15 +1556,15 @@ impl<'a> IrToAsm<'a> {
                 let mut result = vec!();
                 let longval = lit_to_longvalue(val, session, &mut self.strings);
                 let packed = match longval {
-                    Immediate(num) => pack_int(num, 15),
+                    Immediate(num) => pack_1op_immediate(num, Some(MovAluOp)),
                     _ => None,
                 };
                 match packed {
-                    Some((val, rot)) =>
+                    Some((aluop, val, rot)) =>
                         result.push(
                             InstNode::alu1short(
                                 pred,
-                                MovAluOp,
+                                aluop,
                                 dest,
                                 val,
                                 rot)),

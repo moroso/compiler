@@ -97,6 +97,31 @@ pub fn classify_inst(inst: &InstNode) -> InstType {
     }
 }
 
+/// Convenience function. Performs the specified unary op on an immediate
+/// and tries to pack it into a short-immediate MOV or MVN op. Returns
+/// the needed op, immediate and rotate if possible, or None if not.
+pub fn pack_1op_immediate(n: u32, op: Option<AluOp>) 
+                      -> Option<(AluOp, u32, u8)> {
+    let needed_val = match op {
+        None | Some(MovAluOp) => n,
+        Some(MvnAluOp) => !n,
+        Some(SxbAluOp) => ((n as i8) as i32) as u32, // ew.
+        Some(SxhAluOp) => ((n as i16) as i32) as u32,
+        _ => panic!("Invalid immediate op!")
+    };
+
+    if let Some((c, rot)) = pack_int(needed_val, 15) {
+        return Some((MovAluOp, c, rot));
+    }
+    else if let Some((c, rot)) = pack_int(!needed_val, 15) {
+        return Some((MvnAluOp, c, rot));
+    }
+    None
+    // there's actually no benefit in trying SXB or SXH - they don't cover
+    // any cases that MOV or MVN don't.
+}
+
+
 impl<'a, T: BufRead> AsmParser<'a, T> {
 
     pub fn new(tokens: Peekable<Lexer<'a, T, Token>>
@@ -380,6 +405,15 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
         }
     }
 
+
+    fn pack_imm_unwrap(&self, n: u32, op: Option<AluOp>) -> (AluOp, u32, u8) {
+        match pack_1op_immediate(n, op) {
+            Some(x) => x,
+            None => self.error(
+                format!("Cannot pack immediate 1op {}{}", match op {Some(MvnAluOp) => "~", _ => ""}, n))
+        }
+    }
+
     /// Parse everything to the right of the '<- op' in an instruction.
     /// The predicate and destination registers were already parsed and
     /// are passed in as parameters. If there was a unary op, that's
@@ -390,10 +424,10 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
             Token::NumLit(n) => {
                 // We're just storing a number.
                 self.eat();
-                let (val, rot) = self.pack_int_unwrap(n, 15);
+                let (immop, val, rot) = self.pack_imm_unwrap(n, op);
                 InstNode::alu1short(
                     pred,
-                    op.unwrap_or(MovAluOp),
+                    immop,
                     rd,
                     val,
                     rot)
