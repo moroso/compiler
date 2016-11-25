@@ -37,7 +37,7 @@ impl RegisterColorer {
             match maybe_pos {
                 // We don't want to override any "must colors", but otherwise want to put every generation
                 // of a given variable in the same place on the stack.
-                Some(i) if coloring.get(var).is_none() => { coloring.insert(var.clone(),
+                Some(i) if coloring.get(var).is_none() => { coloring.insert(*var,
                                                                              StackColor(*i as isize)); },
                 _ => {},
             }

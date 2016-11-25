@@ -67,11 +67,11 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
             OpNode::BinOp { target: ref v, ref op, lhs: ref v1, rhs: ref v2, signed } => {
                 match fold(op, v1, v2, signed) {
                     Some(c) => {
-                        changes.push((v.clone(),
+                        changes.push((*v,
                                       Constant(c.clone())));
                         immediate_changes.push((pos,
                                                 OpNode::UnOp {
-                                                    target: v.clone(),
+                                                    target: *v,
                                                     op: Identity,
                                                     operand: Constant(c)
                                                 }));
@@ -103,7 +103,7 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
                                 immediate_changes.push(
                                     (pos,
                                      OpNode::UnOp {
-                                         target: v.clone(),
+                                         target: *v,
                                          op: Identity,
                                          operand: v2.clone()}
                                     ));
@@ -117,7 +117,7 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
                                 immediate_changes.push(
                                     (pos,
                                      OpNode::UnOp {
-                                         target: v.clone(),
+                                         target: *v,
                                          op: Identity,
                                          operand: v1.clone()}
                                     ));
@@ -130,12 +130,12 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
             OpNode::UnOp { target: ref v, ref op, operand: ref rv } => {
                 match fold_unary(op, rv) {
                     Some(c) => {
-                        changes.push((v.clone(),
+                        changes.push((*v,
                                       Constant(c.clone())));
                         if *op != Identity {
                             immediate_changes.push((pos,
                                                     OpNode::UnOp {
-                                                        target: v.clone(),
+                                                        target: *v,
                                                         op: Identity,
                                                         operand: Constant(c)}
                             ));
@@ -190,30 +190,30 @@ impl ConstantFolder {
                 OpNode::Goto { ref vars, .. } |
                 OpNode::CondGoto { ref vars, .. } => {
                     for var in vars.iter() {
-                        vars_to_avoid.insert(var.clone());
+                        vars_to_avoid.insert(*var);
                     }
                 },
                 // We can't fold anything we take the address of.
                 OpNode::UnOp {op: AddrOf, operand: ref rv, .. } => {
                     match *rv {
-                        Variable(ref v) => { vars_to_avoid.insert(v.clone()); },
+                        Variable(v) => { vars_to_avoid.insert(v); },
                         _ => {},
                     }
                 },
-                OpNode::Store { addr: ref v1, value: ref v2, .. } |
-                OpNode::Load { target: ref v1, addr: ref v2, .. } => {
-                    vars_to_avoid.insert(v1.clone());
-                    vars_to_avoid.insert(v2.clone());
+                OpNode::Store { addr: v1, value: v2, .. } |
+                OpNode::Load { target: v1, addr: v2, .. } => {
+                    vars_to_avoid.insert(v1);
+                    vars_to_avoid.insert(v2);
                 },
                 OpNode::Call { args: ref vars, .. } => {
                     for var in vars.iter() {
-                        vars_to_avoid.insert(var.clone());
+                        vars_to_avoid.insert(*var);
                     }
                 },
                 OpNode::Func { args: ref vars, ref abi, .. } => {
                     if abi.is_some() { return; }
                     for var in vars.iter() {
-                        vars_to_avoid.insert(var.clone());
+                        vars_to_avoid.insert(*var);
                     }
                 },
                 _ => {},

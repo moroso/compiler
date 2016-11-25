@@ -55,7 +55,7 @@ fn ty_width(ty: &Ty) -> Width {
     match *ty {
         BoolTy => Width8,
         IntTy(w) |
-        UintTy(w) => w.clone(),
+        UintTy(w) => w,
         _ => Width32,
     }
 }
@@ -299,9 +299,9 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
                 let var_stores: Vec<Op> = vars.iter()
                     .map(|var| self.add_id(OpNode::UnOp {
-                        target: var.clone(),
+                        target: *var,
                         op: Identity,
-                        operand: Variable(var.clone())
+                        operand: Variable(*var)
                     })).collect();
 
                 let op = OpNode::Func { name: self.mangled_ident(id), args: vars, abi: block.abi() };
@@ -455,7 +455,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     // the value was stored into a register, and it's our
                     // responsibility to store it in memory.
                     assert_eq!(is_ref, ty_is_reference(&self.session, &self.typemap, &ty));
-                    let result_var = Var { name: name.clone(),
+                    let result_var = Var { name: *name,
                                            generation: None };
                     if ty_is_reference(&self.session, &self.typemap, &ty) {
                         res.extend(
@@ -588,14 +588,14 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         let new_result_var = self.gen_temp();
         let new_src_var = self.gen_temp();
         ops.push(self.add_id(OpNode::UnOp {
-            target: new_result_var.clone(),
+            target: new_result_var,
             op: Identity,
-            operand: Variable(dest_var.clone())
+            operand: Variable(*dest_var)
         }));
         ops.push(self.add_id(OpNode::UnOp {
-            target: new_src_var.clone(),
+            target: new_src_var,
             op: Identity,
-            operand: Variable(src_var.clone())
+            operand: Variable(*src_var)
         }));
         let len_var = self.gen_temp();
         ops.push(self.add_id(OpNode::UnOp {
@@ -611,7 +611,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     "rt_memcpy".to_string())),
                       generation: None }),
             args: vec!(new_result_var,
-                       new_src_var.clone(),
+                       new_src_var,
                        len_var)
         };
         ops.push(self.add_id(op));
@@ -691,8 +691,8 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 };
                 insts.push(
                     self.add_id(OpNode::BinOp {
-                        target: new_res.clone(),
-                        op: op.val.clone(),
+                        target: new_res,
+                        op: op.val,
                         lhs: Variable(var1),
                         rhs: Variable(var2),
                         signed: signed
@@ -748,7 +748,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
                 let insts = vec!(
                     self.add_id(OpNode::UnOp {
-                        target: res_var.clone(),
+                        target: res_var,
                         op: Identity,
                         operand: Constant(new_lit)
                     })
@@ -887,7 +887,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                             name: VarName::NamedVariable(self.mangled_path(path), defid),
                             generation: None
                         };
-                        (lhs_var.clone(),
+                        (lhs_var,
                          vec!(),
                          lhs_var,
                          AnyWidth,
@@ -907,13 +907,13 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         let res_var = self.gen_temp();
                         match lhs_op.val {
                             Deref => {
-                                (res_var.clone(),
+                                (res_var,
                                  vec!(OpNode::Load {
-                                     target: res_var.clone(),
-                                     addr: var.clone(),
+                                     target: res_var,
+                                     addr: var,
                                      width: width
                                  }),
-                                 var.clone(),
+                                 var,
                                  width,
                                  box |lv, v, w| OpNode::Store {
                                      addr: lv, value: v, width: w })
@@ -934,15 +934,15 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         (binop_var,
                          if is_ref {
                              vec!(OpNode::UnOp {
-                                 target: binop_var.clone(),
+                                 target: binop_var,
                                  op: Identity,
-                                 operand: Variable(added_addr_var.clone())
+                                 operand: Variable(added_addr_var)
                              })
                          } else {
                              vec!(OpNode::Load {
-                                 target: binop_var.clone(),
-                                 addr: added_addr_var.clone(),
-                                 width: width.clone()
+                                 target: binop_var,
+                                 addr: added_addr_var,
+                                 width: width
                              })
                          },
                          added_addr_var,
@@ -950,8 +950,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                          box |lv, v, w| OpNode::Store { addr: lv, value: v, width: w })
                     },
                     IndexExpr(ref arr, ref idx) => {
-                        let ty = (*self.lookup_ty(e1.id))
-                            .clone();
+                        let ty = (*self.lookup_ty(e1.id)).clone();
 
                         let (ops, ptr_var, width, is_ref) =
                             self.array_helper(&**arr, &**idx, &ty);
@@ -961,14 +960,14 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         (binop_var,
                          if is_ref {
                              vec!(OpNode::UnOp {
-                                 target: binop_var.clone(),
+                                 target: binop_var,
                                  op: Identity,
-                                 operand: Variable(ptr_var.clone())
+                                 operand: Variable(ptr_var)
                              })
                          } else {
                              vec!(OpNode::Load {
-                                 target: binop_var.clone(),
-                                 addr: ptr_var.clone(),
+                                 target: binop_var,
+                                 addr: ptr_var,
                                  width: width
                              })
                          },
@@ -1190,7 +1189,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                     insts.push(self.add_id(OpNode::Store {
                                         addr: var,
                                         value: expr_var,
-                                        width: width.clone()
+                                        width: *width
                                     }));
                                 }
 
@@ -1239,13 +1238,13 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         move_ops.push(self.add_id(OpNode::UnOp {
                             target: new_vars[idx],
                             op: Identity,
-                            operand: Variable(new_vars[idx].clone())
+                            operand: Variable(new_vars[idx])
                         }));
                     } else {
                         move_ops.push(self.add_id(OpNode::UnOp {
                             target: new_vars[idx],
                             op: Identity,
-                            operand: Variable(var.clone())
+                            operand: Variable(*var)
                         }));
                     }
                 }
@@ -1262,16 +1261,16 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     },
                     _ => {
                         ops.push(self.add_id(OpNode::Call {
-                            target: Some(result_var.clone()),
+                            target: Some(result_var),
                             func: Variable(new_var),
                             args: new_vars.into_iter().collect()
                         }));
                         // We add one more dummy assignment, for the result, or a
                         // copy in the case of something in memory.
                         ops.push(self.add_id(OpNode::UnOp {
-                            target: result_var.clone(),
+                            target: result_var,
                             op: Identity,
-                            operand: Variable(result_var.clone())
+                            operand: Variable(result_var)
                         }));
 
                         if ty_is_reference(&self.session, &self.typemap, &this_ty) {
@@ -1280,7 +1279,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                                  &this_ty);
                             let new_result_var = self.gen_temp();
                             ops.push(self.add_id(OpNode::Alloca {
-                                var: new_result_var.clone(), size: len
+                                var: new_result_var, size: len
                             }));
                             ops.extend(self.gen_copy(&new_result_var,
                                                      &result_var,
@@ -1392,8 +1391,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                         width: ty_width(&inner.val)
                                     }));
 
-                                    let dest_ty = &self.lookup_ty(expr.id)
-                                        .clone();
+                                    let dest_ty = &self.lookup_ty(expr.id).clone();
                                     let (new_ops, new_var) = self.contract(
                                         res_v,
                                         dest_ty);
@@ -1810,9 +1808,9 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
             let new_offs_var = &vars[i];
             insts.push(self.add_id(OpNode::BinOp {
-                target: new_offs_var.clone(),
+                target: *new_offs_var,
                 op: PlusOp,
-                lhs: Variable(base_var.clone()),
+                lhs: Variable(*base_var),
                 rhs: Constant(NumLit(offs, UnsignedInt(Width32))),
                 signed: false
             }));

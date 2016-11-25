@@ -129,9 +129,9 @@ fn inline_func(parent: &mut Vec<Op>, child: &Vec<Op>, label_id: &mut usize,
                     for (caller_var, callee_var) in vars.iter().zip(child_args.iter()) {
                         result.push(
                             OpNode::UnOp {
-                                target: callee_var.clone(),
+                                target: *callee_var,
                                 op: UnOpNode::Identity,
-                                operand: RValueElem::Variable(caller_var.clone())
+                                operand: RValueElem::Variable(*caller_var)
                             }.with_id(child[0].id)
                         );
                     }
@@ -143,9 +143,9 @@ fn inline_func(parent: &mut Vec<Op>, child: &Vec<Op>, label_id: &mut usize,
                         match child_op.val {
                             OpNode::Return { retval: Some(ref rve) } => {
                                 match *v_opt {
-                                    Some(ref v) =>
+                                    Some(v) =>
                                         result.push(OpNode::UnOp {
-                                            target: v.clone(),
+                                            target: v,
                                             op: UnOpNode::Identity,
                                             operand: rve.clone()
                                         }.with_id(child_op.id)),
@@ -182,7 +182,7 @@ fn inline_func(parent: &mut Vec<Op>, child: &Vec<Op>, label_id: &mut usize,
                                     }.with_id(child_op.id)
                                 ),
                             OpNode::Call { func: RValueElem::Variable(ref v), .. } => {
-                                *call_counts.entry(v.name.clone()).or_insert(0) += 1;
+                                *call_counts.entry(v.name).or_insert(0) += 1;
                                 result.push(child_op.clone());
                             },
                             _ => result.push(child_op.clone()),
@@ -205,7 +205,7 @@ fn remove_calls(func: &Vec<Op>, call_counts: &mut BTreeMap<VarName, usize>) {
     for op in func.iter() {
         match op.val {
             OpNode::Call { func: RValueElem::Variable(ref v), .. } => {
-                *call_counts.entry(v.name.clone()).or_insert(0) -= 1;
+                *call_counts.entry(v.name).or_insert(0) -= 1;
             },
             _ => {}
         }

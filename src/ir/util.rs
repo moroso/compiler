@@ -12,10 +12,10 @@ pub fn add_to_globals(name: &Option<VarName>,
                       global_map: &mut BTreeMap<VarName, StaticIRItem>,
                       session: &mut Session) {
     match *name {
-        Some(ref n) => {
-            global_map.insert(n.clone(),
+        Some(n) => {
+            global_map.insert(n,
                               StaticIRItem {
-                                  name: n.clone(),
+                                  name: n,
                                   label: Some(session.interner.intern(
                                       format!("{}", n.base_name()))),
                                   size: 0,
@@ -37,8 +37,8 @@ fn sub_vars(vars: &BTreeSet<Var>, orig_var: &Var,
     for var in vars.iter() {
         if var == orig_var {
             match *new_rvelem {
-                Variable(ref rv_var) => {
-                    new_vars.insert(rv_var.clone());
+                Variable(rv_var) => {
+                    new_vars.insert(rv_var);
                 },
                 // If we're trying to substitute in a constant, something is
                 // wrong: we should *never* be putting a constant in to
@@ -46,7 +46,7 @@ fn sub_vars(vars: &BTreeSet<Var>, orig_var: &Var,
                 _ => panic!("Invalid substitution"),
             }
         } else {
-            new_vars.insert(var.clone());
+            new_vars.insert(*var);
         }
     }
     new_vars
@@ -56,7 +56,7 @@ fn sub_vars(vars: &BTreeSet<Var>, orig_var: &Var,
 pub fn subst(ops: &mut Vec<Op>,
              orig_var: &Var,
              new_rvelem: &RValueElem) {
-    let wrapped_var = Variable(orig_var.clone());
+    let wrapped_var = Variable(*orig_var);
 
     for op in ops.iter_mut() {
         let temp = match op.val {
@@ -149,7 +149,7 @@ pub fn subst(ops: &mut Vec<Op>,
                     }
                 }
             },
-            OpNode::Call { target: ref lv, func: ref x, args: ref params } => {
+            OpNode::Call { target: lv, func: ref x, args: ref params } => {
                 let new_x = if *x == wrapped_var {
                     new_rvelem.clone()
                 } else {
@@ -159,47 +159,44 @@ pub fn subst(ops: &mut Vec<Op>,
                     |v|
                     if v == orig_var {
                         match *new_rvelem {
-                            Variable(ref v2) => v2.clone(),
+                            Variable(v2) => v2,
                             _ => panic!(),
                         }
                     } else {
-                        v.clone()
+                        *v
                     }).collect();
 
-                OpNode::Call { target: lv.clone(), func: new_x.clone(), args: new_vars }
+                OpNode::Call { target: lv, func: new_x, args: new_vars }
             },
-            OpNode::Load { target: ref lv, addr: ref rv, ref width } => {
-                let new_rv = if rv == orig_var {
+            OpNode::Load { target: lv, addr: rv, width } => {
+                let new_rv = if rv == *orig_var {
                     match *new_rvelem {
-                        Variable(ref v) =>
-                            v.clone(),
+                        Variable(v) => v,
                         _ => panic!(),
                     }
                 } else {
-                    rv.clone()
+                    rv
                 };
-                OpNode::Load { target: *lv, addr: new_rv, width: *width }
+                OpNode::Load { target: lv, addr: new_rv, width: width }
             },
-            OpNode::Store { addr: ref lv, value: ref rv, ref width } => {
-                let new_rv = if rv == orig_var {
+            OpNode::Store { addr: lv, value: rv, width } => {
+                let new_rv = if rv == *orig_var {
                     match *new_rvelem {
-                        Variable(ref v) =>
-                            v.clone(),
+                        Variable(v) => v,
                         _ => panic!(),
                     }
                 } else {
-                    rv.clone()
+                    rv
                 };
-                let new_lv = if lv == orig_var {
+                let new_lv = if lv == *orig_var {
                     match *new_rvelem {
-                        Variable(ref v) =>
-                            v.clone(),
+                        Variable(v) => v,
                         _ => panic!(),
                     }
                 } else {
-                    lv.clone()
+                    lv
                 };
-                OpNode::Store { addr: new_lv, value: new_rv, width: *width }
+                OpNode::Store { addr: new_lv, value: new_rv, width: width }
             }
             ref x => x.clone()
         };

@@ -38,7 +38,7 @@ fn ssa_vars<F>(generations: &mut BTreeMap<VarName, usize>, vars: &mut BTreeSet<V
 {
     let mut new_vars = BTreeSet::new();
     for var in vars.iter() {
-        let mut new_var = var.clone();
+        let mut new_var = *var;
         new_var.generation = gen_of(generations, new_var.name);
         new_vars.insert(new_var);
     }
@@ -78,7 +78,7 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
                 let ref live_vars = opinfo[i].live;
                 label_vars.insert(*label,
                                   live_vars.clone());
-                vars.extend(live_vars.iter().map(|x| (*x).clone()));
+                vars.extend(live_vars.iter().map(|x| *x));
             },
             _ => {},
         }
@@ -94,7 +94,7 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
             OpNode::Goto { label_idx: i, ref mut vars } |
             OpNode::CondGoto { label_idx: i, ref mut vars, .. } => {
                 let ref live_vars = label_vars[&i];
-                vars.extend(live_vars.iter().map(|x| (*x).clone()));
+                vars.extend(live_vars.iter().map(|x| *x));
             },
             _ => {}
         }
@@ -162,7 +162,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
             let ref label_vars = label_table[idx];
             for var in label_vars.iter() {
                 let new_gen = *(**item)[0].get(&var.name).unwrap();
-                substitutions.insert((var.clone(),
+                substitutions.insert((*var,
                                       Var { name: var.name,
                                             generation: Some(new_gen) } ));
                 changed = true;
@@ -196,15 +196,15 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
                     // No jumps to this label involve a different generation
                     // than the label itself. We can just remove it
                     // entirely.
-                    vars_to_clear.insert(var.clone());
+                    vars_to_clear.insert(*var);
                     changed = true;
                 } else if gens.len() == 1 {
                     // Aside from the generation in the label, only one
                     // generation is ever used for this variable in jumps
                     // to this label. We can substitute and eliminate it.
                     let other_gen = gens.iter().next().unwrap();
-                    vars_to_clear.insert(var.clone());
-                    substitutions.insert((var.clone(),
+                    vars_to_clear.insert(*var);
+                    substitutions.insert((*var,
                                           Var { name: var.name,
                                                 generation: Some(*other_gen)
                                           }));
@@ -244,17 +244,17 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
     while !substitutions.is_empty() {
         let mut targets = BTreeSet::<Var>::new();
         let mut new_substitutions = BTreeSet::<(Var, Var)>::new();
-        for &(_, ref b) in substitutions.iter() {
-            targets.insert(b.clone());
+        for &(_, b) in substitutions.iter() {
+            targets.insert(b);
         }
-        for &(ref a, ref b) in substitutions.iter() {
-            if targets.contains(a) {
-                new_substitutions.insert((a.clone(), b.clone()));
+        for &(a, b) in substitutions.iter() {
+            if targets.contains(&a) {
+                new_substitutions.insert((a, b));
             } else {
                 if verbose {
                     print!("{} -> {}\n", a, b);
                 }
-                subst(ops, a, &Variable(b.clone()));
+                subst(ops, &a, &Variable(b));
             }
         }
         substitutions = new_substitutions;
@@ -287,7 +287,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
                             let mut new_vars = BTreeSet::new();
                             for var2 in vars.iter() {
                                 if var2.name != var.name {
-                                    new_vars.insert(var2.clone());
+                                    new_vars.insert(*var2);
                                 }
                             }
                             *vars = new_vars;
@@ -385,7 +385,7 @@ impl ToSSA {
                 OpNode::Func { args: ref mut vars, .. } => {
                     for var in vars.iter_mut() {
                         *var = Var {
-                            name: var.name.clone(),
+                            name: var.name,
                             generation: next_gen(gens, var.name),
                         }
                     }

@@ -278,7 +278,7 @@ impl<'a> IrToAsm<'a> {
                 OpNode::Label { label_idx: ref idx, ref vars } => {
                     let mut varmap: BTreeMap<VarName, usize> = BTreeMap::new();
                     for var in vars.iter() {
-                        varmap.insert(var.name.clone(),
+                        varmap.insert(var.name,
                                       var.generation.expect(
                                           "Variable has no generation"));
                     }
@@ -961,16 +961,16 @@ impl<'a> IrToAsm<'a> {
             }
 
             let new_var = Var {
-                name: var.name.clone(),
+                name: var.name,
                 generation: Some(*gens.get(&var.name).unwrap())
             };
             let (src_reg, src_insts, _) = self.var_to_reg(regmap, var, 1, args_offs, spill_offs);
             let (dest_reg, _, dest_insts) = self.var_to_reg(regmap, &new_var, 1,
                                                             args_offs, spill_offs);
             if src_reg != dest_reg {
-                rev_map.insert(dest_reg.clone(), src_reg.clone());
+                rev_map.insert(dest_reg, src_reg);
                 reg_transformations.insert(src_reg,
-                                           (dest_reg.clone(),
+                                           (dest_reg,
                                             src_insts,
                                             dest_insts));
             }
@@ -994,7 +994,7 @@ impl<'a> IrToAsm<'a> {
 
                     result.push(
                         InstNode::alu1reg(
-                            pred.clone(),
+                            *pred,
                             MovAluOp,
                             dest_reg,
                             src_reg,
@@ -1016,10 +1016,10 @@ impl<'a> IrToAsm<'a> {
                     result.extend(src_insts.into_iter());
                     result.push(
                         InstNode::alu1reg(
-                            pred.clone(),
+                            *pred,
                             MovAluOp,
-                            GLOBAL_REG.clone(),
-                            src_reg.clone(),
+                            GLOBAL_REG,
+                            src_reg,
                             SllShift,
                             0));
 
@@ -1048,7 +1048,7 @@ impl<'a> IrToAsm<'a> {
                         result.extend(src_insts.into_iter());
                         result.push(
                             InstNode::alu1reg(
-                                pred.clone(),
+                                *pred,
                                 MovAluOp,
                                 this_dest,
                                 this_src.clone(),
@@ -1061,10 +1061,10 @@ impl<'a> IrToAsm<'a> {
                     // variable to the original destination.
                     result.push(
                         InstNode::alu1reg(
-                            pred.clone(),
+                            *pred,
                             MovAluOp,
                             dest_reg,
-                            GLOBAL_REG.clone(),
+                            GLOBAL_REG,
                             SllShift,
                             0));
                     result.extend(dest_insts.into_iter());
@@ -1515,7 +1515,7 @@ impl<'a> IrToAsm<'a> {
                                                        reg: 3 },
                                                 MovAluOp,
                                                 dest,
-                                                reg.clone(),
+                                                *reg,
                                                 SllShift,
                                                 0))
                                     }
