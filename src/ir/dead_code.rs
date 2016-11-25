@@ -11,7 +11,7 @@ pub struct DeadCodeEliminator;
 
 impl DeadCodeEliminator {
     pub fn eliminate(insts: &mut Vec<Op>, verbose: bool, debug_mode: bool) {
-        let funcname = if let OpNode::Func(ref name, _, _) = insts[0].val {
+        let funcname = if let OpNode::Func { ref name, .. } = insts[0].val {
             format!("{}", name)
         } else {
             unreachable!()
@@ -20,7 +20,7 @@ impl DeadCodeEliminator {
         for op in insts.iter() {
             // DCE fails pretty badly with asm operations. We won't even attempt to do anything.
             match op.val {
-                OpNode::AsmOp(..) => { return; }
+                OpNode::AsmOp { .. } => { return; }
                 _ => {}
             }
         }
@@ -45,7 +45,7 @@ impl DeadCodeEliminator {
             for (pos, op) in insts.iter_mut().enumerate().skip(1) {
                 if predecessors[pos].len() == 0 {
                     match op.val {
-                        OpNode::Nop => {},
+                        OpNode::Nop {} => {},
                         _ => {
                             if verbose {
                                 print!("  {}\n", op.val);
@@ -54,8 +54,8 @@ impl DeadCodeEliminator {
                             if debug_mode {
                                 // In debug mode, replace all dead code with debug breaks, so we can easily
                                 // tell in the sim if we end up hitting it.
-                                op.val = OpNode::AsmOp(
-                                    vec!(
+                                op.val = OpNode::AsmOp {
+                                    insts: vec!(
                                         vec!(
                                             InstNode::alu1short(
                                                 TRUE_PRED,
@@ -74,9 +74,9 @@ impl DeadCodeEliminator {
                                             InstNode::nop(), InstNode::nop(), InstNode::nop(),
                                         )
                                     )
-                                );
+                                };
                             } else {
-                                op.val = OpNode::Nop;
+                                op.val = OpNode::Nop {};
                             }
                         }
                     }

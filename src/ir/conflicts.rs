@@ -29,13 +29,13 @@ impl ConflictAnalyzer {
 
         for op in ops.iter() {
             match op.val {
-                OpNode::UnOp(_, AddrOf, ref rve) => {
+                OpNode::UnOp { op: AddrOf, operand: ref rve, .. } => {
                     match *rve {
                         Variable(ref v) => { referenced_vars.insert(v.name); },
                         _ => panic!("Should have a variable here."),
                     }
                 },
-                OpNode::Call(ref v_opt, _, ref args) => {
+                OpNode::Call { target: ref v_opt, ref args, .. } => {
                     for (i, arg) in args.iter().enumerate()
                         .take(NUM_PARAM_REGS)
                     {
@@ -47,7 +47,7 @@ impl ConflictAnalyzer {
                         _ => {},
                     }
                 },
-                OpNode::Func(_, ref args, ref abi) => {
+                OpNode::Func { ref args, ref abi, .. } => {
                     if abi.is_some() { break; }
                     for (i, arg) in args.iter().enumerate()
                         .take(NUM_PARAM_REGS)

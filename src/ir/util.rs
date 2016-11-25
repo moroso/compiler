@@ -60,42 +60,45 @@ pub fn subst(ops: &mut Vec<Op>,
 
     for op in ops.iter_mut() {
         let temp = match op.val {
-            OpNode::UnOp(ref v, ref op, ref rv) =>
+            OpNode::UnOp { target: ref v, ref op, operand: ref rv } =>
                 if v == orig_var {
-                    OpNode::Nop
+                    OpNode::Nop {}
                 } else {
-                    OpNode::UnOp(*v,
-                         *op,
-                         if *rv == wrapped_var {
-                             new_rvelem
-                         } else {
-                             rv
-                         }.clone())
-
+                    OpNode::UnOp {
+                        target: *v,
+                        op: *op,
+                        operand: if *rv == wrapped_var {
+                            new_rvelem
+                        } else {
+                            rv
+                        }.clone()
+                    }
                 },
-            OpNode::BinOp(ref v, ref op, ref rv1, ref rv2, signed) => {
+            OpNode::BinOp { target: ref v, ref op, lhs: ref rv1, rhs: ref rv2, signed } => {
                 if v == orig_var {
-                    OpNode::Nop
+                    OpNode::Nop {}
                 } else {
-                    OpNode::BinOp(*v,
-                          *op,
-                          if *rv1 == wrapped_var {
-                              new_rvelem
-                          } else {
-                              rv1
-                          }.clone(),
-                          if *rv2 == wrapped_var {
-                              new_rvelem
-                          } else {
-                              rv2
-                          }.clone(),
-                          signed)
+                    OpNode::BinOp {
+                        target: *v,
+                        op: *op,
+                        lhs: if *rv1 == wrapped_var {
+                            new_rvelem
+                        } else {
+                            rv1
+                        }.clone(),
+                        rhs: if *rv2 == wrapped_var {
+                            new_rvelem
+                        } else {
+                            rv2
+                        }.clone(),
+                        signed: signed
+                    }
                 }
             },
-            OpNode::Goto(ref u, ref vars) => {
-                OpNode::Goto(u.clone(), sub_vars(vars, orig_var, new_rvelem))
+            OpNode::Goto { label_idx: ref u, ref vars } => {
+                OpNode::Goto { label_idx: u.clone(), vars: sub_vars(vars, orig_var, new_rvelem) }
             }
-            OpNode::CondGoto(ref negated, ref rve, ref u, ref vars) => {
+            OpNode::CondGoto { ref negated, cond: ref rve, label_idx: ref u, ref vars } => {
                 let new_vars = sub_vars(vars, orig_var, new_rvelem);
                 if wrapped_var == *rve {
                     match *new_rvelem {
@@ -104,48 +107,49 @@ pub fn subst(ops: &mut Vec<Op>,
                             match *c {
                                 BoolLit(b) =>
                                     if b == *negated {
-                                        OpNode::Nop
+                                        OpNode::Nop {}
                                     } else {
-                                        OpNode::Goto(*u, new_vars)
+                                        OpNode::Goto { label_idx: *u, vars: new_vars }
                                     },
                                 _ => panic!("CondGoto is conditioned on non-boolean constant."),
                             }
                         },
-                        _ => OpNode::CondGoto(
-                            *negated,
-                            new_rvelem.clone(),
-                            *u,
-                            new_vars)
+                        _ => OpNode::CondGoto {
+                            negated: *negated,
+                            cond: new_rvelem.clone(),
+                            label_idx: *u,
+                            vars: new_vars,
+                        }
                     }
                 } else {
-                    OpNode::CondGoto(
-                        *negated,
-                        (*rve).clone(),
-                        *u,
-                        new_vars
-                    )
+                    OpNode::CondGoto {
+                        negated: *negated,
+                        cond: (*rve).clone(),
+                        label_idx: *u,
+                        vars: new_vars,
+                    }
                 }
             },
-            OpNode::Return(ref rve_opt) => {
+            OpNode::Return { retval: ref rve_opt } => {
                 match *rve_opt {
                     Some(ref rve) => {
                         match *rve {
                             Variable(ref v) => {
                                 if v == orig_var {
-                                    OpNode::Return(Some(new_rvelem.clone()))
+                                    OpNode::Return { retval: Some(new_rvelem.clone()) }
                                 } else {
-                                    OpNode::Return(Some(Variable(*v)))
+                                    OpNode::Return { retval: Some(Variable(*v)) }
                                 }
                             },
-                            Constant(ref c) => OpNode::Return(Some(Constant(c.clone()))),
+                            Constant(ref c) => OpNode::Return { retval: Some(Constant(c.clone())) },
                         }
                     },
                     None => {
-                        OpNode::Return(None)
+                        OpNode::Return { retval: None }
                     }
                 }
             },
-            OpNode::Call(ref lv, ref x, ref params) => {
+            OpNode::Call { target: ref lv, func: ref x, args: ref params } => {
                 let new_x = if *x == wrapped_var {
                     new_rvelem.clone()
                 } else {
@@ -162,9 +166,9 @@ pub fn subst(ops: &mut Vec<Op>,
                         v.clone()
                     }).collect();
 
-                OpNode::Call(lv.clone(), new_x.clone(), new_vars)
+                OpNode::Call { target: lv.clone(), func: new_x.clone(), args: new_vars }
             },
-            OpNode::Load(ref lv, ref rv, ref width) => {
+            OpNode::Load { target: ref lv, addr: ref rv, ref width } => {
                 let new_rv = if rv == orig_var {
                     match *new_rvelem {
                         Variable(ref v) =>
@@ -174,9 +178,9 @@ pub fn subst(ops: &mut Vec<Op>,
                 } else {
                     rv.clone()
                 };
-                OpNode::Load(*lv, new_rv, *width)
+                OpNode::Load { target: *lv, addr: new_rv, width: *width }
             },
-            OpNode::Store(ref lv, ref rv, ref width) => {
+            OpNode::Store { addr: ref lv, value: ref rv, ref width } => {
                 let new_rv = if rv == orig_var {
                     match *new_rvelem {
                         Variable(ref v) =>
@@ -195,7 +199,7 @@ pub fn subst(ops: &mut Vec<Op>,
                 } else {
                     lv.clone()
                 };
-                OpNode::Store(new_lv, new_rv, *width)
+                OpNode::Store { addr: new_lv, value: new_rv, width: *width }
             }
             ref x => x.clone()
         };

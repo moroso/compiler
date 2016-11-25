@@ -204,7 +204,7 @@ impl<'a> IrToAsm<'a> {
         let mut stack_items_len: u32 = 0;
         for (inst, op) in ops.iter().enumerate() {
             match op.val {
-                OpNode::Alloca(ref var, size) => {
+                OpNode::Alloca { ref var, size } => {
                     // We must be aligned on 4-byte boundaries.
                     let adjusted_size = align(size as usize, 4);
                     if !self.global_map.get(&var.name).is_some() {
@@ -212,7 +212,7 @@ impl<'a> IrToAsm<'a> {
                         stack_items_len += (adjusted_size) as u32;
                     }
                 },
-                OpNode::Call(..) => { has_call = true; }
+                OpNode::Call { .. } => { has_call = true; }
                 _ => {}
             }
         }
@@ -275,7 +275,7 @@ impl<'a> IrToAsm<'a> {
         // the instruction list as many times?
         for op in ops.iter() {
             match op.val {
-                OpNode::Label(ref idx, ref vars) => {
+                OpNode::Label { label_idx: ref idx, ref vars } => {
                     let mut varmap: BTreeMap<VarName, usize> = BTreeMap::new();
                     for var in vars.iter() {
                         varmap.insert(var.name.clone(),
@@ -299,7 +299,7 @@ impl<'a> IrToAsm<'a> {
         for (pos, op) in ops.iter().enumerate() {
             correspondence.push(result.len());
             match op.val {
-                OpNode::Func(ref name, _, ref abi) => {
+                OpNode::Func { ref name, ref abi, .. } => {
                     if let Some(ref abi) = *abi {
                         if abi.to_string() == "C" {
                             // If the ABI is "C", we do nothing at all here!
@@ -359,7 +359,7 @@ impl<'a> IrToAsm<'a> {
                                 );
                     }
                 },
-                OpNode::Return(ref rve_opt) => {
+                OpNode::Return { retval: ref rve_opt } => {
                     match *rve_opt {
                         Some(ref rve) =>
                             // Store the result in r0.
@@ -417,7 +417,9 @@ impl<'a> IrToAsm<'a> {
                                             LINK_REGISTER,
                                             1));
                 },
-                OpNode::BinOp(ref var, ref op, ref rve1, ref rve2, signed) => {
+                OpNode::BinOp {
+                    target: ref var, ref op, lhs: ref rve1,
+                    rhs: ref rve2, signed } => {
                     let (lhs_reg, _, after) = self.var_to_reg(&regmap,
                                                               var, 0,
                                                               -stack_ptr_offs,
@@ -432,7 +434,7 @@ impl<'a> IrToAsm<'a> {
                                            ).into_iter());
                     result.extend(after.into_iter());
                 },
-                OpNode::UnOp(ref var, ref op, ref rve1) => {
+                OpNode::UnOp { target: ref var, ref op, operand: ref rve1 } => {
                     let (lhs_reg, _, after) = self.var_to_reg(&regmap,
                                                               var, 0,
                                                               -stack_ptr_offs,
@@ -446,10 +448,11 @@ impl<'a> IrToAsm<'a> {
                                           ).into_iter());
                     result.extend(after.into_iter());
                 }
-                OpNode::Load(ref var1, ref var2, ref width) |
-                OpNode::Store(ref var1, ref var2, ref width) => {
+                OpNode::Load { target: ref var1, addr: ref var2, ref width } |
+                OpNode::Store { addr: ref var1, value: ref var2, ref width } =>
+                {
                     let store = match op.val {
-                        OpNode::Load(..) => false,
+                        OpNode::Load { .. } => false,
                         _ => true,
                     };
                     let (reg1, before1, _) = self.var_to_reg(&regmap,
@@ -482,8 +485,8 @@ impl<'a> IrToAsm<'a> {
                                            0)
                         });
                 },
-                OpNode::CondGoto(ref negated, Variable(ref var), ref label,
-                                 ref vars) => {
+                OpNode::CondGoto { ref negated, cond: Variable(ref var),
+                                   label_idx: ref label, ref vars } => {
                     let (reg, before, _) = self.var_to_reg(&regmap,
                                                            var, 0,
                                                            -stack_ptr_offs,
@@ -512,9 +515,9 @@ impl<'a> IrToAsm<'a> {
                             false,
                             JumpLabel(format!("LABEL{}", label))));
                 },
-                OpNode::CondGoto(_, Constant(..), _, _) =>
+                OpNode::CondGoto { cond: Constant(..), .. } =>
                     panic!("Conditional Goto is not conditional!"),
-                OpNode::Goto(ref label, ref vars) => {
+                OpNode::Goto { label_idx: ref label, ref vars } => {
                     result.extend(self.assign_vars(&regmap,
                                                    &TRUE_PRED,
                                                    &labels[label],
@@ -527,10 +530,10 @@ impl<'a> IrToAsm<'a> {
                     'outer: for later_op in ops.iter().skip(pos+1) {
                         match later_op.val {
                             // We've reached a matching label; no need to emit the jump.
-                            OpNode::Label(label2, _) if *label == label2 => { found = true; break 'outer; },
+                            OpNode::Label { label_idx: label2, .. } if *label == label2 => { found = true; break 'outer; },
                             // Nops, as well as other labels, don't count; skip them.
-                            OpNode::Label(_, _) |
-                            OpNode::Nop => { },
+                            OpNode::Label { .. } |
+                            OpNode::Nop {} => { },
                             _ => {
                                 // We've hit a non-label, non-nop before hitting the jump target, so we
                                 // have to emit the jump.
@@ -554,10 +557,10 @@ impl<'a> IrToAsm<'a> {
                                 JumpLabel(format!("LABEL{}", label))));
                     }
                 },
-                OpNode::Label(ref label, _) => {
+                OpNode::Label { label_idx: ref label, .. } => {
                     targets.insert(format!("LABEL{}", label), result.len());
                 },
-                OpNode::Alloca(ref var, _) => {
+                OpNode::Alloca { ref var, .. } => {
                     let offs_opt = stack_item_map.get(&pos);
                     match offs_opt {
                         // This is a "true" alloca, and we put things on the
@@ -588,7 +591,7 @@ impl<'a> IrToAsm<'a> {
                         None => {}
                     }
                 },
-                OpNode::Call(_, ref f, ref vars) => {
+                OpNode::Call { func: ref f, args: ref vars, .. } => {
                     // TODO: this is a lot messier than it should be.
                     // Clean it up!
 
@@ -802,10 +805,10 @@ impl<'a> IrToAsm<'a> {
                     }
 
                 },
-                OpNode::AsmOp(ref insts) => {
+                OpNode::AsmOp { ref insts } => {
                     result.push(InstNode::packets(insts.clone()));
                 },
-                OpNode::Nop => {},
+                OpNode::Nop {} => {},
             }
         }
 

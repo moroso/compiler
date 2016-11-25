@@ -11,7 +11,7 @@ fn renumber_label(label: usize, label_map: &mut BTreeMap<usize, usize>, label_id
 }
 
 fn func_name(func: &Vec<Op>) -> &VarName {
-    if let OpNode::Func(ref name, _, _) = func[0].val {
+    if let OpNode::Func { ref name, .. } = func[0].val {
         name
     } else {
         unreachable!()
@@ -20,8 +20,8 @@ fn func_name(func: &Vec<Op>) -> &VarName {
 
 fn is_extern(func: &Vec<Op>) -> bool {
     match func[0].val {
-        OpNode::Func(_, _, None) => false,
-        OpNode::Func(_, _, _) => true,
+        OpNode::Func { abi: None, .. } => false,
+        OpNode::Func { .. } => true,
         _ => unreachable!(),
     }
 }
@@ -42,9 +42,9 @@ fn func_refs(func: &Vec<Op>) -> (BTreeMap<VarName, usize>, BTreeSet<VarName>,
 
     for op in func.iter() {
         match op.val {
-            OpNode::Call(_, RValueElem::Variable(v), _) => { *calls.entry(v.name).or_insert(0) += 1; },
-            OpNode::UnOp(_, _, RValueElem::Variable(v)) => { refs.insert(v.name); }
-            OpNode::BinOp(_, _, ref lhs, ref rhs, _) => {
+            OpNode::Call { func: RValueElem::Variable(v), .. } => { *calls.entry(v.name).or_insert(0) += 1; },
+            OpNode::UnOp { operand: RValueElem::Variable(v), .. } => { refs.insert(v.name); }
+            OpNode::BinOp { ref lhs, ref rhs, .. } => {
                 if let RValueElem::Variable(v) = *lhs {
                     refs.insert(v.name);
                 }
@@ -52,7 +52,7 @@ fn func_refs(func: &Vec<Op>) -> (BTreeMap<VarName, usize>, BTreeSet<VarName>,
                     refs.insert(v.name);
                 }
             }
-            OpNode::AsmOp(ref insts) => {
+            OpNode::AsmOp { ref insts } => {
                 for packet in insts.iter() {
                     for inst in packet.iter() {
                         match *inst {
@@ -108,7 +108,7 @@ fn inline_func(parent: &mut Vec<Op>, child: &Vec<Op>, label_id: &mut usize,
                call_counts: &mut BTreeMap<VarName, usize>) {
     // Perform the actual inlining. Inline "child" anywhere it's called in "parent".
     // call_counts will be updated during this process.
-    let (child_name, child_args) = if let OpNode::Func(ref name, ref args, _) = child[0].val {
+    let (child_name, child_args) = if let OpNode::Func { ref name, ref args, .. } = child[0].val {
         (name, args)
     } else {
         unreachable!()
@@ -118,7 +118,7 @@ fn inline_func(parent: &mut Vec<Op>, child: &Vec<Op>, label_id: &mut usize,
 
     for op in parent.into_iter() {
         match op.val {
-            OpNode::Call(ref v_opt, RValueElem::Variable(ref funcname), ref vars)
+            OpNode::Call { target: ref v_opt, func: RValueElem::Variable(ref funcname), args: ref vars }
                 if funcname.name == *child_name => {
                     // We found a callsite!
 
@@ -128,10 +128,11 @@ fn inline_func(parent: &mut Vec<Op>, child: &Vec<Op>, label_id: &mut usize,
                     let mut label_rename_map = BTreeMap::new();
                     for (caller_var, callee_var) in vars.iter().zip(child_args.iter()) {
                         result.push(
-                            OpNode::UnOp(callee_var.clone(),
-                                         UnOpNode::Identity,
-                                         RValueElem::Variable(caller_var.clone()))
-                                .with_id(child[0].id)
+                            OpNode::UnOp {
+                                target: callee_var.clone(),
+                                op: UnOpNode::Identity,
+                                operand: RValueElem::Variable(caller_var.clone())
+                            }.with_id(child[0].id)
                         );
                     }
 
@@ -140,46 +141,47 @@ fn inline_func(parent: &mut Vec<Op>, child: &Vec<Op>, label_id: &mut usize,
 
                     for child_op in child.iter().skip(1) {
                         match child_op.val {
-                            OpNode::Return(Some(ref rve)) => {
+                            OpNode::Return { retval: Some(ref rve) } => {
                                 match *v_opt {
                                     Some(ref v) =>
-                                        result.push(OpNode::UnOp(v.clone(),
-                                                                 UnOpNode::Identity,
-                                                                 rve.clone())
-                                                    .with_id(child_op.id)),
+                                        result.push(OpNode::UnOp {
+                                            target: v.clone(),
+                                            op: UnOpNode::Identity,
+                                            operand: rve.clone()
+                                        }.with_id(child_op.id)),
                                     None => {},
                                 }
-                                result.push(OpNode::Goto(end_label, BTreeSet::new())
+                                result.push(OpNode::Goto { label_idx: end_label, vars: BTreeSet::new() }
                                             .with_id(child_op.id));
                             },
-                            OpNode::Return(None) => {
-                                result.push(OpNode::Goto(end_label, BTreeSet::new())
+                            OpNode::Return { retval: None } => {
+                                result.push(OpNode::Goto { label_idx: end_label, vars: BTreeSet::new() }
                                             .with_id(child_op.id));
                             }
-                            OpNode::Label(label, ref vars) =>
+                            OpNode::Label { label_idx: label, ref vars } =>
                                 result.push(
-                                    OpNode::Label(
-                                        renumber_label(label, &mut label_rename_map, label_id),
-                                        vars.clone()
-                                    ).with_id(child_op.id)
+                                    OpNode::Label {
+                                        label_idx: renumber_label(label, &mut label_rename_map, label_id),
+                                        vars: vars.clone()
+                                    }.with_id(child_op.id)
                                 ),
-                            OpNode::Goto(label, ref vars) =>
+                            OpNode::Goto { label_idx: label, ref vars } =>
                                 result.push(
-                                    OpNode::Goto(
-                                        renumber_label(label, &mut label_rename_map, label_id),
-                                        vars.clone()
-                                    ).with_id(child_op.id)
+                                    OpNode::Goto {
+                                        label_idx: renumber_label(label, &mut label_rename_map, label_id),
+                                        vars: vars.clone()
+                                    }.with_id(child_op.id)
                                 ),
-                            OpNode::CondGoto(invert, ref rve, label, ref vars) =>
+                            OpNode::CondGoto { negated, cond: ref rve, label_idx, ref vars } =>
                                 result.push(
-                                    OpNode::CondGoto(
-                                        invert,
-                                        rve.clone(),
-                                        renumber_label(label, &mut label_rename_map, label_id),
-                                        vars.clone()
-                                    ).with_id(child_op.id)
+                                    OpNode::CondGoto {
+                                        negated: negated,
+                                        cond: rve.clone(),
+                                        label_idx: renumber_label(label_idx, &mut label_rename_map, label_id),
+                                        vars: vars.clone()
+                                    }.with_id(child_op.id)
                                 ),
-                            OpNode::Call(_, RValueElem::Variable(ref v), _) => {
+                            OpNode::Call { func: RValueElem::Variable(ref v), .. } => {
                                 *call_counts.entry(v.name.clone()).or_insert(0) += 1;
                                 result.push(child_op.clone());
                             },
@@ -187,7 +189,7 @@ fn inline_func(parent: &mut Vec<Op>, child: &Vec<Op>, label_id: &mut usize,
                         }
                     }
 
-                    result.push(OpNode::Label(end_label, BTreeSet::new())
+                    result.push(OpNode::Label { label_idx: end_label, vars: BTreeSet::new() }
                                 .with_id(op.id));
                 },
             _ => result.push(op.clone()) // TODO: eliminate clone
@@ -202,7 +204,7 @@ fn remove_calls(func: &Vec<Op>, call_counts: &mut BTreeMap<VarName, usize>) {
 
     for op in func.iter() {
         match op.val {
-            OpNode::Call(_, RValueElem::Variable(ref v), _) => {
+            OpNode::Call { func: RValueElem::Variable(ref v), .. } => {
                 *call_counts.entry(v.name.clone()).or_insert(0) -= 1;
             },
             _ => {}

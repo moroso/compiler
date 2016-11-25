@@ -136,19 +136,25 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             Width16 => {
                 let res = self.gen_temp();
                 if is_signed {
-                    (vec!(self.add_id(OpNode::UnOp(res,
-                                                   if width == Width8 {
-                                                       SxbOp
-                                                   } else {
-                                                       SxhOp
-                                                   }, Variable(v)))), Some(res))
+                    (vec!(self.add_id(OpNode::UnOp {
+                        target: res,
+                        op: if width == Width8 {
+                            SxbOp
+                        } else {
+                            SxhOp
+                        },
+                        operand: Variable(v)
+                    })), Some(res))
                 } else {
-                    (vec!(self.add_id(OpNode::BinOp(res, BitAndOp, Variable(v),
-                                                    Constant(NumLit(
-                                                        width.mask(),
-                                                        UnsignedInt(Width32))),
-                                                    false,
-                                                    ))), Some(res))
+                    (vec!(self.add_id(OpNode::BinOp {
+                        target: res,
+                        op: BitAndOp,
+                        lhs: Variable(v),
+                        rhs: Constant(NumLit(
+                            width.mask(),
+                            UnsignedInt(Width32))),
+                        signed: false,
+                    })), Some(res))
                 }
             },
             _ => (vec!(), Some(v))
@@ -193,7 +199,8 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         let (mut ops, other_v) = self.convert_expr(e);
                         let other_v = other_v.expect(
                             "Must have a value when assigning");
-                        ops.push(self.add_id(OpNode::UnOp(v, Identity, Variable(other_v))));
+                        ops.push(self.add_id(OpNode::UnOp { target: v, op: Identity,
+                                                            operand: Variable(other_v) }));
                         (ops, Some(v))
                     },
                     None => {
@@ -205,7 +212,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                         let size = size_of_def(self.session,
                                                                self.typemap,
                                                                id);
-                                        (OpNode::Alloca(v, size), Some(v))
+                                        (OpNode::Alloca { var: v, size: size }, Some(v))
                                     },
                                     ArrayTy(ref ty, ref nelem_opt) => {
                                         let size = size_of_ty(self.session,
@@ -213,16 +220,19 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                                               &ty.val);
                                         let nelem = nelem_opt.expect(
                                             "Array must have a size");
-                                        (OpNode::Alloca(v, size*nelem), Some(v))
+                                        (OpNode::Alloca { var: v, size: size*nelem }, Some(v))
                                     }
                                     // TODO: enums
                                     _ => // If no expression is given,
                                         // initialize to 0.
-                                        (OpNode::UnOp(v, Identity,
-                                                      Constant(NumLit(
-                                                          0,
-                                                          UnsignedInt(
-                                                              Width32)))),
+                                        (OpNode::UnOp {
+                                            target: v,
+                                            op: Identity,
+                                            operand: Constant(NumLit(
+                                                0,
+                                                UnsignedInt(
+                                                    Width32)))
+                                        },
                                          Some(v))
                                 };
                                 (vec!(self.add_id(op)), v)
@@ -288,10 +298,13 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     .collect();
 
                 let var_stores: Vec<Op> = vars.iter()
-                    .map(|var| self.add_id(OpNode::UnOp(var.clone(), Identity,
-                                    Variable(var.clone())))).collect();
+                    .map(|var| self.add_id(OpNode::UnOp {
+                        target: var.clone(),
+                        op: Identity,
+                        operand: Variable(var.clone())
+                    })).collect();
 
-                let op = OpNode::Func(self.mangled_ident(id), vars, block.abi());
+                let op = OpNode::Func { name: self.mangled_ident(id), args: vars, abi: block.abi() };
                 let mut ops = vec!(self.add_id(op));
                 if block.is_local() {
                     ops.extend(var_stores.into_iter());
@@ -301,9 +314,9 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
                 if block.is_local() {
                     match v {
-                        Some(v) => ops.push(self.add_id(OpNode::Return(Some(Variable(v))))),
+                        Some(v) => ops.push(self.add_id(OpNode::Return { retval: Some(Variable(v)) })),
                         None => {
-                            ops.push(self.add_id(OpNode::Return(None)));
+                            ops.push(self.add_id(OpNode::Return { retval: None }));
                         },
                     }
                 }
@@ -416,11 +429,11 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
     /// initalize all of the items.
     pub fn convert_globals(&mut self,
                            global_map: &BTreeMap<VarName, StaticIRItem>) -> Vec<Op> {
-        let op = OpNode::Func(
-            VarName::MangledVariable(
+        let op = OpNode::Func {
+            name: VarName::MangledVariable(
                 self.session.interner.intern("_INIT_GLOBALS".to_string())),
-            vec!(),
-            None);
+            args: vec!(),
+            abi: None };
         let mut res = vec!(self.add_id(op));
         for (name, global_item) in global_map.iter() {
             let is_ref = global_item.is_ref;
@@ -448,14 +461,17 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         res.extend(
                             self.gen_copy(&result_var, &expr_var, &ty).into_iter());
                     } else {
-                        res.push(self.add_id(OpNode::UnOp(result_var, Identity,
-                                                          Variable(expr_var))));
+                        res.push(self.add_id(OpNode::UnOp {
+                            target: result_var,
+                            op: Identity,
+                            operand: Variable(expr_var)
+                        }));
                     }
                 },
                 _ => {},
             }
         }
-        let op = OpNode::Return(None);
+        let op = OpNode::Return { retval: None };
         res.push(self.add_id(op));
 
         res
@@ -489,34 +505,39 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         // We always break to the very end of everything.
         let end_label = break_label;
         let mut res = vec!(
-            self.add_id(OpNode::Goto(begin_label, BTreeSet::new())),
-            self.add_id(OpNode::Label(begin_label, BTreeSet::new())));
+            self.add_id(OpNode::Goto { label_idx: begin_label, vars: BTreeSet::new() }),
+            self.add_id(OpNode::Label { label_idx: begin_label, vars: BTreeSet::new() }));
         let (cond_insts, cond_var) = self.convert_expr(e);
         let cond_var = cond_var.expect(
             "Condition must have a non-unit value");
         res.extend(cond_insts.into_iter());
-        res.push(self.add_id(OpNode::CondGoto(true,
-                          Variable(cond_var),
-                          end_label, BTreeSet::new())));
+        res.push(self.add_id(OpNode::CondGoto {
+            negated: true,
+            cond: Variable(cond_var),
+            label_idx: end_label,
+            vars: BTreeSet::new()
+        }));
         match middle_label {
             Some(l) => res.extend(
-                vec!(self.add_id(OpNode::Goto(l, BTreeSet::new())),
-                     self.add_id(OpNode::Label(l, BTreeSet::new()))).into_iter()),
+                vec!(self.add_id(OpNode::Goto { label_idx: l, vars: BTreeSet::new() }),
+                     self.add_id(OpNode::Label { label_idx: l, vars: BTreeSet::new() })).into_iter()),
             None => {},
         }
         res.extend(block_insts.into_iter());
         match iter_insts {
             Some(insts) => {
                 // These are run in a for loop, where we need iter_insts.
-                res.push(self.add_id(OpNode::Goto(continue_label, BTreeSet::new())));
-                res.push(self.add_id(OpNode::Label(continue_label, BTreeSet::new())));
+                res.push(self.add_id(OpNode::Goto { label_idx: continue_label,
+                                                    vars: BTreeSet::new() }));
+                res.push(self.add_id(OpNode::Label { label_idx: continue_label,
+                                                     vars: BTreeSet::new() }));
                 res.extend(insts.into_iter());
             },
             // In a while loop, there's nothing more to do here.
             _ => {},
         }
-        res.push(self.add_id(OpNode::Goto(begin_label, BTreeSet::new())));
-        res.push(self.add_id(OpNode::Label(end_label, BTreeSet::new())));
+        res.push(self.add_id(OpNode::Goto { label_idx: begin_label, vars: BTreeSet::new() }));
+        res.push(self.add_id(OpNode::Label { label_idx: end_label, vars: BTreeSet::new() }));
         (res, None)
     }
 
@@ -566,22 +587,33 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         let mut ops = vec!();
         let new_result_var = self.gen_temp();
         let new_src_var = self.gen_temp();
-        ops.push(self.add_id(OpNode::UnOp(new_result_var.clone(), Identity,
-                      Variable(dest_var.clone()))));
-        ops.push(self.add_id(OpNode::UnOp(new_src_var.clone(), Identity,
-                      Variable(src_var.clone()))));
+        ops.push(self.add_id(OpNode::UnOp {
+            target: new_result_var.clone(),
+            op: Identity,
+            operand: Variable(dest_var.clone())
+        }));
+        ops.push(self.add_id(OpNode::UnOp {
+            target: new_src_var.clone(),
+            op: Identity,
+            operand: Variable(src_var.clone())
+        }));
         let len_var = self.gen_temp();
-        ops.push(self.add_id(OpNode::UnOp(len_var, Identity,
-                                          Constant(NumLit(size as u64,
-                                                          UnsignedInt(Width32))))));
-        let op = OpNode::Call(None,
-                              Variable(
-                                  Var { name: VarName::MangledVariable(self.session.interner.intern(
-                                      "rt_memcpy".to_string())),
-                                        generation: None }),
-                              vec!(new_result_var,
-                                   new_src_var.clone(),
-                                   len_var));
+        ops.push(self.add_id(OpNode::UnOp {
+            target: len_var,
+            op: Identity,
+            operand: Constant(NumLit(size as u64,
+                                     UnsignedInt(Width32)))
+        }));
+        let op = OpNode::Call {
+            target: None,
+            func: Variable(
+                Var { name: VarName::MangledVariable(self.session.interner.intern(
+                    "rt_memcpy".to_string())),
+                      generation: None }),
+            args: vec!(new_result_var,
+                       new_src_var.clone(),
+                       len_var)
+        };
         ops.push(self.add_id(op));
         ops
     }
@@ -599,17 +631,22 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             OrElseOp => {
                 let is_and = op.val == AndAlsoOp;
                 let end_label = self.gen_label();
-                insts.push(self.add_id(OpNode::CondGoto(is_and, // cond is negated for
-                                                                // ands, not for ors.
-                                                        Variable(var1),
-                                                        end_label,
-                                                        BTreeSet::new())));
+                insts.push(self.add_id(OpNode::CondGoto {
+                    negated: is_and, // cond is negated for ands, not for ors.
+                    cond: Variable(var1),
+                    label_idx: end_label,
+                    vars: BTreeSet::new()
+                }));
                 insts.extend(insts2.into_iter());
-                insts.push(self.add_id(OpNode::UnOp(var1,
-                                                    Identity,
-                                                    Variable(var2))));
-                insts.push(self.add_id(OpNode::Goto(end_label, BTreeSet::new())));
-                insts.push(self.add_id(OpNode::Label(end_label, BTreeSet::new())));
+                insts.push(self.add_id(OpNode::UnOp {
+                    target: var1,
+                    op: Identity,
+                    operand: Variable(var2)
+                }));
+                insts.push(self.add_id(OpNode::Goto { label_idx: end_label,
+                                                      vars: BTreeSet::new() }));
+                insts.push(self.add_id(OpNode::Label { label_idx: end_label,
+                                                       vars: BTreeSet::new() }));
                 (insts, var1)
             },
             _ => {
@@ -630,12 +667,14 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                 let signed = e2ty.is_signed();
                                 let intkind = if signed { SignedInt(Width32) } else { UnsignedInt(Width32) };
                                 insts.push(
-                                    self.add_id(OpNode::BinOp(new_var2,
-                                                              TimesOp,
-                                                              Variable(var2),
-                                                              Constant(NumLit(total_size,
-                                                                              intkind)),
-                                                              signed)));
+                                    self.add_id(OpNode::BinOp {
+                                        target: new_var2,
+                                        op: TimesOp,
+                                        lhs: Variable(var2),
+                                        rhs: Constant(NumLit(total_size,
+                                                             intkind)),
+                                        signed: signed
+                                    }));
                                 var2 = new_var2;
                             },
                             _ => {}
@@ -651,11 +690,13 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     e1ty.is_signed()
                 };
                 insts.push(
-                    self.add_id(OpNode::BinOp(new_res.clone(),
-                                              op.val.clone(),
-                                              Variable(var1),
-                                              Variable(var2),
-                                              signed)));
+                    self.add_id(OpNode::BinOp {
+                        target: new_res.clone(),
+                        op: op.val.clone(),
+                        lhs: Variable(var1),
+                        rhs: Variable(var2),
+                        signed: signed
+                    }));
                 let (new_ops, new_var) = self.contract(new_res,
                                                        dest_ty);
                 insts.extend(new_ops.into_iter());
@@ -673,13 +714,15 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                             let total_size = packed_size(&vec!(size));
                             let new_result = self.gen_temp();
                             insts.push(
-                                self.add_id(OpNode::BinOp(new_result,
-                                                          DivideOp,
-                                                          Variable(new_var.unwrap()),
-                                                          Constant(NumLit(total_size,
-                                                                          UnsignedInt(
-                                                                              Width32))),
-                                                          false)));
+                                self.add_id(OpNode::BinOp {
+                                    target: new_result,
+                                    op: DivideOp,
+                                    lhs: Variable(new_var.unwrap()),
+                                    rhs: Constant(NumLit(total_size,
+                                                         UnsignedInt(
+                                                             Width32))),
+                                    signed: false
+                                }));
                             (insts, new_result)
                         },
                         _ => panic!(
@@ -704,8 +747,12 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 };
 
                 let insts = vec!(
-                    self.add_id(OpNode::UnOp(res_var.clone(), Identity, Constant(new_lit)))
-                        );
+                    self.add_id(OpNode::UnOp {
+                        target: res_var.clone(),
+                        op: Identity,
+                        operand: Constant(new_lit)
+                    })
+                );
                 (insts, Some(res_var))
             }
             BinOpExpr(ref op, ref e1, ref e2) => {
@@ -763,23 +810,30 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         let index = self.variant_index(&defid, parent_id);
                         let insts = if is_ref {
                             // Note: here to avoid double borrowing self.
-                            let alloca_op = OpNode::Alloca(base_var,
-                                                           size_of_def(self.session,
-                                                                       self.typemap,
-                                                                   parent_id));
+                            let alloca_op = OpNode::Alloca { var: base_var,
+                                                             size: size_of_def(self.session,
+                                                                               self.typemap,
+                                                                               parent_id) };
                             vec!(
                                 self.add_id(alloca_op),
-                                self.add_id(OpNode::UnOp(idx_var, Identity,
-                                                         Constant(
-                                                             NumLit(index,
-                                                                    UnsignedInt(Width32))))),
-                                self.add_id(OpNode::Store(base_var, idx_var, Width32))
+                                self.add_id(OpNode::UnOp {
+                                    target: idx_var,
+                                    op: Identity,
+                                    operand: Constant(
+                                        NumLit(index,
+                                               UnsignedInt(Width32)))
+                                }),
+                                self.add_id(OpNode::Store {
+                                    addr: base_var, value: idx_var, width: Width32 })
                             )
                         } else {
-                            vec!(self.add_id(OpNode::UnOp(base_var, Identity,
-                                                         Constant(
-                                                             NumLit(index,
-                                                                    UnsignedInt(Width32))))))
+                            vec!(self.add_id(OpNode::UnOp {
+                                target: base_var,
+                                op: Identity,
+                                operand: Constant(
+                                    NumLit(index,
+                                           UnsignedInt(Width32)))
+                            }))
                         };
 
                         return (insts, Some(base_var))
@@ -791,8 +845,11 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         let cast_constval = static_cast(&constval, self.lookup_ty(expr.id))
                             .expect("Invalid cast of constant value");
                         let ret_var = self.gen_temp();
-                        return (vec!(self.add_id(OpNode::UnOp(ret_var, Identity,
-                                                              Constant(cast_constval)))),
+                        return (vec!(self.add_id(OpNode::UnOp {
+                            target: ret_var,
+                            op: Identity,
+                            operand: Constant(cast_constval)
+                        })),
                                 Some(ret_var));
                     },
                     _ => {},
@@ -834,7 +891,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                          vec!(),
                          lhs_var,
                          AnyWidth,
-                         box |lv, v, _| OpNode::UnOp(lv, Identity, Variable(v)))
+                         box |lv, v, _| OpNode::UnOp { target: lv, op: Identity, operand: Variable(v) })
                     },
                     UnOpExpr(ref lhs_op, ref e) => {
                         let ty = match *self.lookup_ty(e.id) {
@@ -851,14 +908,15 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         match lhs_op.val {
                             Deref => {
                                 (res_var.clone(),
-                                 vec!(OpNode::Load(res_var.clone(),
-                                                   var.clone(),
-                                                   width
-                                                   )
-                                      ),
+                                 vec!(OpNode::Load {
+                                     target: res_var.clone(),
+                                     addr: var.clone(),
+                                     width: width
+                                 }),
                                  var.clone(),
                                  width,
-                                 box |lv, v, w| OpNode::Store(lv, v, w))
+                                 box |lv, v, w| OpNode::Store {
+                                     addr: lv, value: v, width: w })
                             },
                             _ => panic!(),
                         }
@@ -875,19 +933,21 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         let binop_var = self.gen_temp();
                         (binop_var,
                          if is_ref {
-                             vec!(OpNode::UnOp(binop_var.clone(),
-                                               Identity,
-                                               Variable(added_addr_var.clone())))
+                             vec!(OpNode::UnOp {
+                                 target: binop_var.clone(),
+                                 op: Identity,
+                                 operand: Variable(added_addr_var.clone())
+                             })
                          } else {
-                             vec!(OpNode::Load(binop_var.clone(),
-                                               added_addr_var.clone(),
-                                               width.clone()
-                                               )
-                                  )
+                             vec!(OpNode::Load {
+                                 target: binop_var.clone(),
+                                 addr: added_addr_var.clone(),
+                                 width: width.clone()
+                             })
                          },
                          added_addr_var,
                          width,
-                         box |lv, v, w| OpNode::Store(lv, v, w))
+                         box |lv, v, w| OpNode::Store { addr: lv, value: v, width: w })
                     },
                     IndexExpr(ref arr, ref idx) => {
                         let ty = (*self.lookup_ty(e1.id))
@@ -900,17 +960,21 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         let binop_var = self.gen_temp();
                         (binop_var,
                          if is_ref {
-                             vec!(OpNode::UnOp(binop_var.clone(),
-                                               Identity,
-                                               Variable(ptr_var.clone())))
+                             vec!(OpNode::UnOp {
+                                 target: binop_var.clone(),
+                                 op: Identity,
+                                 operand: Variable(ptr_var.clone())
+                             })
                          } else {
-                             vec!(OpNode::Load(binop_var.clone(),
-                                               ptr_var.clone(),
-                                               width))
+                             vec!(OpNode::Load {
+                                 target: binop_var.clone(),
+                                 addr: ptr_var.clone(),
+                                 width: width
+                             })
                          },
                          ptr_var,
                          width,
-                         box |lv, v, w| OpNode::Store(lv, v, w))
+                         box |lv, v, w| OpNode::Store { addr: lv, value: v, width: w })
                     }
                     _ => panic!("Got {}", e1.val),
                 };
@@ -981,26 +1045,36 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 let b1_label = self.gen_label();
                 let end_label = self.gen_label();
                 let end_var = self.gen_temp();
-                insts.push(self.add_id(OpNode::CondGoto(false,
-                                                        Variable(if_var),
-                                                        b1_label,
-                                                        BTreeSet::new())));
+                insts.push(self.add_id(OpNode::CondGoto {
+                    negated: false,
+                    cond: Variable(if_var),
+                    label_idx: b1_label,
+                    vars: BTreeSet::new()
+                }));
                 insts.extend(b2_insts.into_iter());
                 match b2_var {
                     Some(b2_var) =>
-                        insts.push(self.add_id(OpNode::UnOp(end_var, Identity, Variable(b2_var)))),
+                        insts.push(self.add_id(OpNode::UnOp {
+                            target: end_var,
+                            op: Identity,
+                            operand: Variable(b2_var)
+                        })),
                     None => {},
                 }
-                insts.push(self.add_id(OpNode::Goto(end_label, BTreeSet::new())));
-                insts.push(self.add_id(OpNode::Label(b1_label, BTreeSet::new())));
+                insts.push(self.add_id(OpNode::Goto { label_idx: end_label, vars: BTreeSet::new() }));
+                insts.push(self.add_id(OpNode::Label { label_idx: b1_label, vars: BTreeSet::new() }));
                 insts.extend(b1_insts.into_iter());
                 match b1_var {
                     Some(b1_var) =>
-                        insts.push(self.add_id(OpNode::UnOp(end_var, Identity, Variable(b1_var)))),
+                        insts.push(self.add_id(OpNode::UnOp {
+                            target: end_var,
+                            op: Identity,
+                            operand: Variable(b1_var)
+                        })),
                     None => {},
                 }
-                insts.push(self.add_id(OpNode::Goto(end_label, BTreeSet::new())));
-                insts.push(self.add_id(OpNode::Label(end_label, BTreeSet::new())));
+                insts.push(self.add_id(OpNode::Goto { label_idx: end_label, vars: BTreeSet::new() }));
+                insts.push(self.add_id(OpNode::Label { label_idx: end_label, vars: BTreeSet::new() }));
                 match b1_var {
                     Some(..) => (insts, Some(end_var)),
                     None => (insts, None),
@@ -1037,7 +1111,8 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                       break_label,
                                       continue_label,
                                       Some(middle_label));
-                let mut insts = vec!(self.add_id(OpNode::Goto(middle_label, BTreeSet::new())));
+                let mut insts = vec!(self.add_id(OpNode::Goto { label_idx: middle_label,
+                                                                vars: BTreeSet::new() }));
                 insts.extend(loop_insts.into_iter());
                 (insts, var)
             },
@@ -1082,17 +1157,22 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                 let index = self.variant_index(&defid,
                                                                parent_id);
                                 // Note: this is here to avoid a double borrow of self.
-                                let alloca_inst = OpNode::Alloca(base_var,
-                                                                 size_of_def(self.session,
-                                                                             self.typemap,
-                                                                             parent_id));
+                                let alloca_inst = OpNode::Alloca { var: base_var,
+                                                                   size: size_of_def(self.session,
+                                                                                     self.typemap,
+                                                                                     parent_id) };
                                 let mut insts = vec!(
                                     self.add_id(alloca_inst),
-                                    self.add_id(OpNode::UnOp(idx_var, Identity,
-                                                             Constant(
-                                                                 NumLit(index,
-                                                                        UnsignedInt(Width32))))),
-                                    self.add_id(OpNode::Store(base_var, idx_var, Width32))
+                                    self.add_id(OpNode::UnOp {
+                                        target: idx_var,
+                                        op: Identity,
+                                        operand: Constant(
+                                            NumLit(index,
+                                                   UnsignedInt(Width32)))
+                                    }),
+                                    self.add_id(OpNode::Store { addr: base_var,
+                                                                value: idx_var,
+                                                                width: Width32 })
                                         );
 
                                 let (ops, vars, widths) = self.variant_helper(
@@ -1107,9 +1187,11 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                         self.convert_expr(&args[i]);
                                     let expr_var = expr_var.unwrap();
                                     insts.extend(expr_insts.into_iter());
-                                    insts.push(self.add_id(OpNode::Store(var,
-                                                                         expr_var,
-                                                                         width.clone())));
+                                    insts.push(self.add_id(OpNode::Store {
+                                        addr: var,
+                                        value: expr_var,
+                                        width: width.clone()
+                                    }));
                                 }
 
                                 return (insts, Some(base_var))
@@ -1150,41 +1232,56 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                              self.typemap,
                                              &var_ty);
 
-                        ops.push(self.add_id(OpNode::Alloca(new_vars[idx], len)));
+                        ops.push(self.add_id(OpNode::Alloca { var: new_vars[idx], size: len }));
                         ops.extend(self.gen_copy(&new_vars[idx],
                                                  var,
                                                  &var_ty).into_iter());
-                        move_ops.push(self.add_id(OpNode::UnOp(new_vars[idx], Identity,
-                                                               Variable(new_vars[idx].clone()))));
+                        move_ops.push(self.add_id(OpNode::UnOp {
+                            target: new_vars[idx],
+                            op: Identity,
+                            operand: Variable(new_vars[idx].clone())
+                        }));
                     } else {
-                        move_ops.push(self.add_id(OpNode::UnOp(new_vars[idx], Identity,
-                                                               Variable(var.clone()))));
+                        move_ops.push(self.add_id(OpNode::UnOp {
+                            target: new_vars[idx],
+                            op: Identity,
+                            operand: Variable(var.clone())
+                        }));
                     }
                 }
                 ops.extend(move_ops.into_iter());
                 let this_ty = self.lookup_ty(expr.id).clone();
                 match this_ty {
                     UnitTy => {
-                        ops.push(self.add_id(OpNode::Call(None,
-                                                          Variable(new_var),
-                                                          new_vars.into_iter().collect())));
+                        ops.push(self.add_id(OpNode::Call {
+                            target: None,
+                            func: Variable(new_var),
+                            args: new_vars.into_iter().collect()
+                        }));
                         (ops, None)
                     },
                     _ => {
-                        ops.push(self.add_id(OpNode::Call(Some(result_var.clone()),
-                                                          Variable(new_var),
-                                                          new_vars.into_iter().collect())));
+                        ops.push(self.add_id(OpNode::Call {
+                            target: Some(result_var.clone()),
+                            func: Variable(new_var),
+                            args: new_vars.into_iter().collect()
+                        }));
                         // We add one more dummy assignment, for the result, or a
                         // copy in the case of something in memory.
-                        ops.push(self.add_id(OpNode::UnOp(result_var.clone(), Identity,
-                                                          Variable(result_var.clone()))));
+                        ops.push(self.add_id(OpNode::UnOp {
+                            target: result_var.clone(),
+                            op: Identity,
+                            operand: Variable(result_var.clone())
+                        }));
 
                         if ty_is_reference(&self.session, &self.typemap, &this_ty) {
                             let len = size_of_ty(self.session,
                                                  self.typemap,
                                                  &this_ty);
                             let new_result_var = self.gen_temp();
-                            ops.push(self.add_id(OpNode::Alloca(new_result_var.clone(), len)));
+                            ops.push(self.add_id(OpNode::Alloca {
+                                var: new_result_var.clone(), size: len
+                            }));
                             ops.extend(self.gen_copy(&new_result_var,
                                                      &result_var,
                                                      &this_ty).into_iter());
@@ -1205,9 +1302,17 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
                 let res_var = self.gen_temp();
                 if is_ref {
-                    ops.push(self.add_id(OpNode::UnOp(res_var, Identity, Variable(added_addr_var))));
+                    ops.push(self.add_id(OpNode::UnOp {
+                        target: res_var,
+                        op: Identity,
+                        operand: Variable(added_addr_var)
+                    }));
                 } else {
-                    ops.push(self.add_id(OpNode::Load(res_var, added_addr_var, width)));
+                    ops.push(self.add_id(OpNode::Load {
+                        target: res_var,
+                        addr: added_addr_var,
+                        width: width
+                    }));
                 }
                 (ops, Some(res_var))
             },
@@ -1228,10 +1333,12 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                          self.typemap,
                                          self.lookup_ty(t.id));
 
-                let op = OpNode::UnOp(v,
-                                      Identity,
-                                      Constant(NumLit(ty_size,
-                                                      UnsignedInt(Width32))));
+                let op = OpNode::UnOp {
+                    target: v,
+                    op: Identity,
+                    operand: Constant(NumLit(ty_size,
+                                             UnsignedInt(Width32)))
+                };
                 (vec!(self.add_id(op)),
                  Some(v))
             },
@@ -1279,9 +1386,11 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                 } else {
                                     // This case is a bit different, because
                                     // we emit a load instead of a UnOp.
-                                    insts.push(self.add_id(OpNode::Load(res_v,
-                                                                        v,
-                                                                        ty_width(&inner.val))));
+                                    insts.push(self.add_id(OpNode::Load {
+                                        target: res_v,
+                                        addr: v,
+                                        width: ty_width(&inner.val)
+                                    }));
 
                                     let dest_ty = &self.lookup_ty(expr.id)
                                         .clone();
@@ -1297,9 +1406,11 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     }
                     _ => op.val,
                 };
-                insts.push(self.add_id(OpNode::UnOp(res_v,
-                                                    actual_op,
-                                                    Variable(v))));
+                insts.push(self.add_id(OpNode::UnOp {
+                    target: res_v,
+                    op: actual_op,
+                    operand: Variable(v)
+                }));
                 let dest_ty = &self.lookup_ty(expr.id).clone();
                 let (new_ops, new_var) = self.contract(res_v, dest_ty);
                 insts.extend(new_ops.into_iter());
@@ -1308,7 +1419,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             ReturnExpr(ref e) => {
                 let (mut insts, v) = self.convert_expr(&**e);
                 let v = v.map(|x| Variable(x));
-                insts.push(self.add_id(OpNode::Return(v)));
+                insts.push(self.add_id(OpNode::Return { retval: v }));
                 (insts, None)
             }
             TupleExpr(..) => unimplemented!(),
@@ -1331,7 +1442,8 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 assert_eq!(elems.len() as usize, nelems as usize);
                 assert_eq!(total_size, inner_len * nelems);
                 let result_var = self.gen_temp();
-                let mut ops = vec!(self.add_id(OpNode::Alloca(result_var, total_size)));
+                let mut ops = vec!(self.add_id(OpNode::Alloca { var: result_var,
+                                                                size: total_size }));
                 for (idx, elem) in elems.iter().enumerate() {
                     let offset_var = self.gen_temp();
                     let offs = idx as u64 * inner_len;
@@ -1341,17 +1453,22 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         "Expression in array constructor can't be unit.");
                     ops.extend(new_ops.into_iter());
 
-                    ops.push(self.add_id(OpNode::BinOp(
-                        offset_var,
-                        PlusOp,
-                        Variable(result_var),
-                        Constant(NumLit(offs, UnsignedInt(Width32))),
-                        false)));
+                    ops.push(self.add_id(OpNode::BinOp {
+                        target: offset_var,
+                        op: PlusOp,
+                        lhs: Variable(result_var),
+                        rhs: Constant(NumLit(offs, UnsignedInt(Width32))),
+                        signed: false
+                    }));
                     if is_reference {
                         self.gen_copy(&offset_var, &expr_result, &inner_ty);
                     } else {
                         let width = ty_width(&inner_ty);
-                        ops.push(self.add_id(OpNode::Store(offset_var, expr_result, width)));
+                        ops.push(self.add_id(OpNode::Store {
+                            addr: offset_var,
+                            value: expr_result,
+                            width: width
+                        }));
                     }
                 }
                 (ops, Some(result_var))
@@ -1361,11 +1478,11 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 let defid = self.session.resolver.def_from_path(p);
 
                 let base_var = self.gen_temp();
-                let op = OpNode::Alloca(base_var,
-                                        size_of_def(
-                                            self.session,
-                                            self.typemap,
-                                            &defid));
+                let op = OpNode::Alloca { var: base_var,
+                                          size: size_of_def(
+                                              self.session,
+                                              self.typemap,
+                                              &defid) };
                 let mut ops = vec!(self.add_id(op));
 
                 for &(ref name, ref expr) in fields.iter() {
@@ -1395,12 +1512,13 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     };
                     let width = ty_width(ty);
 
-                    ops.push(self.add_id(OpNode::BinOp(
-                        offset_var,
-                        PlusOp,
-                        Variable(base_var),
-                        Constant(NumLit(offs, UnsignedInt(Width32))),
-                        false)));
+                    ops.push(self.add_id(OpNode::BinOp {
+                        target: offset_var,
+                        op: PlusOp,
+                        lhs: Variable(base_var),
+                        rhs: Constant(NumLit(offs, UnsignedInt(Width32))),
+                        signed: false
+                    }));
 
                     if ty_is_reference(&self.session, &self.typemap, ty) {
                         ops.extend(
@@ -1408,9 +1526,12 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                           &expr_var.unwrap(),
                                           ty).into_iter());
                     } else {
-                        ops.push(self.add_id(OpNode::Store(offset_var, expr_var.expect(
-                            "Expression of struct type must have non-unit value"
-                                ), width)));
+                        ops.push(self.add_id(OpNode::Store {
+                            addr: offset_var,
+                            value: expr_var.expect(
+                                "Expression of struct type must have non-unit value"),
+                            width: width
+                        }));
                     }
                 }
 
@@ -1426,21 +1547,29 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     (ops, Some(ptr_var))
                 } else {
                     let result_var = self.gen_temp();
-                    ops.push(self.add_id(OpNode::Load(result_var, ptr_var, width)));
+                    ops.push(self.add_id(OpNode::Load {
+                        target: result_var,
+                        addr: ptr_var,
+                        width: width
+                    }));
                     (ops, Some(result_var))
                 }
             }
             BreakExpr => {
-                let op = OpNode::Goto(*self.break_labels.last().expect(
-                    "Break with no label to break to"),
-                                      BTreeSet::new());
+                let op = OpNode::Goto {
+                    label_idx: *self.break_labels.last().expect(
+                        "Break with no label to break to"),
+                    vars: BTreeSet::new()
+                };
                 (vec!(self.add_id(op)),
                  None)
             }
             ContinueExpr => {
-                let op = OpNode::Goto(*self.continue_labels.last().expect(
-                    "Continue with no label to continue to"),
-                                      BTreeSet::new());
+                let op = OpNode::Goto {
+                    label_idx: *self.continue_labels.last().expect(
+                        "Continue with no label to continue to"),
+                    vars: BTreeSet::new()
+                };
                 (vec!(self.add_id(op)),
                  None)
             }
@@ -1453,10 +1582,16 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 let mut result_var = None;
 
                 if ty_is_reference(&self.session, &self.typemap, self.lookup_ty(e.id)) {
-                    ops.push(self.add_id(OpNode::Load(variant_var, base_var, Width32)));
+                    ops.push(self.add_id(OpNode::Load { target: variant_var,
+                                                        addr: base_var,
+                                                        width: Width32 }));
                 } else {
                     // If this happens, the enum is c-like and is not by reference.
-                    ops.push(self.add_id(OpNode::UnOp(variant_var, Identity, Variable(base_var))));
+                    ops.push(self.add_id(OpNode::UnOp {
+                        target:variant_var,
+                        op: Identity,
+                        operand: Variable(base_var)
+                    }));
                 }
 
                 // These are the labels for each pattern. The are off by one:
@@ -1501,16 +1636,21 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                             // assume it matches, because at least one arm is
                             // *required* to match.
                             if pos != arms.len() - 1 {
-                                ops.push(self.add_id(OpNode::BinOp(compare_var, EqualsOp,
-                                                                   Variable(variant_var),
-                                                                   Constant(NumLit(index,
-                                                                                   UnsignedInt(Width32))),
-                                                                   false)));
+                                ops.push(self.add_id(OpNode::BinOp {
+                                    target: compare_var,
+                                    op: EqualsOp,
+                                    lhs: Variable(variant_var),
+                                    rhs: Constant(NumLit(index,
+                                                         UnsignedInt(Width32))),
+                                    signed: false
+                                }));
                                 // If not, jump to the next one.
-                                ops.push(self.add_id(OpNode::CondGoto(true,
-                                                                      Variable(compare_var),
-                                                                      begin_labels[pos],
-                                                                      BTreeSet::new())));
+                                ops.push(self.add_id(OpNode::CondGoto {
+                                    negated: true,
+                                    cond: Variable(compare_var),
+                                    label_idx: begin_labels[pos],
+                                    vars: BTreeSet::new()
+                                }));
                             }
 
                             // It is! Generate the code for this particular variant.
@@ -1530,12 +1670,18 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                             generation: None };
                                         if this_ty_is_reference {
                                             ops.push(
-                                                self.add_id(OpNode::UnOp(this_var,
-                                                                         Identity,
-                                                                         Variable(*var))));
+                                                self.add_id(OpNode::UnOp {
+                                                    target: this_var,
+                                                    op: Identity,
+                                                    operand: Variable(*var)
+                                                }));
                                         } else {
                                             ops.push(
-                                                self.add_id(OpNode::Load(this_var, *var, *width)));
+                                                self.add_id(OpNode::Load {
+                                                    target: this_var,
+                                                    addr: *var,
+                                                    width: *width
+                                                }));
                                         }
                                     },
                                     _ => panic!("Only ident patterns are supported right now.")
@@ -1554,22 +1700,26 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     if result_var.is_none() {
                         result_var = arm_var;
                     } else {
-                        ops.push(self.add_id(OpNode::UnOp(result_var.unwrap(),
-                                      Identity,
-                                      Variable(arm_var.unwrap()))));
+                        ops.push(self.add_id(OpNode::UnOp {
+                            target: result_var.unwrap(),
+                            op: Identity,
+                            operand: Variable(arm_var.unwrap())
+                        }));
                     }
 
                     // And skip to the end!
-                    ops.push(self.add_id(OpNode::Goto(end_label, BTreeSet::new())));
+                    ops.push(self.add_id(OpNode::Goto {
+                        label_idx: end_label, vars: BTreeSet::new()
+                    }));
                     // And finally, the label that goes before the next arm.
-                    ops.push(self.add_id(OpNode::Label(begin_labels[pos].clone(),
-                                   BTreeSet::new())));
+                    ops.push(self.add_id(OpNode::Label {
+                        label_idx: begin_labels[pos].clone(), vars: BTreeSet::new() }));
                 }
 
                 (ops, result_var)
             }
             AsmExpr(ref x) => {
-                (vec!(self.add_id(OpNode::AsmOp(x.clone()))), None)
+                (vec!(self.add_id(OpNode::AsmOp { insts: x.clone() })), None)
             }
             MacroExpr(..) => panic!("ICE: macros should have been expanded by now"),
         }
@@ -1618,12 +1768,13 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
         let added_addr_var = self.gen_temp();
 
-        ops.push(self.add_id(OpNode::BinOp(
-            added_addr_var,
-            PlusOp,
-            Variable(var),
-            Constant(NumLit(offs, UnsignedInt(Width32))),
-            false)));
+        ops.push(self.add_id(OpNode::BinOp {
+            target: added_addr_var,
+            op: PlusOp,
+            lhs: Variable(var),
+            rhs: Constant(NumLit(offs, UnsignedInt(Width32))),
+            signed: false
+        }));
 
         (ops, added_addr_var, ty)
     }
@@ -1658,11 +1809,13 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             let offs = ENUM_TAG_SIZE + offset_of(&sizes, i);
 
             let new_offs_var = &vars[i];
-            insts.push(self.add_id(OpNode::BinOp(new_offs_var.clone(),
-                                                 PlusOp,
-                                                 Variable(base_var.clone()),
-                                                 Constant(NumLit(offs, UnsignedInt(Width32))),
-                                                 false)));
+            insts.push(self.add_id(OpNode::BinOp {
+                target: new_offs_var.clone(),
+                op: PlusOp,
+                lhs: Variable(base_var.clone()),
+                rhs: Constant(NumLit(offs, UnsignedInt(Width32))),
+                signed: false
+            }));
         }
 
         (insts, vars, widths)
@@ -1681,17 +1834,21 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         let total_size = packed_size(&vec!(size));
         let offs_var = self.gen_temp();
         let ptr_var = self.gen_temp();
-        ops.push(self.add_id(OpNode::BinOp(offs_var,
-                                           TimesOp,
-                                           Variable(idx_var),
-                                           Constant(NumLit(total_size,
-                                                           UnsignedInt(Width32))),
-                                           false)));
-        ops.push(self.add_id(OpNode::BinOp(ptr_var,
-                                           PlusOp,
-                                           Variable(base_var),
-                                           Variable(offs_var),
-                                           false)));
+        ops.push(self.add_id(OpNode::BinOp {
+            target: offs_var,
+            op: TimesOp,
+            lhs: Variable(idx_var),
+            rhs: Constant(NumLit(total_size,
+                                 UnsignedInt(Width32))),
+            signed: false
+        }));
+        ops.push(self.add_id(OpNode::BinOp {
+            target: ptr_var,
+            op: PlusOp,
+            lhs: Variable(base_var),
+            rhs: Variable(offs_var),
+            signed: false
+        }));
 
         (ops, ptr_var, ty_width(ty), ty_is_reference(&self.session, &self.typemap, ty))
     }

@@ -64,15 +64,17 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
 
     for (pos, op) in ops.iter().enumerate() {
         match op.val {
-            OpNode::BinOp(ref v, ref op, ref v1, ref v2, signed) => {
+            OpNode::BinOp { target: ref v, ref op, lhs: ref v1, rhs: ref v2, signed } => {
                 match fold(op, v1, v2, signed) {
                     Some(c) => {
                         changes.push((v.clone(),
                                       Constant(c.clone())));
                         immediate_changes.push((pos,
-                                                OpNode::UnOp(v.clone(),
-                                                     Identity,
-                                                     Constant(c))));
+                                                OpNode::UnOp {
+                                                    target: v.clone(),
+                                                    op: Identity,
+                                                    operand: Constant(c)
+                                                }));
                     },
                     None => {
                         // TODO: convert multiplications and divisions by
@@ -100,9 +102,11 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
                             Constant(NumLit(x, _)) if Some(x) == ident => {
                                 immediate_changes.push(
                                     (pos,
-                                     OpNode::UnOp(v.clone(),
-                                          Identity,
-                                          v2.clone())));
+                                     OpNode::UnOp {
+                                         target: v.clone(),
+                                         op: Identity,
+                                         operand: v2.clone()}
+                                    ));
                             },
                             _ => {}
                         }
@@ -112,25 +116,29 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
                                                        ) => {
                                 immediate_changes.push(
                                     (pos,
-                                     OpNode::UnOp(v.clone(),
-                                          Identity,
-                                          v1.clone())));
+                                     OpNode::UnOp {
+                                         target: v.clone(),
+                                         op: Identity,
+                                         operand: v1.clone()}
+                                    ));
                             }
                             _ => {}
                         }
                     }
                 }
             },
-            OpNode::UnOp(ref v, ref op, ref rv) => {
+            OpNode::UnOp { target: ref v, ref op, operand: ref rv } => {
                 match fold_unary(op, rv) {
                     Some(c) => {
                         changes.push((v.clone(),
                                       Constant(c.clone())));
                         if *op != Identity {
                             immediate_changes.push((pos,
-                                                    OpNode::UnOp(v.clone(),
-                                                         Identity,
-                                                         Constant(c))));
+                                                    OpNode::UnOp {
+                                                        target: v.clone(),
+                                                        op: Identity,
+                                                        operand: Constant(c)}
+                            ));
                         }
                     },
                     _ => {}
@@ -178,31 +186,31 @@ impl ConstantFolder {
         let mut vars_to_avoid = BTreeSet::<Var>::new();
         for op in ops.iter() {
             match op.val {
-                OpNode::Label(_, ref vars) |
-                OpNode::Goto(_, ref vars) |
-                OpNode::CondGoto(_, _, _, ref vars) => {
+                OpNode::Label { ref vars, .. } |
+                OpNode::Goto { ref vars, .. } |
+                OpNode::CondGoto { ref vars, .. } => {
                     for var in vars.iter() {
                         vars_to_avoid.insert(var.clone());
                     }
                 },
                 // We can't fold anything we take the address of.
-                OpNode::UnOp(_, AddrOf, ref rv) => {
+                OpNode::UnOp {op: AddrOf, operand: ref rv, .. } => {
                     match *rv {
                         Variable(ref v) => { vars_to_avoid.insert(v.clone()); },
                         _ => {},
                     }
                 },
-                OpNode::Store(ref v1, ref v2, _) |
-                OpNode::Load(ref v1, ref v2, _) => {
+                OpNode::Store { addr: ref v1, value: ref v2, .. } |
+                OpNode::Load { target: ref v1, addr: ref v2, .. } => {
                     vars_to_avoid.insert(v1.clone());
                     vars_to_avoid.insert(v2.clone());
                 },
-                OpNode::Call(_, _, ref vars) => {
+                OpNode::Call { args: ref vars, .. } => {
                     for var in vars.iter() {
                         vars_to_avoid.insert(var.clone());
                     }
                 },
-                OpNode::Func(_, ref vars, ref abi) => {
+                OpNode::Func { args: ref vars, ref abi, .. } => {
                     if abi.is_some() { return; }
                     for var in vars.iter() {
                         vars_to_avoid.insert(var.clone());

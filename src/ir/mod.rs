@@ -172,31 +172,33 @@ impl CanHaveId<IrNodeId> for OpNode {}
 #[derive(Clone, Debug)]
 pub enum OpNode {
     // Apply a unary operator
-    UnOp(Var, UnOpNode, RValueElem),
+    UnOp { target: Var, op: UnOpNode, operand: RValueElem },
     // Apply a binary operator. We store whether it's signed
-    BinOp(Var, BinOpNode, RValueElem, RValueElem, bool),
-    Alloca(Var, u64),
-    Call(Option<Var>, RValueElem, Vec<Var>),
+    BinOp { target: Var, op: BinOpNode, lhs: RValueElem, rhs: RValueElem,
+            signed: bool },
+    Alloca { var: Var, size: u64 },
+    Call { target: Option<Var>, func: RValueElem, args: Vec<Var> },
     // Store to memory address pointed to by first Var.
-    Store(Var, Var, Width),
+    Store { addr: Var, value: Var, width: Width },
     // Load from the address pointed to by the second Var.
-    Load(Var, Var, Width),
+    Load { target: Var, addr: Var, width: Width },
     // A label. The set of variables is ones that are active at that point.
     // TODO: make this a map from name -> gen.
-    Label(usize, BTreeSet<Var>),
+    Label { label_idx: usize, vars: BTreeSet<Var> },
     // A goto. The set must specify generations for all variables in the label.
-    Goto(usize, BTreeSet<Var>),
+    Goto { label_idx: usize, vars: BTreeSet<Var> },
     // Conditional goto. Optionally negated.
-    CondGoto(bool, RValueElem, usize, BTreeSet<Var>),
+    CondGoto { negated: bool, cond: RValueElem, label_idx: usize,
+               vars: BTreeSet<Var> },
     // Return statement.
-    Return(Option<RValueElem>),
+    Return { retval: Option<RValueElem> },
     // Function definition. A special op, that can only appear once, at
     // the beginning of a function. The name option gives the ABI name in
     // the case of externs; None specifies a local function.
-    Func(VarName, Vec<Var>, Option<Name>),
+    Func { name: VarName, args: Vec<Var>, abi: Option<Name> },
     // Inline asm.
-    AsmOp(Vec<Vec<InstNode>>),
-    Nop,
+    AsmOp { insts: Vec<Vec<InstNode>> },
+    Nop {},
 }
 
 fn write_list<T: Display, U: Iterator<Item=T>>(iter: U) -> String {
@@ -211,43 +213,43 @@ fn write_list<T: Display, U: Iterator<Item=T>>(iter: U) -> String {
 impl Display for OpNode {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
-            UnOp(ref lv, ref op, ref rve) =>
+            UnOp { target: ref lv, ref op, operand: ref rve } =>
                 write!(f, "{: >12} := {}({})\n",
                        format!("{}", lv), op, rve),
-            BinOp(ref lv, ref op, ref rve1, ref rve2, signed) =>
+            BinOp { target: ref lv, ref op, lhs: ref rve1, rhs: ref rve2, signed } =>
                 write!(f, "{: >12} := {} {}{} {}\n",
                        format!("{}", lv), rve1, op,
                        if signed { "s" } else { "u" }, rve2),
-            Store(ref lv, ref rv, ref size) =>
+            Store { addr: ref lv, value: ref rv, width: ref size } =>
                 write!(f, "{: >12} :={} {}\n",
                        format!("*{}", lv), size, rv),
-            Load(ref lv, ref rv, ref size) =>
+            Load { target: ref lv, addr: ref rv, width: ref size } =>
                 write!(f, "{: >12} :={} *{}\n",
                        format!("{}", lv), size, rv),
-            Call(Some(ref lv), ref fname, ref args) =>
+            Call { target: Some(ref lv), func: ref fname, ref args } =>
                 write!(f, "{: >12} := {}({})\n",
                        format!("{}", lv), fname, write_list(args.iter())),
-            Call(None, ref fname, ref args) =>
+            Call { target: None, func: ref fname, ref args } =>
                 write!(f, "{: >12}    {}({})\n",
                        "", fname, write_list(args.iter())),
-            Alloca(ref v, ref size) =>
+            Alloca { var: ref v, ref size } =>
                 write!(f, "{: >12} := alloca({})\n",
                        format!("{}", v), size),
-            Label(ref l, ref vars) => write!(f, "{}({}):\n", l, write_list(vars.iter())),
-            Goto(ref l, ref vars) => write!(f, "goto {}({})\n", l, write_list(vars.iter())),
-            CondGoto(ref neg, ref e, ref l, ref vars) =>
+            Label { label_idx: ref l, ref vars } => write!(f, "{}({}):\n", l, write_list(vars.iter())),
+            Goto { label_idx: ref l, ref vars } => write!(f, "goto {}({})\n", l, write_list(vars.iter())),
+            CondGoto { negated: ref neg, cond: ref e, label_idx: ref l, ref vars } =>
                 write!(f, "if {}{} goto {}({})\n",
                        if *neg { "!" } else { "" }, e, l, write_list(vars.iter())),
-            Return(Some(ref v)) => write!(f, "return {}\n", v),
-            Return(None) => write!(f, "return\n"),
-            Func(ref name, ref vars, ref abi_opt) =>
+            Return { retval: Some(ref v) } => write!(f, "return {}\n", v),
+            Return { retval: None } => write!(f, "return\n"),
+            Func { ref name, args: ref vars, abi: ref abi_opt } =>
                 write!(f, "{}fn {}({})\n",
                        match *abi_opt {
                            Some(ref abi) => format!("extern \"{}\"", abi),
                            None => "".to_string(),
                        }, name, write_list(vars.iter())),
-            Nop => write!(f, "{: >16}\n", "nop"),
-            AsmOp(ref packets) => {
+            Nop {} => write!(f, "{: >16}\n", "nop"),
+            AsmOp { insts: ref packets } => {
                 try!(write!(f, "Asm("));
                 for packet in packets.iter() {
                     try!(write!(f, "[ "));

@@ -56,7 +56,7 @@ impl MultiplyOptimizer {
 
                     (vec!(
                         Op {
-                            val: OpNode::UnOp(new_temp, Identity, Variable(v)),
+                            val: OpNode::UnOp { target: new_temp, op: Identity, operand: Variable(v) },
                             // TODO: we really should generate a fresh ID for this, but
                             // at this point we no longer know which ones were used :(
                             id: node_id,
@@ -68,7 +68,7 @@ impl MultiplyOptimizer {
 
                     (vec!(
                         Op {
-                            val: OpNode::UnOp(new_temp, Identity, Constant(c)),
+                            val: OpNode::UnOp { target: new_temp, op: Identity, operand: Constant(c) },
                             // TODO: we really should generate a fresh ID for this, but
                             // at this point we no longer know which ones were used :(
                             id: node_id,
@@ -85,7 +85,7 @@ impl MultiplyOptimizer {
         // multiplies/divides/mods into function calls.
         for op in old_ops.into_iter() {
             let mut handled = false;
-            if let OpNode::BinOp(var, binop, ref op1, ref op2, signed) = op.val {
+            if let OpNode::BinOp { target: var, op: binop, lhs: ref op1, rhs: ref op2, signed } = op.val {
                 let func = match binop {
                     TimesOp => mul_func,
                     DivideOp => div_func,
@@ -106,7 +106,7 @@ impl MultiplyOptimizer {
                     vars.push(signedness_var);
                     let nv = Op {
                         id: op.id,
-                        val: OpNode::Call(Some(var), func, vars)
+                        val: OpNode::Call { target: Some(var), func: func, args: vars }
                     };
                     for oplist in extra_ops.into_iter() {
                         ops.extend(oplist);
@@ -114,15 +114,15 @@ impl MultiplyOptimizer {
                     ops.push(
                         Op {
                             id: op.id,
-                            val: OpNode::UnOp(
-                                signedness_var, Identity,
-                                Constant(
+                            val: OpNode::UnOp {
+                                target: signedness_var, op: Identity,
+                                operand: Constant(
                                     NumLit(
                                         if signed { 1 } else { 0 },
                                         UnsignedInt(AnyWidth),
                                     )
                                 )
-                            ),
+                            },
                         }
                     );
                     ops.push(nv);
@@ -142,7 +142,7 @@ impl MultiplyOptimizer {
                    mod_func: Option<VarName>, const_mul_bit_limit: u8) {
         for op in ops.iter_mut() {
             match op.val {
-                OpNode::BinOp(_, ref mut opnode, ref mut op1, ref mut op2, signed) => {
+                OpNode::BinOp { op: ref mut opnode, lhs: ref mut op1, rhs: ref mut op2, signed, .. } => {
                     if *opnode != TimesOp && *opnode != DivideOp && *opnode != ModOp {
                         // We only care about multiplies, divides, and mod.
                         continue;

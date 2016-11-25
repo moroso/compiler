@@ -247,7 +247,7 @@ impl Target for AsmTarget {
                 print!("{:?}\n", insts);
             }
             let func_name = match insts[0].val {
-                OpNode::Func(funcname, _, _) => funcname,
+                OpNode::Func { name: funcname, .. } => funcname,
                 _ => panic!("Function doesn't start with a 'Func' op!")
             };
             ToSSA::to_ssa(&mut insts, self.verbose);
