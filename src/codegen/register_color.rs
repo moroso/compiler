@@ -125,7 +125,7 @@ mod tests {
     use codegen::*;
 
     fn var(n: u32) -> Var {
-        Var { name: Name(n as usize), generation: Some(1) }
+        Var { name: VarName::IRTempVariable(n as usize), generation: Some(1) }
     }
 
     #[test]
@@ -140,7 +140,7 @@ mod tests {
         let coloring = RegisterColorer::color(conflicts, frequencies,
                                               BTreeMap::new(),
                                               BTreeSet::new(),
-                                              &BTreeMap::<Name,
+                                              &BTreeMap::<VarName,
                                                          StaticIRItem>::new(),
                                               10);
         for (_, &color) in coloring.iter() {
@@ -168,7 +168,7 @@ mod tests {
         let coloring = RegisterColorer::color(conflicts, frequencies,
                                               BTreeMap::new(),
                                               BTreeSet::new(),
-                                              &BTreeMap::<Name,
+                                              &BTreeMap::<VarName,
                                                          StaticIRItem>::new(),
                                               10);
         for i in 0u32 .. 8 {
@@ -206,7 +206,7 @@ mod tests {
         let coloring = RegisterColorer::color(conflicts, frequencies,
                                               BTreeMap::new(),
                                               BTreeSet::new(),
-                                              &BTreeMap::<Name,
+                                              &BTreeMap::<VarName,
                                                          StaticIRItem>::new(),
                                               10);
         for i in 0u32 .. 20 {

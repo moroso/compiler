@@ -77,8 +77,23 @@ pub type Constant = LitNode;
 pub type ConstantResult = Result<Constant, (NodeId, &'static str)>;
 pub type ConstantMap = BTreeMap<NodeId, ConstantResult>;
 
-pub fn enum_is_c_like(session: &Session, typemap: &Typemap, id: &NodeId) -> bool {
-    size_of_def(session, typemap, id) == ENUM_TAG_SIZE
+pub fn enum_is_c_like(session: &Session, id: &NodeId) -> bool {
+    let def = session.defmap.find(id).unwrap();
+    let variants = match *def {
+        Def::EnumDef(_, ref variants, _) => variants,
+        _ => panic!("Expected EnumDef!"),
+    };
+    for variant in variants {
+        let variant_def = session.defmap.find(variant).unwrap();
+        let types = match *variant_def {
+            Def::VariantDef(_, _, ref types) => types,
+            _ => panic!("Expected VariantDef!"),
+        };
+        // If any variant has types along with it, it's not c-like.
+        if types.len() > 0 { return false; }
+    }
+
+    return true;
 }
 
 fn constant_fold(typechecker: &mut Typechecker, expr: &Expr)
@@ -713,7 +728,7 @@ impl<'a> Typechecker<'a> {
                     Def::EnumDef(_, _, ref tps) => {
                         let tys = self.tps_to_tys(
                             t.id, tps, &path.val.elems.last().unwrap().val.tps, false);
-                        let c_like = enum_is_c_like(self.session, &self.typemap, &nid);
+                        let c_like = enum_is_c_like(self.session, &nid);
                         EnumTy(nid, tys, c_like)
                     }
                     Def::GenericDef => self.generic_to_ty(nid).val,
@@ -793,7 +808,7 @@ impl<'a> Typechecker<'a> {
                             }
                         });
 
-                        let c_like = enum_is_c_like(self.session, &self.typemap, enum_nid);
+                        let c_like = enum_is_c_like(self.session, enum_nid);
                         EnumTy(*enum_nid, tp_tys, c_like)
                     }
                     _ => self.session.error_fatal(pat.id, "Not an enum variant"),
@@ -886,7 +901,7 @@ impl<'a> Typechecker<'a> {
                         let tp_tys = self.tps_to_tys(
                             expr.id, tps, &path.val.elems.last().unwrap().val.tps, true);
 
-                        let c_like = enum_is_c_like(self.session, &self.typemap, enum_nid);
+                        let c_like = enum_is_c_like(self.session, enum_nid);
 
                         let ctor = |tp_tys| EnumTy(*enum_nid, tp_tys, c_like);
                         if args.len() == 0 {
@@ -1653,6 +1668,7 @@ mod tests {
     #[test]
     fn basic_tyck_test() {
         let mut opts = Options::new();
+        opts.include_prelude = false;
         setup_builtin_search_paths(&mut opts);
         let mut session = Session::new(opts);
         let tree = session.parse_package_str(r"

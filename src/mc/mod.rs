@@ -230,12 +230,14 @@ mod tests {
     use target::{Target, MkTarget};
 
     use std::io;
+    use std::path::PathBuf;
 
     fn package_from_str(s: &str) -> Package {
         let bytes = s.as_bytes();
         let buffer = io::BufReader::new(bytes);
         let mut opts = super::session::Options::new();
-        setup_builtin_search_paths(&mut opts);
+        let prelude_location = PathBuf::from("lib/prelude.mb");
+        opts.search_paths.insert("prelude".to_string(), prelude_location);
         Package::from_buffer(opts, "<input>", buffer)
     }
 

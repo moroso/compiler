@@ -30,6 +30,7 @@ pub static SPILL_REG_BASE: u8 = 8;
 #[derive(Ord, PartialOrd, PartialEq, Eq, Debug, Clone, Copy)]
 pub enum RegisterColor {
     RegColor(Reg),
+    //PredColor(Pred),
     // Offset on the stack, in words.
     StackColor(isize),
     // Argument on the stack. The isize is negative; -1 is the last argument.

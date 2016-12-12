@@ -214,6 +214,22 @@ pub enum BinOpNode {
     RightShiftOp,
 }
 
+impl BinOpNode {
+    fn is_pred(&self) -> bool {
+        match *self {
+            BinOpNode::EqualsOp |
+            BinOpNode::NotEqualsOp |
+            BinOpNode::LessOp |
+            BinOpNode::LessEqOp |
+            BinOpNode::GreaterOp |
+            BinOpNode::GreaterEqOp |
+            BinOpNode::AndAlsoOp |
+            BinOpNode::OrElseOp => true,
+            _ => false,
+        }
+    }
+}
+
 impl Display for BinOpNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", match *self {

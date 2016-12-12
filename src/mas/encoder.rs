@@ -4,7 +4,7 @@ use mas::ast::*;
 
 pub fn encode_pred(pred: &Pred) -> u32 {
     (if pred.inverted { 1<<29 } else { 0 }) |
-    ((pred.reg as u32) << 30)
+    ((pred.reg.as_u32()) << 30)
 }
 
 pub fn encode_aluop(op: &AluOp) -> u32 {
@@ -140,7 +140,7 @@ pub fn encode(inst: &InstNode) -> u32 {
             panic!("Unresolved label {}", label)
         },
         NopInst => {
-            encode_pred(&Pred { reg: 3,
+            encode_pred(&Pred { reg: PredReg::True,
                                 inverted: true })
         },
         LoadInst(pred,

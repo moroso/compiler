@@ -903,25 +903,25 @@ mod tests {
 
     #[test]
     fn test_parse_inst_alu1short() {
-        assert_eq!(inst_from_str("p1 -> r4 <- 5"),
+        assert_eq!(inst_from_str("p1? r4 <- 5"),
                    ALU1ShortInst(Pred { inverted: false,
-                                        reg: 1 },
+                                        reg: PredReg::Pred1 },
                                  MovAluOp,
                                  Reg { index: 4 },
                                  5,
                                  0));
 
-        assert_eq!(inst_from_str("!p1 -> r4 <- 5"),
+        assert_eq!(inst_from_str("!p1? r4 <- 5"),
                    ALU1ShortInst(Pred { inverted: true,
-                                        reg: 1 },
+                                        reg: PredReg::Pred1 },
                                  MovAluOp,
                                  Reg { index: 4 },
                                  5,
                                  0));
 
-        assert_eq!(inst_from_str("!p1 -> r4 <- ~5"),
+        assert_eq!(inst_from_str("!p1? r4 <- ~5"),
                    ALU1ShortInst(Pred { inverted: true,
-                                        reg: 1 },
+                                        reg: PredReg::Pred1 },
                                  MvnAluOp,
                                  Reg { index: 4 },
                                  5,
@@ -929,7 +929,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r4 <- ~5"),
                    ALU1ShortInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  MvnAluOp,
                                  Reg { index: 4 },
                                  5,
@@ -937,8 +937,8 @@ mod tests {
 
         assert_eq!(inst_from_str("r4 <- SxB 5"),
                    ALU1ShortInst(Pred { inverted: false,
-                                        reg: 3 },
-                                 SxbAluOp,
+                                        reg: PredReg::True },
+                                 MovAluOp, // sxb gets replaced with mov here, because it does the same thing.
                                  Reg { index: 4 },
                                  5,
                                  0));
@@ -946,27 +946,27 @@ mod tests {
         assert_eq!(inst_from_str(
             "r4 <- SxB 0b10000000000000000000000000000001"),
                    ALU1ShortInst(Pred { inverted: false,
-                                        reg: 3 },
-                                 SxbAluOp,
+                                        reg: PredReg::True },
+                                 MovAluOp, // Equivalent to just loading 1.
                                  Reg { index: 4 },
-                                 0b110,
-                                 1));
+                                 1,
+                                 0));
 
         // This is just long enough to be packed.
         assert_eq!(inst_from_str(
             "r4 <- SxB 0b111111111111111"),
                    ALU1ShortInst(Pred { inverted: false,
-                                        reg: 3 },
-                                 SxbAluOp,
+                                        reg: PredReg::True },
+                                 MvnAluOp, // This is ~0
                                  Reg { index: 4 },
-                                 0b111111111111111,
+                                 0,
                                  0));
 
         assert_eq!(inst_from_str(
             "r4 <- SxB -0xffffffff"),
                    ALU1ShortInst(Pred { inverted: false,
-                                        reg: 3 },
-                                 SxbAluOp,
+                                        reg: PredReg::True },
+                                 MovAluOp, // Equivalent to just doing a mov.
                                  Reg { index: 4 },
                                  1,
                                  0));
@@ -984,7 +984,7 @@ mod tests {
     fn test_parse_inst_alu2short() {
         assert_eq!(inst_from_str("r6 <- r7 + 0"),
                    ALU2ShortInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  AddAluOp,
                                  Reg { index: 6 },
                                  Reg { index: 7 },
@@ -993,7 +993,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r6 <- r7 + 0b100"),
                    ALU2ShortInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  AddAluOp,
                                  Reg { index: 6 },
                                  Reg { index: 7 },
@@ -1002,7 +1002,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r6 <- r7 + 0b1111111111"),
                    ALU2ShortInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  AddAluOp,
                                  Reg { index: 6 },
                                  Reg { index: 7 },
@@ -1011,7 +1011,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r6 <- r7 | 0b1111111111"),
                    ALU2ShortInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  OrAluOp,
                                  Reg { index: 6 },
                                  Reg { index: 7 },
@@ -1020,16 +1020,16 @@ mod tests {
 
         assert_eq!(inst_from_str("r6 <- r7 oR 0b1111111111"),
                    ALU2ShortInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  OrAluOp,
                                  Reg { index: 6 },
                                  Reg { index: 7 },
                                  0b1111111111,
                                  0));
 
-        assert_eq!(inst_from_str("!p2 -> r6 <- r7 oR 0b1111111111"),
+        assert_eq!(inst_from_str("!p2? r6 <- r7 oR 0b1111111111"),
                    ALU2ShortInst(Pred { inverted: true,
-                                        reg: 2 },
+                                        reg: PredReg::Pred2 },
                                  OrAluOp,
                                  Reg { index: 6 },
                                  Reg { index: 7 },
@@ -1037,9 +1037,9 @@ mod tests {
                                  0));
 
         assert_eq!(inst_from_str(
-            "!p2 -> r6 <- r7 oR 0b10000000000000000000000000000001"),
+            "!p2? r6 <- r7 oR 0b10000000000000000000000000000001"),
                    ALU2ShortInst(Pred { inverted: true,
-                                        reg: 2 },
+                                        reg: PredReg::Pred2 },
                                  OrAluOp,
                                  Reg { index: 6 },
                                  Reg { index: 7 },
@@ -1049,7 +1049,7 @@ mod tests {
         assert_eq!(inst_from_str(
             "r6 <- r7 + -0xffffffff"),
                    ALU2ShortInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  AddAluOp,
                                  Reg { index: 6 },
                                  Reg { index: 7 },
@@ -1066,9 +1066,9 @@ mod tests {
 
     #[test]
     fn test_parse_inst_alu1reg() {
-        assert_eq!(inst_from_str("p1 -> r4 <- r5"),
+        assert_eq!(inst_from_str("p1? r4 <- r5"),
                    ALU1RegInst(Pred { inverted: false,
-                                      reg: 1 },
+                                      reg: PredReg::Pred1 },
                                MovAluOp,
                                Reg { index: 4 },
                                Reg { index: 5 },
@@ -1076,9 +1076,9 @@ mod tests {
                                0));
 
 
-        assert_eq!(inst_from_str("p1 -> r4 <- (r5)"),
+        assert_eq!(inst_from_str("p1? r4 <- (r5)"),
                    ALU1RegInst(Pred { inverted: false,
-                                      reg: 1 },
+                                      reg: PredReg::Pred1 },
                                MovAluOp,
                                Reg { index: 4 },
                                Reg { index: 5 },
@@ -1086,9 +1086,9 @@ mod tests {
                                0));
 
 
-        assert_eq!(inst_from_str("p1 -> r4 <- (r5 << 6)"),
+        assert_eq!(inst_from_str("p1? r4 <- (r5 << 6)"),
                    ALU1RegInst(Pred { inverted: false,
-                                      reg: 1 },
+                                      reg: PredReg::Pred1 },
                                MovAluOp,
                                Reg { index: 4 },
                                Reg { index: 5 },
@@ -1097,7 +1097,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r4 <- lr"),
                    ALU1RegInst(Pred { inverted: false,
-                                      reg: 3 },
+                                      reg: PredReg::True },
                                MovAluOp,
                                Reg { index: 4 },
                                Reg { index: 31 },
@@ -1116,7 +1116,7 @@ mod tests {
     fn test_parse_inst_alu2reg() {
         assert_eq!(inst_from_str("r6 <- r7 + r8"),
                    ALU2RegInst(Pred { inverted: false,
-                                      reg: 3 },
+                                      reg: PredReg::True },
                                AddAluOp,
                                Reg { index: 6 },
                                Reg { index: 7 },
@@ -1126,7 +1126,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r6 <- r7 + (r8)"),
                    ALU2RegInst(Pred { inverted: false,
-                                      reg: 3 },
+                                      reg: PredReg::True },
                                AddAluOp,
                                Reg { index: 6 },
                                Reg { index: 7 },
@@ -1136,7 +1136,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r6 <- r7 + (r8 << 6)"),
                    ALU2RegInst(Pred { inverted: false,
-                                      reg: 3 },
+                                      reg: PredReg::True },
                                AddAluOp,
                                Reg { index: 6 },
                                Reg { index: 7 },
@@ -1146,7 +1146,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r6 <- r7 -: r8"),
                    ALU2RegInst(Pred { inverted: false,
-                                      reg: 3 },
+                                      reg: PredReg::True },
                                RsbAluOp,
                                Reg { index: 6 },
                                Reg { index: 7 },
@@ -1156,7 +1156,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r6 <- r7 rsb r8"),
                    ALU2RegInst(Pred { inverted: false,
-                                      reg: 3 },
+                                      reg: PredReg::True },
                                RsbAluOp,
                                Reg { index: 6 },
                                Reg { index: 7 },
@@ -1164,9 +1164,9 @@ mod tests {
                                SllShift,
                                0));
 
-        assert_eq!(inst_from_str("!p1 -> r6 <- r7 rsb r8"),
+        assert_eq!(inst_from_str("!p1? r6 <- r7 rsb r8"),
                    ALU2RegInst(Pred { inverted: true,
-                                      reg: 1 },
+                                      reg: PredReg::Pred1 },
                                RsbAluOp,
                                Reg { index: 6 },
                                Reg { index: 7 },
@@ -1179,14 +1179,14 @@ mod tests {
     fn test_parse_inst_alu2long() {
         assert_eq!(inst_from_str("r6 <- r7 + long"),
                    ALU2LongInst(Pred { inverted: false,
-                                      reg: 3 },
+                                      reg: PredReg::True },
                                 AddAluOp,
                                 Reg { index: 6 },
                                 Reg { index: 7 }));
 
-        assert_eq!(inst_from_str("!p2 -> r6 <- r7 + long"),
+        assert_eq!(inst_from_str("!p2? r6 <- r7 + long"),
                    ALU2LongInst(Pred { inverted: true,
-                                       reg: 2 },
+                                       reg: PredReg::Pred2 },
                                 AddAluOp,
                                 Reg { index: 6 },
                                 Reg { index: 7 }));
@@ -1196,19 +1196,19 @@ mod tests {
     fn test_parse_inst_alu1long() {
         assert_eq!(inst_from_str("r6 <- long"),
                    ALU1LongInst(Pred { inverted: false,
-                                       reg: 3 },
+                                       reg: PredReg::True },
                                 MovAluOp,
                                 Reg { index : 6 }));
 
         assert_eq!(inst_from_str("r6 <- ~long"),
                    ALU1LongInst(Pred { inverted: false,
-                                       reg: 3 },
+                                       reg: PredReg::True },
                                 MvnAluOp,
                                 Reg { index : 6 }));
 
-        assert_eq!(inst_from_str("!p2 -> r6 <- long"),
+        assert_eq!(inst_from_str("!p2? r6 <- long"),
                    ALU1LongInst(Pred { inverted: true,
-                                       reg: 2 },
+                                       reg: PredReg::Pred2 },
                                 MovAluOp,
                                 Reg { index : 6 }));
     }
@@ -1217,7 +1217,7 @@ mod tests {
     fn test_parse_inst_alu1regsh() {
         assert_eq!(inst_from_str("r6 <- r7 << r8"),
                    ALU1RegShInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  Reg { index: 6 },
                                  MovAluOp,
                                  Reg { index: 7 },
@@ -1226,16 +1226,16 @@ mod tests {
 
         assert_eq!(inst_from_str("r6 <- r7 >>u r8"),
                    ALU1RegShInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  Reg { index: 6 },
                                  MovAluOp,
                                  Reg { index: 7 },
                                  SrlShift,
                                  Reg { index: 8 }));
 
-        assert_eq!(inst_from_str("!p2 -> r6 <- r7 >>s r8"),
+        assert_eq!(inst_from_str("!p2? r6 <- r7 >>s r8"),
                    ALU1RegShInst(Pred { inverted: true,
-                                        reg: 2 },
+                                        reg: PredReg::Pred2 },
                                  Reg { index: 6 },
                                  MovAluOp,
                                  Reg { index: 7 },
@@ -1244,7 +1244,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r6 <- ~(r7 << r8)"),
                    ALU1RegShInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  Reg { index: 6 },
                                  MvnAluOp,
                                  Reg { index: 7 },
@@ -1253,16 +1253,16 @@ mod tests {
 
         assert_eq!(inst_from_str("r6 <- ~(r7 >>u r8)"),
                    ALU1RegShInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  Reg { index: 6 },
                                  MvnAluOp,
                                  Reg { index: 7 },
                                  SrlShift,
                                  Reg { index: 8 }));
 
-        assert_eq!(inst_from_str("!p2 -> r6 <- ~(r7 >>s r8)"),
+        assert_eq!(inst_from_str("!p2? r6 <- ~(r7 >>s r8)"),
                    ALU1RegShInst(Pred { inverted: true,
-                                        reg: 2 },
+                                        reg: PredReg::Pred2 },
                                  Reg { index: 6 },
                                  MvnAluOp,
                                  Reg { index: 7 },
@@ -1279,7 +1279,7 @@ mod tests {
     #[should_panic]
     fn test_parse_nop_with_pred() {
         // Nop instructions can't have predicates.
-        inst_from_str("p0 -> nop");
+        inst_from_str("p0? nop");
     }
 
     #[test]
@@ -1291,14 +1291,14 @@ mod tests {
     #[should_panic]
     fn test_parse_long_with_pred() {
         // Long directives can't have predicates.
-        inst_from_str("p0 -> long 0x56");
+        inst_from_str("p0? long 0x56");
     }
 
     #[test]
     fn test_parse_inst_load() {
         assert_eq!(inst_from_str("r9 <- *l(r8)"),
                    LoadInst(Pred { inverted: false,
-                                   reg: 3 },
+                                   reg: PredReg::True },
                             LsuOp { store: false,
                                     width: LsuWidthL },
                             Reg { index: 9 },
@@ -1307,7 +1307,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r9 <- *l(r8 + 6)"),
                    LoadInst(Pred { inverted: false,
-                                   reg: 3 },
+                                   reg: PredReg::True },
                             LsuOp { store: false,
                                     width: LsuWidthL },
                             Reg { index: 9 },
@@ -1316,7 +1316,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r9 <- *l(r8 - 6)"),
                    LoadInst(Pred { inverted: false,
-                                   reg: 3 },
+                                   reg: PredReg::True },
                             LsuOp { store: false,
                                     width: LsuWidthL },
                             Reg { index: 9 },
@@ -1325,7 +1325,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r9 <- *l(r8 + -0x6)"),
                    LoadInst(Pred { inverted: false,
-                                   reg: 3 },
+                                   reg: PredReg::True },
                             LsuOp { store: false,
                                     width: LsuWidthL },
                             Reg { index: 9 },
@@ -1334,7 +1334,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r9 <- *llsc(r8 + -0x6)"),
                    LoadInst(Pred { inverted: false,
-                                   reg: 3 },
+                                   reg: PredReg::True },
                             LsuOp { store: false,
                                     width: LsuLLSC },
                             Reg { index: 9 },
@@ -1344,7 +1344,7 @@ mod tests {
         // The largest positive value that can be used as an offset.
         assert_eq!(inst_from_str("r9 <- *l(r8 + 0b11111111111)"),
                    LoadInst(Pred { inverted: false,
-                                   reg: 3 },
+                                   reg: PredReg::True },
                             LsuOp { store: false,
                                     width: LsuWidthL },
                             Reg { index: 9 },
@@ -1354,7 +1354,7 @@ mod tests {
         // The most negative value that can be used as an offset.
         assert_eq!(inst_from_str("r9 <- *l(r8 - 0b100000000000)"),
                    LoadInst(Pred { inverted: false,
-                                   reg: 3 },
+                                   reg: PredReg::True },
                             LsuOp { store: false,
                                     width: LsuWidthL },
                             Reg { index: 9 },
@@ -1380,7 +1380,7 @@ mod tests {
     fn test_parse_inst_store() {
         assert_eq!(inst_from_str("*l(r8) <- r9"),
                    StoreInst(Pred { inverted: false,
-                                    reg: 3 },
+                                    reg: PredReg::True },
                              LsuOp { store: true,
                                      width: LsuWidthL },
                              Reg { index: 8 },
@@ -1390,7 +1390,7 @@ mod tests {
 
         assert_eq!(inst_from_str("*l(r8 + 6) <- r9"),
                    StoreInst(Pred { inverted: false,
-                                    reg: 3 },
+                                    reg: PredReg::True },
                              LsuOp { store: true,
                                      width: LsuWidthL },
                              Reg { index: 8 },
@@ -1400,7 +1400,7 @@ mod tests {
 
         assert_eq!(inst_from_str("*l(r8 - 6) <- r9"),
                    StoreInst(Pred { inverted: false,
-                                    reg: 3 },
+                                    reg: PredReg::True },
                              LsuOp { store: true,
                                      width: LsuWidthL },
                              Reg { index: 8 },
@@ -1410,7 +1410,7 @@ mod tests {
 
         assert_eq!(inst_from_str("*l(r8 + -0x6) <- r9"),
                    StoreInst(Pred { inverted: false,
-                                    reg: 3 },
+                                    reg: PredReg::True },
                              LsuOp { store: true,
                                      width: LsuWidthL },
                              Reg { index: 8 },
@@ -1420,7 +1420,7 @@ mod tests {
 
         assert_eq!(inst_from_str("*llsc(r8 + -0x6) <- r9"),
                    StoreInst(Pred { inverted: false,
-                                    reg: 3 },
+                                    reg: PredReg::True },
                              LsuOp { store: true,
                                      width: LsuLLSC },
                              Reg { index: 8 },
@@ -1431,7 +1431,7 @@ mod tests {
         // The largest positive value that can be used as an offset.
         assert_eq!(inst_from_str("*l(r8 + 0b11111111111) <- r9"),
                    StoreInst(Pred { inverted: false,
-                                    reg: 3 },
+                                    reg: PredReg::True },
                              LsuOp { store: true,
                                      width: LsuWidthL },
                              Reg { index: 8 },
@@ -1442,7 +1442,7 @@ mod tests {
         // The most negative value that can be used as an offset.
         assert_eq!(inst_from_str("*l(r8 - 0b100000000000) <- r9"),
                    StoreInst(Pred { inverted: false,
-                                    reg: 3 },
+                                    reg: PredReg::True },
                              LsuOp { store: true,
                                      width: LsuWidthL },
                              Reg { index: 8 },
@@ -1455,18 +1455,18 @@ mod tests {
     fn test_parse_inst_comparelong() {
         assert_eq!(inst_from_str("p1 <- r3 == long"),
                    CompareLongInst(Pred { inverted: false,
-                                          reg: 3 },
+                                          reg: PredReg::True },
                                    Pred { inverted: false,
-                                          reg: 1 },
+                                          reg: PredReg::Pred1 },
                                    Reg { index: 3 },
                                    CmpEQ));
 
 
-        assert_eq!(inst_from_str("!p1 -> p1 <- r3 == long"),
+        assert_eq!(inst_from_str("!p1? p1 <- r3 == long"),
                    CompareLongInst(Pred { inverted: true,
-                                          reg: 1 },
+                                          reg: PredReg::Pred1 },
                                    Pred { inverted: false,
-                                          reg: 1 },
+                                          reg: PredReg::Pred1 },
                                    Reg { index: 3 },
                                    CmpEQ));
     }
@@ -1475,9 +1475,9 @@ mod tests {
     fn test_parse_inst_compareshort() {
         assert_eq!(inst_from_str("p1 <- r3 == 0"),
                    CompareShortInst(Pred { inverted: false,
-                                           reg: 3 },
+                                           reg: PredReg::True },
                                     Pred { inverted: false,
-                                           reg: 1 },
+                                           reg: PredReg::Pred1 },
                                     Reg { index: 3 },
                                     CmpEQ,
                                     0,
@@ -1485,19 +1485,19 @@ mod tests {
 
         assert_eq!(inst_from_str("p1 <- r3 <=s 0"),
                    CompareShortInst(Pred { inverted: false,
-                                           reg: 3 },
+                                           reg: PredReg::True },
                                     Pred { inverted: false,
-                                           reg: 1 },
+                                           reg: PredReg::Pred1 },
                                     Reg { index: 3 },
                                     CmpLES,
                                     0,
                                     0));
 
-        assert_eq!(inst_from_str("!p0 -> p1 <- r3 == 0"),
+        assert_eq!(inst_from_str("!p0? p1 <- r3 == 0"),
                    CompareShortInst(Pred { inverted: true,
-                                           reg: 0 },
+                                           reg: PredReg::Pred0 },
                                     Pred { inverted: false,
-                                           reg: 1 },
+                                           reg: PredReg::Pred1 },
                                     Reg { index: 3 },
                                     CmpEQ,
                                     0,
@@ -1505,9 +1505,9 @@ mod tests {
 
         assert_eq!(inst_from_str("p1 <- r3 == 0b1111111111"),
                    CompareShortInst(Pred { inverted: false,
-                                           reg: 3 },
+                                           reg: PredReg::True },
                                     Pred { inverted: false,
-                                           reg: 1 },
+                                           reg: PredReg::Pred1 },
                                     Reg { index: 3 },
                                     CmpEQ,
                                     0b1111111111,
@@ -1516,9 +1516,9 @@ mod tests {
         assert_eq!(inst_from_str(
             "p1 <- r3 == 0b10000000000000000000000000000001"),
                    CompareShortInst(Pred { inverted: false,
-                                           reg: 3 },
+                                           reg: PredReg::True },
                                     Pred { inverted: false,
-                                           reg: 1 },
+                                           reg: PredReg::Pred1 },
                                     Reg { index: 3 },
                                     CmpEQ,
                                     0b110,
@@ -1541,31 +1541,31 @@ mod tests {
     fn test_parse_inst_comparereg() {
         assert_eq!(inst_from_str("p1 <- r3 == r4"),
                    CompareRegInst(Pred { inverted: false,
-                                         reg: 3 },
+                                         reg: PredReg::True },
                                   Pred { inverted: false,
-                                         reg: 1 },
+                                         reg: PredReg::Pred1 },
                                   Reg { index: 3 },
                                   CmpEQ,
                                   Reg { index: 4 },
                                   SllShift,
                                   0));
 
-        assert_eq!(inst_from_str("!p0 -> p1 <- r3 == r4"),
+        assert_eq!(inst_from_str("!p0? p1 <- r3 == r4"),
                    CompareRegInst(Pred { inverted: true,
-                                         reg: 0 },
+                                         reg: PredReg::Pred0 },
                                   Pred { inverted: false,
-                                         reg: 1 },
+                                         reg: PredReg::Pred1 },
                                   Reg { index: 3 },
                                   CmpEQ,
                                   Reg { index: 4 },
                                   SllShift,
                                   0));
 
-        assert_eq!(inst_from_str("!p0 -> p1 <- r3 == (r4 << 5)"),
+        assert_eq!(inst_from_str("!p0? p1 <- r3 == (r4 << 5)"),
                    CompareRegInst(Pred { inverted: true,
-                                         reg: 0 },
+                                         reg: PredReg::Pred0 },
                                   Pred { inverted: false,
-                                         reg: 1 },
+                                         reg: PredReg::Pred1 },
                                   Reg { index: 3 },
                                   CmpEQ,
                                   Reg { index: 4 },
@@ -1577,35 +1577,35 @@ mod tests {
     fn test_parse_inst_branchimm() {
         assert_eq!(inst_from_str("b 0"),
                    BranchImmInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  false,
                                  JumpOffs(0),
                                  ));
 
-        assert_eq!(inst_from_str("!p0 -> b 1"),
+        assert_eq!(inst_from_str("!p0? b 1"),
                    BranchImmInst(Pred { inverted: true,
-                                        reg: 0 },
+                                        reg: PredReg::Pred0 },
                                  false,
                                  JumpOffs(1),
                                  ));
 
         assert_eq!(inst_from_str("bl -1"),
                    BranchImmInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  true,
                                  JumpOffs(-1),
                                  ));
 
         assert_eq!(inst_from_str("bl 0xffffff"),
                    BranchImmInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  true,
                                  JumpOffs(0xffffff),
                                  ));
 
         assert_eq!(inst_from_str("bl -0x1000000"),
                    BranchImmInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  true,
                                  JumpOffs(-0x1000000),
                                  ));
@@ -1627,15 +1627,15 @@ mod tests {
     fn test_parse_inst_branchreg() {
         assert_eq!(inst_from_str("b r6"),
                    BranchRegInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  false,
                                  Reg { index: 6 },
                                  0,
                                  ));
 
-        assert_eq!(inst_from_str("!p0 -> b r6"),
+        assert_eq!(inst_from_str("!p0? b r6"),
                    BranchRegInst(Pred { inverted: true,
-                                        reg: 0 },
+                                        reg: PredReg::Pred0 },
                                  false,
                                  Reg { index: 6 },
                                  0,
@@ -1643,7 +1643,7 @@ mod tests {
 
         assert_eq!(inst_from_str("b r6 + 1"),
                    BranchRegInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  false,
                                  Reg { index: 6 },
                                  1,
@@ -1651,7 +1651,7 @@ mod tests {
 
         assert_eq!(inst_from_str("b r6 - 1"),
                    BranchRegInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  false,
                                  Reg { index: 6 },
                                  -1,
@@ -1659,7 +1659,7 @@ mod tests {
 
         assert_eq!(inst_from_str("b r6 + 0xffffff"),
                    BranchRegInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  false,
                                  Reg { index: 6 },
                                  0xffffff,
@@ -1667,7 +1667,7 @@ mod tests {
 
         assert_eq!(inst_from_str("b r6 + -0x1000000"),
                    BranchRegInst(Pred { inverted: false,
-                                        reg: 3 },
+                                        reg: PredReg::True },
                                  false,
                                  Reg { index: 6 },
                                  -0x1000000,
@@ -1690,11 +1690,11 @@ mod tests {
     fn test_parse_inst_break() {
         assert_eq!(inst_from_str("break"),
                    BreakInst(Pred { inverted: false,
-                                    reg: 3 },
+                                    reg: PredReg::True },
                              0));
         assert_eq!(inst_from_str("break 3"),
                    BreakInst(Pred { inverted: false,
-                                    reg: 3 },
+                                    reg: PredReg::True },
                              3));
     }
 
@@ -1702,11 +1702,11 @@ mod tests {
     fn test_parse_inst_syscall() {
         assert_eq!(inst_from_str("syscall"),
                    SyscallInst(Pred { inverted: false,
-                                      reg: 3 },
+                                      reg: PredReg::True },
                                0));
         assert_eq!(inst_from_str("syscall 3"),
                    SyscallInst(Pred { inverted: false,
-                                      reg: 3 },
+                                      reg: PredReg::True },
                                3));
     }
 
@@ -1714,13 +1714,13 @@ mod tests {
     fn test_parse_inst_mtc() {
         assert_eq!(inst_from_str("EA0 <- r6"),
                    MtcInst(Pred { inverted: false,
-                                  reg: 3 },
+                                  reg: PredReg::True },
                            EA0,
                            Reg { index: 6 }));
 
-        assert_eq!(inst_from_str("!p0 -> eA0 <- r6"),
+        assert_eq!(inst_from_str("!p0? eA0 <- r6"),
                    MtcInst(Pred { inverted: true,
-                                  reg: 0 },
+                                  reg: PredReg::Pred0 },
                            EA0,
                            Reg { index: 6 }));
     }
@@ -1729,13 +1729,13 @@ mod tests {
     fn test_parse_inst_mfc() {
         assert_eq!(inst_from_str("r6 <- EA0"),
                    MfcInst(Pred { inverted: false,
-                                  reg: 3 },
+                                  reg: PredReg::True },
                            Reg { index: 6 },
                            EA0));
 
-        assert_eq!(inst_from_str("!p0 -> r6 <- eA0"),
+        assert_eq!(inst_from_str("!p0? r6 <- eA0"),
                    MfcInst(Pred { inverted: true,
-                                  reg: 0 },
+                                  reg: PredReg::Pred0 },
                            Reg { index: 6 },
                            EA0));
     }
@@ -1744,34 +1744,34 @@ mod tests {
     fn test_parse_inst_eret() {
         assert_eq!(inst_from_str("eRet"),
                    EretInst(Pred { inverted: false,
-                                   reg: 3 }));
+                                   reg: PredReg::True }));
 
-        assert_eq!(inst_from_str("!p0 -> eret"),
+        assert_eq!(inst_from_str("!p0? eret"),
                    EretInst(Pred { inverted: true,
-                                   reg: 0 }));
+                                   reg: PredReg::Pred0 }));
     }
 
     #[test]
     fn test_parse_inst_fence() {
         assert_eq!(inst_from_str("fenCe"),
                    FenceInst(Pred { inverted: false,
-                                    reg: 3 }));
+                                    reg: PredReg::True }));
 
-        assert_eq!(inst_from_str("!p0 -> fence"),
+        assert_eq!(inst_from_str("!p0? fence"),
                    FenceInst(Pred { inverted: true,
-                                    reg: 0 }));
+                                    reg: PredReg::Pred0 }));
     }
 
     #[test]
     fn test_parse_inst_mthi() {
         assert_eq!(inst_from_str("oVf <- r6"),
                    MthiInst(Pred { inverted: false,
-                                   reg: 3 },
+                                   reg: PredReg::True },
                             Reg { index: 6 }));
 
-        assert_eq!(inst_from_str("!p0 -> OVF <- r6"),
+        assert_eq!(inst_from_str("!p0? OVF <- r6"),
                    MthiInst(Pred { inverted: true,
-                                   reg: 0 },
+                                   reg: PredReg::Pred0 },
                             Reg { index: 6 }));
     }
 
@@ -1779,12 +1779,12 @@ mod tests {
     fn test_parse_inst_mfhi() {
         assert_eq!(inst_from_str("r6 <- OVF"),
                    MfhiInst(Pred { inverted: false,
-                                   reg: 3 },
+                                   reg: PredReg::True },
                             Reg { index: 6 }));
 
-        assert_eq!(inst_from_str("!p0 -> r6 <- oVf"),
+        assert_eq!(inst_from_str("!p0? r6 <- oVf"),
                    MfhiInst(Pred { inverted: true,
-                                   reg: 0 },
+                                   reg: PredReg::Pred0 },
                             Reg { index: 6 }));
     }
 
@@ -1792,7 +1792,7 @@ mod tests {
     fn test_parse_inst_mult() {
         assert_eq!(inst_from_str("r6 <- r1 * r2"),
                    MultInst(Pred { inverted: false,
-                                   reg: 3 },
+                                   reg: PredReg::True },
                             false,
                             Reg { index: 6 },
                             Reg { index: 1 },
@@ -1800,7 +1800,7 @@ mod tests {
 
         assert_eq!(inst_from_str("r6 <- r1 *s r2"),
                    MultInst(Pred { inverted: false,
-                                   reg: 3 },
+                                   reg: PredReg::True },
                             true,
                             Reg { index: 6 },
                             Reg { index: 1 },
@@ -1808,15 +1808,15 @@ mod tests {
 
         assert_eq!(inst_from_str("r6 <- r1 *u r2"),
                    MultInst(Pred { inverted: false,
-                                   reg: 3 },
+                                   reg: PredReg::True },
                             false,
                             Reg { index: 6 },
                             Reg { index: 1 },
                             Reg { index: 2 }));
 
-        assert_eq!(inst_from_str("!p0 -> r6 <- r1 * r2"),
+        assert_eq!(inst_from_str("!p0? r6 <- r1 * r2"),
                    MultInst(Pred { inverted: true,
-                                   reg: 0 },
+                                   reg: PredReg::Pred0 },
                             false,
                             Reg { index: 6 },
                             Reg { index: 1 },
@@ -1827,7 +1827,8 @@ mod tests {
     fn test_parse_inst_div() {
         assert_eq!(inst_from_str("r6 <- r1 / r2"),
                    DivInst(Pred { inverted: false,
-                                  reg: 3 },
+                                  reg: PredReg::True },
+                           false,
                            false,
                            Reg { index: 6 },
                            Reg { index: 1 },
@@ -1835,23 +1836,26 @@ mod tests {
 
         assert_eq!(inst_from_str("r6 <- r1 /s r2"),
                    DivInst(Pred { inverted: false,
-                                  reg: 3 },
+                                  reg: PredReg::True },
                            true,
+                           false,
                            Reg { index: 6 },
                            Reg { index: 1 },
                            Reg { index: 2 }));
 
         assert_eq!(inst_from_str("r6 <- r1 /u r2"),
                    DivInst(Pred { inverted: false,
-                                  reg: 3 },
+                                  reg: PredReg::True },
+                           false,
                            false,
                            Reg { index: 6 },
                            Reg { index: 1 },
                            Reg { index: 2 }));
 
-        assert_eq!(inst_from_str("!p0 -> r6 <- r1 / r2"),
+        assert_eq!(inst_from_str("!p0? r6 <- r1 / r2"),
                    DivInst(Pred { inverted: true,
-                                  reg: 0 },
+                                  reg: PredReg::Pred0 },
+                           false,
                            false,
                            Reg { index: 6 },
                            Reg { index: 1 },
@@ -1862,14 +1866,14 @@ mod tests {
     fn test_parse_inst_flush() {
         assert_eq!(inst_from_str("flush.Data r6"),
                    FlushInst(Pred { inverted: false,
-                                    reg: 3 },
+                                    reg: PredReg::True },
                              DataFlush,
                              Reg { index: 6 }));
 
 
-        assert_eq!(inst_from_str("!p0 -> fluSh.ItLb r6"),
+        assert_eq!(inst_from_str("!p0? fluSh.ItLb r6"),
                    FlushInst(Pred { inverted: true,
-                                    reg: 0 },
+                                    reg: PredReg::Pred0 },
                              ItlbFlush,
                              Reg { index: 6 }));
     }

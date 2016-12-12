@@ -24,7 +24,7 @@ pub use self::InstNode::*;
 // A predicate that is always true.
 pub static TRUE_PRED: Pred = Pred {
     inverted: false,
-    reg: 3,
+    reg: PredReg::True,
 };
 
 // The link register.
@@ -32,17 +32,52 @@ pub static LINK_REG: Reg = Reg {
     index: 31,
 };
 
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
+pub enum PredReg {
+    Pred0,
+    Pred1,
+    Pred2,
+    True,
+}
 
+impl PredReg {
+    pub fn as_u32(&self) -> u32 {
+        *self as u32
+    }
+
+    pub fn from_u8(val: u8) -> PredReg {
+        match val {
+            0 => PredReg::Pred0,
+            1 => PredReg::Pred1,
+            2 => PredReg::Pred2,
+            3 => PredReg::True,
+            _ => panic!("Invalid predicate register index {}", val),
+        }
+    }
+}
+
+impl Display for PredReg {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}",
+               match *self {
+                   PredReg::Pred0 => "p0",
+                   PredReg::Pred1 => "p1",
+                   PredReg::Pred2 => "p2",
+                   PredReg::True => "p3",
+               }
+        )
+    }
+}
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Copy)]
 pub struct Pred {
     pub inverted: bool,
-    pub reg: u8, // Can only take the values 0-3.
+    pub reg: PredReg,
 }
 
 impl Display for Pred {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}p{}",
+        write!(f, "{}{}",
                if self.inverted { "!" } else { "" },
                self.reg)
     }
@@ -438,10 +473,6 @@ pub enum InstNode {
     PacketsInst(Vec<Vec<InstNode>>),
 }
 
-fn assert_pred(pred: Pred) {
-    assert!(pred.reg < 4);
-}
-
 fn assert_reg(reg: Reg) {
     assert!(reg.index < 32);
 }
@@ -746,7 +777,6 @@ impl InstNode {
                      val: u32, // Constant value
                      rot: u8 // Rotate amount (multiply by 2 for actual amount!)
                      ) -> InstNode {
-        assert_pred(pred);
         assert!(aluop.is_unary());
         assert_reg(rd);
         assert!(fits_in_bits(val, 15));
@@ -764,7 +794,6 @@ impl InstNode {
                      val: u32, // Constant value
                      rot: u8 // Rotate amount (multiply by 2 for actual amount!)
                      ) -> InstNode {
-        assert_pred(pred);
         assert!(aluop.is_binary());
         assert_reg(rd);
         assert_reg(rs);
@@ -784,7 +813,6 @@ impl InstNode {
                    shifttype: ShiftType,
                    amt: u8 // Shift amount
                    ) -> InstNode {
-        assert_pred(pred);
         assert!(aluop.is_unary());
         assert_reg(rd);
         assert_reg(rt);
@@ -804,7 +832,6 @@ impl InstNode {
                    shifttype: ShiftType,
                    amt: u8 // Shift amount
                    ) -> InstNode {
-        assert_pred(pred);
         assert!(aluop.is_binary());
         assert_reg(rd);
         assert_reg(rs);
@@ -823,7 +850,6 @@ impl InstNode {
                     rd: Reg, // Rd
                     rs: Reg // Rs
                     ) -> InstNode {
-        assert_pred(pred);
         assert!(aluop.is_binary());
         assert_reg(rd);
         assert_reg(rs);
@@ -836,7 +862,6 @@ impl InstNode {
                     aluop: AluOp,
                     rd: Reg // Rd
                     ) -> InstNode {
-        assert_pred(pred);
         assert!(aluop.is_unary());
         assert_reg(rd);
         ALU1LongInst(pred,
@@ -850,7 +875,6 @@ impl InstNode {
                      shifttype: ShiftType,
                      rs: Reg // Rs
                      ) -> InstNode {
-        assert_pred(pred);
         assert_reg(rd);
         assert!(aluop.is_unary());
         assert_reg(rs);
@@ -878,7 +902,6 @@ impl InstNode {
                 rs: Reg, // Rs
                 offs: i32 // Offset
                 ) -> InstNode {
-        assert_pred(pred);
         assert_reg(rd);
         assert_reg(rs);
         assert_offs(offs, 12);
@@ -895,7 +918,6 @@ impl InstNode {
                  offs: i32, // Offset
                  rt: Reg // Rt
                  ) -> InstNode {
-        assert_pred(pred);
         assert_reg(rs);
         assert_reg(rt);
         assert_offs(offs, 12);
@@ -913,8 +935,6 @@ impl InstNode {
                         val: u32, // Constant value
                         rot: u8 // Rotate amount (multiply by 2 for actual amount!)
                         ) -> InstNode {
-        assert_pred(pred);
-        assert_pred(pred2);
         assert_eq!(pred2.inverted, false);
         assert_reg(rs);
         assert!(fits_in_bits(val, 10));
@@ -930,8 +950,6 @@ impl InstNode {
                        pred2: Pred, // Destination pred register
                        rs: Reg, // Rs
                        comparetype: CompareType) -> InstNode {
-        assert_pred(pred);
-        assert_pred(pred2);
         assert_eq!(pred2.inverted, false);
         assert_reg(rs);
 
@@ -948,8 +966,6 @@ impl InstNode {
                       shifttype: ShiftType,
                       amt: u8 // Shift amount
                       ) -> InstNode {
-        assert_pred(pred);
-        assert_pred(pred2);
         assert_eq!(pred2.inverted, false);
         assert_reg(rs);
         assert_reg(rt);
@@ -965,7 +981,6 @@ impl InstNode {
     pub fn branchimm(pred: Pred,
                      link: bool, // link
                      target: JumpTarget) -> InstNode {
-        assert_pred(pred);
         match target {
             JumpOffs(offs) => assert_offs(offs, 25),
             _ => {},
@@ -979,7 +994,6 @@ impl InstNode {
                      rs: Reg, // Rs,
                      offs: i32 // Offset
                      ) -> InstNode {
-        assert_pred(pred);
         assert_reg(rs);
         assert_offs(offs, 25);
         BranchRegInst(pred,
@@ -990,7 +1004,6 @@ impl InstNode {
     pub fn breaknum(pred: Pred,
                     val: u32
                     ) -> InstNode {
-        assert_pred(pred);
         assert!(fits_in_bits(val as u32, 5));
         BreakInst(pred,
                   val)
@@ -998,7 +1011,6 @@ impl InstNode {
     pub fn syscall(pred: Pred,
                    val: u32
                    ) -> InstNode {
-        assert_pred(pred);
         assert!(fits_in_bits(val as u32, 5));
         SyscallInst(pred,
                     val)
@@ -1007,7 +1019,6 @@ impl InstNode {
                coreg: CoReg,
                rs: Reg // Rs
                ) -> InstNode {
-        assert_pred(pred);
         assert_reg(rs);
         MtcInst(pred,
                 coreg,
@@ -1017,7 +1028,6 @@ impl InstNode {
                rd: Reg, // Rs
                coreg: CoReg
                ) -> InstNode {
-        assert_pred(pred);
         assert_reg(rd);
         MfcInst(pred,
                 rd,
@@ -1025,26 +1035,22 @@ impl InstNode {
     }
     pub fn eret(pred: Pred
                 ) -> InstNode {
-        assert_pred(pred);
         EretInst(pred)
     }
 
     pub fn fence(pred: Pred
                  ) -> InstNode {
-        assert_pred(pred);
         FenceInst(pred)
     }
     pub fn mfhi(pred: Pred,
                 rd: Reg
                 ) -> InstNode {
-        assert_pred(pred);
         assert_reg(rd);
         MfhiInst(pred, rd)
     }
     pub fn mthi(pred: Pred,
                 rs: Reg
                 ) -> InstNode {
-        assert_pred(pred);
         assert_reg(rs);
         MthiInst(pred, rs)
     }
@@ -1054,7 +1060,6 @@ impl InstNode {
                 rs: Reg, // Rs
                 rt: Reg // Rt
                 ) -> InstNode {
-        assert_pred(pred);
         assert_reg(rd);
         assert_reg(rs);
         assert_reg(rt);
@@ -1071,7 +1076,6 @@ impl InstNode {
                rs: Reg, // Rs
                rt: Reg // Rt
                ) -> InstNode {
-        assert_pred(pred);
         assert_reg(rd);
         assert_reg(rs);
         assert_reg(rt);
@@ -1086,7 +1090,6 @@ impl InstNode {
                  flushtype: FlushType,
                  rs: Reg // Rs
                  ) -> InstNode {
-        assert_pred(pred);
         assert_reg(rs);
         FlushInst(pred,
                   flushtype,

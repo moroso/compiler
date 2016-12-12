@@ -496,14 +496,14 @@ impl<'a> IrToAsm<'a> {
                         InstNode::compareshort(
                             TRUE_PRED,
                             Pred { inverted: false,
-                                   reg: 0 },
+                                   reg: PredReg::Pred0 },
                             reg,
                             CmpBS,
                             1,
                             0));
                     result.extend(self.assign_vars(&regmap,
                                                    &Pred { inverted: *negated,
-                                                           reg: 0 },
+                                                           reg: PredReg::Pred0 },
                                                    &labels[label],
                                                    vars,
                                                    -stack_ptr_offs,
@@ -511,7 +511,7 @@ impl<'a> IrToAsm<'a> {
                     result.push(
                         InstNode::branchimm(
                             Pred { inverted: *negated,
-                                   reg: 0},
+                                   reg: PredReg::Pred0 },
                             false,
                             JumpLabel(format!("LABEL{}", label))));
                 },
@@ -830,7 +830,6 @@ impl<'a> IrToAsm<'a> {
                   spill_pos: u8,
                   args_offs: i32,
                   spill_offs: i32) -> (Reg, Vec<InstNode>, Vec<InstNode>) {
-        let pred = Pred { inverted: false, reg: 3 };
         match *regmap.get(var).unwrap() {
             RegColor(reg) => {
                 // It's an ordinary variable!
@@ -842,7 +841,7 @@ impl<'a> IrToAsm<'a> {
                 let reg = Reg { index: SPILL_REG_BASE + spill_pos };
                 (reg,
                  vec!(
-                     InstNode::load(pred,
+                     InstNode::load(TRUE_PRED,
                                     LsuOp { store: false,
                                             width: LsuWidthL },
                                     reg,
@@ -850,7 +849,7 @@ impl<'a> IrToAsm<'a> {
                                     spill_offs + pos as i32 * 4)
                  ),
                  vec!(
-                     InstNode::store(pred,
+                     InstNode::store(TRUE_PRED,
                                      LsuOp { store: true,
                                              width: LsuWidthL },
                                      STACK_POINTER,
@@ -864,7 +863,7 @@ impl<'a> IrToAsm<'a> {
                 let reg = Reg { index: SPILL_REG_BASE + spill_pos };
                 (reg,
                  vec!(
-                     InstNode::load(pred,
+                     InstNode::load(TRUE_PRED,
                                     LsuOp { store: false,
                                             width: LsuWidthL },
                                     reg,
@@ -872,7 +871,7 @@ impl<'a> IrToAsm<'a> {
                                     args_offs + pos as i32 * 4)
                          ),
                  vec!(
-                     InstNode::store(pred,
+                     InstNode::store(TRUE_PRED,
                                      LsuOp { store: true,
                                              width: LsuWidthL },
                                      STACK_POINTER,
@@ -890,7 +889,7 @@ impl<'a> IrToAsm<'a> {
                     // the register.
                     (reg,
                      vec!(InstNode::alu1long(
-                          pred,
+                          TRUE_PRED,
                           MovAluOp,
                           reg),
                           // Functions are represented by their base names, for compatibility
@@ -901,7 +900,7 @@ impl<'a> IrToAsm<'a> {
                 } else if global_info.is_ref {
                     (reg,
                      vec!(InstNode::alu1long(
-                         pred,
+                         TRUE_PRED,
                          MovAluOp,
                          reg),
                           InstNode::long_label(label.clone())
@@ -910,11 +909,11 @@ impl<'a> IrToAsm<'a> {
                 } else {
                     (reg,
                      vec!(InstNode::alu1long(
-                         pred,
+                         TRUE_PRED,
                          MovAluOp,
                          GLOBAL_REG),
                           InstNode::long_label(label.clone()),
-                          InstNode::load(pred,
+                          InstNode::load(TRUE_PRED,
                                          LsuOp { store: false,
                                                  width: LsuWidthL },
                                          reg,
@@ -922,11 +921,11 @@ impl<'a> IrToAsm<'a> {
                                          0)
                           ),
                      vec!(InstNode::alu1long(
-                         pred,
+                         TRUE_PRED,
                          MovAluOp,
                          GLOBAL_REG),
                           InstNode::long_label(label.clone()),
-                          InstNode::store(pred,
+                          InstNode::store(TRUE_PRED,
                                           LsuOp { store: true,
                                                   width: LsuWidthL },
                                           GLOBAL_REG,
@@ -1116,10 +1115,9 @@ impl<'a> IrToAsm<'a> {
                     Some((cmptype, negated)) => {
                         result.push(
                             InstNode::comparereg(
+                                TRUE_PRED,
                                 Pred { inverted: false,
-                                       reg: 3 },
-                                Pred { inverted: false,
-                                       reg: 0 },
+                                       reg: PredReg::Pred0 },
                                 reg_l,
                                 cmptype,
                                 reg_r,
@@ -1129,7 +1127,7 @@ impl<'a> IrToAsm<'a> {
                         result.push(
                             InstNode::alu1short(
                                 Pred { inverted: negated,
-                                       reg: 0 },
+                                       reg: PredReg::Pred0 },
                                 MovAluOp,
                                 dest,
                                 1,
@@ -1138,7 +1136,7 @@ impl<'a> IrToAsm<'a> {
                         result.push(
                             InstNode::alu1short(
                                 Pred { inverted: !negated,
-                                       reg: 0 },
+                                       reg: PredReg::Pred0 },
                                 MovAluOp,
                                 dest,
                                 0,
@@ -1150,8 +1148,7 @@ impl<'a> IrToAsm<'a> {
                             TimesOp =>
                                 result.push(
                                     InstNode::mult(
-                                        Pred { inverted: false,
-                                               reg: 3 },
+                                        TRUE_PRED,
                                         signed,
                                         dest,
                                         reg_l,
@@ -1159,8 +1156,7 @@ impl<'a> IrToAsm<'a> {
                             DivideOp =>
                                 result.push(
                                     InstNode::div(
-                                        Pred { inverted: false,
-                                               reg: 3 },
+                                        TRUE_PRED,
                                         signed,
                                         false,
                                         dest,
@@ -1169,8 +1165,7 @@ impl<'a> IrToAsm<'a> {
                             ModOp => {
                                 result.push(
                                     InstNode::div(
-                                        Pred { inverted: false,
-                                               reg: 3 },
+                                        TRUE_PRED,
                                         signed,
                                         false,
                                         dest,
@@ -1178,8 +1173,7 @@ impl<'a> IrToAsm<'a> {
                                         reg_r));
                                 result.push(
                                     InstNode::mfhi(
-                                        Pred { inverted: false,
-                                               reg: 3 },
+                                        TRUE_PRED,
                                         dest
                                             ));
                             },
@@ -1187,8 +1181,7 @@ impl<'a> IrToAsm<'a> {
                             RightShiftOp =>
                                 result.push(
                                     InstNode::alu1regsh(
-                                        Pred { inverted: false,
-                                               reg: 3 },
+                                        TRUE_PRED,
                                         dest,
                                         MovAluOp,
                                         reg_l,
@@ -1204,8 +1197,7 @@ impl<'a> IrToAsm<'a> {
                             _ =>
                                 result.push(
                                     InstNode::alu2reg(
-                                        Pred { inverted: false,
-                                               reg: 3 },
+                                        TRUE_PRED,
                                         binop_to_aluop(op, swapped).unwrap(),
                                         dest,
                                         reg_l,
@@ -1230,10 +1222,9 @@ impl<'a> IrToAsm<'a> {
                             Some((val, rot)) =>
                                 result.push(
                                     InstNode::compareshort(
+                                        TRUE_PRED,
                                         Pred { inverted: false,
-                                               reg: 3 },
-                                        Pred { inverted: false,
-                                               reg: 0 },
+                                               reg: PredReg::Pred0 },
                                         reg_l,
                                         cmptype,
                                         val,
@@ -1241,10 +1232,9 @@ impl<'a> IrToAsm<'a> {
                             None => {
                                 result.push(
                                     InstNode::comparelong(
+                                        TRUE_PRED,
                                         Pred { inverted: false,
-                                               reg: 3 },
-                                        Pred { inverted: false,
-                                               reg: 0 },
+                                               reg: PredReg::Pred0 },
                                         reg_l,
                                         cmptype));
                                 result.push(
@@ -1254,7 +1244,7 @@ impl<'a> IrToAsm<'a> {
                         result.push(
                             InstNode::alu1short(
                                 Pred { inverted: negated,
-                                       reg: 0 },
+                                       reg: PredReg::Pred0 },
                                 MovAluOp,
                                 dest,
                                 1,
@@ -1263,7 +1253,7 @@ impl<'a> IrToAsm<'a> {
                         result.push(
                             InstNode::alu1short(
                                 Pred { inverted: !negated,
-                                       reg: 0 },
+                                       reg: PredReg::Pred0 },
                                 MovAluOp,
                                 dest,
                                 0,
@@ -1280,14 +1270,12 @@ impl<'a> IrToAsm<'a> {
                                     // refactor the code around this to make
                                     // the different cases easier to handle.
                                     InstNode::alu1long(
-                                        Pred { inverted: false,
-                                               reg: 3},
+                                        TRUE_PRED,
                                         MovAluOp,
                                         GLOBAL_REG),
                                     InstNode::anylong(longval),
                                     InstNode::mult(
-                                        Pred { inverted: false,
-                                               reg: 3 },
+                                        TRUE_PRED,
                                         signed,
                                         dest,
                                         reg_l,
@@ -1298,15 +1286,13 @@ impl<'a> IrToAsm<'a> {
                                     // refactor the code around this to make
                                     // the different cases easier to handle.
                                     InstNode::alu1long(
-                                        Pred { inverted: false,
-                                               reg: 3},
+                                        TRUE_PRED,
                                         MovAluOp,
                                         GLOBAL_REG),
                                     InstNode::anylong(longval),
                                     if swapped {
                                         InstNode::div(
-                                            Pred { inverted: false,
-                                                   reg: 3 },
+                                            TRUE_PRED,
                                             signed,
                                             false,
                                             dest,
@@ -1314,8 +1300,7 @@ impl<'a> IrToAsm<'a> {
                                             reg_l)
                                     } else {
                                         InstNode::div(
-                                            Pred { inverted: false,
-                                                   reg: 3 },
+                                            TRUE_PRED,
                                             signed,
                                             false,
                                             dest,
@@ -1328,15 +1313,13 @@ impl<'a> IrToAsm<'a> {
                                     // refactor the code around this to make
                                     // the different cases easier to handle.
                                     InstNode::alu1long(
-                                        Pred { inverted: false,
-                                               reg: 3},
+                                        TRUE_PRED,
                                         MovAluOp,
                                         GLOBAL_REG),
                                     InstNode::anylong(longval),
                                     if swapped {
                                         InstNode::div(
-                                            Pred { inverted: false,
-                                                   reg: 3 },
+                                            TRUE_PRED,
                                             signed,
                                             false,
                                             dest,
@@ -1344,8 +1327,7 @@ impl<'a> IrToAsm<'a> {
                                             reg_l)
                                     } else {
                                         InstNode::div(
-                                            Pred { inverted: false,
-                                                   reg: 3 },
+                                            TRUE_PRED,
                                             signed,
                                             false,
                                             dest,
@@ -1353,8 +1335,7 @@ impl<'a> IrToAsm<'a> {
                                             GLOBAL_REG)
                                     },
                                     InstNode::mfhi(
-                                        Pred { inverted: false,
-                                               reg: 3 },
+                                        TRUE_PRED,
                                         dest)
                                         ).into_iter()),
                             LeftShiftOp |
@@ -1362,14 +1343,12 @@ impl<'a> IrToAsm<'a> {
                                 if swapped {
                                     result.extend(vec!(
                                         InstNode::alu1long(
-                                            Pred { inverted: false,
-                                                   reg: 3},
+                                            TRUE_PRED,
                                             MovAluOp,
                                             GLOBAL_REG),
                                         InstNode::anylong(longval),
                                         InstNode::alu1regsh(
-                                            Pred { inverted: false,
-                                                   reg: 3 },
+                                            TRUE_PRED,
                                             dest,
                                             MovAluOp,
                                             GLOBAL_REG,
@@ -1389,8 +1368,7 @@ impl<'a> IrToAsm<'a> {
                                     };
                                     result.push(
                                         InstNode::alu1reg(
-                                            Pred { inverted: false,
-                                                   reg: 3 },
+                                            TRUE_PRED,
                                             MovAluOp,
                                             dest,
                                             reg_l,
@@ -1408,9 +1386,7 @@ impl<'a> IrToAsm<'a> {
                                     Some((val, rot)) =>
                                         result.push(
                                             InstNode::alu2short(
-                                                Pred {
-                                                    inverted: false,
-                                                    reg: 3 },
+                                                TRUE_PRED,
                                                 binop_to_aluop(op, swapped)
                                                     .unwrap(),
                                                 dest,
@@ -1420,9 +1396,7 @@ impl<'a> IrToAsm<'a> {
                                     None => {
                                         result.push(
                                             InstNode::alu2long(
-                                                Pred {
-                                                    inverted: false,
-                                                    reg: 3 },
+                                                TRUE_PRED,
                                                 binop_to_aluop(op, swapped)
                                                     .unwrap(),
                                                 dest,
@@ -1449,10 +1423,6 @@ impl<'a> IrToAsm<'a> {
         args_offs: i32,
         spill_offs: i32,
         session: &mut Session) -> Vec<InstNode> {
-
-        let pred = Pred {
-            inverted: false,
-            reg: 3 };
 
         // This needs to be special cased.
         if *op == AddrOf {
@@ -1511,8 +1481,7 @@ impl<'a> IrToAsm<'a> {
                                     } else {
                                         return vec!(
                                             InstNode::alu1reg(
-                                                Pred { inverted: false,
-                                                       reg: 3 },
+                                                TRUE_PRED,
                                                 MovAluOp,
                                                 dest,
                                                 *reg,
@@ -1533,15 +1502,15 @@ impl<'a> IrToAsm<'a> {
         let reg_op: Box<Fn(Reg) -> Vec<InstNode>> = match *op {
             Deref |
             AddrOf => panic!("Should not have & or * in IR."),
-            Negate => Box::new(|x| vec!(InstNode::alu2short(pred, RsbAluOp, dest, x, 0, 0))),
-            LogNot => Box::new(|x| vec!(InstNode::alu2short(pred, XorAluOp, dest, x, 1, 0))),
-            BitNot => Box::new(|x| vec!(InstNode::alu1reg(pred, MvnAluOp, dest, x,
+            Negate => Box::new(|x| vec!(InstNode::alu2short(TRUE_PRED, RsbAluOp, dest, x, 0, 0))),
+            LogNot => Box::new(|x| vec!(InstNode::alu2short(TRUE_PRED, XorAluOp, dest, x, 1, 0))),
+            BitNot => Box::new(|x| vec!(InstNode::alu1reg(TRUE_PRED, MvnAluOp, dest, x,
                                                           SllShift, 0))),
             Identity => Box::new(|x| if dest == x { vec!() } else {
-                vec!(InstNode::alu1reg(pred, MovAluOp, dest, x, SllShift, 0)) }),
-            SxbOp => Box::new(|x| vec!(InstNode::alu1reg(pred, SxbAluOp, dest, x,
+                vec!(InstNode::alu1reg(TRUE_PRED, MovAluOp, dest, x, SllShift, 0)) }),
+            SxbOp => Box::new(|x| vec!(InstNode::alu1reg(TRUE_PRED, SxbAluOp, dest, x,
                                                          SllShift, 0))),
-            SxhOp => Box::new(|x| vec!(InstNode::alu1reg(pred, SxhAluOp, dest, x,
+            SxhOp => Box::new(|x| vec!(InstNode::alu1reg(TRUE_PRED, SxhAluOp, dest, x,
                                                          SllShift, 0))),
         };
 
@@ -1566,7 +1535,7 @@ impl<'a> IrToAsm<'a> {
                     Some((aluop, val, rot)) =>
                         result.push(
                             InstNode::alu1short(
-                                pred,
+                                TRUE_PRED,
                                 aluop,
                                 dest,
                                 val,
@@ -1574,7 +1543,7 @@ impl<'a> IrToAsm<'a> {
                     None => {
                         result.push(
                             InstNode::alu1long(
-                                pred,
+                                TRUE_PRED,
                                 MovAluOp,
                                 dest)
                                 );

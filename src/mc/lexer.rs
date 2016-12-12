@@ -273,11 +273,11 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
                             'i' | 'I' => IntKind::SignedInt,
                             _ => panic!(),
                         };
-                        let w = match u8::from_str_radix(groups.at(4).unwrap(), 10) {
-                            Err(_) => Width::AnyWidth,
-                            Ok(32) => Width::Width32,
-                            Ok(16) => Width::Width16,
-                            Ok(8) => Width::Width8,
+                        let w = match groups.at(4).map(|g| u8::from_str_radix(g, 10)) {
+                            Some(Err(_)) | None => Width::AnyWidth,
+                            Some(Ok(32)) => Width::Width32,
+                            Some(Ok(16)) => Width::Width16,
+                            Some(Ok(8)) => Width::Width8,
                             _ => panic!(),
                         };
 

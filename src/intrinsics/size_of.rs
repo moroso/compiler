@@ -118,9 +118,13 @@ pub fn size_of_ty(session: &Session, typemap: &Typemap, ty: &Ty) -> u64 {
 /// Return how much padding will be needed before an item of size `size`
 /// in a structure in which `size_so_far` bytes of items are already present.
 fn padding_of(size_so_far: u64, size: u64) -> u64 {
-    let this_alignment = alignment(size);
-    let offset = size_so_far % this_alignment;
-    (this_alignment - offset) % this_alignment
+    if size == 0 {
+        0
+    } else {
+        let this_alignment = alignment(size);
+        let offset = size_so_far % this_alignment;
+        (this_alignment - offset) % this_alignment
+    }
 }
 
 /// Return how much extra space will be needed for an object of size `size`,
@@ -236,6 +240,7 @@ mod tests {
     // Asserts that the structure described by `t` has size `expected_size`.
     fn test_sizeof_structure_helper(t: &str, expected_size: u64) {
         let mut opts = Options::new();
+        opts.include_prelude = false;
         setup_builtin_search_paths(&mut opts);
         let mut session = Session::new(opts);
         let module = session.parse_package_str(t);
