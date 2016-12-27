@@ -242,7 +242,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
     struct CoRegRule;
     impl RuleMatcher<ast::CoReg> for CoRegRule {
         fn find(&self, s: &str) -> Option<(usize, ast::CoReg)> {
-            let matcher = matcher!(r"(?i:(PFLAGS|PTB|EHA|EPC|EC0|EC1|EC2|EC3|EA0|EA1|SP0|SP1|SP2|SP3))");
+            let matcher = matcher!(r"(?i:(PFLAGS|PTB|EHA|EPC|EC0|EC1|EC2|EC3|EA0|EA1|SP0|SP1|SP2|SP3|RESV..))");
             match matcher.captures(s) {
                 Some(groups) =>
                     Some((groups.at(0).unwrap().len(),
@@ -261,6 +261,24 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
                               "SP1" => SP1,
                               "SP2" => SP2,
                               "SP3" => SP3,
+                              "RESV10" => RESV10,
+                              "RESV11" => RESV11,
+                              "RESV12" => RESV12,
+                              "RESV13" => RESV13,
+                              "RESV14" => RESV14,
+                              "RESV15" => RESV15,
+                              "RESV20" => RESV20,
+                              "RESV21" => RESV21,
+                              "RESV22" => RESV22,
+                              "RESV23" => RESV23,
+                              "RESV24" => RESV24,
+                              "RESV25" => RESV25,
+                              "RESV26" => RESV26,
+                              "RESV27" => RESV27,
+                              "RESV28" => RESV28,
+                              "RESV29" => RESV29,
+                              "RESV30" => RESV30,
+                              "RESV31" => RESV31,
                               _ => panic!(),
                           })),
                 _ => None,
