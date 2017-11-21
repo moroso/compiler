@@ -26,6 +26,26 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
     if len == 1 { return; } // No instructions; probably extern.
                             // TODO: this is somewhat fragile...
 
+    // Common code between ordinary goto and conditional goto.
+    // Handles everything needed by the unconditional goto, which
+    // is a subset of what's needed for conditional.
+    fn handle_goto(len: usize, ops: &Vec<Op>, opinfo: &mut OpInfo,
+                   l: usize, vars: &BTreeSet<Var>) {
+        for u2 in 0..len {
+            match ops[u2].val {
+                OpNode::Label { label_idx: l2, .. } if l == l2 => {
+                    opinfo.succ.insert(u2);
+                    break;
+                },
+                _ => {},
+            }
+        }
+        for var in vars.iter() {
+            opinfo.used.insert(*var);
+        }
+    }
+
+
     for u in 0..len {
         let opinfo = opinfo.get_mut(u).unwrap();
         match ops[u].val {
@@ -96,34 +116,11 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                     opinfo.def.insert(*var);
                 }
             },
-            OpNode::Goto { label_idx: ref l, ref vars } => {
-                for u2 in 0..len {
-                    match ops[u2].val {
-                        OpNode::Label { label_idx: l2, .. } if *l == l2 => {
-                            opinfo.succ.insert(u2);
-                            break;
-                        },
-                        _ => {},
-                    }
-                }
-                for var in vars.iter() {
-                    opinfo.used.insert(*var);
-                }
+            OpNode::Goto { label_idx: l, ref vars } => {
+                handle_goto(len, ops, opinfo, l, vars);
             },
-            // TODO: get rid of redundant code.
-            OpNode::CondGoto { cond: ref rve, label_idx: ref l, ref vars, .. } => {
-                for u2 in 0..len {
-                    match ops[u2].val {
-                        OpNode::Label { label_idx: l2, .. } if *l == l2 => {
-                            opinfo.succ.insert(u2);
-                            break;
-                        },
-                        _ => {},
-                    }
-                }
-                for var in vars.iter() {
-                    opinfo.used.insert(*var);
-                }
+            OpNode::CondGoto { cond: ref rve, label_idx: l, ref vars, .. } => {
+                handle_goto(len, ops, opinfo, l, vars);
                 if u + 1 < len {
                     opinfo.succ.insert(u + 1);
                 }
