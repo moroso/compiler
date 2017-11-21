@@ -220,7 +220,7 @@ pub fn lexer_from_str(s: &str) -> Lexer<io::BufReader<&[u8]>, Token> {
 fn mk_rule<A: 'static, T: RuleMatcher<A>+'static, U: TokenMaker<A, Token>+'static>(
     matcher: T, maker: U)
     -> Box<LexerRuleT<Token>> {
-    box LexerRule::<A, _, _>::new(matcher, maker) as Box<LexerRuleT<Token>>
+    Box::new(LexerRule::<A, _, _>::new(matcher, maker)) as Box<LexerRuleT<Token>>
 }
 macro_rules! matcher { ( $e:expr ) => ( Regex::new(concat!("^(?:", $e, ")")).unwrap()) }
 macro_rules! lexer_rules {

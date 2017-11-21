@@ -891,7 +891,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                          vec!(),
                          lhs_var,
                          AnyWidth,
-                         box |lv, v, _| OpNode::UnOp { target: lv, op: Identity, operand: Variable(v) })
+                         Box::new(|lv, v, _| OpNode::UnOp { target: lv, op: Identity, operand: Variable(v) }))
                     },
                     UnOpExpr(ref lhs_op, ref e) => {
                         let ty = match *self.lookup_ty(e.id) {
@@ -915,8 +915,8 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                  }),
                                  var,
                                  width,
-                                 box |lv, v, w| OpNode::Store {
-                                     addr: lv, value: v, width: w })
+                                 Box::new(|lv, v, w| OpNode::Store {
+                                     addr: lv, value: v, width: w }))
                             },
                             _ => panic!(),
                         }
@@ -947,7 +947,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                          },
                          added_addr_var,
                          width,
-                         box |lv, v, w| OpNode::Store { addr: lv, value: v, width: w })
+                         Box::new(|lv, v, w| OpNode::Store { addr: lv, value: v, width: w }))
                     },
                     IndexExpr(ref arr, ref idx) => {
                         let ty = (*self.lookup_ty(e1.id)).clone();
@@ -973,7 +973,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                          },
                          ptr_var,
                          width,
-                         box |lv, v, w| OpNode::Store { addr: lv, value: v, width: w })
+                         Box::new(|lv, v, w| OpNode::Store { addr: lv, value: v, width: w }))
                     }
                     _ => panic!("Got {}", e1.val),
                 };

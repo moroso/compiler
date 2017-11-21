@@ -1,4 +1,4 @@
-#![feature(plugin,box_syntax)]
+#![feature(plugin)]
 
 // Unstable libraries
 #![feature(rustc_private)] // do we really want to use this?
