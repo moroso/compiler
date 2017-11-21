@@ -1,7 +1,6 @@
 use ir::*;
 use mc::ast::*;
 use util::IntKind::UnsignedInt;
-use util::Name;
 use util::Width::{AnyWidth, Width32};
 
 pub struct MultiplyOptimizer;

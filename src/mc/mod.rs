@@ -1,8 +1,7 @@
 use package::Package;
 use target::{MkTarget, Target, CTarget, IRTarget, AsmTarget};
 
-use self::ast::visitor::Visitor;
-use self::session::{Session, Options};
+use self::session::Options;
 
 use getopts;
 use getopts::Options as Getopts;
@@ -11,7 +10,6 @@ use std::fs::File;
 use std::ascii::AsciiExt;
 
 use std::io;
-use std::os;
 use std::env;
 use std::path::Path;
 use std::process;

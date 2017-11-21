@@ -1,6 +1,6 @@
 use mas::ast::*;
 use mas::parser::{classify_inst, InstType};
-use std::collections::{BTreeSet, BTreeMap, BinaryHeap};
+use std::collections::{BTreeSet, BTreeMap};
 use std::iter::FromIterator;
 
 // Return Rd.

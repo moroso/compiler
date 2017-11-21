@@ -1,8 +1,6 @@
 use util::Name;
 use mc::session::Session;
 
-use std::fmt;
-use std::fmt::{Formatter, Display, Debug};
 use std::collections::BTreeMap;
 
 use super::visitor::*;

@@ -1,10 +1,8 @@
 use std::collections::{BTreeSet, BTreeMap};
-use std::iter::Map;
 
 use mc::ast::*;
 
 use ir::*;
-use values::*;
 
 use mc::session::Session;
 

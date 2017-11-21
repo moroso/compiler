@@ -1,5 +1,4 @@
 use mc::ast::Module;
-use mc::ast::visitor::Visitor;
 use mc::session::{Session, Options};
 use typechecker::{Typechecker, Typemap};
 use util::lexer::BufReader;

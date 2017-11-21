@@ -1,5 +1,3 @@
-use std::fmt;
-use std::fmt::{Formatter, Display};
 use std::io;
 //use std::str::StrExt;
 use std::ascii::AsciiExt;

@@ -1,4 +1,4 @@
-use mc::ast::visitor::{Visitor, walk_ident, walk_item, walk_path, walk_expr};
+use mc::ast::visitor::{Visitor, walk_item};
 use mc::ast::*;
 use mc::session::Session;
 use std::collections::BTreeMap;

@@ -1,13 +1,9 @@
-use util::{Name, Width, IntKind};
-use span::Span;
+use util::{Name, IntKind};
 use mc::lexer::Token;
 use mc::session::Session;
 
-use std::fmt;
 use std::collections::BTreeMap;
-use std::fmt::{Formatter, Display};
 use std::mem::swap;
-use std::ops::Fn;
 use util::lexer::SourceToken;
 
 use super::mut_visitor::*;

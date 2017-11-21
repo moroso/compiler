@@ -3,7 +3,6 @@ use time::precise_time_ns;
 use ir::*;
 use ir::util::subst;
 use ir::liveness::LivenessAnalyzer;
-use util::Name;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub struct ToSSA;

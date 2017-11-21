@@ -4,7 +4,6 @@
  * maps.
  */
 
-use span::Span;
 use util::Name;
 use mc::ast::NodeId;
 use util::lexer::BufReader;
@@ -15,15 +14,13 @@ use super::ast::pathmap::PathMap;
 use super::resolver::Resolver;
 use super::parser::Parser;
 use super::lexer::new_mb_lexer;
-use super::ast::visitor::Visitor;
 use super::ast::macros::MacroExpander;
 
 use std::borrow::Borrow;
-use std::collections::{HashMap, BTreeMap};
+use std::collections::HashMap;
 use std::cell::RefCell;
 
 use std::io;
-use std::thread;
 use std::path::{Path, PathBuf};
 use std::fs;
 

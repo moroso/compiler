@@ -1,7 +1,5 @@
 use mas::ast::Reg;
 
-use std::fmt;
-use std::fmt::{Formatter, Display};
 pub use codegen::ir_to_asm::IrToAsm;
 pub use self::RegisterColor::*;
 

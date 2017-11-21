@@ -4,7 +4,6 @@
 use mas::labels::LabelInfo;
 use mas::ast::*;
 use std::collections::BTreeMap;
-use mas::labels::resolve_labels;
 
 pub fn link(parts: Vec<(Vec<[InstNode; 4]>, BTreeMap<String, usize>)>
             ) -> (Vec<[InstNode; 4]>, BTreeMap<String, LabelInfo>) {

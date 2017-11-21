@@ -1,5 +1,5 @@
 use util::align;
-use util::{IntKind, Name, Width};
+use util::{Name, Width};
 use util::Width::{AnyWidth, Width32, Width16, Width8};
 use util::IntKind::{GenericInt, SignedInt, UnsignedInt};
 use mc::ast::defmap::Def::{StructDef, EnumDef, VariantDef, ConstDef};

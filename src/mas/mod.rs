@@ -6,14 +6,12 @@ use std::iter::FromIterator;
 
 use mas::labels::LabelInfo;
 
-use util::lexer::Lexer;
-use self::lexer::{Token, new_asm_lexer};
+use self::lexer::new_asm_lexer;
 use self::parser::AsmParser;
 use self::encoder::encode;
 
-use getopts;
 use getopts::Options as Getopts;
-use std::io::{Read, Write, BufReader};
+use std::io::{Write, BufReader};
 
 
 pub mod lexer;

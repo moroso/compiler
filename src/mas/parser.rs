@@ -3,11 +3,11 @@
 use mas::lexer::*;
 use mas::ast::*;
 use mas::util::{pack_int, fits_in_bits};
-use util::lexer::{Lexer, SourceToken, BufReader};
+use util::lexer::Lexer;
 use std::iter::Peekable;
 use span::{SourcePos, Span, mk_sp};
 use std::collections::BTreeMap;
-use std::io::{BufRead, Read, Write};
+use std::io::BufRead;
 use num::FromPrimitive;
 
 pub use self::InstType::*;

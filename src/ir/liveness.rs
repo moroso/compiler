@@ -2,14 +2,10 @@
 use time::precise_time_ns;
 
 use std::collections::BTreeSet;
-use std::cmp::Eq;
 use std::iter::FromIterator;
 use std::mem::swap;
 
-use mc::ast::*;
-
 use ir::*;
-use values::*;
 
 
 pub struct LivenessAnalyzer;

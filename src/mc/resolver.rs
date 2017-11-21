@@ -1,10 +1,8 @@
-use mc::session::Interner;
 use mc::session::Session;
 use util::Name;
 use util;
 
 use std::collections::BTreeMap;
-use std::slice;
 
 use mc::ast::*;
 use mc::ast::visitor::*;

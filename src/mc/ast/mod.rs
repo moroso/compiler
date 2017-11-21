@@ -1,4 +1,4 @@
-use util::{IntKind, Name, Width};
+use util::{IntKind, Name};
 use super::lexer::Token;
 
 use std::fmt;

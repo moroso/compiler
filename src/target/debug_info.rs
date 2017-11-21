@@ -1,7 +1,7 @@
 use span::Span;
 use util::Name;
 use mc::ast::NodeId;
-use std::collections::{BTreeSet, BTreeMap, BinaryHeap};
+use std::collections::{BTreeMap, BinaryHeap};
 use std::collections::btree_map;
 use codegen::RegisterColor;
 use ir::{IrNodeId, Op, OpInfo, Var, VarName};

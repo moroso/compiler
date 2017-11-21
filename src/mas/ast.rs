@@ -5,10 +5,8 @@
 // processor!
 
 use std::fmt;
-use std::fmt::{Formatter, Display, Debug};
+use std::fmt::{Formatter, Display};
 use mas::util::{fits_in_bits, ror};
-use std::ops::Index;
-use std::option::IterMut;
 use num::FromPrimitive;
 
 pub use self::CoReg::*;

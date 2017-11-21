@@ -3,7 +3,7 @@
 // Unstable libraries
 #![feature(rustc_private)] // do we really want to use this?
 #![feature(str_escape)]
-#![allow(dead_code,unused_imports)]
+#![allow(dead_code)]
 
 extern crate num;
 

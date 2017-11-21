@@ -1,7 +1,6 @@
 use mc::ast::{LitNode, BinOpNode, UnOpNode, Expr, CanHaveId};
 
-use std::fmt;
-use std::fmt::{Formatter, Result, Display, Debug};
+use std::fmt::{Formatter, Result, Display};
 use std::collections::BTreeSet;
 
 use util::{Name, Width};

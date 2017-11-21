@@ -1,6 +1,5 @@
 use ir::*;
 use std::collections::{BTreeMap, BTreeSet};
-use util::Name;
 use mc::ast::AddrOf;
 use codegen::*;
 use mas::ast::Reg;

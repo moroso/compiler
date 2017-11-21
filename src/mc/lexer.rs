@@ -1,14 +1,11 @@
-use super::ast;
-
 use util::{IntKind, Width};
-use std::{io, option, iter};
+use std::io;
 
 pub use util::lexer::{Language, Lexer, LexerRule, LexerRuleT};
 pub use util::lexer::{RuleMatcher, SourceToken, TokenMaker};
 pub use util::lexer::BufReader;
 
 use std::fmt;
-use std::fmt::{Formatter, Display, Debug};
 
 use regex::Regex;
 

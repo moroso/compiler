@@ -1,7 +1,4 @@
-use mc::ast::{Module, NodeId};
-use mc::ast::Type;
-
-//use std::iter::AdditiveIterator;
+use mc::ast::{Type, NodeId};
 
 use mc::ast::defmap::*;
 use mc::session::*;

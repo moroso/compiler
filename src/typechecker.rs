@@ -1,23 +1,18 @@
-use mc::resolver::Resolver;
 use mc::session::Session;
 use util::{IntKind, Width};
-use span::Span;
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use std::fmt;
-use std::fmt::{Display, Formatter};
 use std::iter::FromIterator;
 
-use values::{eval_binop, static_cast};
+use values::static_cast;
 
 use util::graph::{Graph, VertexIndex};
 
 use mc::ast::*;
 use mc::ast::defmap::*;
 use mc::ast::visitor::*;
-
-use intrinsics::size_of::{ENUM_TAG_SIZE, size_of_def};
 
 use values;
 
@@ -100,7 +95,6 @@ fn constant_fold(typechecker: &mut Typechecker, expr: &Expr)
                   -> ConstantResult {
     match expr.val {
         LitExpr(ref lit) => {
-            use util::copy_lifetime;
             match lit.val {
                 NullLit                 => Err((lit.id, "`null` is not valid here")),
                 ref val                 => Ok(val.clone())

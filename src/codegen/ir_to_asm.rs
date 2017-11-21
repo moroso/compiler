@@ -12,7 +12,6 @@ use util::{Width, Name, align};
 use std::mem::swap;
 use std::collections::{BTreeMap, BTreeSet};
 use std::iter::FromIterator;
-use std::cmp::max;
 
 fn lit_to_longvalue(lit: &LitNode,
                     session: &mut Session,

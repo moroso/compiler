@@ -4,7 +4,6 @@ use mas::ast::Reg;
 use ir::*;
 use std::collections::{BTreeMap, BTreeSet};
 use std::iter::FromIterator;
-use util::Name;
 use codegen::*;
 
 pub struct RegisterColorer;

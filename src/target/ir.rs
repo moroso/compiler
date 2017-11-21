@@ -2,11 +2,6 @@ use time::precise_time_ns;
 
 use package::Package;
 
-use mc::lexer::Lexer;
-use mc::parser::Parser;
-
-use util::{IntKind, Name};
-use util::IntKind::{GenericInt, SignedInt, UnsignedInt};
 use util::Width::{Width32, Width16, Width8, AnyWidth};
 
 use ir::liveness::{LivenessAnalyzer, get_liveness_times};
@@ -22,7 +17,6 @@ use mc::ast::*;
 use ir::*;
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::iter::FromIterator;
 use std::io::Write;
 
 pub struct IRTarget {

@@ -23,9 +23,9 @@ use util::Name;
 use super::session::{Session, Options};
 use super::session::get_cur_rel_path;
 
-use std::{io, mem, num, vec};
-use std::collections::{HashMap, BTreeMap, BTreeSet};
-use std::iter::{Peekable, FromIterator};
+use std::io;
+use std::collections::{BTreeMap, BTreeSet};
+use std::iter::FromIterator;
 
 use mas::ast::{InstNode, InstPacket};
 use mas::lexer::asm_lexer_from_str;
@@ -34,8 +34,6 @@ use mas::parser::AsmParser;
 use super::ast;
 use super::ast::*;
 use super::lexer::*;
-
-use values::*;
 
 use std::path::PathBuf;
 use std::path::Path as FilePath;

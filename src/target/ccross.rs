@@ -1,7 +1,3 @@
-use mc::ast::visitor::Visitor;
-use mc::lexer::Lexer;
-use mc::parser::Parser;
-use mc::resolver::Resolver;
 use mc::session::Session;
 
 use package::Package;
@@ -10,18 +6,14 @@ use target::NameMangler;
 
 use util::{IntKind, Name, Width};
 
-use intrinsics::size_of;
-
 use std::collections::{BTreeSet, BTreeMap};
 
-use util;
 use std::io::Write;
 
 use mc::ast::*;
 use mc::ast::defmap::*;
 
 use typechecker::*;
-use values::*;
 
 use util::graph::{Graph, VertexIndex, GraphExt};
 

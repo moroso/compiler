@@ -1,8 +1,5 @@
 use package::Package;
 
-use mc::lexer::Lexer;
-use mc::parser::Parser;
-use mc::session::Interner;
 use mc::ast::NodeId;
 
 use super::{MkTarget,Target};
@@ -30,7 +27,6 @@ use codegen::combine::link;
 
 use mas::labels::{LabelInfo, resolve_labels};
 use mas::encoder::encode;
-use mas::ast::NopInst;
 use mas::scheduler::{schedule, schedule_dummy};
 use mas::lexer::new_asm_lexer;
 use mas::parser::AsmParser;
@@ -40,7 +36,7 @@ use util::{Name, align};
 use std::io::{Write, BufReader};
 use std::fs::File;
 use std::path::Path;
-use std::collections::{BTreeSet, BTreeMap, BinaryHeap};
+use std::collections::{BTreeSet, BTreeMap};
 
 // TODO: remove this; we won't need it later.
 use mas::ast::InstNode;

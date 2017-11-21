@@ -7,9 +7,8 @@
 use span::{Span, SourcePos, mk_sp};
 
 use regex::Regex;
-use std::{option, iter};
 
-use std::io::{BufRead, Result, Error, ErrorKind};
+use std::io::BufRead;
 
 use std::marker::PhantomData;
 

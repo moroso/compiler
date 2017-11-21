@@ -1,6 +1,5 @@
 use std::fmt;
-use std::fmt::{Formatter, Display};
-use std::cmp::{Eq, Ord, Ordering};
+use std::cmp::Ordering;
 
 #[derive(Clone, PartialEq, Eq, Ord, Debug, Copy)]
 pub struct SourcePos {

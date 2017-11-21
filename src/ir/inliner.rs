@@ -1,5 +1,5 @@
 use ir::{Op, OpNode, VarName, RValueElem};
-use mc::ast::{UnOpNode, WithIdT, CanHaveId};
+use mc::ast::{UnOpNode, CanHaveId};
 use mas::ast::{InstNode, JumpTarget};
 
 use std::collections::{BTreeSet, BTreeMap};

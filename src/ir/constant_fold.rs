@@ -1,5 +1,5 @@
 // Constant folding.
-use util::{IntKind, Width};
+use util::IntKind;
 use ir::util::subst;
 use std::collections::{BTreeSet, BTreeMap};
 use mc::ast::*;
