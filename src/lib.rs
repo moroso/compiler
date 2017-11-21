@@ -5,8 +5,6 @@
 #![feature(str_escape)]
 #![allow(dead_code,unused_imports)]
 
-#![plugin(regex_macros)]
-
 extern crate num;
 
 extern crate getopts;

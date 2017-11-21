@@ -10,6 +10,8 @@ pub use util::lexer::BufReader;
 use std::fmt;
 use std::fmt::{Formatter, Display, Debug};
 
+use regex::Regex;
+
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Token {
     // Whitespace
@@ -220,7 +222,7 @@ fn mk_rule<A: 'static, T: RuleMatcher<A>+'static, U: TokenMaker<A, Token>+'stati
     -> Box<LexerRuleT<Token>> {
     box LexerRule::<A, _, _>::new(matcher, maker) as Box<LexerRuleT<Token>>
 }
-macro_rules! matcher { ( $e:expr ) => ( regex!(concat!("^(?:", $e, ")"))) }
+macro_rules! matcher { ( $e:expr ) => ( Regex::new(concat!("^(?:", $e, ")")).unwrap()) }
 macro_rules! lexer_rules {
     ( $( $c:expr => $m:expr ),*) => (
         vec! ( $( mk_rule($m, $c) ),* )
@@ -228,11 +230,19 @@ macro_rules! lexer_rules {
 }
 
 // Rule to match U32, U16, U8, I32, I16, I8
-struct IntTypeRule;
+struct IntTypeRule {
+    re: Regex,
+}
+
+impl IntTypeRule {
+    pub fn new() -> IntTypeRule {
+        IntTypeRule { re: matcher!(r"[uUiI](32|16|8)") }
+    }
+}
+
 impl RuleMatcher<IntKind> for IntTypeRule {
     fn find(&self, s: &str) -> Option<(usize, IntKind)> {
-        let matcher = matcher!(r"[uUiI](32|16|8)");
-        match matcher.captures(s) {
+        match self.re.captures(s) {
             Some(groups) => {
                 let ctor: fn(Width) -> IntKind = match s.chars().nth(0).unwrap() {
                     'u' | 'U' => IntKind::UnsignedInt,
@@ -254,11 +264,19 @@ impl RuleMatcher<IntKind> for IntTypeRule {
 }
 
 // Rule to match a numeric literal and parse it into a number
-struct NumberRule;
+struct NumberRule {
+    re: Regex,
+}
+
+impl NumberRule {
+    pub fn new() -> NumberRule {
+        NumberRule { re: matcher!(r"((?:0[xX]([:xdigit:]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?") }
+    }
+}
+
 impl RuleMatcher<(u64, IntKind)> for NumberRule {
     fn find(&self, s: &str) -> Option<(usize, (u64, IntKind))> {
-        let matcher = matcher!(r"((?:0[xX]([:xdigit:]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?");
-        match matcher.captures(s) {
+        match self.re.captures(s) {
             Some(groups) => {
                 let (num_str, radix) = match groups.at(2) {
                     None => (groups.at(1).unwrap(), 10),
@@ -295,11 +313,19 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
 }
 
 // Rule to match a name followed by a Bang and strip off the trailing Bang
-struct IdentBangRule;
+struct IdentBangRule {
+    re: Regex,
+}
+
+impl IdentBangRule {
+    pub fn new() -> IdentBangRule {
+        IdentBangRule { re: matcher!(r"([a-zA-Z_]\w*)!") }
+    }
+}
+
 impl RuleMatcher<String> for IdentBangRule {
     fn find(&self, s: &str) -> Option<(usize, String)> {
-        let matcher = matcher!(r"([a-zA-Z_]\w*)!");
-        match matcher.captures(s) {
+        match self.re.captures(s) {
            Some(groups) => {
                 let t = groups.at(0).unwrap();
                 Some((t.len(), groups.at(1).unwrap().to_string()))
@@ -310,30 +336,46 @@ impl RuleMatcher<String> for IdentBangRule {
 }
 
 // Rule to match a string literal and strip off the surrounding quotes
-struct StringRule;
+struct StringRule {
+    re: Regex,
+}
+
+impl StringRule {
+    pub fn new() -> StringRule {
+        StringRule { re: matcher!(r#""((?:\\"|[^"])*)""#) }
+    }
+}
+
 impl RuleMatcher<String> for StringRule {
     fn find(&self, s: &str) -> Option<(usize, String)> {
-        let matcher = matcher!(r#""((?:\\"|[^"])*)""#);
-        match matcher.captures(s) {
+        match self.re.captures(s) {
            Some(groups) => {
                 use rust_syntax::parse::str_lit;
                 let t = groups.at(0).unwrap();
-                Some((t.len(), str_lit(groups.at(1).unwrap())))
+                Some((t.len(), str_lit(groups.at(1).unwrap(), None)))
            },
             _ => None
         }
     }
 }
 
-struct CharRule;
+struct CharRule {
+    re: Regex,
+}
+
+impl CharRule {
+    pub fn new() -> CharRule {
+        CharRule { re: matcher!(r#"'((?:\\["nrt'\\]|\\[xX][0-9a-fA-F]+|[^']))'"#) }
+    }
+}
+
 impl RuleMatcher<(u64, IntKind)> for CharRule {
     fn find(&self, s: &str) -> Option<(usize, (u64, IntKind))> {
-        let matcher = matcher!(r#"'((?:\\["nrt'\\]|\\[xX][0-9a-fA-F]+|[^']))'"#);
-        match matcher.captures(s) {
+        match self.re.captures(s) {
            Some(groups) => {
                use rust_syntax::parse::char_lit;
                let t = groups.at(0).unwrap();
-               let (c, _) = char_lit(groups.at(1).unwrap());
+               let (c, _) = char_lit(groups.at(1).unwrap(), None);
                Some((t.len(), (c as u64, IntKind::UnsignedInt(Width::Width8))))
            },
             _ => None
@@ -388,7 +430,7 @@ pub fn new_mb_lexer<'a, S: ?Sized + ToString, B: BufReader>(name: &S, buffer: B)
             Token::Asm          => "asm!",
 
             // Basic types; TODO: add more.
-            Token::IntTypeTok   => IntTypeRule,
+            Token::IntTypeTok   => IntTypeRule::new(),
             Token::Bool         => "bool",
 
             // Symbols
@@ -443,10 +485,10 @@ pub fn new_mb_lexer<'a, S: ?Sized + ToString, B: BufReader>(name: &S, buffer: B)
 
             // Literals
             Token::IdentTok     => matcher!(r"[a-zA-Z_]\w*"),
-            Token::IdentBangTok => IdentBangRule,
-            |(n, ik)| Token::NumberTok(n, ik)    => NumberRule,
-            |(n, ik)| Token::NumberTok(n, ik)    => CharRule,
-            Token::StringTok    => StringRule
+            Token::IdentBangTok => IdentBangRule::new(),
+            |(n, ik)| Token::NumberTok(n, ik)    => NumberRule::new(),
+            |(n, ik)| Token::NumberTok(n, ik)    => CharRule::new(),
+            Token::StringTok    => StringRule::new()
         },
 
         // A special set of rules, just for when we're within a multi-line

@@ -5,7 +5,7 @@ use self::ast::visitor::Visitor;
 use self::session::{Session, Options};
 
 use getopts;
-use getopts::{getopts, reqopt, optopt, optflag, optmulti};
+use getopts::Options as Getopts;
 use std::io::{BufReader, Write};
 use std::fs::File;
 use std::ascii::AsciiExt;
@@ -89,32 +89,32 @@ pub fn main() {
     let args: Vec<String> = env::args().collect();
     let arg0 = &args[0];
 
-    let opts = [
-        optopt("", "target", "Set the output target format.", "[c|null|asm|ir]"),
-        optopt("o", "output", "Output file", "<filename>"),
-        optopt("", "list", "List file (asm target only)", "<filename>"),
-        optopt("", "debug", "Debug file (asm target only)", "<filename>"),
-        optopt("f", "format", "Output file format (asm target only)", "[flat|bsld]"),
-        optopt("", "stack_start", "Address in hex of the start of the stack (asm target only)",
-               "<hex value, no 0x>"),
-        optopt("", "global_start", "Address in hex of the start of global vars (asm target only)",
-               "<hex value, no 0x>"),
-        optopt("", "code_start", "Address in hex of the start of the code (asm target only)",
-               "<hex value, no 0x>"),
-        optopt("", "mul_func", "Name of function to use for software multiplication (asm target only)",
-               "<mangled function name>"),
-        optopt("", "div_func", "Name of function to use for software division (asm target only)",
-               "<mangled function name>"),
-        optopt("", "mod_func", "Name of function to use for software modulo (asm target only)",
-               "<mangled function name>"),
-        optflag("d", "dep-files", "Generate dependency files"),
-        optflag("v", "verbose", "Enable verbose output."),
-        optflag("", "disable_scheduler", "Disable instruction scheduler (asm target only)"),
-        optflag("", "disable_inliner", "Disable function inlining (asm target only)"),
-        optflag("", "no_prelude", "Omit the prelude."),
-        optflag("h", "help", "Show this help message."),
-        optmulti("l", "lib", "Specify a library location", "<foo:/path/to/foo.mb>"),
-    ];
+    let mut argopts = Getopts::new();
+
+    argopts.optopt("", "target", "Set the output target format.", "[c|null|asm|ir]");
+    argopts.optopt("o", "output", "Output file", "<filename>");
+    argopts.optopt("", "list", "List file (asm target only)", "<filename>");
+    argopts.optopt("", "debug", "Debug file (asm target only)", "<filename>");
+    argopts.optopt("f", "format", "Output file format (asm target only)", "[flat|bsld]");
+    argopts.optopt("", "stack_start", "Address in hex of the start of the stack (asm target only)",
+                          "<hex value, no 0x>");
+    argopts.optopt("", "global_start", "Address in hex of the start of global vars (asm target only)",
+                          "<hex value, no 0x>");
+    argopts.optopt("", "code_start", "Address in hex of the start of the code (asm target only)",
+                          "<hex value, no 0x>");
+    argopts.optopt("", "mul_func", "Name of function to use for software multiplication (asm target only)",
+                          "<mangled function name>");
+    argopts.optopt("", "div_func", "Name of function to use for software division (asm target only)",
+                          "<mangled function name>");
+    argopts.optopt("", "mod_func", "Name of function to use for software modulo (asm target only)",
+                          "<mangled function name>");
+    argopts.optflag("d", "dep-files", "Generate dependency files");
+    argopts.optflag("v", "verbose", "Enable verbose output.");
+    argopts.optflag("", "disable_scheduler", "Disable instruction scheduler (asm target only)");
+    argopts.optflag("", "disable_inliner", "Disable function inlining (asm target only)");
+    argopts.optflag("", "no_prelude", "Omit the prelude.");
+    argopts.optflag("h", "help", "Show this help message.");
+    argopts.optmulti("l", "lib", "Specify a library location", "<foo:/path/to/foo.mb>");
 
     let bail = |error: Option<&str>| {
         let error = match error {
@@ -126,11 +126,11 @@ pub fn main() {
         };
 
         let brief = format!("Usage: {} [OPTIONS]", arg0);
-        println!("{}", getopts::usage(&brief[..], &opts));
+        println!("{}", argopts.usage(&brief[..]));
         process::exit(error)
     };
 
-    let matches = match getopts(&args[1..], &opts) {
+    let matches = match argopts.parse(&args[1..]) {
         Ok(m) => m,
         Err(e) => bail(Some(&format!("{}", e)[..])),
     };

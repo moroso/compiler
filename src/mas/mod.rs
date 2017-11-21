@@ -12,7 +12,7 @@ use self::parser::AsmParser;
 use self::encoder::encode;
 
 use getopts;
-use getopts::{getopts, reqopt, optopt, optflag};
+use getopts::Options as Getopts;
 use std::io::{Read, Write, BufReader};
 
 
@@ -39,11 +39,11 @@ pub fn main() {
     let args: Vec<String> = env::args().collect();
     let arg0 = &args[0];
 
-    let opts = [
-        optopt("", "fmt", "Set the output format.", "[c|bin|internal]"),
-        optopt("o", "output", "Output file", "<filename>"),
-        optflag("h", "help", "Show this help message."),
-    ];
+    let mut argopts = Getopts::new();
+
+    argopts.optopt("", "fmt", "Set the output format.", "[c|bin|internal]");
+    argopts.optopt("o", "output", "Output file", "<filename>");
+    argopts.optflag("h", "help", "Show this help message.");
 
     let bail = |error: Option<&str>| {
         let error = match error {
@@ -55,11 +55,11 @@ pub fn main() {
         };
 
         let brief = format!("Usage: {} [OPTIONS]", arg0);
-        println!("{}", getopts::usage(&brief[..], &opts));
+        println!("{}", argopts.usage(&brief[..]));
         process::exit(error)
     };
 
-    let matches = match getopts(&args[1..], &opts) {
+    let matches = match argopts.parse(&args[1..]) {
         Ok(m) => m,
         Err(e) => return bail(Some(&format!("{}", e)[..])),
     };

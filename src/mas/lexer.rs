@@ -6,6 +6,7 @@ use std::ascii::AsciiExt;
 use util::lexer::*;
 use super::ast;
 use super::ast::*;
+use regex::Regex;
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Token {
@@ -103,7 +104,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
             vec!( $( mk_rule($m, $c) ),* )
                 )
     }
-    macro_rules! matcher { ( $e:expr ) => ( regex!(concat!("^(?:", $e, ")"))) }
+    macro_rules! matcher { ( $e:expr ) => ( Regex::new(concat!("^(?:", $e, ")")).unwrap()) }
 
     // Matcher for a register, such as "r8".
     struct RegisterRule;
