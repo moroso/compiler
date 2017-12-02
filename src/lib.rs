@@ -10,7 +10,6 @@ extern crate num;
 extern crate getopts;
 extern crate regex;
 extern crate rustc_data_structures;
-extern crate syntax as rust_syntax;
 extern crate time;
 
 #[macro_use]

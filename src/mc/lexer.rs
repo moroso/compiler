@@ -337,6 +337,16 @@ struct StringRule {
     re: Regex,
 }
 
+fn escaped_char(c: char) -> char {
+    match c {
+        't' => '\t',
+        'n' => '\n',
+        'r' => '\r',
+        '\\' => '\\',
+        x => x,
+    }
+}
+
 impl StringRule {
     pub fn new() -> StringRule {
         StringRule { re: matcher!(r#""((?:\\"|[^"])*)""#) }
@@ -347,9 +357,26 @@ impl RuleMatcher<String> for StringRule {
     fn find(&self, s: &str) -> Option<(usize, String)> {
         match self.re.captures(s) {
            Some(groups) => {
-                use rust_syntax::parse::str_lit;
-                let t = groups.at(0).unwrap();
-                Some((t.len(), str_lit(groups.at(1).unwrap(), None)))
+               fn str_lit(s: &str) -> String {
+                   let mut quoted = false;
+                   let mut res = String::from("");
+                   for c in s.chars() {
+                       if quoted {
+                           quoted = false;
+                           res.push(escaped_char(c));
+                       } else {
+                           if c == '\\' {
+                               quoted = true;
+                           } else {
+                               res.push(c);
+                           }
+                       }
+                   }
+
+                   res
+               }
+               let t = groups.at(0).unwrap();
+               Some((t.len(), str_lit(groups.at(1).unwrap())))
            },
             _ => None
         }
@@ -370,9 +397,22 @@ impl RuleMatcher<(u64, IntKind)> for CharRule {
     fn find(&self, s: &str) -> Option<(usize, (u64, IntKind))> {
         match self.re.captures(s) {
            Some(groups) => {
-               use rust_syntax::parse::char_lit;
+               fn char_lit(s: &str) -> char {
+                   let first = s.chars().nth(0).unwrap();
+                   if first == '\\' {
+                       let second = s.chars().nth(1).unwrap();
+                       if second == 'x' || second == 'X' {
+                           let n = u8::from_str_radix(&s[2..], 16).unwrap();
+                           n as char
+                       } else {
+                           escaped_char(second)
+                       }
+                   } else {
+                       first
+                   }
+               }
                let t = groups.at(0).unwrap();
-               let (c, _) = char_lit(groups.at(1).unwrap(), None);
+               let c = char_lit(groups.at(1).unwrap());
                Some((t.len(), (c as u64, IntKind::UnsignedInt(Width::Width8))))
            },
             _ => None
