@@ -1,10 +1,102 @@
-pub use rustc_data_structures::graph::{Graph, Edge, EdgeIndex};
-pub use rustc_data_structures::graph::Node      as Vertex;
-pub use rustc_data_structures::graph::NodeIndex as VertexIndex;
-use std::fmt::{Debug};
-
-
+use std::fmt::Debug;
 use std::collections::BTreeSet;
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct VertexIndex(pub usize);
+impl VertexIndex {
+    pub fn node_id(&self) -> usize {
+        let VertexIndex(x) = *self;
+        x
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct EdgeIndex(pub usize);
+impl EdgeIndex {
+    pub fn edge_id(&self) -> usize {
+        let EdgeIndex(x) = *self;
+        x
+    }
+}
+
+pub struct Vertex<V> {
+    pub data: V,
+}
+
+pub struct Edge<E> {
+    pub data: E,
+    src: VertexIndex,
+    dest: VertexIndex,
+}
+
+impl<E> Edge<E> {
+    pub fn target(&self) -> VertexIndex {
+        self.dest
+    }
+}
+
+pub struct Graph<V, E> {
+    vertices: Vec<Vertex<V>>,
+    edges_by_vertex: Vec<Vec<Edge<E>>>,
+    next_edge_index: usize,
+}
+
+impl<V, E> Graph<V, E> {
+    // Roughly follows a subset of the graph implementation
+    // in rustc_data_structures.
+    pub fn new() -> Graph<V, E> {
+        Graph {
+            vertices: vec!(),
+            edges_by_vertex: vec!(),
+            next_edge_index: 0,
+        }
+    }
+
+    pub fn add_node(&mut self, node: V) -> VertexIndex {
+        let next_index = self.vertices.len();
+        self.vertices.push(Vertex { data: node });
+        self.edges_by_vertex.push(vec!());
+
+        VertexIndex(next_index)
+    }
+
+    pub fn each_node<'a, F>(&'a self, mut f: F)
+        where F: FnMut(VertexIndex, &'a Vertex<V>) -> bool {
+        for (i, v) in self.vertices.iter().enumerate() {
+            if !f(VertexIndex(i), v) { return; }
+        }
+    }
+
+    pub fn node_data<'a>(&'a self, id: VertexIndex) -> &'a V {
+        &self.vertices[id.node_id()].data
+    }
+
+    pub fn all_nodes<'a>(&'a self) -> &'a [Vertex<V>] {
+        &self.vertices
+    }
+
+    pub fn outgoing_edges(&self, vid: VertexIndex) -> ::std::slice::Iter<Edge<E>> {
+        self.edges_by_vertex[vid.node_id()].iter()
+    }
+
+    pub fn add_edge(&mut self, source: VertexIndex, target: VertexIndex, data: E) -> EdgeIndex {
+        assert!(source.node_id() < self.vertices.len());
+        assert!(target.node_id() < self.vertices.len());
+
+        let new_edge = Edge {
+            data: data,
+            src: source,
+            dest: target,
+        };
+
+        self.edges_by_vertex[source.node_id()].push(new_edge);
+
+        let ret = EdgeIndex(self.next_edge_index);
+        self.next_edge_index += 1;
+
+        ret
+    }
+}
 
 pub trait GraphExt<V> {
     fn toposort(&self) -> Result<Vec<V>, V>;
@@ -14,8 +106,6 @@ impl<V: Copy+Eq+Ord+Debug, E: Debug> GraphExt<V> for Graph<V, E> {
     // Returns a list in which a node appears *after* anything it had
     // an edge to.
     fn toposort(&self) -> Result<Vec<V>, V> {
-        use rustc_data_structures::graph::Graph;
-
         let mut list = vec!();
         let mut visiting = BTreeSet::new();
         let mut visited = BTreeSet::new();
@@ -36,7 +126,7 @@ impl<V: Copy+Eq+Ord+Debug, E: Debug> GraphExt<V> for Graph<V, E> {
             let mut err = None;
             if !visited.contains(vertex) {
                 visiting.insert(*vertex);
-                for (_, e) in graph.outgoing_edges(vid) {
+                for e in graph.outgoing_edges(vid) {
                     err = visit(graph, e.target(), visiting, visited, list);
                     if err.is_some() {
                         break;

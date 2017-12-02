@@ -1,7 +1,4 @@
 #![feature(plugin)]
-
-// Unstable libraries
-#![feature(rustc_private)] // do we really want to use this?
 #![feature(str_escape)]
 #![allow(dead_code)]
 
@@ -9,7 +6,6 @@ extern crate num;
 
 extern crate getopts;
 extern crate regex;
-extern crate rustc_data_structures;
 extern crate time;
 
 #[macro_use]
