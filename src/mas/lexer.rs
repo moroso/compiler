@@ -105,11 +105,15 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
     macro_rules! matcher { ( $e:expr ) => ( Regex::new(concat!("^(?:", $e, ")")).unwrap()) }
 
     // Matcher for a register, such as "r8".
-    struct RegisterRule;
+    struct RegisterRule { re: Regex };
+    impl RegisterRule {
+        pub fn new() -> RegisterRule {
+            RegisterRule { re: matcher!(r"r(\d+|l)") }
+        }
+    }
     impl RuleMatcher<ast::Reg> for RegisterRule {
         fn find(&self, s: &str) -> Option<(usize, ast::Reg)> {
-            let matcher = matcher!(r"r(\d+|l)");
-            match matcher.captures(s) {
+            match self.re.captures(s) {
                 Some(groups) => {
                     Some((groups.at(0).unwrap().len(),
                           if groups.at(1).unwrap() == "l" {
@@ -131,12 +135,15 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         }
     }
 
-    struct CharLiteralRule;
+    struct CharLiteralRule { re: Regex };
+    impl CharLiteralRule {
+        pub fn new() -> CharLiteralRule {
+            CharLiteralRule { re: matcher!(r"'(.)'") }
+        }
+    }
     impl RuleMatcher<u32> for CharLiteralRule {
         fn find(&self, s: &str) -> Option<(usize, u32)> {
-            let matcher = matcher!(r"'(.)'");
-
-            match matcher.captures(s) {
+            match self.re.captures(s) {
                 Some(groups) => {
                     let c = groups.at(1).unwrap().as_bytes()[0] as u32;
 
@@ -147,12 +154,15 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         }
     }
 
-    struct NumberLiteralRule;
+    struct NumberLiteralRule { re: Regex };
+    impl NumberLiteralRule {
+        pub fn new() -> NumberLiteralRule {
+            NumberLiteralRule { re: matcher!(r"(-?)((?:0[xX]([:xdigit:]+))|(?:0[bB]([01]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?") }
+        }
+    }
     impl RuleMatcher<u32> for NumberLiteralRule {
         fn find(&self, s: &str) -> Option<(usize, u32)> {
-            let matcher = matcher!(r"(-?)((?:0[xX]([:xdigit:]+))|(?:0[bB]([01]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?");
-
-            match matcher.captures(s) {
+            match self.re.captures(s) {
                 Some(groups) => {
                     // TODO: match on (groups.at(3).unwrap(), groups.at(4).unwrap()) when rust
                     // fixes issue #14927.
@@ -177,11 +187,15 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         }
     }
 
-    struct PredicateRule;
+    struct PredicateRule { re: Regex };
+    impl PredicateRule {
+        pub fn new() -> PredicateRule {
+            PredicateRule { re: matcher!(r"(!?)p([0123])") }
+        }
+    }
     impl RuleMatcher<Pred> for PredicateRule {
         fn find(&self, s: &str) -> Option<(usize, Pred)> {
-            let matcher = matcher!(r"(!?)p([0123])");
-            match matcher.captures(s) {
+            match self.re.captures(s) {
                 Some(groups) => {
                     Some((groups.at(0).unwrap().len(),
                           Pred {
@@ -194,11 +208,15 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         }
     }
 
-    struct ShiftRule;
+    struct ShiftRule { re: Regex };
+    impl ShiftRule {
+        pub fn new() -> ShiftRule {
+            ShiftRule { re: matcher!(r"(<<|>>u|>>s|>>r)") }
+        }
+    }
     impl RuleMatcher<ShiftType> for ShiftRule {
         fn find(&self, s: &str) -> Option<(usize, ShiftType)> {
-            let matcher = matcher!(r"(<<|>>u|>>s|>>r)");
-            match matcher.captures(s) {
+            match self.re.captures(s) {
                 Some(groups) => {
                     let shift_type = match groups.at(1).unwrap() {
                         "<<" => SllShift,
@@ -215,11 +233,15 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         }
     }
 
-    struct LoadStoreRule;
+    struct LoadStoreRule { re: Regex };
+    impl LoadStoreRule {
+        pub fn new() -> LoadStoreRule {
+            LoadStoreRule { re: matcher!(r"\*(sc|llsc|ll|w|l|h|b)") }
+        }
+    }
     impl RuleMatcher<LsuWidth> for LoadStoreRule {
         fn find(&self, s: &str) -> Option<(usize, LsuWidth)> {
-            let matcher = matcher!(r"\*(sc|llsc|ll|w|l|h|b)");
-            match matcher.captures(s) {
+            match self.re.captures(s) {
                 Some(groups) =>
                     Some((groups.at(0).unwrap().len(),
                           match groups.at(1).unwrap() {
@@ -238,11 +260,15 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         }
     }
 
-    struct CoRegRule;
+    struct CoRegRule { re: Regex };
+    impl CoRegRule {
+        pub fn new() -> CoRegRule {
+            CoRegRule { re: matcher!(r"(?i:(PFLAGS|PTB|EHA|EPC|EC0|EC1|EC2|EC3|EA0|EA1|SP0|SP1|SP2|SP3|RESV..))") }
+        }
+    }
     impl RuleMatcher<ast::CoReg> for CoRegRule {
         fn find(&self, s: &str) -> Option<(usize, ast::CoReg)> {
-            let matcher = matcher!(r"(?i:(PFLAGS|PTB|EHA|EPC|EC0|EC1|EC2|EC3|EA0|EA1|SP0|SP1|SP2|SP3|RESV..))");
-            match matcher.captures(s) {
+            match self.re.captures(s) {
                 Some(groups) =>
                     Some((groups.at(0).unwrap().len(),
                           match &groups.at(1).unwrap().to_ascii_uppercase()[..] {
@@ -285,11 +311,15 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         }
     }
 
-    struct FlushRule;
+    struct FlushRule { re: Regex };
+    impl FlushRule {
+        pub fn new() -> FlushRule {
+            FlushRule { re: matcher!(r"(?i:flush\.(data|inst|dtlb|itlb))") }
+        }
+    }
     impl RuleMatcher<FlushType> for FlushRule {
         fn find(&self, s: &str) -> Option<(usize, FlushType)> {
-            let matcher = matcher!(r"(?i:flush\.(data|inst|dtlb|itlb))");
-            match matcher.captures(s) {
+            match self.re.captures(s) {
                 Some(groups) =>
                     Some((groups.at(0).unwrap().len(),
                           match &groups.at(1).unwrap().to_ascii_uppercase()[..] {
@@ -373,15 +403,15 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         Token::DotGlobl   => ".globl",
         Token::Long       => matcher!(r"(?i:long)"),
 
-        Token::NumLit     => CharLiteralRule,
-        Token::NumLit     => NumberLiteralRule,
+        Token::NumLit     => CharLiteralRule::new(),
+        Token::NumLit     => NumberLiteralRule::new(),
 
-        Token::Reg        => RegisterRule,
-        Token::CoReg      => CoRegRule,
-        Token::PredReg    => PredicateRule,
-        Token::Shift      => ShiftRule,
-        Token::LoadStore  => LoadStoreRule,
-        Token::Flush      => FlushRule,
+        Token::Reg        => RegisterRule::new(),
+        Token::CoReg      => CoRegRule::new(),
+        Token::PredReg    => PredicateRule::new(),
+        Token::Shift      => ShiftRule::new(),
+        Token::LoadStore  => LoadStoreRule::new(),
+        Token::Flush      => FlushRule::new(),
         Token::IdentTok   => matcher!(r"[a-zA-Z_]\w*"),
         // TODO: a specific matcher for this.
         Token::IdentTok   => matcher!(r"\.[0-9]+(a|b)?"),
