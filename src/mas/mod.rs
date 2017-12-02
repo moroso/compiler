@@ -39,7 +39,8 @@ pub fn main() {
 
     let mut argopts = Getopts::new();
 
-    argopts.optopt("", "fmt", "Set the output format.", "[c|bin|internal]");
+    argopts.optopt("f", "fmt", "Set the output format.", "[c|bin|internal]");
+    argopts.optopt("", "format", "Alias for fmt", "[c|bin|internal]");
     argopts.optopt("o", "output", "Output file", "<filename>");
     argopts.optflag("h", "help", "Show this help message.");
 
@@ -66,8 +67,16 @@ pub fn main() {
         return bail(None);
     }
 
-    let format_arg = matches.opt_str("fmt").unwrap_or(
-        "internal".to_string());
+    let format_arg = match matches.opt_str("fmt") {
+        Some(f) => {
+            if matches.opt_str("format").is_some() {
+                bail(Some("Cannot supply both --fmt and --format"));
+            }
+            f
+        },
+        None => matches.opt_str("format").unwrap_or(
+            "internal".to_string())
+    };
 
     if &format_arg[..] == "internal" {
         print!("Moroso assembler.\n");
