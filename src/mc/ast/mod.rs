@@ -5,6 +5,7 @@ use std::fmt;
 use std::fmt::{Debug, Formatter, Display};
 
 use mas::ast::InstNode;
+use util::Escape;
 
 pub use self::PatNode::*;
 pub use self::TypeNode::*;

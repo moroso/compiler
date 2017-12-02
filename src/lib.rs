@@ -1,5 +1,3 @@
-#![feature(plugin)]
-#![feature(str_escape)]
 #![allow(dead_code)]
 
 extern crate num;

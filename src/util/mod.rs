@@ -169,3 +169,21 @@ impl Display for IntKind {
 pub fn align<T: Div<Output=T> + Sub<Output=T> + Rem<Output=T> + Add<Output=T> + Copy>(num: T, size: T) -> T {
     num + (size - (num % size)) % size
 }
+
+pub trait Escape {
+    fn escape_default(&self) -> String;
+}
+
+impl Escape for String {
+    fn escape_default(&self) -> String {
+        let mut res = String::new();
+
+        for c in self.chars() {
+            for d in c.escape_default() {
+                res.push(d);
+            }
+        }
+
+        res
+    }
+}

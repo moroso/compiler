@@ -5,6 +5,8 @@ pub use util::lexer::{Language, Lexer, LexerRule, LexerRuleT};
 pub use util::lexer::{RuleMatcher, SourceToken, TokenMaker};
 pub use util::lexer::BufReader;
 
+use util::Escape;
+
 use std::fmt;
 
 use regex::Regex;
