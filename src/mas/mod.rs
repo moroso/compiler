@@ -46,14 +46,14 @@ pub fn main() {
     let bail = |error: Option<&str>| {
         let error = match error {
             Some(e) => {
-                println!("{}: fatal error: {}", arg0, e);
+                eprintln!("{}: fatal error: {}", arg0, e);
                 1
             }
             None => 0,
         };
 
         let brief = format!("Usage: {} [OPTIONS]", arg0);
-        println!("{}", argopts.usage(&brief[..]));
+        eprintln!("{}", argopts.usage(&brief[..]));
         process::exit(error)
     };
 
