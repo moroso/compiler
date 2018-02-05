@@ -85,10 +85,10 @@ pub fn enum_is_c_like(session: &Session, id: &NodeId) -> bool {
             _ => panic!("Expected VariantDef!"),
         };
         // If any variant has types along with it, it's not c-like.
-        if types.len() > 0 { return false; }
+        if !types.is_empty() { return false; }
     }
 
-    return true;
+    true
 }
 
 fn constant_fold(typechecker: &mut Typechecker, expr: &Expr)
@@ -162,9 +162,9 @@ impl<'a, 'b> ConstCollector<'a, 'b> {
 
         let ConstCollector {
             ref nodes,
-            consts: _,
             ref mut graph,
             ref typechecker,
+            ..
         } = *self;
 
         ConstGraphBuilder::build_graph(graph, nodes, typechecker.session, module);
@@ -178,8 +178,8 @@ impl<'a, 'b> ConstCollector<'a, 'b> {
     fn map_constants(mut self, module: &'a Module) {
         self.visit_module(module);
         let order = self.get_order(module);
-        for nid in order.iter() {
-            let e = *self.consts.get(nid).unwrap();
+        for nid in &order {
+            let e = self.consts[nid];
             let c = constant_fold(self.typechecker, e);
             self.typechecker.typemap.consts.insert(*nid, c);
         }
@@ -191,17 +191,11 @@ impl<'a> Visitor for ConstGraphBuilder<'a> {
         match item.val {
             ConstItem(ref ident, _, ref e) => {
                 let srcidx = self.nodes.get(&ident.id).unwrap();
-                match e.val {
-                    PathExpr(ref path) => {
-                        let nid = self.session.resolver.def_from_path(path);
-                        match self.nodes.get(&nid) {
-                            Some(destidx) => {
-                                self.graph.add_edge(*srcidx, *destidx, ());
-                            }
-                            None => {}
-                        }
+                if let PathExpr(ref path) = e.val {
+                    let nid = self.session.resolver.def_from_path(path);
+                    if let Some(destidx) = self.nodes.get(&nid) {
+                        self.graph.add_edge(*srcidx, *destidx, ());
                     }
-                    _ => {}
                 }
             }
             _ => walk_item(self, item)
@@ -525,15 +519,15 @@ impl<'a> Typechecker<'a> {
     // Do we want ty_str and friends to be some sort of trait, like rustc does?
     fn ty_str(&self, t: &Ty) -> String {
         match *t {
-            BoolTy => format!("bool"),
-            GenericIntTy => format!("<int>"),
+            BoolTy => "bool".to_string(),
+            GenericIntTy => "<int>".to_string(),
             IntTy(w) => format!("i{}", w),
             UintTy(w) => format!("u{}", w),
             UnitTy => format!("()"),
             PtrTy(ref t) => format!("*({})", self.ty_str_(&**t)),
             // This is probably kind of wrong
             ArrayTy(ref t, size) => {
-                let s = size.map_or(format!(""), |n| format!("{}", n));
+                let s = size.map_or("".to_string(), |n| format!("{}", n));
                 format!("({})[{}]", self.ty_str_(&**t), s)
             }
             TupleTy(ref ts) => {
@@ -562,7 +556,7 @@ impl<'a> Typechecker<'a> {
             BoundTy(id) => {
                 self.tybounds_str(&self.get_bounds(id))
             }
-            BottomTy => format!("!")
+            BottomTy => "!".to_string()
         }
     }
     fn ty_str_(&self, t: &WithId<Ty>) -> String { self.ty_str(&t.val) }
@@ -571,7 +565,7 @@ impl<'a> Typechecker<'a> {
         match *t {
             Concrete(ref t) => self.ty_str(t),
             Constrained(ref ks) => format!("<kinds {:?}>", ks),
-            Unconstrained => format!("<unconstrained>"),
+            Unconstrained => "<unconstrained>".to_string(),
         }
     }
 
@@ -593,7 +587,7 @@ impl<'a> Typechecker<'a> {
             cc.map_constants(module);
         }
         self.visit_module(module);
-        for c in self.typemap.consts.iter() {
+        for c in &self.typemap.consts {
             self.unwrap_const(c.1.clone());
         }
     }
@@ -626,7 +620,7 @@ impl<'a> Typechecker<'a> {
     }
 
     fn tps_to_tys(&mut self, nid: NodeId,
-                  tps: &Vec<NodeId>, ts: &Option<Vec<Type>>, infer: bool) -> Vec<WithId<Ty>> {
+                  tps: &[NodeId], ts: &Option<Vec<Type>>, infer: bool) -> Vec<WithId<Ty>> {
         match *ts {
             Some(ref ts) if ts.len() == tps.len() =>
                 ts.iter().map(|t| self.type_to_ty(t)).collect(),
@@ -637,7 +631,7 @@ impl<'a> Typechecker<'a> {
                         val: BoundTy(self.add_bounds()),
                     }
                 }).collect(),
-            None if tps.len() == 0 =>
+            None if tps.is_empty() =>
                 vec!(),
             _ =>
                 self.error_fatal(
@@ -849,7 +843,7 @@ impl<'a> Typechecker<'a> {
         })
     }
 
-    fn func_def_to_ty(&mut self, arg_ids: &Vec<NodeId>, ret_t: &Type) -> Ty {
+    fn func_def_to_ty(&mut self, arg_ids: &[NodeId], ret_t: &Type) -> Ty {
         let ret_ty = self.type_to_ty(ret_t);
         let arg_tys = arg_ids.iter().map(|arg_id| {
             match *self.session.defmap.find(arg_id).take().unwrap() {
@@ -883,9 +877,6 @@ impl<'a> Typechecker<'a> {
 
                         self.with_generics(gs, |me| me.func_def_to_ty(args, t))
                     }
-                    Def::FuncArgDef(ref t) => {
-                        self.type_to_ty(t).val
-                    }
                     Def::VariantDef(_, ref enum_nid, ref args) => {
                         let tps = match *self.session.defmap.find(enum_nid).take().unwrap() {
                             Def::EnumDef(_, _, ref tps) => tps,
@@ -898,7 +889,7 @@ impl<'a> Typechecker<'a> {
                         let c_like = enum_is_c_like(self.session, enum_nid);
 
                         let ctor = |tp_tys| EnumTy(*enum_nid, tp_tys, c_like);
-                        if args.len() == 0 {
+                        if args.is_empty() {
                             ctor(tp_tys)
                         } else {
                             let mut gs = BTreeMap::new();
@@ -920,6 +911,7 @@ impl<'a> Typechecker<'a> {
                             None => self.get_bound_ty(nid),
                         }
                     }
+                    Def::FuncArgDef(ref t) |
                     Def::ConstDef(ref t) => {
                         self.type_to_ty(t).val
                     }
@@ -962,7 +954,8 @@ impl<'a> Typechecker<'a> {
             }
             UnOpExpr(ref op, ref e) => {
                 let ty = self.expr_to_ty(&**e);
-                let expr_ty = match op.val {
+
+                match op.val {
                     Negate => self.check_ty_bounds_w(e.id, InvalidUnop,
                                                      ty, Constrained(enumset!(SubKind))),
                     BitNot => self.check_ty_bounds_w(e.id, InvalidUnop,
@@ -978,9 +971,7 @@ impl<'a> Typechecker<'a> {
                     Identity => ty.val,
                     _ => panic!("Operator {} should not appear here.",
                                op.val),
-                };
-
-                expr_ty
+                }
             }
             IndexExpr(ref a, ref i) => {
                 let a_ty = self.expr_to_ty(&**a);
@@ -1029,7 +1020,7 @@ impl<'a> Typechecker<'a> {
                 self.exits.push(ty);
                 BottomTy
             }
-            BreakExpr => BottomTy,
+            BreakExpr |
             ContinueExpr => BottomTy,
             CastExpr(ref e, ref t) => {
                 let e_ty = self.expr_to_ty(&**e);
@@ -1097,7 +1088,7 @@ impl<'a> Typechecker<'a> {
                 let (nid, tp_tys) = match e_ty.val { //self.unify(BottomTy, e_ty) {
                     PtrTy(x) =>
                         match *x {
-                            WithId { id: _, val: StructTy(nid, tp_tys) } => (nid, tp_tys),
+                            WithId { val: StructTy(nid, tp_tys), .. } => (nid, tp_tys),
                             _ => self.error_fatal(e.id, "Expression is not a pointer to a structure"),
                         },
                     _ => self.error_fatal(e.id, "Expression is not a pointer to a structure"),
@@ -1148,7 +1139,7 @@ impl<'a> Typechecker<'a> {
             MatchExpr(ref e, ref arms) => {
                 let mut e_ty = self.expr_to_ty(&**e).val;
                 let mut ty = BottomTy;
-                for arm in arms.iter() {
+                for arm in arms {
                     let pat_ty = self.pat_to_ty(&arm.pat);
                     let body_ty = self.expr_to_ty(&arm.body);
                     e_ty = self.unify_with_cause(arm.pat.id, InvalidPatBinding, e_ty.with_id_of(&**e), pat_ty);
@@ -1163,7 +1154,7 @@ impl<'a> Typechecker<'a> {
                 let mut variants = BTreeSet::new();
                 match *self.session.defmap.find(&eid).unwrap() {
                     Def::EnumDef(_, ref vs, _) => {
-                        for v in vs.iter() {
+                        for v in vs {
                             variants.insert(*v);
                         }
                     }
@@ -1171,7 +1162,7 @@ impl<'a> Typechecker<'a> {
                 };
 
                 let mut has_discard_pat = false;
-                for arm in arms.iter() {
+                for arm in arms {
                     match arm.pat.val {
                         DiscardPat(_) => {
                             has_discard_pat = true;
@@ -1213,10 +1204,10 @@ impl<'a> Typechecker<'a> {
 
     fn block_to_ty(&mut self, block: &Block) -> WithId<Ty> {
         save_ty!(self, block, {
-            for item in block.val.items.iter() {
+            for item in &block.val.items {
                 self.visit_item(item);
             }
-            for stmt in block.val.stmts.iter() {
+            for stmt in &block.val.stmts {
                 self.visit_stmt(stmt);
             }
             block.val.expr.as_ref().map_or(UnitTy, |e| self.expr_to_ty(e).val)
@@ -1255,7 +1246,7 @@ impl<'a> Typechecker<'a> {
                         BoundTy(bid)
                     }
                     _ => {
-                        if !t1.val.kinds().is_superset(&ks) {
+                        if !t1.val.kinds().is_superset(ks) {
                             self.type_error(
                                 format!("Expected type with bounds {} but found type {}",
                                         self.tybounds_str(&bounds.val), self.ty_str_(&t1)));
@@ -1351,7 +1342,7 @@ impl<'a> Typechecker<'a> {
         let id2 = ty2.id;
         // TODO pointers and ints together
         match (ty1.val, ty2.val) {
-            (BottomTy, t) => t,
+            (BottomTy, t) |
             (t, BottomTy) => t,
             (BoundTy(b1), BoundTy(b2)) => {
                 let bounds =
@@ -1526,21 +1517,17 @@ impl<'a> Visitor for Typechecker<'a> {
     fn visit_stmt(&mut self, stmt: &Stmt) {
         match stmt.val {
             LetStmt(ref pat, ref e) => {
-                match pat.val {
-                    VariantPat(..) => self.error(
+                if let VariantPat(..) = pat.val {
+                    self.error(
                         stmt.id,
-                        "Cannot bind refutable pattern in let statement"),
-                    _ => {}
+                        "Cannot bind refutable pattern in let statement");
                 }
 
                 let ty = self.pat_to_ty(pat);
 
-                match *e {
-                    Some(ref e) => {
-                        let e_ty = self.expr_to_ty(e);
-                        self.unify_with_cause(stmt.id, InvalidPatBinding, ty, e_ty);
-                    }
-                    None => {}
+                if let &Some(ref e) = e {
+                    let e_ty = self.expr_to_ty(e);
+                    self.unify_with_cause(stmt.id, InvalidPatBinding, ty, e_ty);
                 }
             }
             ExprStmt(ref e) => {
@@ -1555,10 +1542,9 @@ impl<'a> Visitor for Typechecker<'a> {
 
     fn visit_item(&mut self, item: &Item) {
         match item.val {
-            UseItem(..) => {}
             FuncItem(_, _, ref t, LocalFn(ref b), ref tps) |
             FuncItem(_, _, ref t, ExternFn(_, Some(ref b)), ref tps) => {
-                let tp_ids = tps.iter().map(|tp| tp.id).collect();
+                let tp_ids: Vec<_> = tps.iter().map(|tp| tp.id).collect();
                 let tp_tys = self.tps_to_tys(item.id, &tp_ids, &None, true);
                 let mut gs = BTreeMap::new();
                 for (tp, tp_ty) in tps.iter().zip(tp_tys.iter()) {
@@ -1586,6 +1572,7 @@ impl<'a> Visitor for Typechecker<'a> {
                     }
                 });
             }
+            UseItem(..) |
             FuncItem(..) => {}
             ModItem(_, ref module) => {
                 self.visit_module(module);
@@ -1593,12 +1580,9 @@ impl<'a> Visitor for Typechecker<'a> {
             StaticItem(_, ref t, ref e, _) => {
                 let ty = self.type_to_ty(t);
 
-                match *e {
-                    Some(ref e) => {
-                        let e_ty = self.expr_to_ty(e);
-                        self.unify_with_cause(item.id, InvalidPatBinding, ty, e_ty);
-                    }
-                    None => {}
+                if let Some(ref e) = *e {
+                    let e_ty = self.expr_to_ty(e);
+                    self.unify_with_cause(item.id, InvalidPatBinding, ty, e_ty);
                 }
             }
             ConstItem(_, ref t, ref e) => {
@@ -1608,7 +1592,7 @@ impl<'a> Visitor for Typechecker<'a> {
             }
             TypeItem(_, ref t, ref tps) => {
                 let mut gs = BTreeMap::new();
-                for tp in tps.iter() {
+                for tp in tps {
                     gs.insert(tp.id, UnitTy.with_id_of(tp));
                 }
 
@@ -1617,14 +1601,14 @@ impl<'a> Visitor for Typechecker<'a> {
                 })
             }
             EnumItem(_, ref vs, ref tps) => {
-                for v in vs.iter() {
+                for v in vs {
                     let mut gs = BTreeMap::new();
-                    for tp in tps.iter() {
+                    for tp in tps {
                         gs.insert(tp.id, UnitTy.with_id_of(tp));
                     }
 
                     self.with_generics(gs, |me| {
-                        for t in v.args.iter() {
+                        for t in &v.args {
                             me.visit_type(t);
                         }
                     })

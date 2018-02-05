@@ -26,7 +26,7 @@ pub struct IRTarget {
 fn is_function(global_map: &BTreeMap<VarName, StaticIRItem>,
                v: &Var) -> bool {
     match global_map.get(&v.name) {
-        Some(ref i) => i.is_func,
+        Some(i) => i.is_func,
         None => false
     }
 }
@@ -43,9 +43,9 @@ fn print_var(global_map: &BTreeMap<VarName, StaticIRItem>,
                         if global_map.get(&v.name).is_none() {
                             format!("_{}", g)
                         } else {
-                            format!("")
+                            "".to_string()
                         },
-                    _ => format!(""),
+                    _ => "".to_string(),
                 }
         )
     }
@@ -66,9 +66,9 @@ fn print_rvalelem(global_map: &BTreeMap<VarName, StaticIRItem>,
         Constant(ref l) => {
             match *l {
                 NumLit(n, _) => format!("{}", n as u32),
-                NullLit => format!("NULL"),
-                BoolLit(true) => format!("1"),
-                BoolLit(false) => format!("0"),
+                NullLit => "NULL".to_string(),
+                BoolLit(true) => "1".to_string(),
+                BoolLit(false) => "0".to_string(),
                 StringLit(ref s) => {
                     let parts: Vec<String> = (&s[..]).bytes()
                         .map(|b: u8|format!("\\x{:02x}", b))
@@ -86,18 +86,17 @@ fn assign_vars(global_map: &BTreeMap<VarName, StaticIRItem>,
     let mut s = "".to_string();
     for var in vars.iter() {
         let new_var = Var {
-            name: var.name.clone(),
+            name: var.name,
             generation: Some(*label.get(&var.name).unwrap())
         };
         match global_map.get(&var.name) {
             // We don't want to do assignments when global functions are
             // involved.
-            Some(ref i) if i.is_func => {},
+            Some(i) if i.is_func => {},
             _ =>
-                s = s +
-                    &format!("  {} = {};\n",
-                            print_var(global_map, &new_var),
-                            print_var(global_map, var))[..],
+                s += &format!("  {} = {};\n",
+                              print_var(global_map, &new_var),
+                              print_var(global_map, var))[..],
         }
     }
     s
@@ -105,7 +104,7 @@ fn assign_vars(global_map: &BTreeMap<VarName, StaticIRItem>,
 
 impl IRTarget {
     fn convert_function(&self,
-                        ops: &Vec<Op>,
+                        ops: &[Op],
                         global_map: &BTreeMap<VarName, StaticIRItem>) -> String {
         // If this is the case, it's an extern. We don't want to emit it.
         if ops.len() <= 1 { return "".to_string() }
@@ -118,30 +117,26 @@ impl IRTarget {
         // that are defined anywhere, except in the very first instruction
         // (which must be a function definition instruction).
         for op in opinfo.iter().skip(1) {
-            for var in op.def.iter() {
+            for var in &op.def {
                 vars.insert(var);
             }
         }
         // TODO: This is a hack, until "return" takes an option.
         for op in ops.iter() {
-            match op.val {
-                OpNode::Return { retval: Some(Variable(ref v)) } => { vars.insert(v); },
-                _ => {}
+            if let OpNode::Return { retval: Some(Variable(ref v)) } = op.val {
+                vars.insert(v);
             }
         }
 
         // Find out which variables are used at each label.
         for op in ops.iter() {
-            match op.val {
-                OpNode::Label { label_idx: ref idx, ref vars } => {
-                    let mut varmap: BTreeMap<VarName, usize> = BTreeMap::new();
-                    for var in vars.iter() {
-                        varmap.insert(var.name.clone(),
-                                      var.generation.unwrap());
-                    }
-                    labels.insert(*idx, varmap);
+            if let OpNode::Label { label_idx: ref idx, ref vars } = op.val {
+                let mut varmap: BTreeMap<VarName, usize> = BTreeMap::new();
+                for var in vars.iter() {
+                    varmap.insert(var.name,
+                                  var.generation.unwrap());
                 }
-                _ => {}
+                labels.insert(*idx, varmap);
             }
         }
 
@@ -151,7 +146,7 @@ impl IRTarget {
         for op in ops.iter() {
             match op.val {
                 OpNode::Nop {} => {},
-                _ => s = s + &format!("  // {}", op)[..]
+                _ => s += &format!("  // {}", op)[..]
             }
             s = s + &(match op.val {
                 OpNode::BinOp { target: ref v, ref op, lhs: ref rv1, rhs: ref rv2, signed } => {
@@ -225,8 +220,8 @@ impl IRTarget {
                     let list: Vec<String> = args.iter()
                         .map(|arg| print_var(global_map, arg)
                              ).collect();
-                    s = s + &list.join(", ")[..];
-                    s = s + ");\n";
+                    s += &list.join(", ")[..];
+                    s += ");\n";
                     s
                 },
                 OpNode::Load { target: ref l, addr: ref r, width: ref size } => {
@@ -251,7 +246,7 @@ impl IRTarget {
                             print_var(global_map, l),
                             print_var(global_map, r))
                 },
-                OpNode::Nop {} => format!(""),
+                OpNode::Nop {} => "".to_string(),
                 OpNode::Label { label_idx: ref l, .. } => {
                     // TODO: correct assignments of variables in labels and
                     // gotos.
@@ -260,7 +255,7 @@ impl IRTarget {
                 OpNode::Goto { label_idx: ref l, ref vars } => {
                     format!("{}  goto LABEL{};\n",
                             assign_vars(global_map,
-                                        labels.get(l).unwrap(),
+                                        &labels[l],
                                         vars),
                             l)
                 },
@@ -269,7 +264,7 @@ impl IRTarget {
                             if *negated { "!" } else { "" },
                             print_rvalelem(global_map, rve),
                             assign_vars(global_map,
-                                        labels.get(l).unwrap(),
+                                        &labels[l],
                                         vars),
                             l)
                 },
@@ -278,19 +273,19 @@ impl IRTarget {
                                                              rve))
                 },
                 OpNode::Return { retval: None } => {
-                    format!("  return;\n")
+                    "  return;\n".to_string()
                 }
                 OpNode::Func { ref name, ref args, .. } => {
                     let mapped_args: Vec<String> = args.iter()
                         .map(|arg| format!("long {}", print_var(global_map,
                                                                 arg)))
                         .collect();
-                    let mut s = format!("");
-                    for var in vars.iter() {
+                    let mut s = "".to_string();
+                    for var in &vars {
                         if global_map.get(&var.name).is_none() {
-                            s = s + &format!("  long {};\n",
-                                         print_var(global_map,
-                                                   *var))[..];
+                            s += &format!("  long {};\n",
+                                          print_var(global_map,
+                                                    *var))[..];
                         }
                     }
 
@@ -312,11 +307,11 @@ impl IRTarget {
 }
 
 impl MkTarget for IRTarget {
-    fn new(args: &Vec<(String, Option<String>)>) -> Box<IRTarget> {
+    fn new(args: &[(String, Option<String>)]) -> Box<IRTarget> {
         let mut verbose = false;
         for arg in args.iter() {
-            if arg.0 == "verbose".to_string() {
-                print!("Enabling verbose mode.\n");
+            if arg.0 == "verbose" {
+                println!("Enabling verbose mode.");
                 verbose = true;
             }
         }
@@ -349,7 +344,7 @@ impl Target for IRTarget {
         };
 
         if self.verbose {
-            for res in result.iter() {
+            for res in &result {
                 print!("{:?}\n\n", res);
             }
         }
@@ -395,25 +390,22 @@ impl Target for IRTarget {
         result.push(global_initializer);
 
         // Print function prototypes.
-        for insts in result.iter() {
-            for inst in insts.iter() {
-                match inst.val {
-                    OpNode::Func { ref name, ref abi, .. } => {
-                        write!(f, "{}long {}();\n",
-                               match *abi {
-                                   Some(_) => format!("extern "),
-                                   _ => "".to_string()
-                               },
-                               name.base_name());
-                    },
-                    _ => {}
+        for insts in &result {
+            for inst in insts {
+                if let OpNode::Func { ref name, ref abi, .. } = inst.val {
+                    write!(f, "{}long {}();\n",
+                           match *abi {
+                               Some(_) => "extern ".to_string(),
+                               _ => "".to_string()
+                           },
+                           name.base_name());
                 }
             }
         }
 
 
         // Print global definitions.
-        for (_, item) in global_map.iter() {
+        for item in global_map.values() {
             if !item.is_func {
                 if item.is_ref {
                     writeln!(f, "char {}[{}];", item.name.canonical_name(), item.size);
@@ -427,7 +419,7 @@ impl Target for IRTarget {
         let mut fold_time: u64 = 0;
         let mut convert_time: u64 = 0;
 
-        for insts in result.iter_mut() {
+        for insts in &mut result {
             let start = precise_time_ns();
             ToSSA::to_ssa(insts, self.verbose);
             let end = precise_time_ns();
@@ -445,7 +437,7 @@ impl Target for IRTarget {
                 for inst in insts.iter() {
                     write!(f, "{}", inst);
                 }
-                for a in LivenessAnalyzer::analyze(insts).iter() {
+                for a in &LivenessAnalyzer::analyze(insts) {
                     write!(f, "{:?}\n", a);
                 }
             }

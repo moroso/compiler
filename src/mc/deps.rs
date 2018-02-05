@@ -5,7 +5,7 @@ use std::io::prelude::*;
 use package::Package;
 
 // Should live somewhere else.
-pub fn output_deps(package: &Package, target: &String) {
+pub fn output_deps(package: &Package, target: &str) {
     let set = package.session.parser.get_all_filenames();
     let vec: Vec<String> =
         set.iter().

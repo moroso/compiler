@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 // This is a bit too similar to the mangler. I should get rid of the mangler.
 
+#[derive(Default)]
 pub struct PathMap {
     table: BTreeMap<NodeId, Vec<String>>,
 }

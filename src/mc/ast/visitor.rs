@@ -22,29 +22,29 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
     match item.val {
         FuncItem(ref id, ref args, ref t, ref def, ref tps) => {
             visitor.visit_ident(id);
-            for arg in args.iter() { visitor.visit_func_arg(arg); }
+            for arg in args { visitor.visit_func_arg(arg); }
             visitor.visit_type(t);
             match *def {
                 LocalFn(ref block) |
                 ExternFn(_, Some(ref block)) => visitor.visit_block(block),
                 _ => {}
             }
-            for id in tps.iter() { visitor.visit_ident(id); }
+            for id in tps { visitor.visit_ident(id); }
         },
         StructItem(ref id, ref fields, ref tps) => {
             visitor.visit_ident(id);
-            for field in fields.iter() { visitor.visit_struct_field(field); }
-            for id in tps.iter() { visitor.visit_ident(id); }
+            for field in fields { visitor.visit_struct_field(field); }
+            for id in tps { visitor.visit_ident(id); }
         },
         EnumItem(ref id, ref variants, ref tps) => {
             visitor.visit_ident(id);
-            for variant in variants.iter() { visitor.visit_variant(variant); }
-            for id in tps.iter() { visitor.visit_ident(id); }
+            for variant in variants { visitor.visit_variant(variant); }
+            for id in tps { visitor.visit_ident(id); }
         },
         TypeItem(ref id, ref ty, ref tps) => {
             visitor.visit_ident(id);
             visitor.visit_type(ty);
-            for id in tps.iter() { visitor.visit_ident(id); }
+            for id in tps { visitor.visit_ident(id); }
         },
         ModItem(ref ident, ref module) => {
             visitor.visit_ident(ident);
@@ -53,7 +53,7 @@ pub fn walk_item<T: Visitor>(visitor: &mut T, item: &Item) {
         StaticItem(ref ident, ref ty, ref expr, _) => {
             visitor.visit_ident(ident);
             visitor.visit_type(ty);
-            for e in expr.iter() { visitor.visit_expr(e); }
+            for e in expr { visitor.visit_expr(e); }
         }
         ConstItem(ref ident, ref ty, ref expr) => {
             visitor.visit_ident(ident);
@@ -76,7 +76,7 @@ pub fn walk_type<T: Visitor>(visitor: &mut T, t: &Type) {
             visitor.visit_path(p);
         }
         FuncType(ref d, ref r) => {
-            for a in d.iter() { visitor.visit_type(a); }
+            for a in d { visitor.visit_type(a); }
             visitor.visit_type(&**r);
         }
         ArrayType(ref a, ref d) => {
@@ -84,7 +84,7 @@ pub fn walk_type<T: Visitor>(visitor: &mut T, t: &Type) {
             visitor.visit_expr(&**d);
         }
         TupleType(ref ts) => {
-            for t in ts.iter() { visitor.visit_type(t); }
+            for t in ts { visitor.visit_type(t); }
         }
         BoolType | UnitType | DivergingType | IntType(..) => {}
     }
@@ -92,27 +92,27 @@ pub fn walk_type<T: Visitor>(visitor: &mut T, t: &Type) {
 
 pub fn walk_pat<T: Visitor>(visitor: &mut T, pat: &Pat) {
     match pat.val {
-        DiscardPat(ref t) => {
-            for t in t.iter() { visitor.visit_type(t); }
+        DiscardPat(ref ts) => {
+            for t in ts { visitor.visit_type(t); }
         }
-        IdentPat(ref id, ref t) => {
+        IdentPat(ref id, ref ts) => {
             visitor.visit_ident(id);
-            for t in t.iter() { visitor.visit_type(t); }
+            for t in ts { visitor.visit_type(t); }
         }
         TuplePat(ref pats) => {
-            for pat in pats.iter() {
+            for pat in pats {
                 visitor.visit_pat(pat);
             }
         }
         VariantPat(ref path, ref pats) => {
             visitor.visit_path(path);
-            for pat in pats.iter() {
+            for pat in pats {
                 visitor.visit_pat(pat);
             }
         }
         StructPat(ref path, ref field_pats) => {
             visitor.visit_path(path);
-            for field_pat in field_pats.iter() {
+            for field_pat in field_pats {
                 visitor.visit_pat(&field_pat.pat);
             }
         }
@@ -121,7 +121,7 @@ pub fn walk_pat<T: Visitor>(visitor: &mut T, pat: &Pat) {
 
 pub fn walk_variant<T: Visitor>(visitor: &mut T, variant: &Variant) {
     visitor.visit_ident(&variant.ident);
-    for arg in variant.args.iter() {
+    for arg in &variant.args {
         visitor.visit_type(arg);
     }
 }
@@ -136,16 +136,16 @@ pub fn walk_func_arg<T: Visitor>(visitor: &mut T, arg: &FuncArg) {
 }
 
 pub fn walk_block<T: Visitor>(visitor: &mut T, block: &Block) {
-    for item in block.val.items.iter() { visitor.visit_item(item); }
-    for stmt in block.val.stmts.iter() { visitor.visit_stmt(stmt); }
-    for expr in block.val.expr.iter()  { visitor.visit_expr(expr); }
+    for item in &block.val.items { visitor.visit_item(item); }
+    for stmt in &block.val.stmts { visitor.visit_stmt(stmt); }
+    for expr in &block.val.expr  { visitor.visit_expr(expr); }
 }
 
 pub fn walk_stmt<T: Visitor>(visitor: &mut T, stmt: &Stmt) {
     match stmt.val {
-        LetStmt(ref pat, ref e) => {
+        LetStmt(ref pat, ref es) => {
             visitor.visit_pat(pat);
-            for e in e.iter() { visitor.visit_expr(e); }
+            for e in es { visitor.visit_expr(e); }
         }
         ExprStmt(ref e) => {
             visitor.visit_expr(e);
@@ -166,7 +166,7 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
             visitor.visit_type(t);
         }
         TupleExpr(ref es) => {
-            for e in es.iter() { visitor.visit_expr(e); }
+            for e in es { visitor.visit_expr(e); }
         }
         GroupExpr(ref e) => {
             visitor.visit_expr(&**e);
@@ -176,7 +176,7 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
         }
         StructExpr(ref p, ref flds) => {
             visitor.visit_path(p);
-            for fld in flds.iter() {
+            for fld in flds {
                 visitor.visit_expr(&fld.1);
             }
         }
@@ -202,11 +202,11 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
             visitor.visit_expr(&**rv);
         }
         ArrayExpr(ref elems) => {
-            for elem in elems.iter() { visitor.visit_expr(elem); }
+            for elem in elems { visitor.visit_expr(elem); }
         }
         CallExpr(ref f, ref args) => {
             visitor.visit_expr(&**f);
-            for arg in args.iter() { visitor.visit_expr(arg); }
+            for arg in args { visitor.visit_expr(arg); }
         }
         CastExpr(ref e, ref t) => {
             visitor.visit_expr(&**e);
@@ -238,7 +238,7 @@ pub fn walk_expr<T: Visitor>(visitor: &mut T, expr: &Expr) {
         }
         MatchExpr(ref e, ref arms) => {
             visitor.visit_expr(&**e);
-            for arm in arms.iter() {
+            for arm in arms {
                 visitor.visit_match_arm(arm);
             }
         }
@@ -259,25 +259,25 @@ pub fn walk_lit<T: Visitor>(_: &T, lit: &Lit) {
 }
 
 pub fn walk_ident<T: Visitor>(visitor: &mut T, ident: &Ident) {
-    for tps in ident.val.tps.iter() {
-        for tp in tps.iter() { visitor.visit_type(tp); }
+    for tps in &ident.val.tps {
+        for tp in tps { visitor.visit_type(tp); }
     }
 }
 
 pub fn walk_path<T: Visitor>(visitor: &mut T, path: &Path) {
-    for elem in path.val.elems.iter() {
+    for elem in &path.val.elems {
         visitor.visit_ident(elem);
     }
 }
 
 pub fn walk_import<T: Visitor>(visitor: &mut T, path: &Import) {
-    for elem in path.val.elems.iter() {
+    for elem in &path.val.elems {
         visitor.visit_ident(elem);
     }
     match path.val.import {
         ImportAll => {}
         ImportNames(ref v) => {
-            for elem in v.iter() {
+            for elem in v {
                 visitor.visit_ident(elem);
             }
         }
@@ -285,5 +285,5 @@ pub fn walk_import<T: Visitor>(visitor: &mut T, path: &Import) {
 }
 
 pub fn walk_module<T: Visitor>(visitor: &mut T, module: &Module) {
-    for item in module.val.items.iter() { visitor.visit_item(item); }
+    for item in &module.val.items { visitor.visit_item(item); }
 }

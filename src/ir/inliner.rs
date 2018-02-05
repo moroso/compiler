@@ -10,7 +10,7 @@ fn renumber_label(label: usize, label_map: &mut BTreeMap<usize, usize>, label_id
     *label_map.entry(label).or_insert_with(|| { let temp = *label_id; *label_id += 1; temp })
 }
 
-fn func_name(func: &Vec<Op>) -> &VarName {
+fn func_name(func: &[Op]) -> &VarName {
     if let OpNode::Func { ref name, .. } = func[0].val {
         name
     } else {
@@ -18,7 +18,7 @@ fn func_name(func: &Vec<Op>) -> &VarName {
     }
 }
 
-fn is_extern(func: &Vec<Op>) -> bool {
+fn is_extern(func: &[Op]) -> bool {
     match func[0].val {
         OpNode::Func { abi: None, .. } => false,
         OpNode::Func { .. } => true,
@@ -26,12 +26,12 @@ fn is_extern(func: &Vec<Op>) -> bool {
     }
 }
 
-fn func_name_str(func: &Vec<Op>) -> String {
+fn func_name_str(func: &[Op]) -> String {
     format!("{}", func_name(func).base_name())
 }
 
-fn func_refs(func: &Vec<Op>) -> (BTreeMap<VarName, usize>, BTreeSet<VarName>,
-                                 BTreeSet<String>) {
+fn func_refs(func: &[Op]) -> (BTreeMap<VarName, usize>, BTreeSet<VarName>,
+                              BTreeSet<String>) {
     // Returns all functions that are called (with call counts), and all functions that
     // are referenced by the given function, and all functions that are referenced within
     // asm.
@@ -55,11 +55,8 @@ fn func_refs(func: &Vec<Op>) -> (BTreeMap<VarName, usize>, BTreeSet<VarName>,
             OpNode::AsmOp { ref insts } => {
                 for packet in insts.iter() {
                     for inst in packet.iter() {
-                        match *inst {
-                            InstNode::BranchImmInst(_, _, JumpTarget::JumpLabel(ref s)) => {
-                                asm_refs.insert(s.clone());
-                            }
-                            _ => {},
+                        if let InstNode::BranchImmInst(_, _, JumpTarget::JumpLabel(ref s)) = *inst {
+                            asm_refs.insert(s.clone());
                         }
                     }
                 }
@@ -90,7 +87,7 @@ fn find_transitive_calls(calls: BTreeMap<VarName, BTreeSet<VarName>>
             let orig_len = func_calls.len();
             let mut new_calls: BTreeSet<VarName> = BTreeSet::new();
             for called_func in func_calls.iter() {
-                new_calls.extend(calls.get(called_func).clone().unwrap_or(&BTreeSet::new()));
+                new_calls.extend(calls.get(called_func).unwrap_or(&BTreeSet::new()));
             }
             func_calls.extend(new_calls);
 
@@ -104,7 +101,7 @@ fn find_transitive_calls(calls: BTreeMap<VarName, BTreeSet<VarName>>
 }
 
 
-fn inline_func(parent: &mut Vec<Op>, child: &Vec<Op>, label_id: &mut usize,
+fn inline_func(parent: &mut Vec<Op>, child: &[Op], label_id: &mut usize,
                call_counts: &mut BTreeMap<VarName, usize>) {
     // Perform the actual inlining. Inline "child" anywhere it's called in "parent".
     // call_counts will be updated during this process.
@@ -116,7 +113,7 @@ fn inline_func(parent: &mut Vec<Op>, child: &Vec<Op>, label_id: &mut usize,
 
     let mut result = vec!();
 
-    for op in parent.into_iter() {
+    for op in parent.iter() {
         match op.val {
             OpNode::Call { target: ref v_opt, func: RValueElem::Variable(ref funcname), args: ref vars }
                 if funcname.name == *child_name => {
@@ -142,14 +139,12 @@ fn inline_func(parent: &mut Vec<Op>, child: &Vec<Op>, label_id: &mut usize,
                     for child_op in child.iter().skip(1) {
                         match child_op.val {
                             OpNode::Return { retval: Some(ref rve) } => {
-                                match *v_opt {
-                                    Some(v) =>
-                                        result.push(OpNode::UnOp {
-                                            target: v,
-                                            op: UnOpNode::Identity,
-                                            operand: rve.clone()
-                                        }.with_id(child_op.id)),
-                                    None => {},
+                                if let Some(v) = *v_opt {
+                                    result.push(OpNode::UnOp {
+                                        target: v,
+                                        op: UnOpNode::Identity,
+                                        operand: rve.clone()
+                                    }.with_id(child_op.id));
                                 }
                                 result.push(OpNode::Goto { label_idx: end_label, vars: BTreeSet::new() }
                                             .with_id(child_op.id));
@@ -199,15 +194,12 @@ fn inline_func(parent: &mut Vec<Op>, child: &Vec<Op>, label_id: &mut usize,
     *parent = result;
 }
 
-fn remove_calls(func: &Vec<Op>, call_counts: &mut BTreeMap<VarName, usize>) {
+fn remove_calls(func: &[Op], call_counts: &mut BTreeMap<VarName, usize>) {
     // Remove all calls in "func" from the call counts.
 
-    for op in func.iter() {
-        match op.val {
-            OpNode::Call { func: RValueElem::Variable(ref v), .. } => {
-                *call_counts.entry(v.name).or_insert(0) -= 1;
-            },
-            _ => {}
+    for op in func {
+        if let OpNode::Call { func: RValueElem::Variable(ref v), .. } = op.val {
+            *call_counts.entry(v.name).or_insert(0) -= 1;
         }
     }
 }
@@ -215,7 +207,7 @@ fn remove_calls(func: &Vec<Op>, call_counts: &mut BTreeMap<VarName, usize>) {
 impl Inliner {
     pub fn inline(funcs: &mut Vec<(Vec<Op>)>, mut next_label: usize, verbose: bool) {
         if verbose {
-            print!("Starting inline\n");
+            println!("Starting inline");
         }
         let mut call_counts: BTreeMap<VarName, usize> = BTreeMap::new();
         let mut calls: BTreeMap<VarName, BTreeSet<VarName>> = BTreeMap::new();
@@ -229,7 +221,7 @@ impl Inliner {
 
             for (f, count) in thisfunc_calls {
                 *call_counts.entry(f).or_insert(0) += count;
-                calls.entry(*this_funcname).or_insert(BTreeSet::new()).insert(f);
+                calls.entry(*this_funcname).or_insert_with(BTreeSet::new).insert(f);
             }
 
             refs.extend(thisfunc_refs.into_iter());
@@ -269,7 +261,7 @@ impl Inliner {
                 continue;
             }
 
-            if func_name_str(oplist) == "__main".to_string() {
+            if func_name_str(oplist) == "__main" {
                 continue;
             }
 
@@ -277,9 +269,9 @@ impl Inliner {
         }
 
         for func_idx_to_inline in funcs_to_inline {
-            let child_func_name = func_name(&funcs[func_idx_to_inline]).clone();
+            let child_func_name = *func_name(&funcs[func_idx_to_inline]);
             let child_func_name_str = func_name_str(&funcs[func_idx_to_inline]);
-            let count = call_counts.get(&child_func_name).map(|x| *x).unwrap_or(0);
+            let count = call_counts.get(&child_func_name).cloned().unwrap_or(0);
             let len = funcs[func_idx_to_inline].len();
 
             // This heuristic ensures a few things:
@@ -315,7 +307,7 @@ impl Inliner {
         }
 
         // Remove any functions that were eliminated entirely.
-        let new_funcs = funcs.drain(..).filter(|x| x.len() > 0).collect();
+        let new_funcs = funcs.drain(..).filter(|x| !x.is_empty()).collect();
         *funcs = new_funcs;
     }
 }

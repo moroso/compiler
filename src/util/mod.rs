@@ -18,7 +18,7 @@ pub unsafe fn copy_lifetime<'a, S: ?Sized, T: ?Sized + 'a>(_ptr: &'a S,
 }
 
 /// Converts a pointer to A into a slice of length 1 (without copying).
-pub fn ref_slice<'a, A>(s: &'a A) -> &'a [A] {
+pub fn ref_slice<A>(s: &A) -> &[A] {
     use std::slice::from_raw_parts;
     unsafe {
         from_raw_parts(s, 1)

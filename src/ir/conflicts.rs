@@ -12,8 +12,8 @@ impl ConflictAnalyzer {
     /// Also return a list of variables that must be in memory rather than
     /// in registers, because they are referenced.
     /// Assumes the IR is already in SSA form.
-    pub fn conflicts(ops: &Vec<Op>,
-                     opinfo: &Vec<OpInfo>
+    pub fn conflicts(ops: &[Op],
+                     opinfo: &[OpInfo]
                      ) -> (BTreeMap<Var, BTreeSet<Var>>,
                            BTreeMap<Var, u32>,
                            BTreeMap<Var, RegisterColor>,
@@ -41,9 +41,8 @@ impl ConflictAnalyzer {
                         must_colors.insert(*arg,
                                            RegColor(Reg { index: i as u8 }));
                     }
-                    match *v_opt {
-                        Some(ref v) => { must_colors.insert(*v, RegColor(Reg { index: 0 as u8 })); }
-                        _ => {},
+                    if let Some(ref v) = *v_opt {
+                        must_colors.insert(*v, RegColor(Reg { index: 0 as u8 }));
                     }
                 },
                 OpNode::Func { ref args, ref abi, .. } => {
@@ -64,9 +63,9 @@ impl ConflictAnalyzer {
             }
         }
 
-        for info in opinfo.iter() {
-            for var1 in info.live.iter() {
-                for var2 in info.live.iter() {
+        for info in opinfo {
+            for var1 in &info.live {
+                for var2 in &info.live {
                     if var1 != var2 {
                         if !conflict_map.contains_key(var1) {
                             conflict_map.insert(*var1, BTreeSet::<Var>::new());
@@ -84,10 +83,10 @@ impl ConflictAnalyzer {
             // If we define a variable somewhere, it conflicts with
             // all variables that are live in instructions immediately
             // following it.
-            for succ in info.succ.iter() {
-                let ref succinfo = opinfo[*succ];
-                for var1 in succinfo.live.iter() {
-                    for var2 in info.def.iter() {
+            for succ in &info.succ {
+                let succinfo = &opinfo[*succ];
+                for var1 in &succinfo.live {
+                    for var2 in &info.def {
                         if var1 != var2 {
                             if !conflict_map.contains_key(var1) {
                                 conflict_map.insert(*var1, BTreeSet::<Var>::new());

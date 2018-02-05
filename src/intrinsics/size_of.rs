@@ -16,7 +16,7 @@ pub fn alignment(size: u64) -> u64 {
 
 fn struct_field_sizes(session: &Session,
                       typemap: &Typemap,
-                      fields: &Vec<(Name, Type)>) -> Vec<(Name, u64)> {
+                      fields: &[(Name, Type)]) -> Vec<(Name, u64)> {
     fields.iter()
         .map(|&(n, ref t)| (n, size_of_ty(session,
                                           typemap,
@@ -36,8 +36,7 @@ pub fn offset_of_struct_field(session: &Session,
             let names_and_sizes = struct_field_sizes(session, typemap, fields);
             let (names, sizes): (Vec<Name>, Vec<u64>) = Iterator::unzip(names_and_sizes.into_iter());
 
-            for i in 0 .. sizes.len()
-            {
+            for i in 0 .. sizes.len() {
                 if names[i] == *field {
                     return offset_of(&sizes, i);
                 }
@@ -53,7 +52,7 @@ pub fn size_of_def(session: &Session, typemap: &Typemap, node: &NodeId) -> u64 {
 
     match *def {
         Def::StructDef(_, ref fields, _) => {
-            let sizes = struct_field_sizes(session, typemap, fields).iter()
+            let sizes: Vec<_> = struct_field_sizes(session, typemap, fields).iter()
                 .map(|&(_, y)| y).collect();
             packed_size(&sizes)
         },
@@ -63,11 +62,11 @@ pub fn size_of_def(session: &Session, typemap: &Typemap, node: &NodeId) -> u64 {
             if max_variant_size == 0 {
                 ENUM_TAG_SIZE
             } else {
-                packed_size(&vec!(ENUM_TAG_SIZE, max_variant_size))
+                packed_size(&[ENUM_TAG_SIZE, max_variant_size])
             }
         },
         Def::VariantDef(_, _, ref types) => {
-            let sizes = types.iter()
+            let sizes: Vec<_> = types.iter()
                 .map(|t| size_of_ty(session,
                                     typemap,
                                     &typemap.types[&t.id]))
@@ -93,14 +92,15 @@ pub fn size_of_ty(session: &Session, typemap: &Typemap, ty: &Ty) -> u64 {
         FuncTy(..) => 4,
         UnitTy => 0,
         ArrayTy(ref t, ref l) =>
-            packed_size(&vec!(size_of_ty(session,
-                                         typemap,
-                                         &t.val))) * l.unwrap(),
-        TupleTy(ref tys) =>
-            packed_size(
-                &tys.iter().map(|t| size_of_ty(session,
-                                               typemap,
-                                               &t.val)).collect()),
+            packed_size(&[size_of_ty(session,
+                                     typemap,
+                                     &t.val)]) * l.unwrap(),
+        TupleTy(ref tys) => {
+            let sizes: Vec<_> = tys.iter().map(|t| size_of_ty(session,
+                                                              typemap,
+                                                              &t.val)).collect();
+            packed_size(&sizes)
+        },
         BoundTy(..) |
         BottomTy => panic!("Type {} should not be appearing here.", ty),
         EnumTy(ref id, _, _) |
@@ -133,7 +133,7 @@ fn increment_of(size_so_far: u64, size: u64) -> u64 {
 
 /// Return the total size, including padding for alignment, of a structure
 /// whose members have the sizes given by the `sizes` vector.
-pub fn packed_size(sizes: &Vec<u64>) -> u64 {
+pub fn packed_size(sizes: &[u64]) -> u64 {
     let mut size_so_far = 0;
     for size in sizes.iter() {
         size_so_far += increment_of(size_so_far, *size);
@@ -142,7 +142,7 @@ pub fn packed_size(sizes: &Vec<u64>) -> u64 {
     size_so_far
 }
 
-pub fn offset_of(sizes: &Vec<u64>, item: usize) -> u64 {
+pub fn offset_of(sizes: &[u64], item: usize) -> u64 {
     let mut size_so_far = 0;
     for size in sizes.iter().take(item) {
         size_so_far += increment_of(size_so_far, *size);

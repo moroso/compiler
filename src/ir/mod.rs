@@ -73,7 +73,7 @@ impl VarName {
 
     pub fn base_name(&self) -> String {
         match *self {
-            VarName::NamedVariable(name, _) => format!("{}", name),
+            VarName::NamedVariable(name, _) |
             VarName::MangledVariable(name) => format!("{}", name),
             VarName::IRTempVariable(idx) => format!("TEMP{}", idx),
             VarName::OptTempVariable(idx) => format!("OPT_TEMP{}", idx),

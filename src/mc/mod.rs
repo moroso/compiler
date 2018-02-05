@@ -7,7 +7,6 @@ use getopts;
 use getopts::Options as Getopts;
 use std::io::{BufReader, Write};
 use std::fs::File;
-use std::ascii::AsciiExt;
 
 use std::io;
 use std::env;
@@ -23,7 +22,7 @@ pub mod deps;
 
 struct NullTarget;
 impl MkTarget for NullTarget {
-    fn new(_: &Vec<(String, Option<String>)>) -> Box<NullTarget> { Box::new(NullTarget) }
+    fn new(_: &[(String, Option<String>)]) -> Box<NullTarget> { Box::new(NullTarget) }
 }
 impl Target for NullTarget {
     fn compile(&self, _: Package, _: &mut Write) { }
@@ -33,7 +32,7 @@ fn package_from_stdin<'a>(opts: Options) -> Package<'a> {
     Package::from_buffer(opts, "<stdin>", BufReader::new(io::stdin()))
 }
 
-fn new_target<T: MkTarget>(args: &Vec<(String, Option<String>)>) -> Box<T> {
+fn new_target<T: MkTarget>(args: &[(String, Option<String>)]) -> Box<T> {
     MkTarget::new(args)
 }
 
@@ -73,8 +72,8 @@ pub fn setup_builtin_search_paths(opts: &mut Options) {
 
 fn parse_search_paths(opts: &mut Options, matches: &getopts::Matches) -> bool {
     // Pull libraries out of the command line
-    for string in matches.opt_strs("lib").into_iter() {
-        let parts: Vec<&str> = string.split(":").collect();
+    for string in matches.opt_strs("lib") {
+        let parts: Vec<&str> = string.split(':').collect();
         if parts.len() != 2 { return false }
         let (module, file) = (parts[0], parts[1]);
         opts.search_paths.insert(module.to_string(), Path::new(file).to_path_buf());
@@ -146,24 +145,24 @@ pub fn main() {
 
     let mut opts = vec!();
 
-    for opt in vec!("verbose", "disable_scheduler", "disable_inliner").into_iter() {
+    for opt in &["verbose", "disable_scheduler", "disable_inliner"] {
         let val = matches.opt_present(opt);
         if val {
             opts.push((opt.to_string(), None));
         }
     }
 
-    for opt in vec!("list", "format", "code_start", "stack_start", "global_start",
-                    "debug", "mul_func", "div_func", "mod_func").into_iter() {
+    for opt in &["list", "format", "code_start", "stack_start", "global_start",
+                    "debug", "mul_func", "div_func", "mod_func"] {
         let val = matches.opt_str(opt);
         if val.is_some() {
             opts.push((opt.to_string(), val));
         }
     }
 
-    let target_arg = matches.opt_str("target").unwrap_or("null".to_string());
+    let target_arg = matches.opt_str("target").unwrap_or_else(|| "null".to_string());
     let target = match targets.into_iter()
-                        .filter(|&(ref t, _)| t.eq_ignore_ascii_case(&target_arg[..]))
+                        .filter(|&(t, _)| t.eq_ignore_ascii_case(&target_arg[..]))
                         .map(|(_, ctor)| ctor(&opts))
                         .next()
     {
@@ -184,7 +183,7 @@ pub fn main() {
         options.include_prelude = false;
     }
 
-    let name = if matches.free.len() == 0 {
+    let name = if matches.free.is_empty() {
         "-"
     } else if matches.free.len() == 1 {
         &matches.free[0][..]
@@ -214,7 +213,7 @@ pub fn main() {
     };
 
     if matches.opt_present("dep-files") {
-        let target = matches.opt_str("output").unwrap_or(format!("-"));
+        let target = matches.opt_str("output").unwrap_or_else(|| "-".to_string());
         deps::output_deps(&package, &target);
     }
 

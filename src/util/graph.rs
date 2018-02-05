@@ -67,11 +67,11 @@ impl<V, E> Graph<V, E> {
         }
     }
 
-    pub fn node_data<'a>(&'a self, id: VertexIndex) -> &'a V {
+    pub fn node_data(&self, id: VertexIndex) -> &V {
         &self.vertices[id.node_id()].data
     }
 
-    pub fn all_nodes<'a>(&'a self) -> &'a [Vertex<V>] {
+    pub fn all_nodes(&self) -> &[Vertex<V>] {
         &self.vertices
     }
 

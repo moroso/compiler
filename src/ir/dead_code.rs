@@ -19,10 +19,7 @@ impl DeadCodeEliminator {
 
         for op in insts.iter() {
             // DCE fails pretty badly with asm operations. We won't even attempt to do anything.
-            match op.val {
-                OpNode::AsmOp { .. } => { return; }
-                _ => {}
-            }
+            if let OpNode::AsmOp { .. } = op.val { return; }
         }
 
         if verbose {
@@ -43,7 +40,7 @@ impl DeadCodeEliminator {
         while changed {
             changed = false;
             for (pos, op) in insts.iter_mut().enumerate().skip(1) {
-                if predecessors[pos].len() == 0 {
+                if predecessors[pos].is_empty() {
                     match op.val {
                         OpNode::Nop {} => {},
                         _ => {
@@ -80,7 +77,7 @@ impl DeadCodeEliminator {
                             }
                         }
                     }
-                    for successor in successors[pos].iter() {
+                    for successor in &successors[pos] {
                         let res = predecessors[*successor].remove(&pos);
                         assert!(res);
                         changed = true;

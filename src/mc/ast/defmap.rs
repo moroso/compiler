@@ -6,8 +6,8 @@ use std::collections::BTreeMap;
 use super::visitor::*;
 use super::*;
 
-/// DefMap maps a NodeId to a Def, where a Def is anything that can be defined
-/// by an Ident.  This can be used by the Resolver to map the usages of Idents
+/// `DefMap` maps a `NodeId` to a Def, where a Def is anything that can be defined
+/// by an `Ident`.  This can be used by the Resolver to map the usages of Idents
 /// in types and expressions to the things they define.
 
 #[derive(Debug, Clone)]
@@ -52,6 +52,7 @@ pub enum Def {
 
 allow_string!(Def);
 
+#[derive(Default)]
 pub struct DefMap {
     table: BTreeMap<NodeId, Def>,
 }
@@ -107,7 +108,7 @@ impl<'a, 'b> Visitor for DefMapVisitor<'a, 'b> {
     fn visit_pat(&mut self, pat: &Pat) {
         match pat.val {
             IdentPat(ref ident, ref t) => {
-                self.session.defmap.table.insert(ident.id, Def::PatDef(t.as_ref().map(|t| t.clone())));
+                self.session.defmap.table.insert(ident.id, Def::PatDef(t.as_ref().cloned()));
             }
             _ => { walk_pat(self, pat); }
         }
@@ -150,7 +151,7 @@ impl<'a, 'b> Visitor for DefMapVisitor<'a, 'b> {
 
                 match *def {
                     LocalFn(ref block) => self.visit_block(block),
-                    ExternFn(_, ref block_opt) => if let &Some(ref block) = block_opt {
+                    ExternFn(_, ref block_opt) => if let Some(ref block) = *block_opt {
                         self.visit_block(block)
                     }
                 }
@@ -172,7 +173,7 @@ impl<'a, 'b> Visitor for DefMapVisitor<'a, 'b> {
             },
             EnumItem(ref ident, ref variants, ref tps) => {
                 let variant_def_ids = variants.iter().map(|variant| {
-                    let args = variant.args.iter().map(|arg| arg.clone()).collect();
+                    let args = variant.args.to_vec();
                     let qn = self.make_qualified_name(variant.ident.val.name);
                     self.session.defmap.table.insert(variant.ident.id, Def::VariantDef(qn, ident.id, args));
                     variant.ident.id

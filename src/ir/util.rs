@@ -9,22 +9,19 @@ use mc::session::Session;
 pub fn add_to_globals(name: &Option<VarName>,
                       global_map: &mut BTreeMap<VarName, StaticIRItem>,
                       session: &mut Session) {
-    match *name {
-        Some(n) => {
-            global_map.insert(n,
-                              StaticIRItem {
-                                  name: n,
-                                  label: Some(session.interner.intern(
-                                      format!("{}", n.base_name()))),
-                                  size: 0,
-                                  offset: None,
-                                  is_extern: false,
-                                  is_ref: false,
-                                  is_func: true,
-                                  expr: None,
-                              });
-        },
-        _ => {},
+    if let Some(n) = *name {
+        global_map.insert(n,
+                          StaticIRItem {
+                              name: n,
+                              label: Some(session.interner.intern(
+                                  format!("{}", n.base_name()))),
+                              size: 0,
+                              offset: None,
+                              is_extern: false,
+                              is_ref: false,
+                              is_func: true,
+                              expr: None,
+                          });
     }
 }
 
@@ -94,7 +91,7 @@ pub fn subst(ops: &mut Vec<Op>,
                 }
             },
             OpNode::Goto { label_idx: ref u, ref vars } => {
-                OpNode::Goto { label_idx: u.clone(), vars: sub_vars(vars, orig_var, new_rvelem) }
+                OpNode::Goto { label_idx: *u, vars: sub_vars(vars, orig_var, new_rvelem) }
             }
             OpNode::CondGoto { ref negated, cond: ref rve, label_idx: ref u, ref vars } => {
                 let new_vars = sub_vars(vars, orig_var, new_rvelem);

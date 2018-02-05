@@ -110,7 +110,7 @@ impl<'a> IrToAsm<'a> {
                                                      BTreeMap<String, usize>) {
         let mut labels = BTreeMap::new();
         let mut insts: Vec<[InstNode; 4]> = vec!();
-        for &Name(s) in self.strings.iter() {
+        for &Name(s) in &self.strings {
             let mut packetpos = 0;
             let mut bytepos = 0;
             let mut cur = 0u32;
@@ -147,7 +147,7 @@ impl<'a> IrToAsm<'a> {
     }
 
     pub fn ir_to_asm(&mut self,
-                     ops: &Vec<Op>,
+                     ops: &[Op],
                      session: &mut Session,
     ) -> (Vec<InstNode>, BTreeMap<String, usize>,
           BTreeMap<Var, RegisterColor>, // Register allocator output
@@ -273,17 +273,14 @@ impl<'a> IrToAsm<'a> {
         // TODO: merge this in with the loop above, so we don't iterate over
         // the instruction list as many times?
         for op in ops.iter() {
-            match op.val {
-                OpNode::Label { label_idx: ref idx, ref vars } => {
-                    let mut varmap: BTreeMap<VarName, usize> = BTreeMap::new();
-                    for var in vars.iter() {
-                        varmap.insert(var.name,
-                                      var.generation.expect(
-                                          "Variable has no generation"));
-                    }
-                    labels.insert(*idx, varmap);
+            if let OpNode::Label { label_idx: ref idx, ref vars } = op.val {
+                let mut varmap: BTreeMap<VarName, usize> = BTreeMap::new();
+                for var in vars.iter() {
+                    varmap.insert(var.name,
+                                  var.generation.expect(
+                                      "Variable has no generation"));
                 }
-                _ => {}
+                labels.insert(*idx, varmap);
             }
         }
 
@@ -359,16 +356,14 @@ impl<'a> IrToAsm<'a> {
                     }
                 },
                 OpNode::Return { retval: ref rve_opt } => {
-                    match *rve_opt {
-                        Some(ref rve) =>
-                            // Store the result in r0.
-                            result.extend(
-                                self.convert_unop(&regmap, RETURN_REG,
-                                                  &Identity, rve,
-                                                  -stack_ptr_offs,
-                                                  -stack_ptr_offs + spilled_regs_offs,
-                                                  session).into_iter()),
-                        None => {}
+                    if let Some(ref rve) = *rve_opt {
+                        // Store the result in r0.
+                        result.extend(
+                            self.convert_unop(&regmap, RETURN_REG,
+                                              &Identity, rve,
+                                              -stack_ptr_offs,
+                                              -stack_ptr_offs + spilled_regs_offs,
+                                              session).into_iter());
                     }
 
                     // Restore all callee-save registers
@@ -561,34 +556,31 @@ impl<'a> IrToAsm<'a> {
                 },
                 OpNode::Alloca { ref var, .. } => {
                     let offs_opt = stack_item_map.get(&pos);
-                    match offs_opt {
+                    if let Some(&offs) = offs_opt {
                         // This is a "true" alloca, and we put things on the
                         // stack.
-                        Some(&offs) => {
-                            let (reg, _, after) = self.var_to_reg(&regmap,
-                                                                  var, 0,
-                                                                  -stack_ptr_offs,
-                                                                  -stack_ptr_offs
-                                                                  + spilled_regs_offs);
-                            let (offs_base, offs_shift) =
-                                pack_int((stack_ptr_offs - stack_items_offs - offs as i32) as u32,
-                                         10).expect("Unable to pack literal.");
+                        let (reg, _, after) = self.var_to_reg(&regmap,
+                                                              var, 0,
+                                                              -stack_ptr_offs,
+                                                              -stack_ptr_offs
+                                                              + spilled_regs_offs);
+                        let (offs_base, offs_shift) =
+                            pack_int((stack_ptr_offs - stack_items_offs - offs as i32) as u32,
+                                     10).expect("Unable to pack literal.");
 
-                            result.push(
-                                InstNode::alu2short(
-                                    TRUE_PRED,
-                                    SubAluOp,
-                                    reg,
-                                    STACK_POINTER,
-                                    offs_base,
-                                    offs_shift)
-                                    );
-                            result.extend(after.into_iter());
-                        },
-                        // This is actually allocated in global storage, and
-                        // everything will be taken care of for us.
-                        None => {}
+                        result.push(
+                            InstNode::alu2short(
+                                TRUE_PRED,
+                                SubAluOp,
+                                reg,
+                                STACK_POINTER,
+                                offs_base,
+                                offs_shift)
+                        );
+                        result.extend(after.into_iter());
                     }
+                    // Otherwise, this is actually allocated in global storage, and
+                    // everything will be taken care of for us.
                 },
                 OpNode::Call { func: ref f, args: ref vars, .. } => {
                     // TODO: this is a lot messier than it should be.
@@ -627,8 +619,8 @@ impl<'a> IrToAsm<'a> {
 
                     // We want to save caller-save registers, but only if we
                     // actually use them.
-                    let ref this_opinfo = opinfo[pos];
-                    let ref live_vars = this_opinfo.live;
+                    let this_opinfo = &opinfo[pos];
+                    let live_vars = &this_opinfo.live;
 
                     // regs_to_save tells us which caller-save registers we may need to save.
                     // In particular, any register not used for any live variable at this point
@@ -640,23 +632,20 @@ impl<'a> IrToAsm<'a> {
                     let mut regs_to_save: BTreeSet<Reg> = BTreeSet::new();
                     // Make a list of the registers we actually need to save.
                     for var in live_vars.iter() {
-                        match *regmap.get(var).expect(
+                        if let RegColor(ref r) = *regmap.get(var).expect(
                             "Variable does not appear in regmap") {
-                            RegColor(ref r) => {
-                                if r.index as usize >= total_vars &&
-                                    r.index as usize <= NUM_PARAM_REGS &&
-                                    r.index > 0 {
-                                        regs_to_save.insert(r.clone());
-                                    }
-                            },
-                            _ => {}
+                            if r.index as usize >= total_vars &&
+                                r.index as usize <= NUM_PARAM_REGS &&
+                                r.index > 0 {
+                                    regs_to_save.insert(r.clone());
+                                }
                         }
                     }
                     // We now know how many registers we need to save, and we've made a list
                     // that tells us which ones and in what order.
                     let num_regs_to_save = regs_to_save.len();
                     let regs_to_save_list: Vec<Reg> =
-                        FromIterator::from_iter(regs_to_save.iter().map(|&x|x));
+                        FromIterator::from_iter(regs_to_save.iter().cloned());
 
                     // The total amount we grow the stack for this function call, either
                     // because we're saving caller-save registers or because we're passing
@@ -701,14 +690,14 @@ impl<'a> IrToAsm<'a> {
                     // saving to do.
                     // The "max" here is because we never want to save/restore
                     // r0.
-                    for i in 0 .. regs_to_save_list.len() {
+                    for (i, item) in regs_to_save_list.iter().enumerate() {
                         result.push(
                             InstNode::store(
                                 TRUE_PRED,
                                 store32_op,
                                 STACK_POINTER,
                                 -new_stack_ptr_offs + caller_save_offs + i as i32 * 4,
-                                regs_to_save_list[i],
+                                *item,
                                 ));
                     }
 
@@ -779,12 +768,12 @@ impl<'a> IrToAsm<'a> {
                     }
 
                     // Restore caller-save registers.
-                    for i in 0 .. regs_to_save_list.len() {
+                    for (i, item) in regs_to_save_list.iter().enumerate() {
                         result.push(
                             InstNode::load(
                                 TRUE_PRED,
                                 load32_op,
-                                regs_to_save_list[i],
+                                *item,
                                 STACK_POINTER,
                                 -new_stack_ptr_offs + caller_save_offs + i as i32 * 4
                                     ));
@@ -980,9 +969,9 @@ impl<'a> IrToAsm<'a> {
             // See if there's any assignment rA->rB where rB is not also the source
             // of an assignment. If so, it's safe to store rA in rB.
             let res = reg_transformations.iter()
-                .filter(|&(_, &(dest, _, _))|
+                .find(|&(_, &(dest, _, _))|
                         !reg_transformations.contains_key(&dest))
-                .next().map(|(a, b)| (a.clone(), b.clone())) ;
+                .map(|(a, b)| (*a, b.clone()));
             match res {
                 Some((src_reg, (dest_reg, src_insts, dest_insts))) =>
                 {
@@ -1009,7 +998,7 @@ impl<'a> IrToAsm<'a> {
                     // of cycles.
                     let (src_reg, (dest_reg, src_insts, dest_insts)) =
                         reg_transformations.iter()
-                        .map(|(x, y)| (x.clone(), y.clone())).next().unwrap();
+                        .map(|(x, y)| (*x, y.clone())).next().unwrap();
                     reg_transformations.remove(&src_reg);
                     result.extend(src_insts.into_iter());
                     result.push(
@@ -1030,7 +1019,7 @@ impl<'a> IrToAsm<'a> {
                         // previous source register. That source register
                         // has been moved to its destination (or the temp
                         // register), so it's safe to move over it now.
-                        this_src = rev_map.get(this_src).unwrap();
+                        this_src = &rev_map[this_src];
 
                         // If the register we're trying to move from is
                         // the original register we were moving from,
@@ -1041,7 +1030,7 @@ impl<'a> IrToAsm<'a> {
                         }
 
                         let (this_dest, src_insts, dest_insts)
-                            = reg_transformations.get(this_src).unwrap().clone();
+                            = reg_transformations[this_src].clone();
                         reg_transformations.remove(this_src);
                         result.extend(src_insts.into_iter());
                         result.push(
@@ -1049,7 +1038,7 @@ impl<'a> IrToAsm<'a> {
                                 *pred,
                                 MovAluOp,
                                 this_dest,
-                                this_src.clone(),
+                                *this_src,
                                 SllShift,
                                 0));
                         result.extend(dest_insts.into_iter());
@@ -1086,12 +1075,13 @@ impl<'a> IrToAsm<'a> {
         session: &mut Session) -> Vec<InstNode> {
 
         let mut result = vec!();
-        let mut swapped = false;
 
-        if !op_l.is_variable() {
+        let swapped = if !op_l.is_variable() {
             swap(&mut op_l, &mut op_r);
-            swapped = true;
-        }
+            true
+        } else {
+            false
+        };
 
         let var_l = match *op_l {
             Variable(var) => var,
@@ -1473,7 +1463,7 @@ impl<'a> IrToAsm<'a> {
                             // destination.
                             let global_info = self.global_map.get(&v.name);
                             match global_info {
-                                Some(ref gi) => {
+                                Some(gi) => {
                                     assert!(gi.is_func);
                                     if dest == *reg {
                                         return vec!();

@@ -42,6 +42,7 @@ type FuncProto = (Ident, Vec<FuncArg>, ast::Type, Vec<Ident>);
 type StaticDecl = (Ident, ast::Type);
 
 /// Context associated with a full parsing session
+#[derive(Default)]
 pub struct Parser {
     /// Each AST node is given a unique identifier. This keeps track of the
     /// next number to assign to an identifier.
@@ -72,16 +73,16 @@ pub struct StreamParser<'a, 'b: 'a, T: Iterator<Item=SourceToken<Token>>> {
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 enum Restriction {
-    ExprStmtRestriction,
-    NoAmbiguousLBraceRestriction,
-    NoRestriction,
+    ExprStmt,
+    NoAmbiguousLBrace,
+    None,
 }
 
 #[derive(Clone, Copy)]
 enum Assoc {
-    LeftAssoc,
-    RightAssoc,
-    NonAssoc,
+    Left,
+    Right,
+    None,
 }
 
 struct OpTable {
@@ -208,12 +209,12 @@ impl Parser {
 
     /// Get the Span of a certain node in the AST.
     pub fn span_of(&self, id: &NodeId) -> Span {
-        *self.spanmap.get(id).unwrap()
+        self.spanmap[id]
     }
 
     /// Get the name of a certain node in the AST.
     pub fn filename_of(&self, id: &NodeId) -> Name {
-        *self.filemap.get(id).unwrap()
+        self.filemap[id]
     }
 
     /// Get all of the files used by this parse.
@@ -277,7 +278,7 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
             tokens: tokens,
             session: session,
             last_span: mk_sp(SourcePos::new(), 0),
-            restriction: Restriction::NoRestriction,
+            restriction: Restriction::None,
             source: FilePath::new(".").to_path_buf(),
         }
     }
@@ -565,16 +566,11 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
 
         // Concatenate consecutive string tokens.
         let mut result = "".to_string();
-        loop {
-            match *self.peek() {
-                Token::StringTok(_) => {
-                    if let Token::StringTok(s) = self.eat() {
-                        result = result + &s;
-                    } else {
-                        panic!("Peek and eat gave different tokens!")
-                    }
-                },
-                _ => break,
+        while let Token::StringTok(_) = *self.peek() {
+            if let Token::StringTok(s) = self.eat() {
+                result = result + &s;
+            } else {
+                panic!("Peek and eat gave different tokens!")
             }
         }
         result
@@ -701,23 +697,18 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
                 self.expect(Token::LParen);
                 let mut inner_types = self.parse_list(|p| p.parse_type(), Token::RParen, true);
                 self.expect(Token::RParen);
-                if inner_types.len() == 0 {
-                    UnitType
-                } else if inner_types.len() == 1 {
-                    inner_types.pop().unwrap().val
-                } else {
-                    TupleType(inner_types)
+                match inner_types.len() {
+                    0 => UnitType,
+                    1 => inner_types.pop().unwrap().val,
+                    _ => TupleType(inner_types),
                 }
             }
             Token::ColonColon | Token::IdentTok(..) => {
                 let mut path = self.parse_path_no_tps();
-                match *self.peek() {
-                    Token::Less => {
-                        let l = path.val.elems.len() - 1;
-                        let elem = &mut path.val.elems[l];
-                        elem.val.tps = Some(self.parse_type_params());
-                    }
-                    _ => {}
+                if let Token::Less = *self.peek() {
+                    let l = path.val.elems.len() - 1;
+                    let elem = &mut path.val.elems[l];
+                    elem.val.tps = Some(self.parse_type_params());
                 }
                 NamedType(path)
             }
@@ -773,7 +764,7 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
             },
             Token::Eq => {
                 self.expect(Token::Eq);
-                let var_value = self.with_restriction(Restriction::NoRestriction, |p| p.parse_expr());
+                let var_value = self.with_restriction(Restriction::None, |p| p.parse_expr());
                 self.expect(Token::Semicolon);
                 Some(var_value)
             },
@@ -985,7 +976,7 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
             | WhileExpr(..)
             | MatchExpr(..)
             | BlockExpr(..)
-              => self.restriction == Restriction::ExprStmtRestriction,
+              => self.restriction == Restriction::ExprStmt,
             _ => false,
         }
     }
@@ -1012,7 +1003,7 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
         let op = self.add_id_and_span(op, span);
 
         match assoc {
-            Assoc::RightAssoc => {
+            Assoc::Right => {
                 let r_span = self.cur_span();
                 let r = parse_simpler_expr(self);
                 let r = self.maybe_parse_binop(ops, assoc, parse_simpler_expr, r, r_span);
@@ -1020,13 +1011,13 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
                 let end_span = self.cur_span();
                 self.add_id_and_span(node, start_span.to(end_span))
             }
-            Assoc::LeftAssoc => {
+            Assoc::Left => {
                 let r = parse_simpler_expr(self);
                 let node = BinOpExpr(op, Box::new(e), Box::new(r));
                 let e = self.add_id_and_span(node, start_span);
                 self.maybe_parse_binop(ops, assoc, parse_simpler_expr, e, start_span)
             }
-            Assoc::NonAssoc => {
+            Assoc::None => {
                 let r = parse_simpler_expr(self);
                 let node = BinOpExpr(op, Box::new(e), Box::new(r));
                 let end_span = self.cur_span();
@@ -1052,12 +1043,12 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
 
         macro_rules! left {
             ($($ops:expr),+,) => (left!($($ops),+));
-            ($($ops:expr),*) => (row!(Assoc::LeftAssoc, [$($ops),+]));
+            ($($ops:expr),*) => (row!(Assoc::Left, [$($ops),+]));
         }
 
         macro_rules! non {
             ($($ops:expr),+,) => (non!($($ops),+));
-            ($($ops:expr),*) => (row!(Assoc::NonAssoc, [$($ops),+]));
+            ($($ops:expr),*) => (row!(Assoc::None, [$($ops),+]));
         }
 
         macro_rules! optable {
@@ -1082,7 +1073,7 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
     }
 
     fn parse_expr_no_structs(&mut self) -> Expr {
-        self.with_restriction(Restriction::NoAmbiguousLBraceRestriction, |p| p.parse_expr())
+        self.with_restriction(Restriction::NoAmbiguousLBrace, |p| p.parse_expr())
     }
 
     pub fn parse_expr(&mut self) -> Expr {
@@ -1116,7 +1107,7 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
         let start_span = self.cur_span();
         let path = self.parse_path();
         let node = match *self.peek() {
-            Token::LBrace if self.restriction != Restriction::NoAmbiguousLBraceRestriction => {
+            Token::LBrace if self.restriction != Restriction::NoAmbiguousLBrace => {
                 self.expect(Token::LBrace);
                 let fields = self.parse_list(|p| {
                     let name = p.parse_name();
@@ -1320,16 +1311,14 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
         let start_span = self.cur_span();
 
         self.expect(Token::LParen);
-        let mut inner_exprs = self.with_restriction(Restriction::NoRestriction,
+        let mut inner_exprs = self.with_restriction(Restriction::None,
                                                     |p| p.parse_list(|p| p.parse_expr(), Token::RParen, true));
         self.expect(Token::RParen);
 
-        let node = if inner_exprs.len() == 0 {
-            UnitExpr
-        } else if inner_exprs.len() == 1 {
-            GroupExpr(Box::new(inner_exprs.pop().unwrap()))
-        } else {
-            TupleExpr(inner_exprs)
+        let node = match inner_exprs.len() {
+            0 => UnitExpr,
+            1 => GroupExpr(Box::new(inner_exprs.pop().unwrap())),
+            _ => TupleExpr(inner_exprs),
         };
 
         let end_span = self.cur_span();
@@ -1349,7 +1338,7 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
             Token::Let => self.parse_let_stmt(),
             _ => {
                 let start_span = self.cur_span();
-                let expr = self.with_restriction(Restriction::ExprStmtRestriction, |p| p.parse_expr());
+                let expr = self.with_restriction(Restriction::ExprStmt, |p| p.parse_expr());
                 match *self.peek() {
                     Token::Semicolon => {
                         self.expect(Token::Semicolon);
@@ -1429,7 +1418,7 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
                     _ => Some(self.parse_block())
                 };
                 let end_span = self.cur_span();
-                let abi = self.session.interner.intern(abi.unwrap_or("C".to_string()));
+                let abi = self.session.interner.intern(abi.unwrap_or_else(|| "C".to_string()));
                 self.add_id_and_span(FuncItem(funcname, args, return_type,
                                               ExternFn(abi, body_opt), type_params),
                                      start_span.to(end_span))
@@ -1703,7 +1692,7 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
         let args = self.parse_list(|me| me.parse_name(), Token::RParen, true);
 
         let mut args_map = BTreeSet::new();
-        for arg in args.iter() {
+        for arg in &args {
             args_map.insert(*arg);
         }
 

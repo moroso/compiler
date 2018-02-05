@@ -34,7 +34,7 @@ impl MultiplyOptimizer {
                                mul_func: Option<VarName>, div_func: Option<VarName>,
                                mod_func: Option<VarName>) {
         if verbose {
-            print!("Using software ops\n");
+            println!("Using software ops");
         }
         // TODO: these can collide, right?
         let mut temp_count: usize = 0;
@@ -82,7 +82,7 @@ impl MultiplyOptimizer {
 
         // Software multiplication/division/mod was specified, so we need to convert
         // multiplies/divides/mods into function calls.
-        for op in old_ops.into_iter() {
+        for op in old_ops {
             let mut handled = false;
             if let OpNode::BinOp { target: var, op: binop, lhs: ref op1, rhs: ref op2, signed } = op.val {
                 let func = match binop {
@@ -107,7 +107,7 @@ impl MultiplyOptimizer {
                         id: op.id,
                         val: OpNode::Call { target: Some(var), func: func, args: vars }
                     };
-                    for oplist in extra_ops.into_iter() {
+                    for oplist in extra_ops {
                         ops.extend(oplist);
                     }
                     ops.push(
@@ -140,53 +140,50 @@ impl MultiplyOptimizer {
                    mul_func: Option<VarName>, div_func: Option<VarName>,
                    mod_func: Option<VarName>, const_mul_bit_limit: u8) {
         for op in ops.iter_mut() {
-            match op.val {
-                OpNode::BinOp { op: ref mut opnode, lhs: ref mut op1, rhs: ref mut op2, signed, .. } => {
-                    if *opnode != TimesOp && *opnode != DivideOp && *opnode != ModOp {
-                        // We only care about multiplies, divides, and mod.
-                        continue;
-                    }
+            if let OpNode::BinOp { op: ref mut opnode, lhs: ref mut op1, rhs: ref mut op2, signed, .. } = op.val {
+                if *opnode != TimesOp && *opnode != DivideOp && *opnode != ModOp {
+                    // We only care about multiplies, divides, and mod.
+                    continue;
+                }
 
-                    if *opnode == TimesOp {
-                        // In a multiplication, ensure that the constant (if any) comes second.
-                        if let Constant(_) = *op1 {
-                            ::std::mem::swap(op1, op2);
-                        }
+                if *opnode == TimesOp {
+                    // In a multiplication, ensure that the constant (if any) comes second.
+                    if let Constant(_) = *op1 {
+                        ::std::mem::swap(op1, op2);
                     }
+                }
 
+                if verbose {
+                    print!("{} {}\n", *opnode, signed);
+                }
+                if let Constant(NumLit(n, _)) = *op2 {
                     if verbose {
-                        print!("{} {}\n", *opnode, signed);
+                        print!("Const: {}\n", n);
                     }
-                    if let Constant(NumLit(n, _)) = *op2 {
+                    if let Some(log) = log2(n) {
                         if verbose {
-                            print!("Const: {}\n", n);
+                            print!("{} {} {}\n", *opnode, log, signed);
                         }
-                        if let Some(log) = log2(n) {
-                            if verbose {
-                                print!("{} {} {}\n", *opnode, log, signed);
-                            }
-                            match *opnode {
-                                TimesOp => {
-                                    *opnode = LeftShiftOp;
-                                    *op2 = Constant(NumLit(log, UnsignedInt(Width32)));
-                                    continue;
-                                },
-                                DivideOp => {
-                                    *opnode = RightShiftOp;
-                                    *op2 = Constant(NumLit(log, UnsignedInt(Width32)));
-                                    continue;
-                                },
-                                ModOp if !signed => {
-                                    *opnode = BitAndOp;
-                                    *op2 = Constant(NumLit(n - 1, UnsignedInt(Width32)));
-                                    continue;
-                                },
-                                _ => {}
-                            }
+                        match *opnode {
+                            TimesOp => {
+                                *opnode = LeftShiftOp;
+                                *op2 = Constant(NumLit(log, UnsignedInt(Width32)));
+                                continue;
+                            },
+                            DivideOp => {
+                                *opnode = RightShiftOp;
+                                *op2 = Constant(NumLit(log, UnsignedInt(Width32)));
+                                continue;
+                            },
+                            ModOp if !signed => {
+                                *opnode = BitAndOp;
+                                *op2 = Constant(NumLit(n - 1, UnsignedInt(Width32)));
+                                continue;
+                            },
+                            _ => {}
                         }
                     }
-                },
-                _ => {}
+                }
             }
         }
 

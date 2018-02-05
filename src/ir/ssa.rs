@@ -22,10 +22,8 @@ fn gen_of(generations: &mut BTreeMap<VarName, usize>, name: VarName) -> Option<u
 // Fill in the generation of an RValElem.
 fn ssa_rvalelem(generations: &mut BTreeMap<VarName, usize>,
                 rv_elem: &mut RValueElem) {
-    match *rv_elem {
-        Variable(ref mut var) =>
-            var.generation = gen_of(generations, var.name),
-        _ => {},
+    if let Variable(ref mut var) = *rv_elem {
+        var.generation = gen_of(generations, var.name);
     }
 }
 
@@ -72,14 +70,11 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
     let mut label_vars = BTreeMap::new();
     let len = ops.len();
     for i in 0 .. len {
-        match ops.get_mut(i) {
-            Some(&mut Op { id: _, val: OpNode::Label { label_idx: ref label, ref mut vars }}) => {
-                let ref live_vars = opinfo[i].live;
-                label_vars.insert(*label,
-                                  live_vars.clone());
-                vars.extend(live_vars.iter().map(|x| *x));
-            },
-            _ => {},
+        if let Some(&mut Op { id: _, val: OpNode::Label { label_idx: ref label, ref mut vars }}) = ops.get_mut(i) {
+            let live_vars = &opinfo[i].live;
+            label_vars.insert(*label,
+                              live_vars.clone());
+            vars.extend(live_vars.iter().cloned());
         }
     }
     let end = precise_time_ns();
@@ -92,8 +87,8 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
         match op.val {
             OpNode::Goto { label_idx: i, ref mut vars } |
             OpNode::CondGoto { label_idx: i, ref mut vars, .. } => {
-                let ref live_vars = label_vars[&i];
-                vars.extend(live_vars.iter().map(|x| *x));
+                let live_vars = &label_vars[&i];
+                vars.extend(live_vars.iter().cloned());
             },
             _ => {}
         }
@@ -149,8 +144,8 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
     // Next step: based on the list of jumps to each label, figure out
     // which variables can be eliminated/substituted. We record those
     // in the "substitutions" and "vars_at_labels_to_clear" tables.
-    for (idx, ref item) in jump_table.iter() {
-        if item.len() == 0 {
+    for (idx, item) in &jump_table {
+        if item.is_empty() {
             // This label is not jumped to at all. We can entirely
             // remove it.
             labels_to_remove.insert(*idx);
@@ -158,15 +153,15 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
         } else if item.len() == 1 {
             // If we're here, we only jump to this label from one place.
             // We can entirely remove the variables, with a substitution.
-            let ref label_vars = label_table[idx];
-            for var in label_vars.iter() {
-                let new_gen = *(**item)[0].get(&var.name).unwrap();
+            let label_vars = &label_table[idx];
+            for var in label_vars {
+                let new_gen = (**item)[0][&var.name];
                 substitutions.insert((*var,
                                       Var { name: var.name,
                                             generation: Some(new_gen) } ));
                 changed = true;
             }
-            if label_vars.len() > 0 {
+            if !label_vars.is_empty() {
                 vars_at_labels_to_clear.insert(*idx, label_vars.clone());
                 changed = true;
             }
@@ -176,7 +171,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
             // than the generation in the label, we can do a substitution
             // and eliminate the variable.
 
-            let ref label_vars = label_table[idx];
+            let label_vars = &label_table[idx];
             let mut vars_to_clear = BTreeSet::new();
 
             for var in label_vars.iter() {
@@ -191,7 +186,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
                         gens.insert(gen);
                     }
                 }
-                if gens.len() == 0 {
+                if gens.is_empty() {
                     // No jumps to this label involve a different generation
                     // than the label itself. We can just remove it
                     // entirely.
@@ -211,28 +206,28 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
                 }
             }
 
-            if vars_to_clear.len() > 0 {
+            if !vars_to_clear.is_empty() {
                 vars_at_labels_to_clear.insert(*idx, vars_to_clear.clone());
             }
 
         }
         if verbose {
-            print!("{}:{:?}\n", idx, item);
+            println!("{}:{:?}", idx, item);
         }
     }
 
     if verbose {
         print!("subs: ");
-        for &(src, dest) in substitutions.iter() {
+        for &(src, dest) in &substitutions {
             print!("{}->{}, ", src, dest);
         }
-        print!("\n");
-        for (n, vars) in vars_at_labels_to_clear.iter() {
+        println!();
+        for (n, vars) in &vars_at_labels_to_clear {
             print!("labels_to_clear: {}:", n);
             for var in vars.iter() {
                 print!("{} ,", var);
             }
-            print!("\n");
+            println!();
         }
     }
 
@@ -243,10 +238,10 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
     while !substitutions.is_empty() {
         let mut targets = BTreeSet::<Var>::new();
         let mut new_substitutions = BTreeSet::<(Var, Var)>::new();
-        for &(_, b) in substitutions.iter() {
+        for &(_, b) in &substitutions {
             targets.insert(b);
         }
-        for &(a, b) in substitutions.iter() {
+        for &(a, b) in &substitutions {
             if targets.contains(&a) {
                 new_substitutions.insert((a, b));
             } else {
@@ -267,9 +262,8 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
                 Some(OpNode::Nop {}),
             _ => None
         };
-        match new_op {
-            Some(n) => { op.val = n; }
-            _ => {}
+        if let Some(n) = new_op {
+            op.val = n;
         }
     }
 
@@ -280,18 +274,16 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
             OpNode::CondGoto { label_idx: ref label, ref mut vars, .. } |
             OpNode::Label { label_idx: ref label, ref mut vars } => {
                 let vars_to_clear_opt = vars_at_labels_to_clear.get(label);
-                match vars_to_clear_opt {
-                    Some(ref vars_to_clear) =>
-                        for var in vars_to_clear.iter() {
-                            let mut new_vars = BTreeSet::new();
-                            for var2 in vars.iter() {
-                                if var2.name != var.name {
-                                    new_vars.insert(*var2);
-                                }
+                if let Some(vars_to_clear) = vars_to_clear_opt {
+                    for var in vars_to_clear {
+                        let mut new_vars = BTreeSet::new();
+                        for var2 in vars.iter() {
+                            if var2.name != var.name {
+                                new_vars.insert(*var2);
                             }
-                            *vars = new_vars;
-                        },
-                    None => {},
+                        }
+                        *vars = new_vars;
+                    }
                 }
             },
             _ => {}
@@ -304,7 +296,7 @@ fn minimize_once(ops: &mut Vec<Op>, verbose: bool) -> bool {
 fn minimize(ops: &mut Vec<Op>, verbose: bool) {
     while minimize_once(ops, verbose) {
         if verbose {
-            print!("Minimize step:\n");
+            println!("Minimize step:");
             for op in ops.iter() {
                 print!("{}", op);
             }
@@ -336,7 +328,7 @@ impl ToSSA {
             label_time += end-start;
         }
 
-        let ref mut gens = BTreeMap::<VarName, usize>::new();
+        let gens = &mut BTreeMap::<VarName, usize>::new();
 
         let start = precise_time_ns();
         for op in ops.iter_mut() {
@@ -355,9 +347,8 @@ impl ToSSA {
                     for arg in args.iter_mut() {
                         arg.generation = gen_of(gens, arg.name);
                     }
-                    match *v_opt {
-                        Some(ref mut v) => v.generation = next_gen(gens, v.name),
-                        None => {},
+                    if let Some(ref mut v) = *v_opt {
+                        v.generation = next_gen(gens, v.name);
                     }
                 },
                 OpNode::Store { addr: ref mut v, value: ref mut other_v, .. } => {
@@ -401,7 +392,7 @@ impl ToSSA {
         }
 
         if verbose {
-            print!("Before minimizing:\n");
+            println!("Before minimizing:");
             for op in ops.iter() {
                 print!("{}", op);
             }

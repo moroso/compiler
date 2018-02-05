@@ -11,13 +11,10 @@ use ir::*;
 pub struct LivenessAnalyzer;
 
 fn seed_rve(opinfo: &mut OpInfo, rve: &RValueElem) {
-    match *rve {
-        Variable(v) => { opinfo.used.insert(v); },
-        _ => {}
-    }
+    if let Variable(v) = *rve { opinfo.used.insert(v); }
 }
 
-fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
+fn seed(ops: &[Op], opinfo: &mut Vec<OpInfo>) {
     let len = ops.len();
     if len == 1 { return; } // No instructions; probably extern.
                             // TODO: this is somewhat fragile...
@@ -25,7 +22,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
     // Common code between ordinary goto and conditional goto.
     // Handles everything needed by the unconditional goto, which
     // is a subset of what's needed for conditional.
-    fn handle_goto(len: usize, ops: &Vec<Op>, opinfo: &mut OpInfo,
+    fn handle_goto(len: usize, ops: &[Op], opinfo: &mut OpInfo,
                    l: usize, vars: &BTreeSet<Var>) {
         for u2 in 0..len {
             match ops[u2].val {
@@ -43,7 +40,7 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
 
 
     for u in 0..len {
-        let opinfo = opinfo.get_mut(u).unwrap();
+        let opinfo = &mut opinfo[u];
         match ops[u].val {
             OpNode::BinOp { target: lv, lhs: ref rve1, rhs: ref rve2, .. } => {
                 opinfo.def.insert(lv);
@@ -79,9 +76,8 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                 }
             },
             OpNode::Call { target: ref lv_opt, func: ref f, ref args } => {
-                match *lv_opt {
-                    Some(lv) => { opinfo.def.insert(lv); },
-                    None => {},
+                if let Some(lv) = *lv_opt {
+                    opinfo.def.insert(lv);
                 }
                 seed_rve(opinfo, f);
                 for arg in args.iter() {
@@ -120,16 +116,10 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
                 if u + 1 < len {
                     opinfo.succ.insert(u + 1);
                 }
-                match *rve {
-                    Variable(v) => { opinfo.used.insert(v); },
-                    _ => {},
-                }
+                if let Variable(v) = *rve { opinfo.used.insert(v); };
             },
             OpNode::Return { retval: ref v } => {
-                match *v {
-                    Some(Variable(w1)) => { opinfo.used.insert(w1); },
-                    _ => {},
-                }
+                if let Some(Variable(w1)) = *v { opinfo.used.insert(w1); };
             },
             OpNode::Func { args: ref vars, .. } => {
                 for v in vars.iter() {
@@ -145,38 +135,38 @@ fn seed(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
 
 fn propagate_once(opinfo: &mut Vec<OpInfo>,
                   active_ops: BTreeSet<usize>,
-                  predecessors: &Vec<BTreeSet<usize>>) -> BTreeSet<usize> {
+                  predecessors: &[BTreeSet<usize>]) -> BTreeSet<usize> {
     let mut new_active_ops = BTreeSet::<usize>::new();
-    for u in active_ops.into_iter() {
+    for u in active_ops {
         // Making this dummy structure is sort of unfortunate.
         // There are ways around it, but it is better than the old
         // clone!
         let mut this_opinfo = OpInfo::new();
         // This working relies on instructions not being able to be their own
         // successor. If they were, then we'd be emptying information we need.
-        swap(&mut this_opinfo, opinfo.get_mut(u).unwrap());
+        swap(&mut this_opinfo, &mut opinfo[u]);
 
-        for usedvar in this_opinfo.used.iter() {
+        for usedvar in &this_opinfo.used {
             if this_opinfo.live.insert(*usedvar) {
                 new_active_ops.insert(u);
-                for &predecessor in predecessors[u].iter() {
+                for &predecessor in &predecessors[u] {
                     new_active_ops.insert(predecessor);
                 }
             }
         }
-        for next_idx in this_opinfo.succ.iter() {
-            let next_opinfo = opinfo.get_mut(*next_idx).unwrap();
-            for livevar in next_opinfo.live.iter() {
+        for next_idx in &this_opinfo.succ {
+            let next_opinfo = &mut opinfo[*next_idx];
+            for livevar in &next_opinfo.live {
                 if !this_opinfo.def.contains(livevar) {
                     if this_opinfo.live.insert(*livevar) {
-                        for &predecessor in predecessors[u].iter() {
+                        for &predecessor in &predecessors[u] {
                             new_active_ops.insert(predecessor);
                         }
                     }
                 }
             }
         }
-        *opinfo.get_mut(u).unwrap() = this_opinfo;
+        opinfo[u] = this_opinfo;
     }
 
     new_active_ops
@@ -193,18 +183,18 @@ pub fn get_liveness_times() -> (u64, u64) {
     }
 }
 
-fn propagate(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
+fn propagate(ops: &[Op], opinfo: &mut Vec<OpInfo>) {
     let start = precise_time_ns();
 
     let mut active_ops: BTreeSet<usize> = FromIterator::from_iter(0..ops.len());
     let mut predecessors: Vec<BTreeSet<usize>> = (0..ops.len()).map(|_| BTreeSet::new()).collect();
     for idx in 0..ops.len() {
-        for &successor in opinfo.get(idx).unwrap().succ.iter() {
+        for &successor in &opinfo[idx].succ {
             predecessors[successor].insert(idx);
         }
     }
 
-    while active_ops.len() > 0 {
+    while !active_ops.is_empty() {
         active_ops = propagate_once(opinfo, active_ops, &predecessors);
     }
     let end = precise_time_ns();
@@ -216,7 +206,7 @@ fn propagate(ops: &Vec<Op>, opinfo: &mut Vec<OpInfo>) {
 impl LivenessAnalyzer {
     // Gives back the seeded data. This is mostly useful for getting
     // defs.
-    pub fn unanalyzed_opinfo(ops: &Vec<Op>) -> Vec<OpInfo> {
+    pub fn unanalyzed_opinfo(ops: &[Op]) -> Vec<OpInfo> {
         let len = ops.len();
         let mut opinfo = (0..len).map(|_| OpInfo::new()).collect();
         let start = precise_time_ns();
@@ -229,7 +219,7 @@ impl LivenessAnalyzer {
         opinfo
     }
 
-    pub fn analyze(ops: &Vec<Op>) -> Vec<OpInfo> {
+    pub fn analyze(ops: &[Op]) -> Vec<OpInfo> {
         let mut opinfo = LivenessAnalyzer::unanalyzed_opinfo(ops);
         propagate(ops, &mut opinfo);
 

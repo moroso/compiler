@@ -366,12 +366,10 @@ impl RuleMatcher<String> for StringRule {
                        if quoted {
                            quoted = false;
                            res.push(escaped_char(c));
+                       } else if c == '\\' {
+                           quoted = true;
                        } else {
-                           if c == '\\' {
-                               quoted = true;
-                           } else {
-                               res.push(c);
-                           }
+                           res.push(c);
                        }
                    }
 

@@ -54,7 +54,7 @@ struct CCrossCompiler<'a> {
 fn find_structs(module: &Module) -> BTreeSet<NodeId> {
     let mut struct_set = BTreeSet::new();
 
-    for item in module.val.items.iter() {
+    for item in &module.val.items {
         match item.val {
             StructItem(ref id, _, _) => { struct_set.insert(id.id); },
             ModItem(_, ref submod) => {
@@ -72,14 +72,12 @@ fn find_enum_item_names(module: &Module)
                         -> BTreeMap<Name, (Ident, Vec<Variant>, usize)> {
     let mut enum_map = BTreeMap::new();
 
-    for item in module.val.items.iter() {
+    for item in &module.val.items {
         match item.val {
             EnumItem(ref id, ref items, _) => {
-                let mut pos = 0;
-                for item in items.iter() {
+                for (pos, item) in items.iter().enumerate() {
                     enum_map.insert(item.ident.val.name,
                                     (id.clone(), items.clone(), pos));
-                    pos += 1;
                 }
             },
             ModItem(_, ref submod) => {
@@ -96,7 +94,7 @@ fn find_enum_item_names(module: &Module)
 fn find_enum_names(module: &Module) -> BTreeMap<NodeId, Name> {
     let mut enum_map = BTreeMap::new();
 
-    for item in module.val.items.iter() {
+    for item in &module.val.items {
         match item.val {
             EnumItem(ref id, _, _) => {
                 enum_map.insert(item.id, id.val.name);
@@ -127,26 +125,26 @@ impl<'a> CCrossCompiler<'a> {
     fn indent(&mut self) { self.indent += INDENT_AMT; }
     fn unindent(&mut self) { self.indent -= INDENT_AMT; }
     fn ind(&self) -> String {
-        let v = (0..self.indent).map(|_|' ' as u8);
+        let v = (0..self.indent).map(|_| b' ');
         let v: Vec<u8> = v.collect();
         String::from_utf8_lossy(&v[..]).into_owned()
     }
 
-    fn visit_list<T, F>(&self, list: &Vec<T>,
+    fn visit_list<T, F>(&self, list: &[T],
                         mut visit: F,
                         delimiter: &str) -> String
         where F: FnMut(&CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
-            .filter(|x| *x != "".to_string()).collect();
+            .filter(|x| *x != "").collect();
         list.join(&format!("{}", delimiter)[..])
     }
 
-    fn mut_visit_list<T, F>(&mut self, list: &Vec<T>,
+    fn mut_visit_list<T, F>(&mut self, list: &[T],
                             mut visit: F,
                             delimiter: &str) -> String
         where F: FnMut(&mut CCrossCompiler, &T) -> String {
         let list: Vec<String> = list.iter().map(|t| visit(self, t))
-            .filter(|x| *x != "".to_string()).collect();
+            .filter(|x| *x != "").collect();
         list.join(delimiter)
     }
 
@@ -217,7 +215,7 @@ impl<'a> CCrossCompiler<'a> {
             // syntax is the reverse of C's?
             ArrayTy(ref t, size) => {
                 let size_str = match size {
-                    None => format!(""),
+                    None => "".to_string(),
                     Some(n) => format!("{}", n)
                 };
                 let name = format!("{}[{}]", name, size_str);
@@ -279,7 +277,7 @@ impl<'a> CCrossCompiler<'a> {
             None => tail(None),
         };
 
-        let out = self.visit_list(&vec!(items, stmts, expr),
+        let out = self.visit_list(&[items, stmts, expr],
                                   |_, t| t.clone(), delim);
         self.unindent();
 
@@ -294,7 +292,7 @@ impl<'a> CCrossCompiler<'a> {
                 let name = self.visit_ident(id);
                 let lit = self.typemap.consts.get(&id.id)
                     .expect("finding const in map")
-                    .clone().ok().expect("getting const value"); // wee
+                    .clone().expect("getting const value"); // wee
                 let lit = WithId { id: id.id, val: lit };
                 format!("#define {} (({}){})", name, ty, self.visit_lit(&lit))
             }
@@ -439,7 +437,7 @@ impl<'a> CCrossCompiler<'a> {
             }
             EnumTy(did, _, _) |
             StructTy(did, _) => {
-                format!("struct {}", self.mangle_map.get(&did).unwrap())
+                format!("struct {}", self.mangle_map[&did])
             }
             BottomTy => "void".to_string(),
             FuncTy(ref d, ref r) => {
@@ -452,7 +450,7 @@ impl<'a> CCrossCompiler<'a> {
     }
 
     fn visit_path_in_enum_access(&self, path: &Path) -> String {
-        let (_, ref variants, ref pos) = *self.enumitemnames.get(&path.val.elems.last().unwrap().val.name).unwrap();
+        let (_, ref variants, ref pos) = self.enumitemnames[&path.val.elems.last().unwrap().val.name];
         let variant = &variants[*pos];
         let name = self.session.interner.name_to_str(&variant.ident.val.name);
         name.to_string()
@@ -473,7 +471,7 @@ impl<'a> CCrossCompiler<'a> {
     }
 
     fn visit_id(&mut self, id: &NodeId) -> String {
-        self.mangle_map.get(id).unwrap().clone()
+        self.mangle_map[id].clone()
     }
 
     fn visit_ident(&mut self, ident: &Ident) -> String {
@@ -649,8 +647,8 @@ impl<'a> CCrossCompiler<'a> {
                 let expr = self.visit_expr(&**e);
                 format!("return/*expr*/ {};", expr)
             }
-            BreakExpr => format!("break;"),
-            ContinueExpr => format!("continue;"),
+            BreakExpr => "break;".to_string(),
+            ContinueExpr => "continue;".to_string(),
             WhileExpr(ref e, ref b) => {
                 let cond = self.visit_expr(&**e);
                 let body = self.visit_block_expr(&**b);
@@ -671,7 +669,7 @@ impl<'a> CCrossCompiler<'a> {
             MatchExpr(ref e, ref arms) => {
                 // TODO: allow types other than ints.
                 let (is_void, overall_type_name) = {
-                    let ref overall_type = self.typemap.types[&expr.id];
+                    let overall_type = &self.typemap.types[&expr.id];
                     (*overall_type == UnitTy, self.visit_ty(overall_type))
                 };
 
@@ -681,8 +679,8 @@ impl<'a> CCrossCompiler<'a> {
                     match arm.pat.val {
                         VariantPat(ref path, ref vars) => {
 
-                            let &(_, ref variants, idx) = me.enumitemnames.get(
-                                &path.val.elems.last().unwrap().val.name).unwrap();
+                            let &(_, ref variants, idx) = &me.enumitemnames[
+                                &path.val.elems.last().unwrap().val.name];
                             let this_variant = &variants[idx as usize];
 
                             let name = me.visit_path_in_enum_access(path);
@@ -752,26 +750,26 @@ impl<'a> CCrossCompiler<'a> {
         }
 
         // First build the graph nodes
-        for (id, _) in map.iter() {
+        for id in map.keys() {
             let vid = graph.add_node(*id);
             nodes.insert(*id, vid);
         }
 
         // Now collect all the edges
-        for (id, item) in map.iter() {
+        for (id, item) in &map {
             let srcidx = nodes.get(id).expect("expected srcidx in struct graph");
 
             match item.val {
                 StructItem(_, ref fields, _) => {
-                    for field in fields.iter() {
+                    for field in fields {
                         let ty = &self.typemap.types[&field.fldtype.id];
                         add_type_edge(&mut graph, &nodes, srcidx, ty);
                     }
 
                 }
                 EnumItem(_, ref variants, _) => {
-                    for variant in variants.iter() {
-                        for arg in variant.args.iter() {
+                    for variant in variants {
+                        for arg in &variant.args {
                             let ty = &self.typemap.types[&arg.id];
                             add_type_edge(&mut graph, &nodes, srcidx, ty);
                         }
@@ -800,12 +798,10 @@ impl<'a> CCrossCompiler<'a> {
                                          &mut Vec<String>,
                                          &Module)) {
 
-        for item in module.val.items.iter() {
-            match item.val {
-                ModItem(_, ref module) =>
-                    self.visit_module_worker(results, module,
-                                             &mut |me, results, x| f(me,results,x)),
-                _ => {}
+        for item in &module.val.items {
+            if let ModItem(_, ref module) = item.val {
+                self.visit_module_worker(results, module,
+                                         &mut |me, results, x| f(me,results,x));
             }
         }
 
@@ -824,27 +820,25 @@ impl<'a> CCrossCompiler<'a> {
 
         // Typedefs
         self.visit_module_worker(&mut results, module, &mut |me, results, module| {
-            for item in module.val.items.iter() {
-                match item.val {
-                    TypeItem(..) => results.push(me.visit_item(item)),
-                    _ => (),
+            for item in &module.val.items {
+                if let TypeItem(..) = item.val {
+                    results.push(me.visit_item(item));
                 }
             }
         });
 
         // Constants
         self.visit_module_worker(&mut results, module, &mut |me, results, module| {
-            for item in module.val.items.iter() {
-                match item.val {
-                    ConstItem(..) => results.push(me.visit_item(item)),
-                    _ => (),
+            for item in &module.val.items {
+                if let ConstItem(..) = item.val {
+                    results.push(me.visit_item(item));
                 }
             }
         });
 
         // Now print struct prototypes.
         self.visit_module_worker(&mut results, module, &mut |me, results, module| {
-            for item in module.val.items.iter() {
+            for item in &module.val.items {
                 match item.val {
                     StructItem(ref id, _, _) |
                     EnumItem(ref id, _, _) => {
@@ -861,7 +855,7 @@ impl<'a> CCrossCompiler<'a> {
         // toposort by struct inclusion so that C can handle them.
         let mut struct_map = BTreeMap::new();
         self.visit_module_worker(&mut results, module, &mut |_, _, module| {
-            for item in module.val.items.iter() {
+            for item in &module.val.items {
                 match item.val {
                     StructItem(ref id, _, _) | EnumItem(ref id, _, _) => {
                         struct_map.insert(id.id, item.clone());
@@ -879,49 +873,44 @@ impl<'a> CCrossCompiler<'a> {
         // Now print function prototypes.
         self.visit_module_worker(&mut results, module, &mut |me, results, module| {
 
-            for item in module.val.items.iter() {
-                match item.val {
-                    FuncItem(ref name, ref args, ref t, ref d, _) => {
-                        let ty = me.visit_type(t);
-                        let name = me.visit_ident(name);
-                        let args = me.mut_visit_list(
-                            args,
-                            |me, x| me.visit_func_arg(x),
-                            ", ");
+            for item in &module.val.items {
+                if let FuncItem(ref name, ref args, ref t, ref d, _) = item.val {
+                    let ty = me.visit_type(t);
+                    let name = me.visit_ident(name);
+                    let args = me.mut_visit_list(
+                        args,
+                        |me, x| me.visit_func_arg(x),
+                        ", ");
 
-                        match *d {
-                            LocalFn(_) =>
-                                results.push(format!("{} {}({});",
-                                                     ty, name, args)),
-                            ExternFn(_, ref body_opt) => {
-                                assert!(body_opt.is_none(),
-                                        "Externs with a body not yet supported in ccross.");
-                                results.push(format!("extern {} {}({});",
-                                                     ty, name, args))
-                            }
+                    match *d {
+                        LocalFn(_) =>
+                            results.push(format!("{} {}({});",
+                                                 ty, name, args)),
+                        ExternFn(_, ref body_opt) => {
+                            assert!(body_opt.is_none(),
+                                    "Externs with a body not yet supported in ccross.");
+                            results.push(format!("extern {} {}({});",
+                                                 ty, name, args))
                         }
-                    },
-                    _ => {},
+                    }
                 }
             }
         });
 
         // Now globals
         self.visit_module_worker(&mut results, module, &mut |me, results, module| {
-            for item in module.val.items.iter() {
-                match item.val {
-                    StaticItem(..) => results.push(me.visit_item(item)),
-                    _ => ()
+            for item in &module.val.items {
+                if let StaticItem(..) = item.val {
+                    results.push(me.visit_item(item));
                 }
             }
         });
 
         // And functions
         self.visit_module_worker(&mut results, module, &mut |me, results, module| {
-            for item in module.val.items.iter() {
-                match item.val {
-                    FuncItem(..) => results.push(me.visit_item(item)),
-                    _ => ()
+            for item in &module.val.items {
+                if let FuncItem(..) = item.val {
+                    results.push(me.visit_item(item));
                 }
             }
         });
@@ -935,7 +924,7 @@ pub struct CTarget {
 }
 
 impl MkTarget for CTarget {
-    fn new(_args: &Vec<(String, Option<String>)>) -> Box<CTarget> {
+    fn new(_args: &[(String, Option<String>)]) -> Box<CTarget> {
         Box::new(CTarget { opts: () })
     }
 }

@@ -497,7 +497,7 @@ fn assert_offs(offs: i32, width: u8) {
     let mask = !0u32 << (width as usize);
     // Check that the sign bit is extended all the way.
     assert_eq!((mask & (offs as u32) == mask),
-               (((offs as u32) & (1<<((width-1) as usize)) != 0)));
+               ((offs as u32) & (1<<((width-1) as usize)) != 0));
     // No sign bit means none of the high bits should be set.
     assert_eq!((mask & (offs as u32) == 0),
                ((offs as u32) & (1<<((width-1) as usize))) == 0);
@@ -505,7 +505,7 @@ fn assert_offs(offs: i32, width: u8) {
 
 fn format_pred(pred: Pred) -> String {
     if pred == TRUE_PRED {
-        format!("")
+        "".to_string()
     } else {
         format!("{}? ", pred)
     }
@@ -997,9 +997,8 @@ impl InstNode {
     pub fn branchimm(pred: Pred,
                      link: bool, // link
                      target: JumpTarget) -> InstNode {
-        match target {
-            JumpOffs(offs) => assert_offs(offs, 25),
-            _ => {},
+        if let JumpOffs(offs) = target {
+            assert_offs(offs, 25);
         }
         BranchImmInst(pred,
                       link,

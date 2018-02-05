@@ -109,11 +109,9 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         WithIdT { val: val, id: id }
     }
 
-    fn add_source(&mut self, ops: &Vec<Op>, source_node_id: NodeId) {
+    fn add_source(&mut self, ops: &[Op], source_node_id: NodeId) {
         for op in ops.iter() {
-            if !self.sourcemap.contains_key(&op.id) {
-                self.sourcemap.insert(op.id, source_node_id);
-            }
+            self.sourcemap.entry(op.id).or_insert(source_node_id);
         }
     }
 
@@ -182,7 +180,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
     pub fn convert_stmt(&mut self, stmt: &Stmt) -> (Vec<Op>, Option<Var>) {
         let (ops, var) = match stmt.val {
-            ExprStmt(ref e) => self.convert_expr(e),
+            ExprStmt(ref e) |
             SemiStmt(ref e) => self.convert_expr(e),
             LetStmt(ref pat, ref e_opt) => {
                 let (v, ty) = match pat.val {
@@ -249,7 +247,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
     pub fn convert_block(&mut self, block: &Block) -> (Vec<Op>, Option<Var>) {
         let mut ops = vec!();
-        for stmt in block.val.stmts.iter() {
+        for stmt in &block.val.stmts {
             let (new_ops, _) = self.convert_stmt(stmt);
             ops.extend(new_ops.into_iter());
         }
@@ -364,7 +362,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
              label: None,
              size: size as usize,
              offset: None,
-             is_ref: ty_is_reference(&self.session, ty),
+             is_ref: ty_is_reference(self.session, ty),
              is_func: false,
              is_extern: is_extern,
              expr: exp.clone(),
@@ -375,7 +373,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                                           Vec<StaticIRItem>) {
         let mut res = vec!();
         let mut static_res = vec!();
-        for item in module.val.items.iter() {
+        for item in &module.val.items {
             let (converted_items, converted_static_items) =
                 self.convert_item(item);
             res.extend(converted_items.into_iter());
@@ -391,7 +389,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
         // For now, align everything to 4 bytes.
         // TODO: smarter alignment/packing of globals.
-        for mut global in globals.into_iter() {
+        for mut global in globals {
             // Nothing to do for functions.
             if global.is_func {
                 global.label = Some(session.interner.intern(
@@ -438,37 +436,34 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         for (name, global_item) in global_map.iter() {
             let is_ref = global_item.is_ref;
             let is_func = global_item.is_func;
-            let ref en = global_item.expr;
+            let en = &global_item.expr;
             if is_func { continue; } // No initialization to do for functions.
-            match *en {
-                Some(ref expr) => {
-                    // First get the instructions for this expression.
-                    let (ops, expr_var) = self.convert_expr(expr);
-                    let expr_var = expr_var.expect(
-                        "Global must have a non-unit value");
-                    let ty = (*self.lookup_ty(expr.id))
-                        .clone();
-                    res.extend(ops.into_iter());
-                    // If the type is a reference, then the instructions just
-                    // produced will store the values into the correct memory
-                    // location, and we have no work to do. But if not, then
-                    // the value was stored into a register, and it's our
-                    // responsibility to store it in memory.
-                    assert_eq!(is_ref, ty_is_reference(&self.session, &ty));
-                    let result_var = Var { name: *name,
-                                           generation: None };
-                    if ty_is_reference(&self.session, &ty) {
-                        res.extend(
-                            self.gen_copy(&result_var, &expr_var, &ty).into_iter());
-                    } else {
-                        res.push(self.add_id(OpNode::UnOp {
-                            target: result_var,
-                            op: Identity,
-                            operand: Variable(expr_var)
-                        }));
-                    }
-                },
-                _ => {},
+            if let Some(ref expr) = *en {
+                // First get the instructions for this expression.
+                let (ops, expr_var) = self.convert_expr(expr);
+                let expr_var = expr_var.expect(
+                    "Global must have a non-unit value");
+                let ty = (*self.lookup_ty(expr.id))
+                    .clone();
+                res.extend(ops.into_iter());
+                // If the type is a reference, then the instructions just
+                // produced will store the values into the correct memory
+                // location, and we have no work to do. But if not, then
+                // the value was stored into a register, and it's our
+                // responsibility to store it in memory.
+                assert_eq!(is_ref, ty_is_reference(self.session, &ty));
+                let result_var = Var { name: *name,
+                                       generation: None };
+                if ty_is_reference(self.session, &ty) {
+                    res.extend(
+                        self.gen_copy(&result_var, &expr_var, &ty).into_iter());
+                } else {
+                    res.push(self.add_id(OpNode::UnOp {
+                        target: result_var,
+                        op: Identity,
+                        operand: Variable(expr_var)
+                    }));
+                }
             }
         }
         let op = OpNode::Return { retval: None };
@@ -517,25 +512,22 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             label_idx: end_label,
             vars: BTreeSet::new()
         }));
-        match middle_label {
-            Some(l) => res.extend(
+        if let Some(l) = middle_label {
+            res.extend(
                 vec!(self.add_id(OpNode::Goto { label_idx: l, vars: BTreeSet::new() }),
-                     self.add_id(OpNode::Label { label_idx: l, vars: BTreeSet::new() })).into_iter()),
-            None => {},
+                     self.add_id(OpNode::Label { label_idx: l, vars: BTreeSet::new() })).into_iter());
         }
         res.extend(block_insts.into_iter());
-        match iter_insts {
-            Some(insts) => {
-                // These are run in a for loop, where we need iter_insts.
-                res.push(self.add_id(OpNode::Goto { label_idx: continue_label,
-                                                    vars: BTreeSet::new() }));
-                res.push(self.add_id(OpNode::Label { label_idx: continue_label,
-                                                     vars: BTreeSet::new() }));
-                res.extend(insts.into_iter());
-            },
-            // In a while loop, there's nothing more to do here.
-            _ => {},
+        if let Some(insts) = iter_insts {
+            // These are run in a for loop, where we need iter_insts.
+            res.push(self.add_id(OpNode::Goto { label_idx: continue_label,
+                                                vars: BTreeSet::new() }));
+            res.push(self.add_id(OpNode::Label { label_idx: continue_label,
+                                                 vars: BTreeSet::new() }));
+            res.extend(insts.into_iter());
         }
+        // In a while loop, there's nothing more to do here.
+
         res.push(self.add_id(OpNode::Goto { label_idx: begin_label, vars: BTreeSet::new() }));
         res.push(self.add_id(OpNode::Label { label_idx: end_label, vars: BTreeSet::new() }));
         (res, None)
@@ -546,7 +538,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
         let name_opt = self.manglemap.get(&defid);
         match name_opt {
-            Some(ref n) => self.session.interner.intern((*n).clone()),
+            Some(n) => self.session.interner.intern((*n).clone()),
             None => path.val.elems.last().expect(
                 &format!("Empty path: {}", path)[..]
                     ).val.name
@@ -557,7 +549,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         let name_opt = self.manglemap.get(&ident.id);
         VarName::NamedVariable(
             match name_opt {
-                Some(ref n) => self.session.interner.intern((*n).clone()),
+                Some(n) => self.session.interner.intern((*n).clone()),
                 None => ident.val.name
             },
             ident.id,
@@ -565,7 +557,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
     }
 
     pub fn lookup_ty(&self, id: NodeId) -> &Ty {
-        let ref this_ty = self.typemap.types[&id];
+        let this_ty = &self.typemap.types[&id];
         match *this_ty {
             BoundTy(ref bid) => {
                 match self.typemap.bounds[bid] {
@@ -656,28 +648,25 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     !e2ty.is_ptr() {
                         // For pointer arithmetic, we want to scale
                         // by the size of the type being pointed to.
-                        match *e1ty {
-                            PtrTy(ref new_ty) => {
-                                let size = max(size_of_ty(self.session,
-                                                          self.typemap,
-                                                          &new_ty.val),
-                                               1);
-                                let total_size = packed_size(&vec!(size));
-                                let new_var2 = self.gen_temp();
-                                let signed = e2ty.is_signed();
-                                let intkind = if signed { SignedInt(Width32) } else { UnsignedInt(Width32) };
-                                insts.push(
-                                    self.add_id(OpNode::BinOp {
-                                        target: new_var2,
-                                        op: TimesOp,
-                                        lhs: Variable(var2),
-                                        rhs: Constant(NumLit(total_size,
-                                                             intkind)),
-                                        signed: signed
-                                    }));
-                                var2 = new_var2;
-                            },
-                            _ => {}
+                        if let PtrTy(ref new_ty) = *e1ty {
+                            let size = max(size_of_ty(self.session,
+                                                      self.typemap,
+                                                      &new_ty.val),
+                                           1);
+                            let total_size = packed_size(&[size]);
+                            let new_var2 = self.gen_temp();
+                            let signed = e2ty.is_signed();
+                            let intkind = if signed { SignedInt(Width32) } else { UnsignedInt(Width32) };
+                            insts.push(
+                                self.add_id(OpNode::BinOp {
+                                    target: new_var2,
+                                    op: TimesOp,
+                                    lhs: Variable(var2),
+                                    rhs: Constant(NumLit(total_size,
+                                                         intkind)),
+                                    signed: signed
+                                }));
+                            var2 = new_var2;
                         }
                     }
 
@@ -711,7 +700,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                                       self.typemap,
                                                       &new_ty.val),
                                            1);
-                            let total_size = packed_size(&vec!(size));
+                            let total_size = packed_size(&[size]);
                             let new_result = self.gen_temp();
                             insts.push(
                                 self.add_id(OpNode::BinOp {
@@ -760,18 +749,19 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
                 let mut e1ty = self.lookup_ty(e1.id).clone();
                 let mut e2ty = self.lookup_ty(e2.id).clone();
-                let mut new_e1 = e1;
-                let mut new_e2 = e2;
-                if op.val == PlusOp && e2ty.is_ptr() {
-                    // We'll always put the pointer first.
-                    // Because addition is commutative!
-                    assert!(!e1ty.is_ptr(),
-                            concat!("Can't add two pointers. ",
-                                    "Typechecker should have caught this."));
-                    swap(&mut e1ty, &mut e2ty);
-                    new_e1 = e2;
-                    new_e2 = e1;
-                }
+                let (mut new_e1, mut new_e2) =
+                    if op.val == PlusOp && e2ty.is_ptr() {
+                        // We'll always put the pointer first.
+                        // Because addition is commutative!
+                        assert!(!e1ty.is_ptr(),
+                                concat!("Can't add two pointers. ",
+                                        "Typechecker should have caught this."));
+                        swap(&mut e1ty, &mut e2ty);
+
+                        (e2, e1)
+                    } else {
+                        (e1, e2)
+                    };
 
                 if op.val == MinusOp {
                     assert!(!e2ty.is_ptr() || e1ty.is_ptr(),
@@ -806,7 +796,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         let idx_var = self.gen_temp();
                         let base_var = self.gen_temp();
 
-                        let is_ref = ty_is_reference(&self.session, self.lookup_ty(expr.id));
+                        let is_ref = ty_is_reference(self.session, self.lookup_ty(expr.id));
                         let index = self.variant_index(&defid, parent_id);
                         let insts = if is_ref {
                             // Note: here to avoid double borrowing self.
@@ -926,7 +916,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         let (insts, added_addr_var, ty) =
                             self.struct_helper(&**e, name);
                         let width = ty_width(&ty);
-                        let is_ref = ty_is_reference(&self.session, &ty);
+                        let is_ref = ty_is_reference(self.session, &ty);
 
                         res.extend(insts.into_iter());
 
@@ -1014,12 +1004,11 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         None => {
                             let (res2, var2) = self.convert_expr(&**e2);
                             res.extend(res2.into_iter());
-                            let var2 = var2.expect(
-                                "RHS of assignment must have a non-unit value");
-                            var2
+                            var2.expect(
+                                "RHS of assignment must have a non-unit value")
                         }
                     };
-                if ty_is_reference(&self.session, &rhs_ty) {
+                if ty_is_reference(self.session, &rhs_ty) {
                     res.extend(
                         self.gen_copy(&lhs_var, &final_var, &rhs_ty).into_iter());
                 } else {
@@ -1051,26 +1040,22 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     vars: BTreeSet::new()
                 }));
                 insts.extend(b2_insts.into_iter());
-                match b2_var {
-                    Some(b2_var) =>
-                        insts.push(self.add_id(OpNode::UnOp {
-                            target: end_var,
-                            op: Identity,
-                            operand: Variable(b2_var)
-                        })),
-                    None => {},
+                if let Some(b2_var) = b2_var {
+                    insts.push(self.add_id(OpNode::UnOp {
+                        target: end_var,
+                        op: Identity,
+                        operand: Variable(b2_var)
+                    }));
                 }
                 insts.push(self.add_id(OpNode::Goto { label_idx: end_label, vars: BTreeSet::new() }));
                 insts.push(self.add_id(OpNode::Label { label_idx: b1_label, vars: BTreeSet::new() }));
                 insts.extend(b1_insts.into_iter());
-                match b1_var {
-                    Some(b1_var) =>
-                        insts.push(self.add_id(OpNode::UnOp {
-                            target: end_var,
-                            op: Identity,
-                            operand: Variable(b1_var)
-                        })),
-                    None => {},
+                if let Some(b1_var) = b1_var {
+                    insts.push(self.add_id(OpNode::UnOp {
+                        target: end_var,
+                        op: Identity,
+                        operand: Variable(b1_var)
+                    }));
                 }
                 insts.push(self.add_id(OpNode::Goto { label_idx: end_label, vars: BTreeSet::new() }));
                 insts.push(self.add_id(OpNode::Label { label_idx: end_label, vars: BTreeSet::new() }));
@@ -1138,67 +1123,61 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             CallExpr(ref f, ref args) => {
                 // We need to deal with actual function calls, as well as
                 // enum constructors.
-                match f.val {
+                if let PathExpr(ref path) = f.val {
                     // TODO: split a bunch of this off into a helper function.
-                    PathExpr(ref path) => {
-                        let defid = self.session.resolver.def_from_path(path);
-                        // We do this to avoid borrowing self.
-                        let def = {
-                            let d = self.session.defmap.find(&defid).expect(
-                                &format!("Cannot find defid {}", defid)[..]);
-                            (*d).clone()
-                        };
-                        match def {
-                            VariantDef(_, ref parent_id, ref types) => {
-                                let idx_var = self.gen_temp();
-                                let base_var = self.gen_temp();
+                    let defid = self.session.resolver.def_from_path(path);
+                    // We do this to avoid borrowing self.
+                    let def = {
+                        let d = self.session.defmap.find(&defid).expect(
+                            &format!("Cannot find defid {}", defid)[..]);
+                        (*d).clone()
+                    };
+                    if let VariantDef(_, ref parent_id, ref types) = def {
+                        let idx_var = self.gen_temp();
+                        let base_var = self.gen_temp();
 
-                                let index = self.variant_index(&defid,
-                                                               parent_id);
-                                // Note: this is here to avoid a double borrow of self.
-                                let alloca_inst = OpNode::Alloca { var: base_var,
-                                                                   size: size_of_def(self.session,
-                                                                                     self.typemap,
-                                                                                     parent_id) };
-                                let mut insts = vec!(
-                                    self.add_id(alloca_inst),
-                                    self.add_id(OpNode::UnOp {
-                                        target: idx_var,
-                                        op: Identity,
-                                        operand: Constant(
-                                            NumLit(index,
-                                                   UnsignedInt(Width32)))
-                                    }),
-                                    self.add_id(OpNode::Store { addr: base_var,
-                                                                value: idx_var,
-                                                                width: Width32 })
-                                        );
+                        let index = self.variant_index(&defid,
+                                                       parent_id);
+                        // Note: this is here to avoid a double borrow of self.
+                        let alloca_inst = OpNode::Alloca { var: base_var,
+                                                           size: size_of_def(self.session,
+                                                                             self.typemap,
+                                                                             parent_id) };
+                        let mut insts = vec!(
+                            self.add_id(alloca_inst),
+                            self.add_id(OpNode::UnOp {
+                                target: idx_var,
+                                op: Identity,
+                                operand: Constant(
+                                    NumLit(index,
+                                           UnsignedInt(Width32)))
+                            }),
+                            self.add_id(OpNode::Store { addr: base_var,
+                                                        value: idx_var,
+                                                        width: Width32 })
+                        );
 
-                                let (ops, vars, widths) = self.variant_helper(
-                                    types, &base_var);
+                        let (ops, vars, widths) = self.variant_helper(
+                            types, &base_var);
 
-                                insts.extend(ops.into_iter());
+                        insts.extend(ops.into_iter());
 
-                                for i in 0 .. vars.len() {
-                                    let var = vars[i];
-                                    let width = &widths[i];
-                                    let (expr_insts, expr_var) =
-                                        self.convert_expr(&args[i]);
-                                    let expr_var = expr_var.unwrap();
-                                    insts.extend(expr_insts.into_iter());
-                                    insts.push(self.add_id(OpNode::Store {
-                                        addr: var,
-                                        value: expr_var,
-                                        width: *width
-                                    }));
-                                }
-
-                                return (insts, Some(base_var))
-                            },
-                            _ => {},
+                        for i in 0 .. vars.len() {
+                            let var = vars[i];
+                            let width = &widths[i];
+                            let (expr_insts, expr_var) =
+                                self.convert_expr(&args[i]);
+                            let expr_var = expr_var.unwrap();
+                            insts.extend(expr_insts.into_iter());
+                            insts.push(self.add_id(OpNode::Store {
+                                addr: var,
+                                value: expr_var,
+                                width: *width
+                            }));
                         }
-                    },
-                    _ => {}
+
+                        return (insts, Some(base_var))
+                    }
                 }
 
                 // It's an actual function!
@@ -1224,7 +1203,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 let mut move_ops = vec!();
                 for (idx, var) in vars.iter().enumerate() {
                     let var_ty = self.lookup_ty(args[idx].id).clone();
-                    if ty_is_reference(&self.session, &var_ty) {
+                    if ty_is_reference(self.session, &var_ty) {
                         // The type is a reference type, and so lhs_var and
                         // final_var are pointers. Memcpy time!
                         let len = size_of_ty(self.session,
@@ -1273,7 +1252,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                             operand: Variable(result_var)
                         }));
 
-                        if ty_is_reference(&self.session, &this_ty) {
+                        if ty_is_reference(self.session, &this_ty) {
                             let len = size_of_ty(self.session,
                                                  self.typemap,
                                                  &this_ty);
@@ -1297,7 +1276,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                      added_addr_var,
                      ty) = self.struct_helper(&**e, name);
                 let width = ty_width(&ty);
-                let is_ref = ty_is_reference(&self.session, &ty);
+                let is_ref = ty_is_reference(self.session, &ty);
 
                 let res_var = self.gen_temp();
                 if is_ref {
@@ -1370,7 +1349,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 let res_v = self.gen_temp();
                 let actual_op = match op.val {
                     AddrOf =>
-                        if ty_is_reference(&self.session, &ty) {
+                        if ty_is_reference(self.session, &ty) {
                             // These types are stored by reference interally,
                             // so taking the address once is a no-op in the IR.
                             Identity
@@ -1380,7 +1359,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     Deref => {
                         match ty {
                             PtrTy(ref inner) =>
-                                if ty_is_reference(&self.session, &inner.val) {
+                                if ty_is_reference(self.session, &inner.val) {
                                     Identity
                                 } else {
                                     // This case is a bit different, because
@@ -1416,7 +1395,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             },
             ReturnExpr(ref e) => {
                 let (mut insts, v) = self.convert_expr(&**e);
-                let v = v.map(|x| Variable(x));
+                let v = v.map(Variable);
                 insts.push(self.add_id(OpNode::Return { retval: v }));
                 (insts, None)
             }
@@ -1425,15 +1404,15 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 let ty = &self.lookup_ty(expr.id).clone();
                 let (inner_len, nelems, inner_ty) = match *ty {
                     ArrayTy(ref inner_ty, nelems) => {
-                        (packed_size(&vec!(size_of_ty(self.session,
-                                                      self.typemap,
-                                                      &inner_ty.val))),
+                        (packed_size(&[size_of_ty(self.session,
+                                                  self.typemap,
+                                                  &inner_ty.val)]),
                          nelems.expect("Array needs a size"),
                          inner_ty.val.clone())
                     },
                     _ => panic!("Array constructor has non-array type"),
                 };
-                let is_reference = ty_is_reference(&self.session, &inner_ty);
+                let is_reference = ty_is_reference(self.session, &inner_ty);
                 let total_size = size_of_ty(self.session,
                                             self.typemap,
                                             ty);
@@ -1518,7 +1497,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         signed: false
                     }));
 
-                    if ty_is_reference(&self.session, ty) {
+                    if ty_is_reference(self.session, ty) {
                         ops.extend(
                             self.gen_copy(&offset_var,
                                           &expr_var.unwrap(),
@@ -1579,7 +1558,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 let end_label = self.gen_label();
                 let mut result_var = None;
 
-                if ty_is_reference(&self.session, self.lookup_ty(e.id)) {
+                if ty_is_reference(self.session, self.lookup_ty(e.id)) {
                     ops.push(self.add_id(OpNode::Load { target: variant_var,
                                                         addr: base_var,
                                                         width: Width32 }));
@@ -1658,7 +1637,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                                 vars.iter().zip(pats.iter()).zip(types.iter())
                                 .zip(widths.iter())
                             {
-                                let this_ty_is_reference = ty_is_reference(&self.session,
+                                let this_ty_is_reference = ty_is_reference(self.session,
                                                                            self.lookup_ty(this_type.id));
                                 match pat.val {
                                     IdentPat(ref ident, _) => {
@@ -1711,7 +1690,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                     }));
                     // And finally, the label that goes before the next arm.
                     ops.push(self.add_id(OpNode::Label {
-                        label_idx: begin_labels[pos].clone(), vars: BTreeSet::new() }));
+                        label_idx: begin_labels[pos], vars: BTreeSet::new() }));
                 }
 
                 (ops, result_var)
@@ -1793,7 +1772,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
     // executed) the variables are pointers to each of the fields, and Width
     // is the width of a load or store to/from the corresponding field.
     fn variant_helper(&mut self,
-                      types: &Vec<Type>,
+                      types: &[Type],
                       base_var: &Var) -> (Vec<Op>, Vec<Var>, Vec<Width>) {
         let mut insts = vec!();
         let (widths, sizes): (Vec<Width>, Vec<u64>) = Iterator::unzip(types.iter()
@@ -1829,7 +1808,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
         let idx_var = idx_var.expect("Array index must have non-unit value");
         ops.extend(idx_ops.into_iter());
         let size = size_of_ty(self.session, self.typemap, ty);
-        let total_size = packed_size(&vec!(size));
+        let total_size = packed_size(&[size]);
         let offs_var = self.gen_temp();
         let ptr_var = self.gen_temp();
         ops.push(self.add_id(OpNode::BinOp {
@@ -1848,17 +1827,14 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
             signed: false
         }));
 
-        (ops, ptr_var, ty_width(ty), ty_is_reference(&self.session, ty))
+        (ops, ptr_var, ty_width(ty), ty_is_reference(self.session, ty))
     }
 
     fn unwrap_group<'c>(&mut self,
                         grp: &'c Expr) -> &'c Expr {
         let mut unwrapped = grp;
-        loop {
-            match unwrapped.val {
-                GroupExpr(ref e) => unwrapped = &**e,
-                _ => { break; }
-            }
+        while let GroupExpr(ref e) = unwrapped.val {
+            unwrapped = &**e;
         }
         unwrapped
     }

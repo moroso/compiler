@@ -48,9 +48,9 @@ fn tok_to_cmp(tok: &Token) -> Option<CompareType> {
         Token::Le => Some(CmpLEU),
         Token::Lts => Some(CmpLTS),
         Token::Les => Some(CmpLES),
-        Token::EqEq => Some(CmpEQ),
+        Token::EqEq |
         Token::Eq => Some(CmpEQ),
-        Token::Bs => Some(CmpBS),
+        Token::Bs |
         Token::Amp => Some(CmpBS),
         Token::Bc => Some(CmpBC),
         _ => None,
@@ -312,7 +312,7 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
                                 let (rs,
                                      shifttype,
                                      shiftamt) = self.parse_reg_maybe_shift();
-                                let shiftamt = shiftamt.ok()
+                                let shiftamt = shiftamt
                                     .expect("Shifts by registers not allowed");
                                 InstNode::alu2reg(
                                     pred,
@@ -626,7 +626,7 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
             _ => {
                 let (reg_rt, shifttype, shiftamt) =
                     self.parse_reg_maybe_shift();
-                let shiftamt = shiftamt.ok().expect(
+                let shiftamt = shiftamt.expect(
                     "Shifts by regisers are not allowed here");
                 InstNode::comparereg(
                     pred,
@@ -764,7 +764,7 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
         match cur_tok {
             Token::Reg(reg) => {
                 self.expect(Token::Gets);
-                self.parse_op_or_expr(pred.unwrap_or(TRUE_PRED), reg.clone())
+                self.parse_op_or_expr(pred.unwrap_or(TRUE_PRED), reg)
             },
             Token::PredReg(destpred) => {
                 self.expect(Token::Gets);

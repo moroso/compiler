@@ -36,6 +36,7 @@ pub fn get_cur_rel_path() -> PathBuf {
     CUR_REL_PATH.with(|p| p.borrow().clone())
 }
 
+#[derive(Default)]
 pub struct Options {
     pub search_paths: HashMap<String, PathBuf>,
     pub include_prelude: bool,
@@ -61,6 +62,7 @@ pub struct Session<'a> {
     pub interner: ::std::rc::Rc<Interner>,
 }
 
+#[derive(Default)]
 pub struct Interner {
     strings: RefCell<HashMap<String, Name>>,
 }

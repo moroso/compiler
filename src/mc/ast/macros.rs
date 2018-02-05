@@ -9,6 +9,7 @@ use util::lexer::SourceToken;
 use super::mut_visitor::*;
 use super::*;
 
+#[derive(Default)]
 pub struct MacroExpander<'a> {
     macros: BTreeMap<Name, Box<Expander + 'a>>,
 }
@@ -18,14 +19,14 @@ struct MacroExpanderVisitor<'a, 'b: 'a> {
 }
 
 fn expand_file(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
-    assert!(input.len() == 0);
+    assert!(input.is_empty());
 
     let filename = session.parser.filename_of(&id);
     vec!(Token::StringTok(format!("{}", filename)))
 }
 
 fn expand_line(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
-    assert!(input.len() == 0);
+    assert!(input.is_empty());
 
     let span = session.parser.span_of(&id);
     vec!(Token::NumberTok(span.get_begin().row as u64, IntKind::GenericInt))
@@ -35,8 +36,8 @@ fn expand_line(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec
 // Also this is probably not very useful.
 fn expand_paste(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
     let mut concat = vec!();
-    for arg in input.into_iter() {
-        for elem in arg.into_iter() {
+    for arg in input {
+        for elem in arg {
             match elem {
                 Token::IdentTok(s) => concat.push(s),
                 Token::NumberTok(n, _) => concat.push(format!("{}", n)),
@@ -50,13 +51,13 @@ fn expand_paste(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Ve
 
 fn expand_concat(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> Vec<Token> {
     let mut concat = vec!();
-    for mut arg in input.into_iter() {
+    for mut arg in input {
         match arg.pop() {
             Some(Token::StringTok(s)) => concat.push(s),
             t => session.error(id, format!("expected string in concat!, found {:?}", t)),
         }
 
-        if arg.len() > 0 {
+        if arg.is_empty() {
             session.error(id, "expected comma in concat!");
         }
     }
@@ -65,7 +66,7 @@ fn expand_concat(input: Vec<Vec<Token>>, id: NodeId, session: &mut Session) -> V
 }
 
 fn expand_stringify(mut input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> Vec<Token> {
-    if input.len() == 0 {
+    if input.is_empty() {
       return vec!(Token::StringTok(String::new()));
     }
 
@@ -74,7 +75,7 @@ fn expand_stringify(mut input: Vec<Vec<Token>>, _: NodeId, _: &mut Session) -> V
     let ts = input.pop().unwrap();
     concat.extend(ts.into_iter().map(|t| format!("{}", t)));
 
-    for ts in input.into_iter() {
+    for ts in input {
         concat.push(",".to_string());
         concat.extend(ts.into_iter().map(|t| format!("{}", t)));
     }
@@ -148,11 +149,11 @@ impl Expander for WithId<MacroDef> {
         vararg_toks.pop(); // Pop off a trailing comma if it exists
 
         let mut skip_comma = false;
-        for tok in self.val.body.iter() {
+        for tok in &self.val.body {
             let mut is_empty_varargs = false;
             match *tok {
                 MacroVar(name) => {
-                    output.extend(args.get(&name).unwrap().clone().into_iter());
+                    output.extend(args[&name].iter().cloned());
                 }
                 // We skip a comma that occurs after an empty ...
                 MacroTok(Token::Comma) if skip_comma => {}
@@ -185,7 +186,7 @@ impl MacroCollector {
     fn filter_items(&mut self, node_items: &mut Vec<Item>) {
         let mut items = vec!();
         swap(&mut items, node_items);
-        for item in items.into_iter() {
+        for item in items {
             match item.val {
                 MacroDefItem(def) => self.macros.push(def.with_id(item.id)),
                 _ => node_items.push(item),
@@ -226,7 +227,7 @@ impl<'a> MacroExpander<'a> {
 
     pub fn expand_macros(session: &mut Session, module: &mut Module) {
         let user_macros = MacroCollector::collect(module);
-        for def in user_macros.into_iter() {
+        for def in user_macros {
             let name = def.val.name;
             session.expander.macros.insert(name, Box::new(def));
         }
@@ -240,7 +241,7 @@ impl<'a> MacroExpander<'a> {
 }
 
 // Some debug code
-fn format_st_vec(v: &Vec<SourceToken<Token>>) -> String {
+fn format_st_vec(v: &[SourceToken<Token>]) -> String {
     let nv: Vec<Token> = v.iter().map(|t| t.tok.clone()).collect();
     format!("{:?}", nv)
 }

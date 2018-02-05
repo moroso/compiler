@@ -36,21 +36,15 @@ impl Subscope {
 
     fn insert(&mut self, ns: NS, name: Name, node_id: NodeId) -> bool {
         let ns = ns as usize;
-
-        if !self.names.contains_key(&name.as_usize()) {
-            self.names.insert(name.as_usize(), BTreeMap::new());
-        }
-
-        let names = self.names.get_mut(&name.as_usize()).unwrap();
-
-        names.insert(ns, node_id).is_some()
+        self.names.entry(name.as_usize()).or_insert_with(BTreeMap::new)
+            .insert(ns, node_id).is_some()
     }
 
     fn insert_ident(&mut self, ns: NS, ident: &Ident) -> bool {
         self.insert(ns, ident.val.name, ident.id)
     }
 
-    fn insert_items<F>(&mut self, items: &Vec<Item>, mut get_pairs: F)
+    fn insert_items<F>(&mut self, items: &[Item], mut get_pairs: F)
         where F: FnMut(&[Ident]) -> Vec<(NS, Ident)> {
         for item in items.iter() {
             match item.val {
@@ -60,13 +54,13 @@ impl Subscope {
 
                     let filter = match import.val.import {
                         ImportNames(ref ids) =>
-                            FromIterator::from_iter(ids.iter().map(|ref id| id.val.name)),
+                            FromIterator::from_iter(ids.iter().map(|id| id.val.name)),
                         ImportAll =>
                             BTreeSet::new(),
                     };
 
                     let pairs = get_pairs(&import.val.elems[..]);
-                    for &(ns, ref ident) in pairs.iter() {
+                    for &(ns, ref ident) in &pairs {
                         let allow = match import.val.import {
                             ImportNames(..) => filter.contains(&ident.val.name),
                             ImportAll => true,
@@ -76,9 +70,6 @@ impl Subscope {
                             self.insert_ident(ns, ident);
                         }
                     }
-                }
-                FuncItem(ref ident, _, _, _, _) => {
-                    self.insert_ident(ValNS, ident);
                 }
                 StructItem(ref ident, _, _) => {
                     self.insert_ident(TypeAndModNS, ident);
@@ -90,15 +81,12 @@ impl Subscope {
                         self.insert_ident(ValNS, &variant.ident);
                     }
                 }
-                TypeItem(ref ident, _, _) => {
-                    self.insert_ident(TypeAndModNS, ident);
-                }
+                TypeItem(ref ident, _, _) |
                 ModItem(ref ident, _) => {
                     self.insert_ident(TypeAndModNS, ident);
                 }
-                StaticItem(ref ident, _, _, _) => {
-                    self.insert_ident(ValNS, ident);
-                }
+                StaticItem(ref ident, _, _, _) |
+                FuncItem(ref ident, _, _, _, _) |
                 ConstItem(ref ident, _, _) => {
                     self.insert_ident(ValNS, ident);
                 }
@@ -111,10 +99,11 @@ impl Subscope {
         let ns = ns as usize;
         self.names.get(&ident.val.name.as_usize())
             .and_then(|names| names.get(&ns))
-            .map(|id| *id)
+            .cloned()
     }
 }
 
+#[derive(Default)]
 pub struct Resolver {
     table: BTreeMap<NodeId, NodeId>,
 }
@@ -139,13 +128,13 @@ impl Resolver {
 
     /// Get the NodeId of the item that defines the given path
     pub fn def_from_path(&self, path: &Path) -> NodeId {
-        *self.table.get(&path.id).unwrap()
+        self.table[&path.id]
     }
 
     /// Get the NodeId of the item that defines the given path
     pub fn maybe_def_from_path(&self, path: &Path) -> Option<NodeId> {
         match self.table.get(&path.id) {
-            Some(ref v) => Some(*v.clone()),
+            Some(v) => Some(*v),
             None => None,
         }
     }
@@ -269,18 +258,18 @@ impl<'a, 'b> ModuleResolver<'a, 'b> {
 
         items.map(|items| subscope.insert_items(items, |elems| {
             let scope = self.try_resolve_subscope(true, elems).unwrap();
-            let ref names = scope[0].names;
+            let names = &scope[0].names;
 
             let mut pairs = vec!();
-            for (name, map) in names.iter() {
-                for ns in [TypeAndModNS, ValNS, StructNS].iter() {
-                    for nid in map.get(&(*ns as usize)).iter() {
+            for (name, map) in names {
+                for ns in &[TypeAndModNS, ValNS, StructNS] {
+                    if let Some(nid) = map.get(&(*ns as usize)) {
                         let ident = IdentNode {
                             tps: None,
                             name: Name(*name),
                         };
 
-                        pairs.push((*ns, WithId { id: **nid, val: ident }));
+                        pairs.push((*ns, WithId { id: *nid, val: ident }));
                     }
                 }
             }
@@ -294,16 +283,15 @@ impl<'a, 'b> ModuleResolver<'a, 'b> {
     }
 
     fn handle_use_names(&mut self, global: bool, elems: &[Ident], idents: &[Ident]) {
-        for ident in idents.iter() {
+        for ident in idents {
 
             let mut found = false;
-            for ns in [TypeAndModNS, ValNS, StructNS].iter() {
-                match self.try_resolve_path_split(*ns, global, elems, ident) {
-                    Some(node_id) => {
-                        self.add_to_scope(*ns, ident.val.name, node_id);
-                        found = true;
-                    }
-                    None => {}
+            for ns in &[TypeAndModNS, ValNS, StructNS] {
+                if let Some(node_id) = self.try_resolve_path_split(
+                    *ns, global, elems, ident
+                ) {
+                    self.add_to_scope(*ns, ident.val.name, node_id);
+                    found = true;
                 }
             }
 
@@ -333,8 +321,8 @@ impl<'a, 'b> ModuleResolver<'a, 'b> {
         };
 
         // Ok, now that we have found the stuff, add it all in.
-        for (name, map) in scope.iter() {
-            for ns in [TypeAndModNS, ValNS, StructNS].iter() {
+        for (name, map) in &scope {
+            for ns in &[TypeAndModNS, ValNS, StructNS] {
                 for id in map.get(&(*ns as usize)).iter() {
                     self.add_to_scope(*ns, Name(*name), **id);
                 }
@@ -357,14 +345,11 @@ impl<'a, 'b> ModuleResolver<'a, 'b> {
 
 impl Visitor for ModuleCollector {
     fn visit_item(&mut self, item: &Item) {
-        match item.val {
-            ModItem(ref ident, ref module) => {
-                let mut subscope = Subscope::new();
-                subscope.insert_items(&module.val.items, |_| vec!());
-                self.tree.insert(ident.id, OffBranch(subscope));
-                self.visit_module(module);
-            }
-            _ => {}
+        if let ModItem(ref ident, ref module) = item.val {
+            let mut subscope = Subscope::new();
+            subscope.insert_items(&module.val.items, |_| vec!());
+            self.tree.insert(ident.id, OffBranch(subscope));
+            self.visit_module(module);
         }
     }
 }
@@ -374,13 +359,10 @@ impl<'a, 'b> Visitor for ModuleResolver<'a, 'b> {
         match t.val {
             NamedType(ref path) => {
                 self.resolve_path(TypeAndModNS, path);
-                match path.val.elems.last().unwrap().val.tps {
-                    Some(ref tps) => {
-                        for tp in tps.iter() {
-                            self.visit_type(tp);
-                        }
+                if let Some(ref tps) = path.val.elems.last().unwrap().val.tps {
+                    for tp in tps.iter() {
+                        self.visit_type(tp);
                     }
-                    None => {}
                 }
             }
             _ => walk_type(self, t)
@@ -497,7 +479,7 @@ impl<'a, 'b> Visitor for ModuleResolver<'a, 'b> {
                         me.add_ident_to_scope(TypeAndModNS, tp);
                     }
                     for variant in variants.iter() {
-                        for arg in variant.args.iter() {
+                        for arg in &variant.args {
                             me.visit_type(arg);
                         }
                     }

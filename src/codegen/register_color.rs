@@ -31,7 +31,7 @@ impl RegisterColorer {
         freq_vec.sort_by(|&(_, a), &(_, b)| b.cmp(a));
 
         // First, decide what must go on the stack..
-        for &(var, _) in freq_vec.iter() {
+        for &(var, _) in &freq_vec {
             let maybe_pos = mem_locs.get(&var.name);
             match maybe_pos {
                 // We don't want to override any "must colors", but otherwise want to put every generation
@@ -42,22 +42,19 @@ impl RegisterColorer {
             }
         }
 
-        for (var, _) in freq_vec.into_iter() {
+        for (var, _) in freq_vec {
             let global_info = global_map.get(&var.name);
-            match global_info {
-                Some(..) => {
-                    // It's a global variable. No work to do!
-                    assert!(
-                        coloring.get(var).is_none(),
-                        format!("Already colored a global variable {} as {}",
-                                var, coloring.get(var).unwrap()));
-                    coloring.insert(*var, GlobalColor);
-                    continue;
-                },
-                _ => {},
+            if global_info.is_some() {
+                // It's a global variable. No work to do!
+                assert!(
+                    coloring.get(var).is_none(),
+                    format!("Already colored a global variable {} as {}",
+                            var, coloring[var]));
+                coloring.insert(*var, GlobalColor);
+                continue;
             }
             let empty_treeset = BTreeSet::<Var>::new();
-            let ref adjacent_vars =
+            let adjacent_vars =
                 conflicts
                 .get(var)
                 .unwrap_or(&empty_treeset);
@@ -66,12 +63,12 @@ impl RegisterColorer {
                                           .map(|var|
                                                coloring
                                                .get(var)
-                                               .map(|&x|x)
+                                               .cloned()
                                                ));
 
             // If we already have a coloring, make sure that it hasn't
             // created any inconsistencies.
-            let cur_color = coloring.get(var).map(|&x|x);
+            let cur_color = coloring.get(var).cloned();
             if cur_color.is_some() {
                 assert!(!adjacent_colors.contains(&cur_color),
                         "var {} has an adjacent color {}", var, cur_color.unwrap());

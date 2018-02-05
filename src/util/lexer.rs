@@ -145,16 +145,13 @@ impl<'a, B: BufReader, T: Eq> Iterator for Lexer<'a, B, T> {
 
                         for rule in rules.iter() {
                             let m = rule.run(&line[self.pos.col..]);
-                            match m {
-                                Some((len, tok)) => {
-                                    if len > longest {
-                                        // We have a match that's longer than our
-                                        // previous one. Remember it.
-                                        best = Some((mk_sp(self.pos, len), tok));
-                                        longest = len;
-                                    }
-                                },
-                                _ => {},
+                            if let Some((len, tok)) = m {
+                                if len > longest {
+                                    // We have a match that's longer than our
+                                    // previous one. Remember it.
+                                    best = Some((mk_sp(self.pos, len), tok));
+                                    longest = len;
+                                }
                             }
                         }
 
@@ -221,9 +218,10 @@ pub trait RuleMatcher<T> {
 // Simple string-prefix match
 impl<'a, T: MaybeArg> RuleMatcher<T> for &'a str {
     fn find(&self, s: &str) -> Option<(usize, T)> {
-        match s.starts_with(*self) {
-            true => Some((self.len(), MaybeArg::maybe_arg(*self))),
-            _ => None
+        if s.starts_with(*self) {
+            Some((self.len(), MaybeArg::maybe_arg(*self)))
+        } else {
+            None
         }
     }
 }

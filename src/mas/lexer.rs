@@ -1,6 +1,4 @@
 use std::io;
-//use std::str::StrExt;
-use std::ascii::AsciiExt;
 use util::lexer::*;
 use super::ast;
 use super::ast::*;
@@ -200,7 +198,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
                     Some((groups.at(0).unwrap().len(),
                           Pred {
                               inverted: groups.at(1).unwrap() == "!",
-                              reg: PredReg::from_u8(groups.at(2).unwrap().as_bytes()[0] - '0' as u8)
+                              reg: PredReg::from_u8(groups.at(2).unwrap().as_bytes()[0] - b'0')
                           }))
                 },
                 _ => None

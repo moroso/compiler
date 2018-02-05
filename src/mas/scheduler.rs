@@ -138,9 +138,8 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
         // to know about aliasing.
         // Also, for now, never commute store with store.
         // TODO: these rules can be relaxed a bit.
-        LoadInst(..) => match *inst2 {
-            StoreInst(..) => return false,
-            _ => {},
+        LoadInst(..) => if let StoreInst(..) = *inst2 {
+            return false;
         },
         StoreInst(..) => match *inst2 {
             StoreInst(..) |
@@ -163,17 +162,13 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
     let pred1 = pred(inst1);
     let pred2 = pred(inst2);
     // If two instructions have opposite predicates, we can commute them.
-    match pred1 {
-        Some(ref p1) => match pred2 {
-            Some(ref p2) => {
-                if p1.reg == p2.reg &&
-                    p1.inverted != p2.inverted {
-                        return true;
-                    }
-            },
-            _ => {},
-        },
-        _ => {},
+    if let Some(ref p1) = pred1 {
+        if let Some(ref p2) = pred2 {
+            if p1.reg == p2.reg &&
+                p1.inverted != p2.inverted {
+                    return true;
+                }
+        }
     }
 
     let destreg1 = destreg(inst1);
@@ -187,16 +182,12 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
 
     // inst1 writes to a predicate that inst2 uses.
     let destpred1 = destpred(inst1);
-    match destpred1 {
-        Some(ref p1) => match pred(inst2) {
-            Some(ref p2) => {
-                if p1.reg == p2.reg {
-                    return false;
-                }
-            },
-            _ => {},
-        },
-        _ => {},
+    if let Some(ref p1) = destpred1 {
+        if let Some(ref p2) = pred(inst2) {
+            if p1.reg == p2.reg {
+                return false;
+            }
+        }
     }
 
     // coregs conflict
@@ -214,7 +205,7 @@ fn commutes_(inst1: &InstNode, inst2: &InstNode) -> bool {
 
     // TODO: a few more cases.
 
-    return true;
+    true
 }
 
 // Returns whether inst1 and inst2 (appearing in that order in the original
@@ -232,20 +223,16 @@ fn update_labels(label_map: &BTreeMap<usize, Vec<&String>>,
                  orig_pos: usize,
                  new_pos: usize) {
     let labels = label_map.get(&orig_pos);
-    match labels {
+    if let Some(labels) = labels {
         // Update the labels that pointed here.
-        Some(labels) => {
-            for label in labels.iter() {
-                new_label_list.insert((*label).clone(), new_pos);
-            }
-        },
-        None => {},
+        for label in labels.iter() {
+            new_label_list.insert((*label).clone(), new_pos);
+        }
     }
-
 }
 
 /// Dummy scheduler: one instruction per packet.
-pub fn schedule_dummy(insts: &Vec<InstNode>,
+pub fn schedule_dummy(insts: &[InstNode],
                       labels: &BTreeMap<String, usize>,
                       _: bool) -> (Vec<[InstNode; 4]>,
                                    BTreeMap<String, usize>) {
@@ -302,7 +289,7 @@ pub fn schedule_dummy(insts: &Vec<InstNode>,
     (packets, modified_labels)
 }
 
-pub fn schedule(insts: &Vec<InstNode>,
+pub fn schedule(insts: &[InstNode],
                 labels: &BTreeMap<String, usize>,
                 debug: bool) -> (Vec<[InstNode; 4]>,
                                  BTreeMap<String, usize>) {
@@ -335,13 +322,13 @@ pub fn schedule(insts: &Vec<InstNode>,
     jump_targets.push(insts.len());
 
     if debug {
-        for target in jump_targets.iter() {
+        for target in &jump_targets {
             print!("targets:{}\n", target);
         }
     }
 
     let mut start = 0;
-    for end in jump_targets.into_iter() {
+    for end in jump_targets {
         if debug {
             print!("Scheduling ({}, {})\n", start, end);
         }
@@ -376,41 +363,38 @@ pub fn schedule(insts: &Vec<InstNode>,
                 edges.iter().map(|&(_, x)| x));
             let leaves: BTreeSet<usize> = FromIterator::from_iter(
                 all.iter()
-                    .map(|&x| x)
+                    .cloned()
                     .filter(|x| !non_schedulables.contains(x)));
             let mut added = false;
-            for leaf in leaves.iter() {
+            for leaf in &leaves {
                 let inst = &insts[*leaf];
-                match *inst {
-                    PacketsInst(ref inline_packets) => {
-                        // Flush the current packet.
-                        if packet_added {
-                            packets.push(this_packet);
-                            this_packet = [NopInst, NopInst, NopInst, NopInst];
-                            packet_added = false;
-                            added = false;
-                        }
+                if let PacketsInst(ref inline_packets) = *inst {
+                    // Flush the current packet.
+                    if packet_added {
+                        packets.push(this_packet);
+                        this_packet = [NopInst, NopInst, NopInst, NopInst];
+                        packet_added = false;
+                        added = false;
+                    }
 
-                        update_labels(&jump_target_dict,
-                                      &mut modified_labels,
-                                      *leaf,
-                                      packets.len());
-                        // TODO label support in inline asm.
-                        for packet in inline_packets.iter() {
-                            packets.push([packet[0].clone(),
-                                          packet[1].clone(),
-                                          packet[2].clone(),
-                                          packet[3].clone()]);
-                        }
-                        // The packet being built at this point should be empty.
-                        assert!(this_packet.iter().all(|x| *x == NopInst));
-                        edges = FromIterator::from_iter(
-                            edges.iter().map(|&x|x)
-                                .filter(|&(x, _)| x!=*leaf));
-                        all.remove(leaf);
-                        break;
-                    },
-                    _ => {}
+                    update_labels(&jump_target_dict,
+                                  &mut modified_labels,
+                                  *leaf,
+                                  packets.len());
+                    // TODO label support in inline asm.
+                    for packet in inline_packets.iter() {
+                        packets.push([packet[0].clone(),
+                                      packet[1].clone(),
+                                      packet[2].clone(),
+                                      packet[3].clone()]);
+                    }
+                    // The packet being built at this point should be empty.
+                    assert!(this_packet.iter().all(|x| *x == NopInst));
+                    edges = FromIterator::from_iter(
+                        edges.iter().cloned()
+                            .filter(|&(x, _)| x!=*leaf));
+                    all.remove(leaf);
+                    break;
                 }
 
                 if compatible(&this_packet, inst) {
@@ -445,7 +429,7 @@ pub fn schedule(insts: &Vec<InstNode>,
                                 added = true;
                                 packet_added = true;
                                 edges = FromIterator::from_iter(
-                                    edges.iter().map(|&x|x)
+                                    edges.iter().cloned()
                                         .filter(|&(x, _)| x!=*leaf+offs));
                             }
                             break;

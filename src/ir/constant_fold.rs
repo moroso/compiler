@@ -128,20 +128,17 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
                 }
             },
             OpNode::UnOp { target: ref v, ref op, operand: ref rv } => {
-                match fold_unary(op, rv) {
-                    Some(c) => {
-                        changes.push((*v,
-                                      Constant(c.clone())));
-                        if *op != Identity {
-                            immediate_changes.push((pos,
-                                                    OpNode::UnOp {
-                                                        target: *v,
-                                                        op: Identity,
-                                                        operand: Constant(c)}
-                            ));
-                        }
-                    },
-                    _ => {}
+                if let Some(c) = fold_unary(op, rv) {
+                    changes.push((*v,
+                                  Constant(c.clone())));
+                    if *op != Identity {
+                        immediate_changes.push((pos,
+                                                OpNode::UnOp {
+                                                    target: *v,
+                                                    op: Identity,
+                                                    operand: Constant(c)}
+                        ));
+                    }
                 }
             }
             // TODO: unary ops, and anything else.
@@ -152,12 +149,12 @@ fn constant_fold_once<T>(ops: &mut Vec<Op>, vars_to_avoid: &BTreeSet<Var>,
     let mut changed = false;
 
     // These are changes we can do unconditionally.
-    for (a, b) in immediate_changes.into_iter() {
-        ops.get_mut(a).unwrap().val = b;
+    for (a, b) in immediate_changes {
+        ops[a].val = b;
         changed = true;
     }
 
-    for (a, b) in changes.into_iter() {
+    for (a, b) in changes {
         if !vars_to_avoid.contains(&a) && !globals.get(&a.name).is_some() {
             if verbose {
                 print!("Applying {}->{}\n", a, b);
@@ -195,9 +192,8 @@ impl ConstantFolder {
                 },
                 // We can't fold anything we take the address of.
                 OpNode::UnOp {op: AddrOf, operand: ref rv, .. } => {
-                    match *rv {
-                        Variable(v) => { vars_to_avoid.insert(v); },
-                        _ => {},
+                    if let Variable(v) = *rv {
+                        vars_to_avoid.insert(v);
                     }
                 },
                 OpNode::Store { addr: v1, value: v2, .. } |

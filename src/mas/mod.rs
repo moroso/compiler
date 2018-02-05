@@ -25,7 +25,7 @@ pub mod scheduler;
 fn print_bin(n: u32, stream: &mut Write) {
     // Write in little-endian format.
     (stream.write_all(vec!(
-        (n >>  0) as u8,
+        (n     ) as u8,
         (n >>  8) as u8,
         (n >> 16) as u8,
         (n >> 24) as u8,
@@ -74,12 +74,12 @@ pub fn main() {
             }
             f
         },
-        None => matches.opt_str("format").unwrap_or(
-            "internal".to_string())
+        None => matches.opt_str("format").unwrap_or_else(
+            || "internal".to_string())
     };
 
     if &format_arg[..] == "internal" {
-        print!("Moroso assembler.\n");
+        println!("Moroso assembler.");
     }
 
     let mut f = match matches.opt_str("output") {
@@ -91,7 +91,7 @@ pub fn main() {
         }
     };
 
-    let name = if matches.free.len() == 0 {
+    let name = if matches.free.is_empty() {
         "-"
     } else if matches.free.len() == 1 {
         &matches.free[0][..]
@@ -117,7 +117,7 @@ pub fn main() {
 
     labels::resolve_labels(&mut insts, &new_labels, 0);
 
-    for packet in insts.iter() {
+    for packet in &insts {
         match &format_arg[..] {
             "internal" => { write!(&mut *f, "{:?}\n", packet).ok(); },
             "c" => { write!(&mut *f, "0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",

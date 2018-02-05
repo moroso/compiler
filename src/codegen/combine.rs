@@ -11,10 +11,10 @@ pub fn link(parts: Vec<(Vec<[InstNode; 4]>, BTreeMap<String, usize>)>
     let mut pos = 0;
     let mut all_labels = BTreeMap::new();
 
-    for (insts, labels) in parts.into_iter() {
+    for (insts, labels) in parts {
         let this_len = insts.len();
         result.extend(insts.into_iter());
-        for (label, label_pos) in labels.into_iter() {
+        for (label, label_pos) in labels {
             // For the assert; up here because "label" is moved.
             let error_str = format!("Duplicate label {}", label);
             let res = all_labels.insert(label, LabelInfo::InstLabel(pos + label_pos));

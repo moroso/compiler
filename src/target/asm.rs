@@ -64,7 +64,7 @@ pub struct AsmTarget {
 }
 
 impl MkTarget for AsmTarget {
-    fn new(args: &Vec<(String, Option<String>)>) -> Box<AsmTarget> {
+    fn new(args: &[(String, Option<String>)]) -> Box<AsmTarget> {
         let mut verbose = false;
         let mut disable_scheduler = false;
         let mut disable_inliner = false;
@@ -81,8 +81,8 @@ impl MkTarget for AsmTarget {
 
         // TODO: get rid of the unnecessary clones in this function.
         for arg in args.iter() {
-            if arg.0 == "verbose".to_string() {
-                print!("Enabling verbose mode.\n");
+            if arg.0 == "verbose" {
+                println!("Enabling verbose mode.");
                 verbose = true;
             } else if arg.0 == "list" {
                 list_file = arg.1.clone();
@@ -200,7 +200,7 @@ impl Target for AsmTarget {
             BinaryFormat::FlatFormat => "prelude.ma",
         };
         let prelude_file = {
-            let prelude_path = session.options.search_paths.get(&prelude_name.to_string()).unwrap();
+            let prelude_path = &session.options.search_paths[&prelude_name.to_string()];
             File::open(&prelude_path).unwrap_or_else(|e| panic!("{}", e))
         };
 
@@ -237,9 +237,9 @@ impl Target for AsmTarget {
             Inliner::inline(&mut result, max_label, self.verbose);
         }
 
-        for mut insts in result.into_iter() {
+        for mut insts in result {
             if self.verbose {
-                print!("Start conversion!\n");
+                println!("Start conversion!");
                 print!("{:?}\n", insts);
             }
             let func_name = match insts[0].val {
@@ -249,8 +249,8 @@ impl Target for AsmTarget {
             ToSSA::to_ssa(&mut insts, self.verbose);
             ConstantFolder::fold(&mut insts, &global_map, self.verbose);
             if self.verbose {
-                print!("After fold:\n");
-                for op in insts.iter() {
+                println!("After fold:");
+                for op in &insts {
                     print!("{}", op);
                 }
             }
@@ -259,7 +259,7 @@ impl Target for AsmTarget {
                                        self.const_mul_bit_limit);
             if self.verbose {
                 print!("After mult opt:\n");
-                for op in insts.iter() {
+                for op in &insts {
                     print!("{}", op);
                 }
             }
@@ -267,34 +267,32 @@ impl Target for AsmTarget {
             // See the "eliminate" function for details.
             DeadCodeEliminator::eliminate(&mut insts, self.verbose, false);
             if self.verbose {
-                print!("After dce:\n");
-                for op in insts.iter() {
+                println!("After dce:");
+                for op in &insts {
                     print!("{}", op);
                 }
             }
             if self.verbose {
-                print!("Post-optimization:\n");
-                for op in insts.iter() {
+                println!("Post-optimization:");
+                for op in &insts {
                     let new_id = sourcemap.get(&op.id);
-                    match new_id {
-                        Some(id) =>
-                            print!("{:?} {:?}\n",
-                                   session.parser.spanmap.get(&id),
-                                   session.parser.filemap.get(&id)),
-                        _ => {}
+                    if let Some(id) = new_id {
+                        print!("{:?} {:?}\n",
+                               session.parser.spanmap.get(id),
+                               session.parser.filemap.get(id));
                     }
                     print!("{}", op.id);
                     print!("{}", op);
                 }
             }
-            let opinfo = LivenessAnalyzer::analyze(&mut insts);
+            let opinfo = LivenessAnalyzer::analyze(&insts);
             if self.verbose {
-                for a in opinfo.iter() {
+                for a in &opinfo {
                     print!("{:?}\n", a);
                 }
                 print!("{:?}\n", insts);
                 let (conflict_map, counts, must_colors, mem_vars) =
-                    ConflictAnalyzer::conflicts(&mut insts, &opinfo);
+                    ConflictAnalyzer::conflicts(&insts, &opinfo);
                 print!("conflicts: {:?}\ncounts: {:?}\nmust: {:?}\nin mem: {:?}\n",
                        conflict_map, counts, must_colors, mem_vars);
                 print!("{:?}\n",
@@ -304,18 +302,18 @@ impl Target for AsmTarget {
                                               NUM_USABLE_VARS as usize));
             }
             let (asm_insts, labels, coloring, opinfo, correspondence) = irtoasm.ir_to_asm(
-                &mut insts, &mut session);
+                &insts, &mut session);
 
             if self.verbose {
                 for (pos, inst) in asm_insts.iter().enumerate() {
-                    for (k, v) in labels.iter() {
+                    for (k, v) in &labels {
                         if *v == pos {
                             print!("{}:\n", k);
                         }
                     }
                     print!("   {}\n", inst);
                 }
-                for (k, v) in labels.iter() {
+                for (k, v) in &labels {
                     if *v == asm_insts.len() {
                         print!("{}:\n", k);
                     }
@@ -348,41 +346,35 @@ impl Target for AsmTarget {
             File::create(&path).unwrap_or_else(|e| panic!("{}", e))
         });
 
-        match debug_file {
-            Some(ref mut f) => {
-                write_debug_file(f,
-                                 &all_labels,
-                                 &session.parser.spanmap,
-                                 &session.parser.filemap,
-                                 &sourcemap,
-                                 &debug_info);
-            },
-            None => {}
+        if let Some(ref mut f) = debug_file {
+            write_debug_file(f,
+                             &all_labels,
+                             &session.parser.spanmap,
+                             &session.parser.filemap,
+                             &sourcemap,
+                             &debug_info);
         }
 
-        match list_file {
-            Some(ref mut f) => {
-                for (pos, packet) in all_packets.iter().enumerate() {
-                    for (k, v) in all_labels.iter() {
-                        if *v == LabelInfo::InstLabel(pos) {
-                            write!(f, "    {}:\n", k);
-                        }
+        if let Some(ref mut f) = list_file {
+            for (pos, packet) in all_packets.iter().enumerate() {
+                for (k, v) in &all_labels {
+                    if *v == LabelInfo::InstLabel(pos) {
+                        write!(f, "    {}:\n", k);
                     }
+                }
 
-                    write!(f, "{:04x}        {{ {}; {}; {}; {} }}\n",
-                           pos * 16 + self.code_start as usize,
-                           packet[0],
-                           packet[1],
-                           packet[2],
-                           packet[3]);
+                write!(f, "{:04x}        {{ {}; {}; {}; {} }}\n",
+                       pos * 16 + self.code_start as usize,
+                       packet[0],
+                       packet[1],
+                       packet[2],
+                       packet[3]);
+            }
+            for (k, v) in &all_labels {
+                if *v == LabelInfo::InstLabel(all_packets.len()) {
+                    write!(f, "{}:\n", k);
                 }
-                for (k, v) in all_labels.iter() {
-                    if *v == LabelInfo::InstLabel(all_packets.len()) {
-                        write!(f, "{}:\n", k);
-                    }
-                }
-            },
-            None => {}
+            }
         }
 
         // Determine size of globals.
@@ -393,7 +385,8 @@ impl Target for AsmTarget {
         let global_start = self.global_start.unwrap_or((all_packets.len() * 0x10) as u32);
 
         // Determine position of the stack. By default, put it right after the globals.
-        let stack_start = self.stack_start.unwrap_or(align(global_start + global_size, 4));
+        let stack_start = self.stack_start.unwrap_or_else(
+            || align(global_start + global_size, 4));
 
         // Add a special end label.
         all_labels.insert("__END__".to_string(), LabelInfo::InstLabel(all_packets.len()));
@@ -413,14 +406,14 @@ impl Target for AsmTarget {
         }
 
         if self.verbose {
-            for (ref label, _) in all_labels.iter() {
+            for (label, _) in &all_labels {
                 print!("Label: {}\n", label);
             }
         }
         resolve_labels(&mut all_packets, &all_labels, self.code_start as usize);
 
         if self.verbose {
-            for packet in all_packets.iter() {
+            for packet in &all_packets {
                 print!("0x{:08x}, 0x{:08x}, 0x{:08x}, 0x{:08x},\n",
                        encode(&packet[0]),
                        encode(&packet[1]),
@@ -444,7 +437,7 @@ impl Target for AsmTarget {
             print_bin(self.code_start, f);
         }
 
-        for packet in all_packets.iter() {
+        for packet in &all_packets {
             print_bin(encode(&packet[0]), f);
             print_bin(encode(&packet[1]), f);
             print_bin(encode(&packet[2]), f);

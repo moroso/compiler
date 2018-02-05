@@ -1,7 +1,7 @@
 use std::fmt;
 use std::cmp::Ordering;
 
-#[derive(Clone, PartialEq, Eq, Ord, Debug, Copy)]
+#[derive(Clone, PartialEq, Eq, Ord, Debug, Copy, Default)]
 pub struct SourcePos {
     pub row: usize,
     pub col: usize,
@@ -59,7 +59,7 @@ impl Span {
 }
 
 pub fn mk_sp(begin: SourcePos, len: usize) -> Span {
-    let mut end = begin.clone();
+    let mut end = begin;
     end.col += len;
     Span { begin: begin, end: end }
 }

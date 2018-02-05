@@ -35,7 +35,7 @@ impl<'a, 'b> NameMangler<'a, 'b> {
         // avoid colliding with C.
         let mangled_name =
             if !self.mangle_main &&
-            pre_mangled_path == "main".to_string() {
+            pre_mangled_path == "main" {
                 // ... except main, which we don't want to mangle!
                 "main".to_string()
             } else {
