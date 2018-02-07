@@ -642,7 +642,7 @@ impl Display for InstNode {
                              val,
                              rot
                              ) => {
-                write!(f, "{}p{} <- {} {} {}",
+                write!(f, "{}{} <- {} {} {}",
                        format_pred(pred),
                        destpred.reg,
                        rs, comparetype, ror(val, rot * 2))
@@ -655,7 +655,7 @@ impl Display for InstNode {
                            shifttype,
                            shiftamt
                            ) => {
-                write!(f, "{}p{} <- {} {} {}",
+                write!(f, "{}{} <- {} {} {}",
                        format_pred(pred),
                        destpred.reg,
                        rs, comparetype,
@@ -666,7 +666,7 @@ impl Display for InstNode {
                             rs,
                             comparetype
                             ) => {
-                write!(f, "{}p{} <- {} {} long",
+                write!(f, "{}{} <- {} {} long",
                        format_pred(pred),
                        destpred.reg,
                        rs, comparetype)
