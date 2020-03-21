@@ -1106,8 +1106,9 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
     fn parse_path_or_struct_expr(&mut self) -> Expr {
         let start_span = self.cur_span();
         let path = self.parse_path();
+        let restriction = self.restriction;
         let node = match *self.peek() {
-            Token::LBrace if self.restriction != Restriction::NoAmbiguousLBrace => {
+            Token::LBrace if restriction != Restriction::NoAmbiguousLBrace => {
                 self.expect(Token::LBrace);
                 let fields = self.parse_list(|p| {
                     let name = p.parse_name();
