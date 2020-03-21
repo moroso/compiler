@@ -112,8 +112,6 @@ impl Interner {
 
 impl<'a> Session<'a> {
     pub fn new(opts: Options) -> Session<'a> {
-        use mc::session::INTERNER;
-
         INTERNER.with(|x| {
             Session {
                 options: opts,

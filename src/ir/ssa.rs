@@ -381,7 +381,7 @@ impl ToSSA {
                     }
                 }
                 OpNode::Alloca { var: ref mut v, .. } => {
-                    v.generation = next_gen(gens, v.name);;
+                    v.generation = next_gen(gens, v.name);
                 }
                 _ => {}
             }

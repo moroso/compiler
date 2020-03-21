@@ -249,13 +249,13 @@ impl Display for OpNode {
                        }, name, write_list(vars.iter())),
             Nop {} => write!(f, "{: >16}\n", "nop"),
             AsmOp { insts: ref packets } => {
-                try!(write!(f, "Asm("));
+                write!(f, "Asm(")?;
                 for packet in packets.iter() {
-                    try!(write!(f, "[ "));
+                    write!(f, "[ ")?;
                     for inst in packet.iter() {
-                        try!(write!(f, "{}", inst));
+                        write!(f, "{}", inst)?;
                     }
-                    try!(write!(f, "]"));
+                    write!(f, "]")?;
                 }
                 write!(f, ")\n;")
             }

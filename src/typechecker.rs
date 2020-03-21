@@ -109,13 +109,13 @@ fn constant_fold(typechecker: &mut Typechecker, expr: &Expr)
             }
         }
         BinOpExpr(op, ref e1, ref e2) => {
-            let r1 = try!(constant_fold(typechecker, &**e1));
-            let r2 = try!(constant_fold(typechecker, &**e2));
+            let r1 = constant_fold(typechecker, &**e1)?;
+            let r2 = constant_fold(typechecker, &**e2)?;
 
             Ok(values::eval_binop(op.val, r1, r2))
         }
         UnOpExpr(op, ref e) => {
-            let r = try!(constant_fold(typechecker, &**e));
+            let r = constant_fold(typechecker, &**e)?;
 
             // Unlike binops, some unops can't be folded
             match values::eval_unop(op.val, r) {
@@ -125,7 +125,7 @@ fn constant_fold(typechecker: &mut Typechecker, expr: &Expr)
         }
         CastExpr(ref e, ref t) => {
             let ty = typechecker.type_to_ty(t);
-            let r = try!(constant_fold(typechecker, &**e));
+            let r = constant_fold(typechecker, &**e)?;
             static_cast(&r, &ty.val).ok_or((e.id, "Cannot perform cast"))
         }
         _ => Err((expr.id, "Non-constant expression where constant expected")),

@@ -104,10 +104,10 @@ pub struct IdentNode {
 
 impl Display for IdentNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        try!(write!(f, "{}", self.name));
+        write!(f, "{}", self.name)?;
         for tps in self.tps.iter() {
             if !tps.is_empty() {
-                try!(write!(f, "<{:?}>", tps));
+                write!(f, "<{:?}>", tps)?;
             }
         }
         Ok(())
@@ -374,21 +374,21 @@ impl Display for ExprNode {
             DoWhileExpr(ref e, ref b)           => write!(f, "do {} while {}", b, e),
             ForExpr(ref e1, ref e2, ref e3, ref b) => write!(f, "for ({};{};{}) {}", e1, e2, e3, b),
             MatchExpr(ref e, ref items) => {
-                try!(write!(f, "match {} {{\n", e));
+                write!(f, "match {} {{\n", e)?;
                 for item in items.iter() {
-                    try!(write!(f, "    {},\n", item));
+                    write!(f, "    {},\n", item)?;
                 }
                 write!(f, "{}", "}")
             },
             MacroExpr(n, ref args) => write!(f, "{}!({:?})", n, args),
             AsmExpr(ref packets) => {
-                try!(write!(f, "Asm("));
+                write!(f, "Asm(")?;
                 for packet in packets.iter() {
-                    try!(write!(f, "[ "));
+                    write!(f, "[ ")?;
                     for inst in packet.iter() {
-                        try!(write!(f, "{}", inst));
+                        write!(f, "{}", inst)?;
                     }
-                    try!(write!(f, "]"));
+                    write!(f, "]")?;
                 }
                 write!(f, ")\n;")
             },
@@ -429,20 +429,20 @@ pub struct BlockNode {
 
 impl Display for BlockNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        try!(write!(f, "{}\n", "{"));
+        write!(f, "{}\n", "{")?;
         for item in &self.items {
             for line in (&format!("{}", item)[..]).lines() {
-                try!(write!(f, "    {}\n", line));
+                write!(f, "    {}\n", line)?;
             }
         }
         for stmt in &self.stmts {
             for line in (&format!("{}", stmt)[..]).lines() {
-                try!(write!(f, "    {};\n", line));
+                write!(f, "    {};\n", line)?;
             }
         }
         if let Some(ref e) = self.expr {
             for line in (&format!("{}", e)[..]).lines() {
-                try!(write!(f, "    {}\n", line));
+                write!(f, "    {}\n", line)?;
             }
         }
         write!(f, "{}", "}")
@@ -469,9 +469,9 @@ pub struct Variant {
 
 impl Display for Variant {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        try!(write!(f, "{}(", self.ident));
+        write!(f, "{}(", self.ident)?;
         for argtype in &self.args {
-            try!(write!(f, "{}, ", argtype));
+            write!(f, "{}, ", argtype)?;
         }
         write!(f, ")")
     }
@@ -576,57 +576,57 @@ impl Display for ItemNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             FuncItem(ref id, ref args, ref t, LocalFn(ref block), ref tps) => {
-                try!(write!(f, "fn {}", id));
+                write!(f, "fn {}", id)?;
                 if !tps.is_empty() {
-                    try!(write!(f, "<{:?}>", tps));
+                    write!(f, "<{:?}>", tps)?;
                 }
                 write!(f, "({:?}) -> {} {}", args, t, block)
             },
             FuncItem(ref id, ref args, ref t, ExternFn(ref abi, ref block_opt), ref tps) => {
-                try!(write!(f, "extern \"{}\" fn {}", abi, id));
+                write!(f, "extern \"{}\" fn {}", abi, id)?;
                 if !tps.is_empty() {
-                    try!(write!(f, "<{:?}>", tps));
+                    write!(f, "<{:?}>", tps)?;
                 }
-                try!(write!(f, "({:?}) -> {}", args, t));
+                write!(f, "({:?}) -> {}", args, t)?;
                 match *block_opt {
                     Some(ref block) => write!(f, "{{ {} }}", block),
                     None => write!(f, ";"),
                 }
             },
             StructItem(ref id, ref fields, ref tps) => {
-                try!(write!(f, "struct {}", id));
+                write!(f, "struct {}", id)?;
                 if !tps.is_empty() {
-                    try!(write!(f, "<{:?}>", tps));
+                    write!(f, "<{:?}>", tps)?;
                 }
-                try!(write!(f, "{}\n", " {"));
+                write!(f, "{}\n", " {")?;
                 for field in fields {
-                    try!(write!(f, "    {},\n", field));
+                    write!(f, "    {},\n", field)?;
                 }
                 write!(f, "{}", "}")
             },
             EnumItem(ref id, ref items, ref tps) => {
-                try!(write!(f, "enum {}", id));
+                write!(f, "enum {}", id)?;
                 if !tps.is_empty() {
-                    try!(write!(f, "<{:?}>", tps));
+                    write!(f, "<{:?}>", tps)?;
                 }
-                try!(write!(f, "{}\n", " {"));
+                write!(f, "{}\n", " {")?;
                 for item in items {
-                    try!(write!(f, "    {},\n", item));
+                    write!(f, "    {},\n", item)?;
                 }
                 write!(f, "{}", "}")
             }
             TypeItem(ref id, ref ty, ref tps) => {
-                try!(write!(f, "type {}", id));
+                write!(f, "type {}", id)?;
                 if !tps.is_empty() {
-                    try!(write!(f, "<{:?}>", tps));
+                    write!(f, "<{:?}>", tps)?;
                 }
                 write!(f, " = {};", ty)
             }
             ModItem(ref ident, ref module) => {
-                try!(write!(f, "mod {}", ident));
-                try!(write!(f, "{}\n", " {"));
+                write!(f, "mod {}", ident)?;
+                write!(f, "{}\n", " {")?;
                 for item in &module.val.items {
-                    try!(write!(f, "    {}\n", item));
+                    write!(f, "    {}\n", item)?;
                 }
                 write!(f, "{}", "}")
             }
@@ -657,7 +657,7 @@ impl Display for ModuleNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         for item in &self.items {
             for line in (&format!("{}", item)[..]).lines() {
-                try!(write!(f, "{}\n", line));
+                write!(f, "{}\n", line)?;
             }
         }
         Ok(())
