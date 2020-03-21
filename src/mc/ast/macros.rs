@@ -11,7 +11,7 @@ use super::*;
 
 #[derive(Default)]
 pub struct MacroExpander<'a> {
-    macros: BTreeMap<Name, Box<Expander + 'a>>,
+    macros: BTreeMap<Name, Box<dyn Expander + 'a>>,
 }
 
 struct MacroExpanderVisitor<'a, 'b: 'a> {
@@ -216,7 +216,7 @@ impl<'a> MacroExpander<'a> {
         for &(s, e) in BUILTIN_MACROS.iter() {
             INTERNER.with(|x| {
                 let name = x.intern(s.to_string());
-                macros.insert(name, Box::new(ExpanderFn(e)) as Box<Expander>);
+                macros.insert(name, Box::new(ExpanderFn(e)) as Box<dyn Expander>);
             })
         }
 
@@ -257,7 +257,7 @@ impl<'a, 'b> MacroExpanderVisitor<'a, 'b> {
         let filename = self.session.parser.filename_of(id);
 
         let mut toks = unsafe {
-            let this_macro: & &Expander = ::std::mem::transmute(
+            let this_macro: & &dyn Expander = ::std::mem::transmute(
                 match self.session.expander.macros.get(&name) {
                     Some(m) => m,
                     None => self.session.error_fatal(*id, &format!("Macro {}! is undefined", name)[..]),

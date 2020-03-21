@@ -155,7 +155,7 @@ pub fn offset_of(sizes: &[u64], item: usize) -> u64 {
 mod tests {
     use mc::ast::visitor::Visitor;
     use mc::ast::NodeId;
-    use mc::lexer::{Lexer, new_mb_lexer};
+    use mc::lexer::{new_mb_lexer};
     use mc::parser::Parser;
     use typechecker::Typechecker;
 

@@ -169,7 +169,7 @@ impl<'a, 'b> ConstCollector<'a, 'b> {
 
         ConstGraphBuilder::build_graph(graph, nodes, typechecker.session, module);
 
-        match (&*graph as &GraphExt<NodeId>).toposort() {
+        match (&*graph as &dyn GraphExt<NodeId>).toposort() {
             Ok(order) => order,
             Err(nid)  => typechecker.session.error_fatal(nid, "Recursive constant"),
         }
@@ -1633,15 +1633,15 @@ impl<'a> Visitor for Typechecker<'a> {
 
 #[cfg(test)]
 mod tests {
-    use mc::ast::NodeId;
-    use mc::ast::visitor::Visitor;
-    use mc::parser::ast_from_str;
+    
+    
+    
     use mc::session::{Session, Options};
     use mc::setup_builtin_search_paths;
 
     use super::Typechecker;
 
-    use std::collections::BTreeMap;
+    
 
     #[test]
     fn basic_tyck_test() {

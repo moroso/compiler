@@ -140,7 +140,7 @@ impl MkTarget for AsmTarget {
 
 impl Target for AsmTarget {
     #[allow(unused_must_use)]
-    fn compile(&self, p: Package, f: &mut Write) {
+    fn compile(&self, p: Package, f: &mut dyn Write) {
         let Package {
             module,
             mut session,

@@ -369,7 +369,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
          }))
     }
 
-    pub fn convert_module(&mut self, module: &Module) -> (Vec<(Vec<Op>)>,
+    pub fn convert_module(&mut self, module: &Module) -> (Vec<Vec<Op>>,
                                                           Vec<StaticIRItem>) {
         let mut res = vec!();
         let mut static_res = vec!();
@@ -749,7 +749,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
                 let mut e1ty = self.lookup_ty(e1.id).clone();
                 let mut e2ty = self.lookup_ty(e2.id).clone();
-                let (mut new_e1, mut new_e2) =
+                let (new_e1, new_e2) =
                     if op.val == PlusOp && e2ty.is_ptr() {
                         // We'll always put the pointer first.
                         // Because addition is commutative!
@@ -870,7 +870,7 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 //     and width are passed into it.
                 let (binop_var, binop_insts, lhs_var, width,
                      finalize): (Var, Vec<OpNode>, Var, Width,
-                                 Box<Fn(Var, Var, Width) -> OpNode>) = match unwrapped.val {
+                                 Box<dyn Fn(Var, Var, Width) -> OpNode>) = match unwrapped.val {
                     PathExpr(ref path) => {
                         let defid = self.session.resolver.def_from_path(path);
                         let lhs_var = Var {

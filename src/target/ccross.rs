@@ -18,7 +18,7 @@ use typechecker::*;
 use util::graph::{Graph, VertexIndex, GraphExt};
 
 #[allow(unused_must_use)]
-pub fn emit_ccross_prelude(f: &mut Write) {
+pub fn emit_ccross_prelude(f: &mut dyn Write) {
     // This freestanding stuff is a hack but hey, so is the rest of this?
     writeln!(f, "{}", "#include <stdint.h>");
     writeln!(f, "{}", "#include <stdlib.h>");
@@ -794,7 +794,7 @@ impl<'a> CCrossCompiler<'a> {
     fn visit_module_worker(&mut self,
                            results: &mut Vec<String>,
                            module: &Module,
-                           f: &mut FnMut(&mut CCrossCompiler,
+                           f: &mut dyn FnMut(&mut CCrossCompiler,
                                          &mut Vec<String>,
                                          &Module)) {
 
@@ -930,7 +930,7 @@ impl MkTarget for CTarget {
 }
 impl Target for CTarget {
     #[allow(unused_must_use)]
-    fn compile(&self, p: Package, f: &mut Write) {
+    fn compile(&self, p: Package, f: &mut dyn Write) {
         let Package {
             module,
             mut session,

@@ -14,7 +14,7 @@ mod util;
 mod debug_info;
 
 pub trait Target {
-    fn compile(&self, p: Package, f: &mut Write);
+    fn compile(&self, p: Package, f: &mut dyn Write);
 }
 pub trait MkTarget: Target {
     fn new(args: &[(String, Option<String>)]) -> Box<Self>;

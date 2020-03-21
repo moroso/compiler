@@ -114,11 +114,11 @@ impl RegisterColorer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ir::*;
+    
     use std::collections::{BTreeMap, BTreeSet};
-    use util::Name;
+    
     use mas::ast::Reg;
-    use codegen::*;
+    
 
     fn var(n: u32) -> Var {
         Var { name: VarName::IRTempVariable(n as usize), generation: Some(1) }

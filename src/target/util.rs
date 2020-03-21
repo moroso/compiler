@@ -79,7 +79,7 @@ impl<'a, 'b> Visitor for NameMangler<'a, 'b> {
     }
 }
 
-pub fn print_bin(n: u32, stream: &mut Write) {
+pub fn print_bin(n: u32, stream: &mut dyn Write) {
     // Write in little-endian format.
     (stream.write(vec!(
         (n >>  0) as u8,

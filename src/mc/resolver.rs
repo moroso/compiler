@@ -538,11 +538,11 @@ impl<'a, 'b> Visitor for ModuleResolver<'a, 'b> {
 #[cfg(test)]
 mod tests {
     use super::Resolver;
-    use super::super::session::Session;
-    use super::super::ast::NodeId;
-    use super::super::ast::visitor::Visitor;
+    
+    
+    
     use super::super::parser::ast_from_str;
-    use std::collections::BTreeMap;
+    
 
     #[test]
     fn basic_resolver_test() {

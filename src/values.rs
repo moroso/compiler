@@ -55,7 +55,7 @@ fn num_op_helper<U, S>(kind1: &IntKind, rhs: &LitNode,
                 kind1.is_signed()
             };
 
-            let f: &Fn(u64) -> u64 = if is_signed { &s } else { &u };
+            let f: &dyn Fn(u64) -> u64 = if is_signed { &s } else { &u };
 
             if *kind1 == IntKind::GenericInt {
                 NumLit(f(n2), kind2)
@@ -122,7 +122,7 @@ pub fn relation_op<U, S>(lhs: &LitNode, rhs: &LitNode,
                 } else {
                     kind1.is_signed()
                 };
-                let f: Box<Fn(u64, u64) -> bool> = if signed {
+                let f: Box<dyn Fn(u64, u64) -> bool> = if signed {
                     Box::new(|x: u64, y: u64| s(x as i64, y as i64))
                 } else {
                     Box::new(u)

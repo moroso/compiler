@@ -63,8 +63,8 @@ pub struct Language<'a, T> {
     pub ws: T,
     pub begin_comment: T,
     pub end_comment: T,
-    pub rules: Vec<Box<LexerRuleT<T> + 'a>>,
-    pub comment_rules: Vec<Box<LexerRuleT<T> + 'a>>,
+    pub rules: Vec<Box<dyn LexerRuleT<T> + 'a>>,
+    pub comment_rules: Vec<Box<dyn LexerRuleT<T> + 'a>>,
 }
 
 pub struct Lexer<'a, B, T> {
@@ -73,10 +73,10 @@ pub struct Lexer<'a, B, T> {
     pos: SourcePos,
     name: String,
     // Ordinary rules.
-    rules: Vec<Box<LexerRuleT<T> + 'a>>,
+    rules: Vec<Box<dyn LexerRuleT<T> + 'a>>,
     // Rules specifically for when we're within a comment. We need this
     // for handling multi-line comments.
-    comment_rules: Vec<Box<LexerRuleT<T> + 'a>>,
+    comment_rules: Vec<Box<dyn LexerRuleT<T> + 'a>>,
     comment_nest: usize,
     // We set this to Some(Eof) and take it when we hit EOF
     eof: Option<T>,

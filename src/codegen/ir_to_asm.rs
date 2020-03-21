@@ -1488,7 +1488,7 @@ impl<'a> IrToAsm<'a> {
             }
         }
 
-        let reg_op: Box<Fn(Reg) -> Vec<InstNode>> = match *op {
+        let reg_op: Box<dyn Fn(Reg) -> Vec<InstNode>> = match *op {
             Deref |
             AddrOf => panic!("Should not have & or * in IR."),
             Negate => Box::new(|x| vec!(InstNode::alu2short(TRUE_PRED, RsbAluOp, dest, x, 0, 0))),

@@ -205,7 +205,7 @@ fn remove_calls(func: &[Op], call_counts: &mut BTreeMap<VarName, usize>) {
 }
 
 impl Inliner {
-    pub fn inline(funcs: &mut Vec<(Vec<Op>)>, mut next_label: usize, verbose: bool) {
+    pub fn inline(funcs: &mut Vec<Vec<Op>>, mut next_label: usize, verbose: bool) {
         if verbose {
             println!("Starting inline");
         }

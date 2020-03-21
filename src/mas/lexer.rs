@@ -87,8 +87,8 @@ allow_string!(Token);
 // XXX: This is a workaround I don't totally understand and might not work.
 fn mk_rule<A: 'static, T: RuleMatcher<A>+'static, U: TokenMaker<A, Token>+'static>(
     matcher: T, maker: U)
-    -> Box<LexerRuleT<Token>> {
-    Box::new(LexerRule::<A, _, _>::new(matcher, maker)) as Box<LexerRuleT<Token>>
+    -> Box<dyn LexerRuleT<Token>> {
+    Box::new(LexerRule::<A, _, _>::new(matcher, maker)) as Box<dyn LexerRuleT<Token>>
 }
 
 pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(

@@ -237,9 +237,9 @@ impl<'a, 'b> Visitor for DefMapVisitor<'a, 'b> {
 mod tests {
     use super::DefMap;
     use mc::ast::NodeId;
-    use mc::ast::visitor::Visitor;
+    
     use mc::parser::ast_from_str;
-    use std::collections::BTreeMap;
+    
 
     #[test]
     fn compare_canonicalized() {

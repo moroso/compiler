@@ -883,7 +883,7 @@ pub fn inst_from_str(s: &str) -> InstNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mas::ast::*;
+    
     use mas::util::pack_int;
 
     #[test]

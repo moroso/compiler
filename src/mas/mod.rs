@@ -22,7 +22,7 @@ pub mod util;
 pub mod labels;
 pub mod scheduler;
 
-fn print_bin(n: u32, stream: &mut Write) {
+fn print_bin(n: u32, stream: &mut dyn Write) {
     // Write in little-endian format.
     (stream.write_all(vec!(
         (n     ) as u8,
@@ -83,11 +83,11 @@ pub fn main() {
     }
 
     let mut f = match matches.opt_str("output") {
-        None => Box::new(io::stdout()) as Box<Write>,
+        None => Box::new(io::stdout()) as Box<dyn Write>,
         Some(name) => {
             let path = Path::new(&name);
             let file = File::create(&path).unwrap_or_else(|e| panic!("{}", e));
-            Box::new(file) as Box<Write>
+            Box::new(file) as Box<dyn Write>
         }
     };
 

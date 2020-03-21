@@ -25,7 +25,7 @@ impl MkTarget for NullTarget {
     fn new(_: &[(String, Option<String>)]) -> Box<NullTarget> { Box::new(NullTarget) }
 }
 impl Target for NullTarget {
-    fn compile(&self, _: Package, _: &mut Write) { }
+    fn compile(&self, _: Package, _: &mut dyn Write) { }
 }
 
 fn package_from_stdin<'a>(opts: Options) -> Package<'a> {
@@ -39,8 +39,8 @@ fn new_target<T: MkTarget>(args: &[(String, Option<String>)]) -> Box<T> {
 macro_rules! targets {
     ($($n:expr => $t:ty),*) => (
         vec!($(($n, Box::new(|args: &Vec<(String, Option<String>)>| {
-            new_target::<$t>(args) as Box<Target>
-        }) as Box<Fn(&Vec<(String, Option<String>)>) -> Box<Target>> )),*)
+            new_target::<$t>(args) as Box<dyn Target>
+        }) as Box<dyn Fn(&Vec<(String, Option<String>)>) -> Box<dyn Target>> )),*)
     );
     ($($n:expr => $t:ty),+,) => (targets!($($n => $t),+))
 }
@@ -204,11 +204,11 @@ pub fn main() {
     // don't truncate the file if it fails, either. (We *shouldn't*
     // fail during compile, but...)
     let mut writer = match matches.opt_str("output") {
-        None => Box::new(io::stdout()) as Box<Write>,
+        None => Box::new(io::stdout()) as Box<dyn Write>,
         Some(name) => {
             let path = Path::new(&name);
             let file = File::create(&path).unwrap_or_else(|e| panic!("{}", e));
-            Box::new(file) as Box<Write>
+            Box::new(file) as Box<dyn Write>
         }
     };
 
@@ -223,7 +223,7 @@ pub fn main() {
 #[cfg(test)]
 mod tests {
     use package::Package;
-    use super::{NullTarget, setup_builtin_search_paths};
+    use super::{NullTarget};
     use target::{Target, MkTarget};
 
     use std::io;
@@ -265,6 +265,6 @@ fn main() {
 }
 ";
         let package = package_from_str(src);
-        NullTarget.compile(package, &mut io::stdout() as &mut io::Write);
+        NullTarget.compile(package, &mut io::stdout() as &mut dyn io::Write);
     }
 }

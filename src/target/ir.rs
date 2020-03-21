@@ -320,7 +320,7 @@ impl MkTarget for IRTarget {
 }
 impl Target for IRTarget {
     #[allow(unused_must_use)]
-    fn compile(&self, p: Package, f: &mut Write) {
+    fn compile(&self, p: Package, f: &mut dyn Write) {
         let Package {
             module,
             mut session,
