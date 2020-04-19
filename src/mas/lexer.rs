@@ -23,7 +23,11 @@ pub enum Token {
     Colon,
     LBrace,
     RBrace,
+    LSquare,
+    RSquare,
     Semi,
+    Comma,
+    DotDot,
     Plus,
     Dash,
     DashColon,
@@ -69,6 +73,9 @@ pub enum Token {
     Eret,
     Ovf,
     Fence,
+
+    Define,
+    Struct,
 
     Gets,
     Predicates,
@@ -339,7 +346,11 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         Token::Colon      => ":",
         Token::LBrace     => "{",
         Token::RBrace     => "}",
+        Token::LSquare    => "[",
+        Token::RSquare    => "]",
         Token::Semi       => ";",
+        Token::Comma      => ",",
+        Token::DotDot     => "..",
         Token::Gets       => "<-",
         Token::Predicates => "?",
         Token::Plus       => "+",
@@ -411,8 +422,8 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         Token::LoadStore  => LoadStoreRule::new(),
         Token::Flush      => FlushRule::new(),
         Token::IdentTok   => matcher!(r"[a-zA-Z_]\w*"),
-        // TODO: a specific matcher for this.
-        Token::IdentTok   => matcher!(r"\.[0-9]+(a|b)?"),
+        Token::Define     => ".define",
+        Token::Struct     => ".struct",
 
         Token::BeginComment => matcher!(r"/\*")
     };

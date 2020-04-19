@@ -12,10 +12,18 @@ use num::FromPrimitive;
 
 pub use self::InstType::*;
 
+struct StructItem {
+    position: u32,
+    size: u8,
+}
+
+type StructDefinition = BTreeMap<String, StructItem>;
+
 pub struct AsmParser<'a, T: BufRead> {
     tokens: Peekable<Lexer<'a, T, Token>>,
     last_span: Span,
     error_on_misplaced_inst: bool,
+    structs: BTreeMap<String, StructDefinition>,
 }
 
 fn tok_to_op(tok: &Token) -> Option<AluOp> {
@@ -121,7 +129,6 @@ pub fn pack_1op_immediate(n: u32, op: Option<AluOp>)
     // any cases that MOV or MVN don't.
 }
 
-
 impl<'a, T: BufRead> AsmParser<'a, T> {
 
     pub fn new(tokens: Peekable<Lexer<'a, T, Token>>
@@ -130,6 +137,7 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
             tokens: tokens,
             last_span: mk_sp(SourcePos::new(), 0),
             error_on_misplaced_inst: true,
+            structs: BTreeMap::new(),
         }
     }
 
@@ -272,6 +280,61 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
         }
     }
 
+    fn parse_bitfield(&mut self, name: &str) -> u32 {
+        let mut values = BTreeMap::new();
+
+        self.expect(Token::LBrace);
+
+        loop {
+            match self.eat() {
+                Token::IdentTok(name) => {
+                    self.expect(Token::Eq);
+                    let val = self.parse_number();
+
+                    values.insert(name, val);
+                },
+                Token::Comma => {},
+                Token::RBrace => break,
+                _ => self.error("Unexpected token"),
+            }
+        }
+
+        let entry = &self.structs[name];
+        let mut total: u32 = 0;
+        for (k, v) in values {
+            let fieldspec = &entry[&k];
+            self.assert_num_size(v, fieldspec.size);
+            total |= v << fieldspec.position;
+        }
+
+        total
+    }
+
+    fn parse_number(&mut self) -> u32 {
+        // Parse anything that should end up as a number.
+        // Right now supports numerical literals and bitfield structs,
+        // but should probably later grow into a full expression parser.
+        match self.eat() {
+            Token::NumLit(n) => n,
+            Token::IdentTok(name) => { self.parse_bitfield(&name) },
+            _ => self.error("Expected numerical expression"),
+        }
+    }
+
+    // Tokens that can appear at the start of a numerical expression
+    fn is_number_token(&self, t: &Token) -> bool {
+        match t {
+            Token::NumLit(..) => true,
+            Token::IdentTok(n) => self.structs.contains_key(n),
+            _ => false,
+        }
+    }
+
+    fn peek_number_token(&mut self) -> bool {
+        let t = self.peek().clone();
+        self.is_number_token(&t)
+    }
+
     /// This function assumes we've parsed the destination register
     /// and the "gets" arrow, and possibly a (unary) op before it.
     /// All of these things are passed in as parameters; it does the
@@ -298,7 +361,7 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
                     0)
             },
             // No op was given before this, so the instruction so far looks
-            // like "p1 -> r3 <- r6". Either we're done, or there's a binary
+            // like "p1? r3 <- r6". Either we're done, or there's a binary
             // operator after this.
             None => {
                 match tok_to_op(self.peek()) {
@@ -307,7 +370,7 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
                         // a register (which may be shifted), a literal,
                         // or 'long' keyword.
                         self.eat();
-                        match *self.peek() {
+                        match self.peek().clone() {
                             Token::LParen | Token::Reg(..) => {
                                 let (rs,
                                      shifttype,
@@ -323,8 +386,8 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
                                     shifttype,
                                     shiftamt)
                             },
-                            Token::NumLit(num) => {
-                                self.eat();
+                            t if self.is_number_token(&t) => {
+                                let num = self.parse_number();
                                 let (val, rot) = self.pack_int_unwrap(num, 10);
                                 InstNode::alu2short(
                                     pred,
@@ -420,10 +483,10 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
     /// also passed in.
     fn parse_expr(&mut self, pred: Pred, rd: Reg,
                  op: Option<AluOp>) -> InstNode {
-        match *self.peek() {
-            Token::NumLit(n) => {
+        match self.peek().clone() {
+            t if self.is_number_token(&t) => {
                 // We're just storing a number.
-                self.eat();
+                let n = self.parse_number();
                 let (immop, val, rot) = self.pack_imm_unwrap(n, op);
                 InstNode::alu1short(
                     pred,
@@ -541,10 +604,10 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
                 self.eat();
                 self.parse_expr(pred, rd, Some(tok))
             },
-            None => match *self.peek() {
+            None => match self.peek().clone() {
                 // No unary operator. That means there must be a literal,
                 // a register, or an opening paren (for a shift).
-                Token::NumLit(..) |
+                t if self.is_number_token(&t) => self.parse_expr(pred, rd, None),
                 Token::Reg(..) |
                 Token::Long |
                 Token::LParen => self.parse_expr(pred, rd, None),
@@ -558,10 +621,13 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
 
     // Assumes the "long" keyword has already been consumed.
     pub fn parse_long(&mut self) -> InstNode {
-        match self.eat() {
-            Token::NumLit(n) => InstNode::long(n),
-            Token::IdentTok(name) => InstNode::long_label(name),
-            _ => self.error("Must have a numeric literal or label for long."),
+        if self.peek_number_token() {
+            InstNode::long(self.parse_number())
+        } else {
+            match self.eat() {
+                Token::IdentTok(name) => InstNode::long_label(name),
+                _ => self.error("Must have a numeric literal or label for long."),
+            }
         }
     }
 
@@ -603,9 +669,9 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
             None => self.error("Expected a comparison op."),
         };
 
-        match *self.peek() {
-            Token::NumLit(n) => {
-                self.eat();
+        match self.peek().clone() {
+            t if self.is_number_token(&t) => {
+                let n = self.parse_number();
                 let (val, rot) = self.pack_int_unwrap(n, 10);
                 InstNode::compareshort(
                     pred,
@@ -661,21 +727,17 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
                     Token::Plus |
                     Token::Dash => {
                         let subtracted = self.eat() == Token::Dash;
-                        match self.eat() {
-                            Token::NumLit(n) => {
-                                let mut n = n as i32;
-                                if subtracted {
-                                    n = -n;
-                                }
-                                self.assert_signed_num_size(n, 25);
-                                InstNode::branchreg(
-                                    pred,
-                                    linked,
-                                    reg,
-                                    n)
-                            },
-                            _ => self.error("Expected a number."),
+                        let n = self.parse_number();
+                        let mut n = n as i32;
+                        if subtracted {
+                            n = -n;
                         }
+                        self.assert_signed_num_size(n, 25);
+                        InstNode::branchreg(
+                            pred,
+                            linked,
+                            reg,
+                            n)
                     },
                     _ => InstNode::branchreg(
                         pred,
@@ -733,6 +795,64 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
         match self.eat() {
             Token::Reg(reg) => InstNode::flush(pred, flushtype, reg),
             _ => self.error("Expected register.")
+        }
+    }
+
+    fn parse_define(&mut self) {
+        unimplemented!()
+    }
+
+    fn parse_struct(&mut self) {
+        let id = match self.eat() {
+            Token::IdentTok(name) => name,
+            _ => self.error("Expected struct name"),
+        };
+        let mut items = BTreeMap::new();
+        self.expect(Token::LBrace);
+        loop {
+            let tok = self.eat();
+            match tok {
+                Token::Semi => {},
+                Token::IdentTok(name) => {
+                    self.expect(Token::Colon);
+                    let start_idx = match self.eat() {
+                        Token::NumLit(n) => n,
+                        _ => self.error("Expected number for struct item start"),
+                    };
+                    let mut end_idx = start_idx;
+                    match self.peek() {
+                        Token::DotDot => {
+                            self.eat();
+                            end_idx = match self.eat() {
+                                Token::NumLit(n) => n,
+                                _ => self.error("Expected number for struct item end"),
+                            };
+                        },
+                        _ => {},
+                    }
+
+                    if start_idx > 31 {
+                        self.error(format!("Field position {} must be between 0 and 31", start_idx));
+                    }
+                    if end_idx > 31 {
+                        self.error(format!("Field position {} must be between 0 and 31", end_idx));
+                    }
+                    if end_idx > start_idx {
+                        self.error("Struct fields must be specified as MSB..LSB");
+                    }
+                    if items.insert(name.clone(), StructItem { position: end_idx, size: (start_idx + 1 - end_idx) as u8 }).is_some() {
+                        self.error(format!("Duplicate field {}", name));
+                    }
+                },
+                Token::RBrace => break,
+                _ => self.error("Unexpected token."),
+            }
+        }
+
+        // TODO: validate the struct?
+
+        if self.structs.insert(id.clone(), items).is_some() {
+            self.error(format!("Duplicate struct {}", id));
         }
     }
 
@@ -858,6 +978,14 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
                     if labels.insert(name.clone(), instnum).is_some() {
                         self.error(format!("Label '{}' redefined.", name));
                     }
+                },
+                Token::Define => {
+                    self.eat();
+                    self.parse_define();
+                },
+                Token::Struct => {
+                    self.eat();
+                    self.parse_struct();
                 },
                 Token::Eof => {
                     return (packets, labels)
