@@ -302,6 +302,9 @@ impl<'a, T: BufRead> AsmParser<'a, T> {
         let entry = &self.structs[name];
         let mut total: u32 = 0;
         for (k, v) in values {
+            if !entry.contains_key(&k) {
+                self.error(format!("Struct {} has no field {}", name, k));
+            }
             let fieldspec = &entry[&k];
             self.assert_num_size(v, fieldspec.size);
             total |= v << fieldspec.position;
