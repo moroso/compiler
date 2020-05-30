@@ -582,7 +582,7 @@ impl<'a> IrToAsm<'a> {
                     // Otherwise, this is actually allocated in global storage, and
                     // everything will be taken care of for us.
                 },
-                OpNode::Call { func: ref f, args: ref vars, .. } => {
+                OpNode::Call { func: ref f, args: ref vars, target: ref t } => {
                     // TODO: this is a lot messier than it should be.
                     // Clean it up!
 
@@ -625,10 +625,9 @@ impl<'a> IrToAsm<'a> {
                     // regs_to_save tells us which caller-save registers we may need to save.
                     // In particular, any register not used for any live variable at this point
                     // does *not* need to be saved. Variables used as arguments also don't need
-                    // to be saved. Furthermore, r0 doesn't need to be saved: we already know
-                    // that it will end up with the return value, so the register allocator will
-                    // have avoided assigning any live variable to it other than the variable
-                    // that will contain the return value.
+                    // to be saved. Furthermore, r0 doesn't need to be saved if the function returns
+                    // a value: we already know so the register allocator will have avoided assigning
+                    // any live variable to it other than the variable that will contain the return value.
                     let mut regs_to_save: BTreeSet<Reg> = BTreeSet::new();
                     // Make a list of the registers we actually need to save.
                     for var in live_vars.iter() {
@@ -636,7 +635,7 @@ impl<'a> IrToAsm<'a> {
                             "Variable does not appear in regmap") {
                             if r.index as usize >= total_vars &&
                                 r.index as usize <= NUM_PARAM_REGS &&
-                                r.index > 0 {
+                                (r.index > 0 || t.is_none()) {
                                     regs_to_save.insert(r.clone());
                                 }
                         }
