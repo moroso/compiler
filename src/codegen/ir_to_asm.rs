@@ -792,8 +792,8 @@ impl<'a> IrToAsm<'a> {
                     }
 
                 },
-                OpNode::AsmOp { ref insts } => {
-                    result.push(InstNode::packets(insts.clone()));
+                OpNode::AsmOp { ref insts, ref labels } => {
+                    result.push(InstNode::packets(insts.clone(), labels.clone()));
                 },
                 OpNode::Nop {} => {},
             }

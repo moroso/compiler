@@ -1,7 +1,7 @@
 use ir::{Op, OpNode};
 use ir::liveness::LivenessAnalyzer;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, BTreeMap};
 
 // For debugging
 use mas::ast::*;
@@ -70,7 +70,8 @@ impl DeadCodeEliminator {
                                             ),
                                             InstNode::nop(), InstNode::nop(), InstNode::nop(),
                                         )
-                                    )
+                                    ),
+                                    labels: BTreeMap::new(),
                                 };
                             } else {
                                 op.val = OpNode::Nop {};

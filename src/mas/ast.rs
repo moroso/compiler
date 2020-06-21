@@ -6,6 +6,7 @@
 
 use std::fmt;
 use std::fmt::{Formatter, Display};
+use std::collections::BTreeMap;
 use mas::util::{fits_in_bits, ror};
 use num::FromPrimitive;
 
@@ -486,7 +487,7 @@ pub enum InstNode {
     // of instruction packets. It is only used for inline ASM, which has to be passed all the
     // way from the parser down to the instruction scheduler. The scheduler will take this
     // "instruction" and break it into its parts.
-    PacketsInst(Vec<Vec<InstNode>>),
+    PacketsInst(Vec<Vec<InstNode>>, BTreeMap<String, usize>),
 }
 
 fn assert_reg(reg: Reg) {
@@ -1110,8 +1111,8 @@ impl InstNode {
                   flushtype,
                   rs)
     }
-    pub fn packets(packets: Vec<Vec<InstNode>>) -> InstNode {
-        PacketsInst(packets)
+    pub fn packets(packets: Vec<Vec<InstNode>>, labels: BTreeMap<String, usize>) -> InstNode {
+        PacketsInst(packets, labels)
     }
 }
 

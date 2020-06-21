@@ -775,16 +775,19 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
         self.add_id_and_span(LetStmt(pat, expr), start_span.to(end_span))
     }
 
-    fn parse_asm(&mut self, asm_str: &str) -> Vec<Vec<InstNode>> {
+    fn parse_asm(&mut self, asm_str: &str) -> (Vec<Vec<InstNode>>, BTreeMap<String, usize>) {
         let asm_lexer = asm_lexer_from_str(asm_str);
         let mut asm_parser = AsmParser::new(asm_lexer.peekable());
-        let (insts, _) = asm_parser.parse_toplevel();
+        let (insts, labels) = asm_parser.parse_toplevel();
         // TODO: fix this if Rust gets
         // impl<T> Clone for [T; 4] where T: Clone
-        insts.into_iter().map(|x: InstPacket| vec!(x[0].clone(),
-                                                   x[1].clone(),
-                                                   x[2].clone(),
-                                                   x[3].clone())).collect()
+        (
+            insts.into_iter().map(|x: InstPacket| vec!(x[0].clone(),
+                                                       x[1].clone(),
+                                                       x[2].clone(),
+                                                       x[3].clone())).collect(),
+            labels,
+        )
     }
 
     fn parse_asm_expr(&mut self) -> Expr {
@@ -799,8 +802,8 @@ impl<'a, 'b, T: Iterator<Item=SourceToken<Token>>> StreamParser<'a, 'b, T> {
 
         let end_span = self.cur_span();
 
-        let insts = self.parse_asm(&asm_str);
-        self.add_id_and_span(AsmExpr(insts), start_span.to(end_span))
+        let (insts, labels) = self.parse_asm(&asm_str);
+        self.add_id_and_span(AsmExpr(insts, labels), start_span.to(end_span))
     }
 
     fn parse_if_expr(&mut self) -> Expr {

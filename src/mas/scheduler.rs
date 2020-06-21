@@ -251,12 +251,16 @@ pub fn schedule_dummy(insts: &[InstNode],
     for i in 0 .. insts.len() {
         match insts[i] {
             LongInst(..) => continue,
-            PacketsInst(ref inline_packets) => {
+            PacketsInst(ref inline_packets, ref labels) => {
                 update_labels(&jump_target_dict,
                               &mut modified_labels,
                               i,
                               packets.len());
-                // TODO label support in inline asm.
+                for (ref label, ref offs) in labels {
+                    if modified_labels.insert(label.to_string(), packets.len() + *offs).is_some() {
+                        panic!("Duplicate label {}", label);
+                    }
+                }
                 for packet in inline_packets.iter() {
                     packets.push([packet[0].clone(),
                                   packet[1].clone(),
@@ -368,7 +372,7 @@ pub fn schedule(insts: &[InstNode],
             let mut added = false;
             for leaf in &leaves {
                 let inst = &insts[*leaf];
-                if let PacketsInst(ref inline_packets) = *inst {
+                if let PacketsInst(ref inline_packets, ref labels) = *inst {
                     // Flush the current packet.
                     if packet_added {
                         packets.push(this_packet);
@@ -381,7 +385,15 @@ pub fn schedule(insts: &[InstNode],
                                   &mut modified_labels,
                                   *leaf,
                                   packets.len());
-                    // TODO label support in inline asm.
+                    for (ref label, ref offs) in labels {
+                        if debug {
+                            print!("{} {}\n", packets.len() + *offs, label);
+                        }
+                        if modified_labels.insert(label.to_string(), packets.len() + *offs).is_some() {
+                            panic!("Duplicate label {}", label);
+                        }
+                    }
+
                     for packet in inline_packets.iter() {
                         packets.push([packet[0].clone(),
                                       packet[1].clone(),

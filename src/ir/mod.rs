@@ -1,7 +1,7 @@
 use mc::ast::{LitNode, BinOpNode, UnOpNode, Expr, CanHaveId};
 
 use std::fmt::{Formatter, Result, Display};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, BTreeMap};
 
 use util::{Name, Width};
 
@@ -196,7 +196,7 @@ pub enum OpNode {
     // the case of externs; None specifies a local function.
     Func { name: VarName, args: Vec<Var>, abi: Option<Name> },
     // Inline asm.
-    AsmOp { insts: Vec<Vec<InstNode>> },
+    AsmOp { insts: Vec<Vec<InstNode>>, labels: BTreeMap<String, usize> },
     Nop {},
 }
 
@@ -248,7 +248,8 @@ impl Display for OpNode {
                            None => "".to_string(),
                        }, name, write_list(vars.iter())),
             Nop {} => write!(f, "{: >16}\n", "nop"),
-            AsmOp { insts: ref packets } => {
+            AsmOp { insts: ref packets, .. } => {
+                // TODO: print out labels, too.
                 write!(f, "Asm(")?;
                 for packet in packets.iter() {
                     write!(f, "[ ")?;

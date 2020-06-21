@@ -6,6 +6,7 @@ use std::fmt::{Debug, Formatter, Display};
 
 use mas::ast::InstNode;
 use util::Escape;
+use std::collections::BTreeMap;
 
 pub use self::PatNode::*;
 pub use self::TypeNode::*;
@@ -342,8 +343,9 @@ pub enum ExprNode {
     ForExpr(Box<Expr>, Box<Expr>, Box<Expr>, Box<Block>),
     MatchExpr(Box<Expr>, Vec<MatchArm>),
     MacroExpr(Name, Vec<Vec<Token>>),
-    AsmExpr(Vec<Vec<InstNode>>), // The inner Vec is to work around the fact that Rust arrays
-                                 // only impl Clone if the inner type impls Copy.
+    // The inner Vec is to work around the fact that Rust arrays
+    // only impl Clone if the inner type impls Copy.
+    AsmExpr(Vec<Vec<InstNode>>, BTreeMap<String, usize>),
 }
 
 impl Display for ExprNode {
@@ -381,7 +383,8 @@ impl Display for ExprNode {
                 write!(f, "{}", "}")
             },
             MacroExpr(n, ref args) => write!(f, "{}!({:?})", n, args),
-            AsmExpr(ref packets) => {
+            AsmExpr(ref packets, ..) => {
+                // TODO: print out labels, too.
                 write!(f, "Asm(")?;
                 for packet in packets.iter() {
                     write!(f, "[ ")?;

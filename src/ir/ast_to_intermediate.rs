@@ -1695,8 +1695,8 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
 
                 (ops, result_var)
             }
-            AsmExpr(ref x) => {
-                (vec!(self.add_id(OpNode::AsmOp { insts: x.clone() })), None)
+            AsmExpr(ref x, ref l) => {
+                (vec!(self.add_id(OpNode::AsmOp { insts: x.clone(), labels: l.clone() })), None)
             }
             MacroExpr(..) => panic!("ICE: macros should have been expanded by now"),
         }

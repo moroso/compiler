@@ -52,7 +52,7 @@ fn func_refs(func: &[Op]) -> (BTreeMap<VarName, usize>, BTreeSet<VarName>,
                     refs.insert(v.name);
                 }
             }
-            OpNode::AsmOp { ref insts } => {
+            OpNode::AsmOp { ref insts, .. } => {
                 for packet in insts.iter() {
                     for inst in packet.iter() {
                         if let InstNode::BranchImmInst(_, _, JumpTarget::JumpLabel(ref s)) = *inst {
