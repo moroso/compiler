@@ -1,0 +1,15 @@
+fn main() -> u32 {
+    print_uint(prelude::sw_mul(5, 3, true));
+    print_uint(prelude::sw_mul(5, 5, true));
+    print_uint(prelude::sw_mul(8, 16, true));
+
+    print_uint(prelude::sw_mul(5, 0, true));
+    print_uint(prelude::sw_mul(0, 5, true));
+    print_uint(prelude::sw_mul(0, 0, true));
+
+    print_uint(prelude::sw_mul(5, -5, true));
+    print_uint(prelude::sw_mul(-5, -5, true));
+    print_uint(prelude::sw_mul(-5, 5, true));
+
+    0
+}
