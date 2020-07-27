@@ -99,6 +99,7 @@ pub fn main() {
                           "<hex value, no 0x>");
     argopts.optopt("", "code_start", "Address in hex of the start of the code (asm target only)",
                           "<hex value, no 0x>");
+    argopts.optflag("", "default_sw_ops", "Implies --mul_func, --mod_func, and --div_func with the default software arithmetic function names");
     argopts.optopt("", "mul_func", "Name of function to use for software multiplication (asm target only)",
                           "<mangled function name>");
     argopts.optopt("", "div_func", "Name of function to use for software division (asm target only)",
@@ -145,7 +146,7 @@ pub fn main() {
 
     let mut opts = vec!();
 
-    for opt in &["verbose", "disable_scheduler", "disable_inliner"] {
+    for opt in &["verbose", "disable_scheduler", "disable_inliner", "default_sw_ops"] {
         let val = matches.opt_present(opt);
         if val {
             opts.push((opt.to_string(), None));

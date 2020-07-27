@@ -115,6 +115,10 @@ impl MkTarget for AsmTarget {
                 div_func = arg.1.clone();
             } else if arg.0 == "mod_func" {
                 mod_func = arg.1.clone();
+            } else if arg.0 == "default_sw_ops" {
+                mul_func = Some("__prelude__sw_mul".to_string());
+                mod_func = Some("__prelude__sw_mod".to_string());
+                div_func = Some("__prelude__sw_div".to_string());
             } else if arg.0 == "const_mul_bit_limit" {
                 // TODO: actually implement this functionality.
                 const_mul_bit_limit = u8::from_str_radix(&arg.1.clone().unwrap()[..], 10).unwrap();
@@ -232,6 +236,22 @@ impl Target for AsmTarget {
                                       Vec<OpInfo>,
                                       Vec<usize>,
                                       Vec<InstNode>)> = BTreeMap::new();
+
+        for insts in &mut result {
+            // Treat the software ops as builtin functions, to make sure
+            // we don't optimize them out or anything.
+            match insts[0].val {
+                OpNode::Func { name: ref mut n, .. } => {
+                    if let VarName::NamedVariable(vn, _) = n {
+                        let candidate = Some(VarName::MangledVariable(*vn));
+                        if candidate == mul_func_name || candidate == mod_func_name || candidate == div_func_name {
+                            *n = VarName::MangledVariable(*vn);
+                        }
+                    }
+                },
+                _ => {},
+            }
+        }
 
         if !self.disable_inliner {
             Inliner::inline(&mut result, max_label, self.verbose);
