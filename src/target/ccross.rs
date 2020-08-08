@@ -456,10 +456,19 @@ impl<'a> CCrossCompiler<'a> {
         name.to_string()
     }
 
+    fn wrap_enum_creation(&self, cur: String, id: &NodeId) -> String {
+        let t = &self.typemap.types[id];
+        // Do we not have a gensym???
+        let name = "______t";
+        format!("({{{} {} = {}; {};}})", self.visit_ty(t), name, cur, name)
+    }
+
     fn visit_path(&self, path: &Path) -> String {
         // TODO: better mangling.
         match self.enumitemnames.get(&path.val.elems.last().unwrap().val.name) {
-            Some(&(_, _, ref pos)) => format!("{{ .tag = {} }}", pos),
+            Some(&(_, _, ref pos)) => {
+                self.wrap_enum_creation(format!("{{ .tag = {} }}", pos), &path.id)
+            }
             None => {
                 let last_component: Vec<String> = path.val.elems.iter()
                     .map(|elem|
@@ -516,7 +525,19 @@ impl<'a> CCrossCompiler<'a> {
                 if is_block_empty(&**b2) {
                     format!("if ({}) {}", cond, thenpart)
                 } else {
-                    let elsepart = self.visit_block_expr(&**b2);
+                    let block = &**b2;
+                    // If the body of the else is only an expression
+                    // (like it will be in an else if chain), process
+                    // it as an expr statement to avoid generating
+                    // ternarys, which will want the types to match
+                    // up.
+                    let elsepart =
+                        if block.val.items.is_empty() && block.val.stmts.is_empty()
+                            && block.val.expr.is_some() {
+                            self.visit_expr_stmt(block.val.expr.as_ref().unwrap())
+                        } else {
+                            self.visit_block_expr(block)
+                        };
                     format!("if ({}) {} else {}", cond, thenpart, elsepart)
                 }
             }
@@ -609,7 +630,8 @@ impl<'a> CCrossCompiler<'a> {
                                     let actual_name = me.visit_path_in_enum_access(path);
                                     format!(".val.{}.field{} = {}", actual_name, n - 1, expr)
                                 }, ", ");
-                                format!("{{ .tag = {}, {} }}", pos, args)
+                                self.wrap_enum_creation(
+                                    format!("{{ .tag = {}, {} }}", pos, args), &expr.id)
                             }
                             None => {
                                 let args = self.mut_visit_list(args, |me, x| me.visit_expr(x), ", ");

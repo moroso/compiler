@@ -411,7 +411,7 @@ impl fmt::Display for Kind {
     }
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum TyBounds {
     Concrete(Ty),
     Constrained(BTreeSet<Kind>),
@@ -438,6 +438,7 @@ impl fmt::Display for TyBounds {
     }
 }
 
+#[derive(Debug)]
 pub struct Typemap {
     pub types: BTreeMap<NodeId, Ty>,
     pub bounds: BTreeMap<BoundsId, TyBounds>,
@@ -864,7 +865,7 @@ impl<'a> Typechecker<'a> {
             }
             TupleExpr(ref es) => TupleTy(es.iter().map(|e| self.expr_to_ty(e)).collect()),
             GroupExpr(ref e) => self.expr_to_ty(&**e).val,
-            PathExpr(ref path) => {
+            PathExpr(ref path) => save_ty!(self, path, {
                 let nid = self.session.resolver.def_from_path(path);
                 match *self.session.defmap.find(&nid).take().unwrap() {
                     Def::FuncDef(ref args, ref t, _, ref tps) => {
@@ -918,7 +919,7 @@ impl<'a> Typechecker<'a> {
                     _ => self.error_fatal(expr.id,
                                           format!("{} does not name a value", path)),
                 }
-            }
+            }).val,
             StructExpr(ref path, ref flds) => {
                 let nid = self.session.resolver.def_from_path(path);
                 let (fields, tps) = match *self.session.defmap.find(&nid).take().unwrap() {
@@ -1633,15 +1634,15 @@ impl<'a> Visitor for Typechecker<'a> {
 
 #[cfg(test)]
 mod tests {
-    
-    
-    
+
+
+
     use mc::session::{Session, Options};
     use mc::setup_builtin_search_paths;
 
     use super::Typechecker;
 
-    
+
 
     #[test]
     fn basic_tyck_test() {
