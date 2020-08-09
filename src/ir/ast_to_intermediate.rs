@@ -1279,20 +1279,27 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                 let is_ref = ty_is_reference(self.session, &ty);
 
                 let res_var = self.gen_temp();
-                if is_ref {
+                let final_var = if is_ref {
                     ops.push(self.add_id(OpNode::UnOp {
                         target: res_var,
                         op: Identity,
                         operand: Variable(added_addr_var)
                     }));
+                    Some(res_var)
                 } else {
                     ops.push(self.add_id(OpNode::Load {
                         target: res_var,
                         addr: added_addr_var,
                         width: width
                     }));
-                }
-                (ops, Some(res_var))
+
+                    let dest_ty = &self.lookup_ty(expr.id).clone();
+                    let (new_ops, new_var) = self.contract(res_var, dest_ty);
+                    ops.extend(new_ops.into_iter());
+
+                    new_var
+                };
+                (ops, final_var)
             },
             CastExpr(ref e, ref t) => {
                 let (mut ops, res) = self.convert_expr(&**e);
@@ -1529,7 +1536,12 @@ impl<'a, 'b> ASTToIntermediate<'a, 'b> {
                         addr: ptr_var,
                         width: width
                     }));
-                    (ops, Some(result_var))
+
+                    let dest_ty = &self.lookup_ty(expr.id).clone();
+                    let (new_ops, new_var) = self.contract(result_var, dest_ty);
+                    ops.extend(new_ops.into_iter());
+
+                    (ops, new_var)
                 }
             }
             BreakExpr => {

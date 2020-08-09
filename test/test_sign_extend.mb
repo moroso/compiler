@@ -1,7 +1,14 @@
+struct foo {
+    bar: i16
+}
+
 fn main() -> u32 {
     let a: i8 = -1;
     let aa: i32 = 0;
     let b: i16 = a as i16;
+    let arr: i16[1] = [-20i16];
+    let s: foo;
+    s.bar = -30;
 
     *(&aa as *i8) = -1;
 
@@ -11,6 +18,9 @@ fn main() -> u32 {
     print_int(aa as i32);
 
     print_int(((0x80 as i8) + (0x80 as i8)) as i32);
+
+    print_int(arr[0] as i32);
+    print_int(s.bar as i32);
 
     0
 }
