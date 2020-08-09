@@ -6,7 +6,7 @@
 //
 // This is used to implement *printf! in terms of v*printf functions.
 macro varargs!() { [ map_macro!(__varargs_cast!, ..., null) ] }
-macro __varargs_cast!(x) { $x as *() }
+macro __varargs_cast!(x) { ($x) as *() }
 
 // Takes a vararg packet before the leading arguments to the vprintf
 // function, since we don't have a way to pick the *last* argument...
