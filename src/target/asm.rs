@@ -60,6 +60,7 @@ pub struct AsmTarget {
     mul_func: Option<String>,
     div_func: Option<String>,
     mod_func: Option<String>,
+    prelude_file: Option<String>,
     const_mul_bit_limit: u8,
 }
 
@@ -78,6 +79,7 @@ impl MkTarget for AsmTarget {
         let mut div_func = None;
         let mut mod_func = None;
         let mut const_mul_bit_limit = 1;
+        let mut prelude_file = None;
 
         // TODO: get rid of the unnecessary clones in this function.
         for arg in args.iter() {
@@ -119,6 +121,8 @@ impl MkTarget for AsmTarget {
                 mul_func = Some("__prelude__sw_mul".to_string());
                 mod_func = Some("__prelude__sw_mod".to_string());
                 div_func = Some("__prelude__sw_div".to_string());
+            } else if arg.0 == "prelude_file" {
+                prelude_file = arg.1.clone();
             } else if arg.0 == "const_mul_bit_limit" {
                 // TODO: actually implement this functionality.
                 const_mul_bit_limit = u8::from_str_radix(&arg.1.clone().unwrap()[..], 10).unwrap();
@@ -137,6 +141,7 @@ impl MkTarget for AsmTarget {
             mul_func: mul_func,
             div_func: div_func,
             mod_func: mod_func,
+            prelude_file: prelude_file,
             const_mul_bit_limit: const_mul_bit_limit,
         })
     }
@@ -199,17 +204,25 @@ impl Target for AsmTarget {
         };
         result.push(global_initializer);
 
-        let prelude_name = match self.format {
-            BinaryFormat::BSLDFormat => "prelude_bsld.ma",
-            BinaryFormat::FlatFormat => "prelude.ma",
-        };
-        let prelude_file = {
-            let prelude_path = &session.options.search_paths[&prelude_name.to_string()];
-            File::open(&prelude_path).unwrap_or_else(|e| panic!("{}", e))
-        };
+        let (prelude_name, prelude_file) =
+            match self.prelude_file {
+                Some(ref filename) => {
+                    // If we're given a prelude filename, use that.
+                    (filename.clone(), File::open(&filename).unwrap_or_else(|e| panic!("{}", e)))
+                },
+                None => {
+                    // ... otherwise, fall back on the default, depending on the target type.
+                    let prelude_name = match self.format {
+                        BinaryFormat::BSLDFormat => "prelude_bsld.ma",
+                        BinaryFormat::FlatFormat => "prelude.ma",
+                    };
+                    let prelude_path = &session.options.search_paths[&prelude_name.to_string()];
+                    (prelude_name.into(), File::open(&prelude_path).unwrap_or_else(|e| panic!("{}", e)))
+                }
+            };
 
         let prelude_reader = BufReader::new(prelude_file);
-        let asm_lexer = new_asm_lexer(prelude_name, prelude_reader);
+        let asm_lexer = new_asm_lexer(&prelude_name, prelude_reader);
         let asm_peekable = asm_lexer.peekable();
         let mut asm_parser = AsmParser::new(asm_peekable);
         let (insts, labels) = asm_parser.parse_toplevel();

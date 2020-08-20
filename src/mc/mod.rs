@@ -106,6 +106,8 @@ pub fn main() {
                           "<mangled function name>");
     argopts.optopt("", "mod_func", "Name of function to use for software modulo (asm target only)",
                           "<mangled function name>");
+    argopts.optopt("", "prelude_file", "Path to prelude.ma, to be included in generated binary (asm target only)",
+                          "<path to prelude file>");
     argopts.optflag("d", "dep-files", "Generate dependency files");
     argopts.optflag("v", "verbose", "Enable verbose output.");
     argopts.optflag("", "disable_scheduler", "Disable instruction scheduler (asm target only)");
@@ -154,7 +156,7 @@ pub fn main() {
     }
 
     for opt in &["list", "format", "code_start", "stack_start", "global_start",
-                    "debug", "mul_func", "div_func", "mod_func"] {
+                    "debug", "mul_func", "div_func", "mod_func", "prelude_file"] {
         let val = matches.opt_str(opt);
         if val.is_some() {
             opts.push((opt.to_string(), val));
