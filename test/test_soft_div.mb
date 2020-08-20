@@ -1,0 +1,17 @@
+fn main() -> u32 {
+    print_uint(prelude::sw_div(5000000, 3, true));
+    print_uint(prelude::sw_div(1024, 2, true));
+    print_uint(prelude::sw_div(0, 2, true));
+    print_uint(prelude::sw_div(0xffffffff, 0x80000000, false));
+
+    print_uint(prelude::sw_div(-5000000, 3, true));
+    print_uint(prelude::sw_div(-1024, 2, true));
+
+    print_uint(prelude::sw_div(5000000, -3, true));
+    print_uint(prelude::sw_div(1024, -2, true));
+
+    print_uint(prelude::sw_div(-5000000, -3, true));
+    print_uint(prelude::sw_div(-1024, -2, true));
+
+    0
+}

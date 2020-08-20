@@ -41,11 +41,27 @@ fn sw_div(x: u32, y: u32, is_signed: bool) -> u32 {
 		abs_y = if((y as i32) < 0){ ~y + 1 } else{ y };
 		invert = ((x as i32) < 0) != ((y as i32) < 0);
 	}
-	let quotient = 0;
-	while(abs_x >= abs_y){
-		quotient += 1;
-		abs_x = abs_x - abs_y;
+
+	let i: u32 = 0;
+	for (i = 0; i < 32; i += 1) {
+		if (abs_y << i) >= 0x80000000 {
+			break;
+		}
 	}
+
+	// At this point, i contains the amount we can shift
+	// abs_y so the leftmost 1 bit is in the leftmost position.
+
+	let quotient = 0;
+	i += 1;
+	do {
+		i -= 1;
+		if (abs_y << i) <= abs_x {
+			abs_x -= abs_y << i;
+			quotient |= (1 << i);
+		}
+	} while (i > 0);
+
 	if(invert){
 		quotient = ~quotient + 1;
 	}
@@ -57,17 +73,20 @@ fn sw_mod(x: u32, y: u32, is_signed: bool) -> u32 {
 	let abs_x: u32 = x;
 	let abs_y: u32 = y;
 	let invert = false;
+
 	if(is_signed){
 		abs_x = if((x as i32) < 0){ ~x + 1 } else{ x };
 		abs_y = if((y as i32) < 0){ ~y + 1 } else{ y };
-		invert = ((x as i32) < 0);
+		invert = ((x as i32) < 0) != ((y as i32) < 0);
 	}
-	while(abs_x >= abs_y){
-		abs_x = abs_x - abs_y;
+
+	let quotient = sw_div(abs_x, abs_y, false);
+	let i = sw_mul(quotient, y, false);
+	let res = x - i;
+
+	if invert {
+		res = ~res + 1;
 	}
-	if(invert){
-		~abs_x + 1
-	} else {
-		abs_x
-  }
+
+	res
 }
