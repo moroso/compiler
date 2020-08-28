@@ -142,7 +142,8 @@ macro do_printf!(fmt, args, out) { {
             }
         }
 
-        let _arg = _args[_i] as u32;
+        let _parg = _args[_i];
+        let _arg = _parg as u32;
         _i += 1;
 
         let _c = *_s;
@@ -154,7 +155,7 @@ macro do_printf!(fmt, args, out) { {
             continue;
         } else if _c == 's' {
             // TODO: width
-            let _sp = _arg as *u8;
+            let _sp = _parg as *u8;
             let _j: u32;
             for (_j = 0; _sp[_j] != 0 && _j < _precision; _j += 1) {
                 $out(_sp[_j]);
