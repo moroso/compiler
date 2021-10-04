@@ -1265,7 +1265,7 @@ impl<'a> Typechecker<'a> {
                 UintTy(..) | IntTy(..) | GenericIntTy => true,
                 _ => false,
             }
-        };
+        }
 
         match (op.val, l_ty.val, r_ty.val) {
             // Once again we appease the borrow checker...

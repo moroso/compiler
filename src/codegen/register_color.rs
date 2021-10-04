@@ -48,8 +48,8 @@ impl RegisterColorer {
                 // It's a global variable. No work to do!
                 assert!(
                     coloring.get(var).is_none(),
-                    format!("Already colored a global variable {} as {}",
-                            var, coloring[var]));
+                    "Already colored a global variable {} as {}",
+                    var, coloring[var]);
                 coloring.insert(*var, GlobalColor);
                 continue;
             }

@@ -110,7 +110,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
     macro_rules! matcher { ( $e:expr ) => ( Regex::new(concat!("^(?:", $e, ")")).unwrap()) }
 
     // Matcher for a register, such as "r8".
-    struct RegisterRule { re: Regex };
+    struct RegisterRule { re: Regex }
     impl RegisterRule {
         pub fn new() -> RegisterRule {
             RegisterRule { re: matcher!(r"r(\d+|l)") }
@@ -140,7 +140,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         }
     }
 
-    struct CharLiteralRule { re: Regex };
+    struct CharLiteralRule { re: Regex }
     impl CharLiteralRule {
         pub fn new() -> CharLiteralRule {
             CharLiteralRule { re: matcher!(r"'(.)'") }
@@ -159,7 +159,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         }
     }
 
-    struct NumberLiteralRule { re: Regex };
+    struct NumberLiteralRule { re: Regex }
     impl NumberLiteralRule {
         pub fn new() -> NumberLiteralRule {
             NumberLiteralRule { re: matcher!(r"(-?)((?:0[xX]([:xdigit:]+))|(?:0[bB]([01]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?") }
@@ -192,7 +192,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         }
     }
 
-    struct PredicateRule { re: Regex };
+    struct PredicateRule { re: Regex }
     impl PredicateRule {
         pub fn new() -> PredicateRule {
             PredicateRule { re: matcher!(r"(!?)p([0123])") }
@@ -213,7 +213,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         }
     }
 
-    struct ShiftRule { re: Regex };
+    struct ShiftRule { re: Regex }
     impl ShiftRule {
         pub fn new() -> ShiftRule {
             ShiftRule { re: matcher!(r"(<<|>>u|>>s|>>r)") }
@@ -238,7 +238,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         }
     }
 
-    struct LoadStoreRule { re: Regex };
+    struct LoadStoreRule { re: Regex }
     impl LoadStoreRule {
         pub fn new() -> LoadStoreRule {
             LoadStoreRule { re: matcher!(r"\*(sc|llsc|ll|w|l|h|b)") }
@@ -265,7 +265,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         }
     }
 
-    struct CoRegRule { re: Regex };
+    struct CoRegRule { re: Regex }
     impl CoRegRule {
         pub fn new() -> CoRegRule {
             CoRegRule { re: matcher!(r"(?i:(PFLAGS|PTB|EHA|EPC|EC0|EC1|EC2|EC3|EA0|EA1|SP0|SP1|SP2|SP3|RESV..))") }
@@ -316,7 +316,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         }
     }
 
-    struct FlushRule { re: Regex };
+    struct FlushRule { re: Regex }
     impl FlushRule {
         pub fn new() -> FlushRule {
             FlushRule { re: matcher!(r"(?i:flush\.(data|inst|dtlb|itlb))") }

@@ -18,7 +18,7 @@ pub fn link(parts: Vec<(Vec<[InstNode; 4]>, BTreeMap<String, usize>)>
             // For the assert; up here because "label" is moved.
             let error_str = format!("Duplicate label {}", label);
             let res = all_labels.insert(label, LabelInfo::InstLabel(pos + label_pos));
-            assert!(res.is_none(), error_str);
+            assert!(res.is_none(), "{}", error_str);
         }
         pos += this_len;
     }
