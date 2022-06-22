@@ -578,8 +578,8 @@ mod tests {
         for (actual_st, expected_tok)
             in actual.iter().zip(expected.iter()) {
             assert!(actual_st.tok == *expected_tok,
-                    format!("Failure:\n  found {:?}, expected {:?}\n",
-                            actual_st.tok, *expected_tok));
+                    "Failure:\n  found {:?}, expected {:?}\n",
+                            actual_st.tok, *expected_tok);
         }
     }
 

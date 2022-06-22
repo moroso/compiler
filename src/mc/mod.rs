@@ -227,7 +227,7 @@ pub fn main() {
 mod tests {
     use package::Package;
     use super::{NullTarget};
-    use target::{Target, MkTarget};
+    use target::Target;
 
     use std::io;
     use std::path::PathBuf;
