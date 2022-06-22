@@ -248,14 +248,14 @@ impl RuleMatcher<IntKind> for IntTypeRule {
                     'i' | 'I' => IntKind::SignedInt,
                     _ => panic!(),
                 };
-                let w = match u8::from_str_radix(groups.at(1).unwrap(), 10) {
+                let w = match u8::from_str_radix(&groups[1], 10) {
                     Ok(32) => Width::Width32,
                     Ok(16) => Width::Width16,
                     Ok(8)  => Width::Width8,
                     _ => panic!(),
                 };
 
-                Some((groups.at(0).unwrap().len(), ctor(w)))
+                Some((groups[0].len(), ctor(w)))
             },
             _ => None
         }
@@ -269,7 +269,7 @@ struct NumberRule {
 
 impl NumberRule {
     pub fn new() -> NumberRule {
-        NumberRule { re: matcher!(r"((?:0[xX]([:xdigit:]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?") }
+        NumberRule { re: matcher!(r"((?:0[xX]([[:xdigit:]]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?") }
     }
 }
 
@@ -277,12 +277,12 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
     fn find(&self, s: &str) -> Option<(usize, (u64, IntKind))> {
         match self.re.captures(s) {
             Some(groups) => {
-                let (num_str, radix) = match groups.at(2) {
-                    None => (groups.at(1).unwrap(), 10),
-                    Some(hex) => (hex, 16),
+                let (num_str, radix) = match groups.get(2) {
+                    None => (&groups[1], 10),
+                    Some(hex) => (hex.as_str(), 16),
                 };
 
-                let s_opt = groups.at(3);
+                let s_opt = groups.get(3).map(|s| s.as_str());
                 let kind = match s_opt {
                     Some(s) => {
                         let ctor: fn(Width) -> IntKind = match s.chars().nth(0).unwrap() {
@@ -290,7 +290,7 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
                             'i' | 'I' => IntKind::SignedInt,
                             _ => panic!(),
                         };
-                        let w = match groups.at(4).map(|g| u8::from_str_radix(g, 10)) {
+                        let w = match groups.get(4).map(|g| u8::from_str_radix(&g.as_str(), 10)) {
                             Some(Err(_)) | None => Width::AnyWidth,
                             Some(Ok(32)) => Width::Width32,
                             Some(Ok(16)) => Width::Width16,
@@ -303,7 +303,7 @@ impl RuleMatcher<(u64, IntKind)> for NumberRule {
                     None => IntKind::GenericInt
                 };
 
-                Some((groups.at(0).unwrap().len(),
+                Some((groups[0].len(),
                       (u64::from_str_radix(num_str, radix).unwrap(), kind)))
             },
             _ => None
@@ -326,8 +326,8 @@ impl RuleMatcher<String> for IdentBangRule {
     fn find(&self, s: &str) -> Option<(usize, String)> {
         match self.re.captures(s) {
            Some(groups) => {
-                let t = groups.at(0).unwrap();
-                Some((t.len(), groups.at(1).unwrap().to_string()))
+                let t = &groups[0];
+                Some((t.len(), groups[1].to_string()))
            },
             _ => None
         }
@@ -375,8 +375,8 @@ impl RuleMatcher<String> for StringRule {
 
                    res
                }
-               let t = groups.at(0).unwrap();
-               Some((t.len(), str_lit(groups.at(1).unwrap())))
+               let t = &groups[0];
+               Some((t.len(), str_lit(&groups[1])))
            },
             _ => None
         }
@@ -411,8 +411,8 @@ impl RuleMatcher<(u64, IntKind)> for CharRule {
                        first
                    }
                }
-               let t = groups.at(0).unwrap();
-               let c = char_lit(groups.at(1).unwrap());
+               let t = &groups[0];
+               let c = char_lit(&groups[1]);
                Some((t.len(), (c as u64, IntKind::UnsignedInt(Width::Width8))))
            },
             _ => None

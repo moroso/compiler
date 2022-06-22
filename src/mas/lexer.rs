@@ -120,18 +120,18 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         fn find(&self, s: &str) -> Option<(usize, ast::Reg)> {
             match self.re.captures(s) {
                 Some(groups) => {
-                    Some((groups.at(0).unwrap().len(),
-                          if groups.at(1).unwrap() == "l" {
+                    Some((groups[0].len(),
+                          if &groups[1] == "l" {
                               ast::Reg { index: 31 }
                           } else {
-                              let n = u8::from_str_radix(groups.at(1).unwrap(), 10).unwrap();
+                              let n = u8::from_str_radix(&groups[1], 10).unwrap();
                               ast::Reg { index: n }
                           }))
                 },
                 _ => {
                     let matcher = matcher!(r"lr");
                     match matcher.captures(s) {
-                        Some(groups) => Some((groups.at(0).unwrap().len(),
+                        Some(groups) => Some((groups[0].len(),
                                               ast::Reg { index: 31 })),
                         _ => None
                     }
@@ -150,9 +150,9 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         fn find(&self, s: &str) -> Option<(usize, u32)> {
             match self.re.captures(s) {
                 Some(groups) => {
-                    let c = groups.at(1).unwrap().as_bytes()[0] as u32;
+                    let c = groups[1].as_bytes()[0] as u32;
 
-                    Some((groups.at(0).unwrap().len(), c))
+                    Some((groups[0].len(), c))
                 },
                 _ => None
             }
@@ -162,30 +162,26 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
     struct NumberLiteralRule { re: Regex }
     impl NumberLiteralRule {
         pub fn new() -> NumberLiteralRule {
-            NumberLiteralRule { re: matcher!(r"(-?)((?:0[xX]([:xdigit:]+))|(?:0[bB]([01]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?") }
+            NumberLiteralRule { re: matcher!(r"(-?)((?:0[xX]([[:xdigit:]]+))|(?:0[bB]([01]+))|(?:\d+))(?:([uUiI])(32|16|8)?)?") }
         }
     }
     impl RuleMatcher<u32> for NumberLiteralRule {
         fn find(&self, s: &str) -> Option<(usize, u32)> {
             match self.re.captures(s) {
                 Some(groups) => {
-                    // TODO: match on (groups.at(3).unwrap(), groups.at(4).unwrap()) when rust
-                    // fixes issue #14927.
-                    let (num_str, radix) = match groups.at(3) {
-                        None => match groups.at(4) {
-                            None => (groups.at(2).unwrap(), 10),
-                            Some(bin) => (bin, 2),
-                        },
-                        Some(hex) => (hex, 16),
+                    let (num_str, radix) = match (groups.get(3), groups.get(4)) {
+                        (None, None) => (&groups[2], 10),
+                        (None, Some(bin)) => (bin.as_str(), 2),
+                        (Some(hex), _) => (hex.as_str(), 16),
                     };
 
-                    let negated = groups.at(1).unwrap() == "-";
+                    let negated = &groups[1] == "-";
 
                     let mut num = u32::from_str_radix(num_str, radix).unwrap();
 
                     if negated { num = -(num as i32) as u32; }
 
-                    Some((groups.at(0).unwrap().len(), num))
+                    Some((groups[0].len(), num))
                 },
                 _ => None
             }
@@ -202,10 +198,10 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         fn find(&self, s: &str) -> Option<(usize, Pred)> {
             match self.re.captures(s) {
                 Some(groups) => {
-                    Some((groups.at(0).unwrap().len(),
+                    Some((groups[0].len(),
                           Pred {
-                              inverted: groups.at(1).unwrap() == "!",
-                              reg: PredReg::from_u8(groups.at(2).unwrap().as_bytes()[0] - b'0')
+                              inverted: &groups[1] == "!",
+                              reg: PredReg::from_u8(groups[2].as_bytes()[0] - b'0')
                           }))
                 },
                 _ => None
@@ -223,7 +219,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         fn find(&self, s: &str) -> Option<(usize, ShiftType)> {
             match self.re.captures(s) {
                 Some(groups) => {
-                    let shift_type = match groups.at(1).unwrap() {
+                    let shift_type = match &groups[1] {
                         "<<" => SllShift,
                         ">>u" => SrlShift,
                         ">>s" => SraShift,
@@ -231,7 +227,7 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
                         _ => panic!(),
                     };
 
-                    Some((groups.at(0).unwrap().len(), shift_type))
+                    Some((groups[0].len(), shift_type))
                 },
                 _ => None
             }
@@ -248,8 +244,8 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         fn find(&self, s: &str) -> Option<(usize, LsuWidth)> {
             match self.re.captures(s) {
                 Some(groups) =>
-                    Some((groups.at(0).unwrap().len(),
-                          match groups.at(1).unwrap() {
+                    Some((groups[0].len(),
+                          match &groups[1] {
                               "w" |
                               "l" => LsuWidthL,
                               "h" => LsuWidthH,
@@ -275,8 +271,8 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         fn find(&self, s: &str) -> Option<(usize, ast::CoReg)> {
             match self.re.captures(s) {
                 Some(groups) =>
-                    Some((groups.at(0).unwrap().len(),
-                          match &groups.at(1).unwrap().to_ascii_uppercase()[..] {
+                    Some((groups[0].len(),
+                          match &groups[1].to_ascii_uppercase()[..] {
                               "PFLAGS" => PFLAGS,
                               "PTB" => PTB,
                               "EHA" => EHA,
@@ -326,8 +322,8 @@ pub fn new_asm_lexer<'a, T: BufReader, S: ?Sized + ToString>(
         fn find(&self, s: &str) -> Option<(usize, FlushType)> {
             match self.re.captures(s) {
                 Some(groups) =>
-                    Some((groups.at(0).unwrap().len(),
-                          match &groups.at(1).unwrap().to_ascii_uppercase()[..] {
+                    Some((groups[0].len(),
+                          match &groups[1].to_ascii_uppercase()[..] {
                               "DATA" => DataFlush,
                               "INST" => InstFlush,
                               "DTLB" => DtlbFlush,

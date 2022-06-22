@@ -230,8 +230,8 @@ impl<'a, T: MaybeArg> RuleMatcher<T> for &'a str {
 impl<T: MaybeArg> RuleMatcher<T> for Regex {
     fn find<'a>(&self, s: &'a str) -> Option<(usize, T)> {
         match self.find(s) {
-            Some((_, end)) => {
-                let t = &s[..end];
+            Some(mat) => {
+                let t = &s[..mat.end()];
                 Some((t.len(), MaybeArg::maybe_arg(t)))
             },
             _ => None

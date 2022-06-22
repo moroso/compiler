@@ -4,7 +4,7 @@ version = "0.0.1"
 authors = [ "mrwright", "kemurphy", "sully" ]
 
 [dependencies]
-regex = "0.1.*"
+regex = "1.*"
 time = "0.1.*"
 num = "*"
 getopts = "*"
