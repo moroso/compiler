@@ -1,4 +1,4 @@
-use time::precise_time_ns;
+use std::time::Instant;
 
 use package::Package;
 
@@ -415,24 +415,24 @@ impl Target for IRTarget {
             }
         }
 
-        let mut ssa_time: u64 = 0;
-        let mut fold_time: u64 = 0;
-        let mut convert_time: u64 = 0;
+        let mut ssa_time: u128 = 0;
+        let mut fold_time: u128 = 0;
+        let mut convert_time: u128 = 0;
 
         for insts in &mut result {
-            let start = precise_time_ns();
+            let start = Instant::now();
             ToSSA::to_ssa(insts, self.verbose);
-            let end = precise_time_ns();
-            ssa_time += end-start;
+            let end = Instant::now();
+            ssa_time += (end-start).as_nanos();
             if self.verbose {
                 for inst in insts.iter() {
                     write!(f, "{}", inst);
                 }
             }
-            let start = precise_time_ns();
+            let start = Instant::now();
             ConstantFolder::fold(insts, &global_map, self.verbose);
-            let end = precise_time_ns();
-            fold_time += end-start;
+            let end = Instant::now();
+            fold_time += (end-start).as_nanos();
             if self.verbose {
                 for inst in insts.iter() {
                     write!(f, "{}", inst);
@@ -441,10 +441,10 @@ impl Target for IRTarget {
                     write!(f, "{:?}\n", a);
                 }
             }
-            let start = precise_time_ns();
+            let start = Instant::now();
             write!(f, "{}\n", self.convert_function(insts, &global_map));
-            let end = precise_time_ns();
-            convert_time += end-start;
+            let end = Instant::now();
+            convert_time += (end-start).as_nanos();
         }
 
         writeln!(f, "{}", "int main(int argc, char **argv) { _INIT_GLOBALS(); return (int)((long (*)())__main)((long)argc, (long)argv); }");

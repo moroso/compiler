@@ -1,4 +1,4 @@
-use time::precise_time_ns;
+use std::time::Instant;
 
 use ir::*;
 use ir::util::subst;
@@ -43,13 +43,13 @@ fn ssa_vars<F>(generations: &mut BTreeMap<VarName, usize>, vars: &mut BTreeSet<V
 }
 
 #[allow(non_upper_case_globals)]
-static mut opinfo_time: u64 = 0;
+static mut opinfo_time: u128 = 0;
 #[allow(non_upper_case_globals)]
-static mut param_time_1: u64 = 0;
+static mut param_time_1: u128 = 0;
 #[allow(non_upper_case_globals)]
-static mut param_time_2: u64 = 0;
+static mut param_time_2: u128 = 0;
 
-pub fn get_param_times() -> (u64, u64, u64) {
+pub fn get_param_times() -> (u128, u128, u128) {
     unsafe {
         (opinfo_time, param_time_1, param_time_2)
     }
@@ -59,14 +59,14 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
     // TODO: make it so we don't have to clone these.
 
     // TODO: we have to include assigned variables in the labels, too.
-    let start = precise_time_ns();
+    let start = Instant::now();
     let opinfo = LivenessAnalyzer::analyze(ops);
-    let end = precise_time_ns();
+    let end = Instant::now();
     unsafe {
-        opinfo_time += end-start;
+        opinfo_time += (end-start).as_nanos();
     }
 
-    let start = precise_time_ns();
+    let start = Instant::now();
     let mut label_vars = BTreeMap::new();
     let len = ops.len();
     for i in 0 .. len {
@@ -77,12 +77,12 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
             vars.extend(live_vars.iter().cloned());
         }
     }
-    let end = precise_time_ns();
+    let end = Instant::now();
     unsafe {
-        param_time_1 += end-start;
+        param_time_1 += (end-start).as_nanos();
     }
 
-    let start = precise_time_ns();
+    let start = Instant::now();
     for op in ops.iter_mut() {
         match op.val {
             OpNode::Goto { label_idx: i, ref mut vars } |
@@ -93,9 +93,9 @@ fn parameterize_labels(ops: &mut Vec<Op>) {
             _ => {}
         }
     }
-    let end = precise_time_ns();
+    let end = Instant::now();
     unsafe {
-        param_time_2 += end-start;
+        param_time_2 += (end-start).as_nanos();
     }
 }
 
@@ -305,13 +305,13 @@ fn minimize(ops: &mut Vec<Op>, verbose: bool) {
 }
 
 #[allow(non_upper_case_globals)]
-static mut label_time: u64 = 0;
+static mut label_time: u128 = 0;
 #[allow(non_upper_case_globals)]
-static mut gen_time: u64 = 0;
+static mut gen_time: u128 = 0;
 #[allow(non_upper_case_globals)]
-static mut minimize_time: u64 = 0;
+static mut minimize_time: u128 = 0;
 
-pub fn get_times() -> (u64, u64, u64) {
+pub fn get_times() -> (u128, u128, u128) {
     unsafe {
         (label_time, gen_time, minimize_time)
     }
@@ -321,16 +321,16 @@ impl ToSSA {
     pub fn to_ssa(ops: &mut Vec<Op>, verbose: bool) {
         if ops.len() == 1 { return; } // No instructions; probably extern.
                                       // TODO: this is somewhat fragile...
-        let start = precise_time_ns();
+        let start = Instant::now();
         parameterize_labels(ops);
-        let end = precise_time_ns();
+        let end = Instant::now();
         unsafe {
-            label_time += end-start;
+            label_time += (end-start).as_nanos();
         }
 
         let gens = &mut BTreeMap::<VarName, usize>::new();
 
-        let start = precise_time_ns();
+        let start = Instant::now();
         for op in ops.iter_mut() {
             match op.val {
                 OpNode::UnOp { target: ref mut v, operand: ref mut rve, .. } => {
@@ -386,9 +386,9 @@ impl ToSSA {
                 _ => {}
             }
         }
-        let end = precise_time_ns();
+        let end = Instant::now();
         unsafe {
-            gen_time += end-start;
+            gen_time += (end-start).as_nanos();
         }
 
         if verbose {
@@ -398,11 +398,11 @@ impl ToSSA {
             }
         }
 
-        let start = precise_time_ns();
+        let start = Instant::now();
         minimize(ops, verbose);
-        let end = precise_time_ns();
+        let end = Instant::now();
         unsafe {
-            minimize_time = end-start;
+            minimize_time = (end-start).as_nanos();
         }
     }
 

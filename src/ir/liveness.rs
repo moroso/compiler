@@ -1,5 +1,5 @@
 // Liveness analysis
-use time::precise_time_ns;
+use std::time::Instant;
 
 use std::collections::BTreeSet;
 use std::iter::FromIterator;
@@ -173,18 +173,18 @@ fn propagate_once(opinfo: &mut Vec<OpInfo>,
 }
 
 #[allow(non_upper_case_globals)]
-static mut seed_time: u64 = 0;
+static mut seed_time: u128 = 0;
 #[allow(non_upper_case_globals)]
-static mut propagate_time: u64 = 0;
+static mut propagate_time: u128 = 0;
 
-pub fn get_liveness_times() -> (u64, u64) {
+pub fn get_liveness_times() -> (u128, u128) {
     unsafe {
         (seed_time, propagate_time)
     }
 }
 
 fn propagate(ops: &[Op], opinfo: &mut Vec<OpInfo>) {
-    let start = precise_time_ns();
+    let start = Instant::now();
 
     let mut active_ops: BTreeSet<usize> = FromIterator::from_iter(0..ops.len());
     let mut predecessors: Vec<BTreeSet<usize>> = (0..ops.len()).map(|_| BTreeSet::new()).collect();
@@ -197,9 +197,9 @@ fn propagate(ops: &[Op], opinfo: &mut Vec<OpInfo>) {
     while !active_ops.is_empty() {
         active_ops = propagate_once(opinfo, active_ops, &predecessors);
     }
-    let end = precise_time_ns();
+    let end = Instant::now();
     unsafe {
-        propagate_time += end-start;
+        propagate_time += (end-start).as_nanos();
     }
 }
 
@@ -209,11 +209,11 @@ impl LivenessAnalyzer {
     pub fn unanalyzed_opinfo(ops: &[Op]) -> Vec<OpInfo> {
         let len = ops.len();
         let mut opinfo = (0..len).map(|_| OpInfo::new()).collect();
-        let start = precise_time_ns();
+        let start = Instant::now();
         seed(ops, &mut opinfo);
-        let end = precise_time_ns();
+        let end = Instant::now();
         unsafe {
-            seed_time += end-start;
+            seed_time += (end-start).as_nanos();
         }
 
         opinfo
